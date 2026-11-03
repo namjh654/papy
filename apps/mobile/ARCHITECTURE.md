@@ -14,7 +14,7 @@
 Phase 2(2026-09-29)에서 모듈을 분리했다. 이름·패키지·파일 배치 규칙은 [docs/conventions.md](docs/conventions.md).
 
 ```text
-build-logic/   elsa.kmp.library · elsa.kmp.feature (convention plugin)
+build-logic/   papy.kmp.library · papy.kmp.feature (convention plugin)
 
 :feature:auth  login · signup · splash  → Api · Request/Response · Repository · UiState · Event · ViewModel, authModule
 :feature:home  HomeUiState · HomeViewModel (홈 탭), homeModule
@@ -39,9 +39,9 @@ build-logic/   elsa.kmp.library · elsa.kmp.feature (convention plugin)
       ├──────────────────────────────────────────┐
 :androidApp (Compose)                        iosApp (SwiftUI, Xcode)
 Navigation Compose type-safe route           NavigationStack + AppPhase
-하단 탭 MainTab + ElsaNavigationBar          TabView(Tab) + MainTab, 탭별 스택
+하단 탭 MainTab + PapyNavigationBar          TabView(Tab) + MainTab, 탭별 스택
 koinViewModel() · EventEffect                SharedViewModel/ViewModelOwner (SKIE)
-designsystem/ (ElsaTheme, Elsa*)              designsystem/ (Elsa*)
+designsystem/ (PapyTheme, Papy*)              designsystem/ (Papy*)
 ```
 
 현재 구조는 이미 **"KMP = Business Layer, UI·Navigation = Native"** 원칙을 따르고 있다. 목표 방향과 가장 큰 차이는 **모듈 분리, Design Token, Push, 보안 저장소, 토큰 갱신/401 처리, 테스트·CI**다.
@@ -62,7 +62,7 @@ designsystem/ (ElsaTheme, Elsa*)              designsystem/ (Elsa*)
 | iOS | Deployment target 18.2, Swift 5.0 | Debug / Staging / Release 구성 |
 | 환경 | `env/common·dev·staging·prod.properties` (+ `.local` 비밀) | build-logic 이 KMP `AppConfig`·Android flavor·iOS `Env.generated.xcconfig` 생성 (Phase 8, DEC-058, docs/environments.md) |
 | Version catalog | `gradle/libs.versions.toml` | Compose BOM 포함 전부 catalog (Phase 1) |
-| Convention plugin | `build-logic` — `elsa.kmp.library`, `elsa.kmp.feature` | namespace 는 Gradle 경로에서 자동 (Phase 2, DEC-039) |
+| Convention plugin | `build-logic` — `papy.kmp.library`, `papy.kmp.feature` | namespace 는 Gradle 경로에서 자동 (Phase 2, DEC-039) |
 
 ### 1.3 라이브러리와 버전
 
@@ -90,7 +90,7 @@ designsystem/ (ElsaTheme, Elsa*)              designsystem/ (Elsa*)
 | **Local Storage** | `LocalStorage`(String KV, suspend) + 타입 확장 + 도메인 래퍼 4종. Android DataStore, iOS NSUserDefaults 전용 suite | 잘 설계됨. 토큰이 평문 저장, 변경 관찰(Flow) 없음 |
 | **Authentication** | `LoginRepository` → `SessionRepository.start/restore/logout` → Storage + `AuthStore`/`UserStore`. 아이디 저장·자동 로그인. Splash에서 세션 복원 | 핵심 흐름 완성, 테스트 3건. 토큰 만료/갱신, 401 시 세션 종료 없음 |
 | **Push Notification** | 없음 (`SettingStorage.PUSH` 플래그만 존재) | 신규 |
-| **Design System** | Android `ElsaTheme` = Material3 기본값(색/타입/모양 미정의), iOS 테마 없음. `AppCard` 양쪽에 있으나 수치 불일치(Android 기본 Card vs iOS radius 24) | 사실상 없음. Token 체계 신규 |
+| **Design System** | Android `PapyTheme` = Material3 기본값(색/타입/모양 미정의), iOS 테마 없음. `AppCard` 양쪽에 있으나 수치 불일치(Android 기본 Card vs iOS radius 24) | 사실상 없음. Token 체계 신규 |
 | **DI** | Koin. `initKoin(platformModule, apiConfig)` 공통 진입점, Android `koinViewModel()`, iOS `IOSAppGraph` + `SharedViewModel`(@StateObject, deinit에서 `dispose()`) | 잘 정리됨. ViewModel을 `factory`로 등록 |
 | **테스트** | `core/commonTest` 1개 파일 3케이스(통과). androidApp·iOS 테스트 타깃 없음 | 부족 |
 | **Build / CI** | CI 설정 없음. remote 2개(`origin` 사내 GitLab, `github`) | 신규 |
@@ -146,12 +146,12 @@ root
 │   └── home/
 ├── androidApp/
 │   ├── app/ navigation/               # Application, MainActivity, NavHost, Route
-│   ├── designsystem/                  # ElsaTheme(Compose) ← 생성된 토큰, 공통 Composable
+│   ├── designsystem/                  # PapyTheme(Compose) ← 생성된 토큰, 공통 Composable
 │   ├── feature/<name>/                # Screen (Compose)
 │   └── push/                          # FirebaseMessagingService 등 Native 구현
 └── iosApp/
     ├── App/ Navigation/               # App, AppNavigation, Route
-    ├── DesignSystem/                  # ElsaTheme(SwiftUI) ← 생성된 토큰, 공통 View
+    ├── DesignSystem/                  # PapyTheme(SwiftUI) ← 생성된 토큰, 공통 View
     ├── Features/<Name>/               # Screen (SwiftUI)
     ├── Bridge/                        # SharedViewModel, ViewModelOwner
     └── Push/                          # UNUserNotificationCenter / APNs Native 구현
@@ -194,7 +194,7 @@ core:testing ── testImplementation only
 | 화면 이동 | Event 발행만 | `EventEffect` → `NavController` | `for await` + `onEnum(of:)` → path/phase |
 | 인증 게이트 | `AuthStore.status: StateFlow<AuthStatus>` | 루트에서 관찰 → 그래프 교체 | 루트에서 관찰 → `AppPhase` 교체 |
 | 문자열 | 에러 **코드/타입** (`AppError`) | `strings.xml` 로 매핑 | `Localizable.xcstrings` 로 매핑 |
-| 디자인 | Token **의미·값**(생성 원본) | `ElsaTheme`/CompositionLocal | `ElsaTheme`/Environment |
+| 디자인 | Token **의미·값**(생성 원본) | `PapyTheme`/CompositionLocal | `PapyTheme`/Environment |
 | 권한·푸시·보안 저장소 | 인터페이스 + 상태 모델 | Native 구현 | Native 구현 |
 | ViewModel 수명 | `viewModelScope` | `koinViewModel()` (NavBackStackEntry) | `@StateObject` + `dispose()` |
 
@@ -211,10 +211,10 @@ core:testing ── testImplementation only
   - semantic: `color.bg.surface`, `color.text.primary`, `color.border.default`, `color.status.error`, `space.md`, `radius.card`, `type.title.lg`
   - light/dark 두 모드 값을 함께 정의
 - **생성:** 기존 `generateEnvironment`와 같은 방식의 Gradle 태스크로
-  - Android: `ElsaTokens.kt` (Compose `Color`, `Dp`, `TextStyle`) → `ElsaTheme`의 `ColorScheme`/CompositionLocal 에 매핑
-  - iOS: `ElsaTokens.swift` (`Color`, `CGFloat`, `Font`) → `EnvironmentValues`/`ShapeStyle` 확장으로 노출
+  - Android: `PapyTokens.kt` (Compose `Color`, `Dp`, `TextStyle`) → `PapyTheme`의 `ColorScheme`/CompositionLocal 에 매핑
+  - iOS: `PapyTokens.swift` (`Color`, `CGFloat`, `Font`) → `EnvironmentValues`/`ShapeStyle` 확장으로 노출
   - 생성 결과는 커밋할지 빌드 시 생성할지 결정 필요(iOS는 Xcode 빌드 전 생성 필요)
-- **공통 Component:** 계약만 KMP 또는 문서로 공유(예: `ButtonStyle = Primary | Secondary | Text`, `size`, `isLoading`). 구현은 `ElsaButton`(Compose) / `ElsaButton`(SwiftUI)로 동일 이름·동일 파라미터 의미를 유지한다. 1차 대상: Button, TextField, SecureField, Card, Checkbox/Toggle, LoadingIndicator, ErrorText, TopBar.
+- **공통 Component:** 계약만 KMP 또는 문서로 공유(예: `ButtonStyle = Primary | Secondary | Text`, `size`, `isLoading`). 구현은 `PapyButton`(Compose) / `PapyButton`(SwiftUI)로 동일 이름·동일 파라미터 의미를 유지한다. 1차 대상: Button, TextField, SecureField, Card, Checkbox/Toggle, LoadingIndicator, ErrorText, TopBar.
 - Material3/SwiftUI 기본 컴포넌트를 감싸되 플랫폼 룩앤필(예: iOS `Toggle`, Android `Checkbox`)은 유지한다. **의미(token)가 같고 모양은 플랫폼답게**가 기준이다.
 
 ### 3.2 Navigation 전략

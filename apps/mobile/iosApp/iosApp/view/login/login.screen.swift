@@ -17,27 +17,27 @@ struct LoginScreen: View {
     private var viewModel: LoginViewModel { model.viewModel }
     private var state: LoginUiState { model.state }
 
-    @State private var toast: ElsaToast?
+    @State private var toast: PapyToast?
 
     private var canLogin: Bool { state.isLoginEnabled && !state.isLoading }
 
     var body: some View {
-        ElsaFormScrollView {
-            Spacer(minLength: ElsaSpacing.xxl)
+        PapyFormScrollView {
+            Spacer(minLength: PapySpacing.xxl)
 
-            ElsaScreenHeader(
+            PapyScreenHeader(
                 title: String(localized: "login_title"),
                 description: String(localized: "login_description")
             )
 
-            ElsaTextField(
+            PapyTextField(
                 String(localized: "field_username"),
                 text: binding(\.username, viewModel.usernameChanged),
                 placeholder: String(localized: "field_username_placeholder"),
                 textContentType: .username
             )
 
-            ElsaTextField(
+            PapyTextField(
                 String(localized: "field_password"),
                 text: binding(\.password, viewModel.passwordChanged),
                 placeholder: String(localized: "field_password_placeholder"),
@@ -48,33 +48,33 @@ struct LoginScreen: View {
             )
 
             // 한 줄에 안 들어가면(영어·큰 글자) 다음 줄로 (Android FlowRow)
-            ElsaFlowLayout(spacing: ElsaSpacing.lg) {
-                ElsaCheckbox(
+            PapyFlowLayout(spacing: PapySpacing.lg) {
+                PapyCheckbox(
                     label: String(localized: "login_remember_id"),
                     isOn: binding(\.rememberId, viewModel.rememberIdChanged)
                 )
-                ElsaCheckbox(
+                PapyCheckbox(
                     label: String(localized: "login_auto_login"),
                     isOn: binding(\.autoLogin, viewModel.autoLoginChanged)
                 )
             }
 
             if let error = state.error {
-                ElsaInlineMessage(message: error.localizedMessage, type: .error)
+                PapyInlineMessage(message: error.localizedMessage, type: .error)
             }
 
             HStack {
                 Spacer()
-                ElsaButton(String(localized: "login_forgot_password"), style: .text, size: .small, fullWidth: false) {
+                PapyButton(String(localized: "login_forgot_password"), style: .text, size: .small, fullWidth: false) {
                     onPasswordResetTap()
                 }
             }
 
-            ElsaSocialLoginSection(providers: state.socialProviders, enabled: !state.isLoading) { provider in
+            PapySocialLoginSection(providers: state.socialProviders, enabled: !state.isLoading) { provider in
                 viewModel.socialLoginTapped(provider: provider)
             }
         } bottomBar: {
-            ElsaButton(
+            PapyButton(
                 String(localized: "login_button"),
                 enabled: state.isLoginEnabled,
                 isLoading: state.isLoading
@@ -84,15 +84,15 @@ struct LoginScreen: View {
 
             HStack(spacing: 0) {
                 Text("login_no_account")
-                    .elsaFont(ElsaFont.bodySmall)
-                    .foregroundStyle(ElsaColor.onSurfaceVariant)
-                ElsaButton(String(localized: "login_signup"), style: .text, size: .small, fullWidth: false) {
+                    .papyFont(PapyFont.bodySmall)
+                    .foregroundStyle(PapyColor.onSurfaceVariant)
+                PapyButton(String(localized: "login_signup"), style: .text, size: .small, fullWidth: false) {
                     onSignupTap()
                 }
             }
         }
-        .elsaScreenBackground()
-        .elsaToast($toast)
+        .papyScreenBackground()
+        .papyToast($toast)
         .task {
             await observeEvents()
         }
@@ -137,9 +137,9 @@ private extension LoginScreen {
                 // 회원가입·비밀번호 재설정을 마치고 돌아왔을 때
                 switch event.notice {
                 case .signedUp:
-                    toast = ElsaToast(message: String(localized: "login_notice_signed_up"), type: .success)
+                    toast = PapyToast(message: String(localized: "login_notice_signed_up"), type: .success)
                 case .passwordChanged:
-                    toast = ElsaToast(message: String(localized: "login_notice_password_changed"), type: .success)
+                    toast = PapyToast(message: String(localized: "login_notice_password_changed"), type: .success)
                 }
             }
         }

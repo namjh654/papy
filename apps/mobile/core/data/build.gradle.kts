@@ -1,8 +1,8 @@
 // 데이터 계층: network(Ktor·BaseApi) · storage(LocalStorage·도메인 저장소) · serialization(AppJson) · session
 plugins {
-    id("elsa.kmp.library")
+    id("papy.kmp.library")
     // env/<env>.properties → commonMain AppConfig 상수 (docs/environments.md)
-    id("elsa.appconfig")
+    id("papy.appconfig")
 }
 
 kotlin {

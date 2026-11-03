@@ -10,6 +10,6 @@ internal fun VersionCatalog.lib(alias: String) = findLibrary(alias).get()
 
 internal fun VersionCatalog.int(alias: String) = findVersion(alias).get().requiredVersion.toInt()
 
-/** `:core:data` → `cloud.elsa.app.core.data`, `:feature:auth` → `cloud.elsa.app.feature.auth` */
-internal val Project.elsaNamespace: String
-    get() = "cloud.elsa.app" + path.replace(':', '.').replace('-', '_')
+/** `:core:data` → `io.github.namjh654.papy.core.data`, `:feature:auth` → `io.github.namjh654.papy.feature.auth` */
+internal val Project.papyNamespace: String
+    get() = "io.github.namjh654.papy" + path.replace(':', '.').replace('-', '_')

@@ -1,6 +1,6 @@
 // 설정 탭: 테마·언어·앱 정보·약관·로그아웃
 plugins {
-    id("elsa.kmp.feature")
+    id("papy.kmp.feature")
 }
 
 kotlin {

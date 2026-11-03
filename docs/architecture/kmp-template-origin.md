@@ -29,18 +29,21 @@
 - 개인 절대 경로(`/Users/…`) 없음. iOS `DEVELOPMENT_TEAM` 은 `$(TEAM_ID)` 변수.
 - 참고: `env/dev.properties` 에 템플릿 개발용 Postman Mock Server 주소가 공개 값으로 들어 있다. 비밀값은 아니지만 Papy 에서는 쓰지 않으므로 이름 변경 시 함께 정리를 권장한다.
 
-## 원본 식별자 — Papy 전용 값으로 바꿀 후보 (미변경, 승인 필요)
+## 식별자 변경 (2026-11-03 완료)
 
-| 항목 | 원본 값 | 위치 | 제안 |
-|---|---|---|---|
-| Gradle 루트 프로젝트명 | `elsaapp` | `settings.gradle.kts` | `papy` |
-| 앱 표시명 | `ELSA` (+ `Dev`/`Stg` 접미사) | `env/common.properties` `app.name` | `Papy` |
-| Android namespace / applicationId | `cloud.elsa.app` | `androidApp/build.gradle.kts` | 확정 필요 (예: `io.github.namjh654.papy`) |
-| iOS Bundle ID | `cloud.elsa.app.elsaapp$(BUNDLE_ID_SUFFIX)` | `iosApp/Configuration/Config.xcconfig` | Android 와 맞춰 확정 |
-| 딥링크 스킴 | `elsa://` | env·앱 설정 | `papy://` |
-| Kotlin 패키지 | `cloud.elsa.app.*` | 전 모듈 | applicationId 확정 후 |
-| UI 컴포넌트 접두어 | `Elsa*` | `design/`, 양 플랫폼 | 유지 또는 `Papy*` |
+템플릿의 `renameApp` 도구(`./gradlew -p build-logic :tooling:run --args="renameApp …"`)로 패키지·앱 이름·번들 ID 를 바꾸고,
+도구가 다루지 않는 접두어·리소스·딥링크는 같은 규칙으로 일괄 치환했다. `.orca/` 기록과 `CHANGELOG.md` 의 과거 항목, renameApp 의 옛 이름 검출식은 원문 그대로 둔다.
 
-템플릿에는 `renameApp` 도구가 있으므로, 값이 확정되면 그 도구로 바꾼다.
+| 항목 | 원본 값 | 바꾼 값 |
+|---|---|---|
+| Gradle 루트 프로젝트명 | `elsaapp` | `papykmp` |
+| 앱 표시명 | `ELSA` (+ `Dev`/`Stg`) | `Papy` (+ `Dev`/`Stg`) |
+| Android namespace / applicationId · Kotlin 패키지 | `cloud.elsa.app` | `io.github.namjh654.papy` (데스크톱 앱 식별자와 같음) |
+| iOS Bundle ID | `cloud.elsa.app.elsaapp$(BUNDLE_ID_SUFFIX)` | `io.github.namjh654.papy$(BUNDLE_ID_SUFFIX)` |
+| iOS Team ID | 템플릿 작성자 값 | 비움 — 배포 시 본인 Team ID |
+| 딥링크 스킴 | `elsa://` | `papy://` |
+| UI 컴포넌트·토큰·리소스 접두어 | `Elsa*`, `elsa_*`, `.elsaFont` 등 | `Papy*`, `papy_*`, `.papyFont` |
+| 저장소 이름(DataStore·Keychain 등) | `elsa.*` | `papy.*` |
+
 또한 템플릿 기능(로그인·회원가입·푸시·소셜 로그인·채팅 등) 중 상당수는 Papy 원칙(무계정·오프라인)과 맞지 않는다 —
-어떤 기능을 걷어낼지는 모바일 단계 시작 시 별도로 정한다.
+2026-11-03 결정: 이번에는 이름만 바꾸고 기능은 유지한다. 어떤 기능을 걷어낼지는 모바일 개발을 시작할 때 정한다.

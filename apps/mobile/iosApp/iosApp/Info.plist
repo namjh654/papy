@@ -11,7 +11,7 @@
 		<dict>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>elsa</string>
+				<string>papy</string>
 			</array>
 		</dict>
 		<!-- 소셜 로그인 콜백(DEC-119): 카카오 kakao{앱 키}, 구글 역순 클라이언트 ID, 네이버 naverlogin-{번들 ID} -->

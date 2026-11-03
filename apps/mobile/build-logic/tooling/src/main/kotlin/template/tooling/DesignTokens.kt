@@ -3,7 +3,7 @@ package template.tooling
 /**
  * design/tokens.json → Android(Compose) / iOS(SwiftUI) 토큰 코드 + Android 윈도우 테마 색 리소스.
  * design/fonts → Android res/font · iOS Resources/Fonts 복사(DEC-117).
- * design/icons/<이름>.svg → Android `elsa_ic_<이름>` VectorDrawable · iOS 에셋 `elsa_ic_<이름>`(DEC-118).
+ * design/icons/<이름>.svg → Android `papy_ic_<이름>` VectorDrawable · iOS 에셋 `papy_ic_<이름>`(DEC-118).
  * 생성물은 커밋한다. 생성 파일을 직접 고치지 말고 원본을 고친 뒤 `./gradlew generateDesignTokens`.
  */
 class DesignTokens(private val repo: Repo) {
@@ -12,10 +12,10 @@ class DesignTokens(private val repo: Repo) {
     fun outputs(): Map<String, String> {
         val tokens = Json.obj(Json.parse(repo.read(SOURCE)))
         return linkedMapOf(
-            "${repo.androidSrc}/designsystem/token/ElsaTokens.kt" to kotlin(tokens),
-            "iosApp/iosApp/designsystem/token/elsa.tokens.swift" to swift(tokens),
-            "androidApp/src/main/res/values/elsa_colors.xml" to androidColors(tokens, "light"),
-            "androidApp/src/main/res/values-night/elsa_colors.xml" to androidColors(tokens, "dark"),
+            "${repo.androidSrc}/designsystem/token/PapyTokens.kt" to kotlin(tokens),
+            "iosApp/iosApp/designsystem/token/papy.tokens.swift" to swift(tokens),
+            "androidApp/src/main/res/values/papy_colors.xml" to androidColors(tokens, "light"),
+            "androidApp/src/main/res/values-night/papy_colors.xml" to androidColors(tokens, "dark"),
         ).apply { putAll(icons()) }
     }
 
@@ -68,7 +68,7 @@ class DesignTokens(private val repo: Repo) {
 }
 """
         svgs.forEach { svg ->
-            val name = "elsa_ic_${svg.nameWithoutExtension}"
+            val name = "papy_ic_${svg.nameWithoutExtension}"
             val icon = SvgIcon.parse(svg.readText())
             out["androidApp/src/main/res/drawable/$name.xml"] = icon.vectorDrawable("<!-- $ICON_HEADER -->")
             out["$IOS_ICONS/$name.imageset/$name.svg"] = icon.plainSvg()
@@ -111,45 +111,45 @@ class DesignTokens(private val repo: Repo) {
             "",
             "/** 의미 기반(semantic) 색상. 화면·컴포넌트는 hex 대신 이 이름만 사용한다. */",
             "@Immutable",
-            "data class ElsaColors(",
+            "data class PapyColors(",
         )
         colors.keys.forEach { out += "    val $it: Color," }
         out += listOf("    val isDark: Boolean,", ")", "")
         for ((mode, label) in listOf("light" to "Light", "dark" to "Dark")) {
-            out += "val Elsa${label}Colors = ElsaColors("
+            out += "val Papy${label}Colors = PapyColors("
             colors.forEach { (name, v) -> out += "    $name = ${kotlinColor(Json.obj(v)[mode] as String)}," }
             out += listOf("    isDark = ${mode == "dark"},", ")", "")
         }
 
         val font = Json.obj(t["font"])
         out += "/** ${font["family"]} (DEC-117) — design/fonts */"
-        out += "val ElsaFontFamily = FontFamily("
+        out += "val PapyFontFamily = FontFamily("
         Json.obj(font["files"]).forEach { (weight, file) ->
             out += "    Font(R.font.${androidFontName(file as String)}, ${KOTLIN_WEIGHT.getValue(weight)}),"
         }
         out += listOf(")", "")
         out += "/** 한국어를 글자가 아니라 어절 단위로 줄바꿈한다(Android 13+, 그 아래는 기본 동작) */"
-        out += listOf("val ElsaLineBreak = LineBreak.Paragraph.copy(wordBreak = LineBreak.WordBreak.Phrase)", "")
+        out += listOf("val PapyLineBreak = LineBreak.Paragraph.copy(wordBreak = LineBreak.WordBreak.Phrase)", "")
 
         val typography = Json.obj(t["typography"])
-        out += listOf("@Immutable", "data class ElsaTypography(")
+        out += listOf("@Immutable", "data class PapyTypography(")
         typography.keys.forEach { out += "    val $it: TextStyle," }
-        out += listOf(")", "", "val ElsaDefaultTypography = ElsaTypography(")
+        out += listOf(")", "", "val PapyDefaultTypography = PapyTypography(")
         typography.forEach { (name, v) ->
             val s = Json.obj(v)
-            out += "    $name = TextStyle(fontFamily = ElsaFontFamily, fontSize = ${num(s["size"])}.sp, lineHeight = ${num(s["lineHeight"])}.sp, " +
-                "fontWeight = ${KOTLIN_WEIGHT.getValue(s["weight"] as String)}, lineBreak = ElsaLineBreak),"
+            out += "    $name = TextStyle(fontFamily = PapyFontFamily, fontSize = ${num(s["size"])}.sp, lineHeight = ${num(s["lineHeight"])}.sp, " +
+                "fontWeight = ${KOTLIN_WEIGHT.getValue(s["weight"] as String)}, lineBreak = PapyLineBreak),"
         }
         out += listOf(")", "")
 
-        for ((obj, key) in listOf("ElsaSpacing" to "spacing", "ElsaRadius" to "radius", "ElsaSize" to "size")) {
+        for ((obj, key) in listOf("PapySpacing" to "spacing", "PapyRadius" to "radius", "PapySize" to "size")) {
             out += "object $obj {"
             Json.obj(t[key]).forEach { (name, v) -> out += "    val $name = ${num(v)}.dp" }
             out += listOf("}", "")
         }
 
         out += "/** 애니메이션/노출 시간(ms) */"
-        out += "object ElsaMotion {"
+        out += "object PapyMotion {"
         Json.obj(t["motion"]).forEach { (name, v) -> out += "    const val $name = ${num(v)}" }
         out += listOf("}", "")
         return out.joinToString("\n")
@@ -159,29 +159,29 @@ class DesignTokens(private val repo: Repo) {
         val out = mutableListOf("// $HEADER", "", "import CoreText", "import SwiftUI", "import UIKit", "")
         out += listOf(
             "/// 의미 기반(semantic) 색상. light/dark 는 시스템 설정에 따라 자동 전환된다.",
-            "enum ElsaColor {",
+            "enum PapyColor {",
         )
         Json.obj(t["color"]).forEach { (name, v) ->
             val c = Json.obj(v)
-            out += "    static let $name = Color(elsaLight: ${swiftColor(c["light"] as String)}, dark: ${swiftColor(c["dark"] as String)})"
+            out += "    static let $name = Color(papyLight: ${swiftColor(c["light"] as String)}, dark: ${swiftColor(c["dark"] as String)})"
         }
         out += listOf("}", "")
 
-        for ((enum, key) in listOf("ElsaSpacing" to "spacing", "ElsaRadius" to "radius", "ElsaSize" to "size")) {
+        for ((enum, key) in listOf("PapySpacing" to "spacing", "PapyRadius" to "radius", "PapySize" to "size")) {
             out += "enum $enum {"
             Json.obj(t[key]).forEach { (name, v) -> out += "    static let $name: CGFloat = ${num(v)}" }
             out += listOf("}", "")
         }
 
         out += "/// 애니메이션/노출 시간(초)"
-        out += "enum ElsaMotion {"
+        out += "enum PapyMotion {"
         Json.obj(t["motion"]).forEach { (name, v) -> out += "    static let $name: Double = ${((v as Number).toDouble() / 1000)}" }
         out += listOf("}", "")
 
         val font = Json.obj(t["font"])
         val files = Json.obj(font["files"])
         out += listOf(
-            "struct ElsaTextStyle {",
+            "struct PapyTextStyle {",
             "    let size: CGFloat",
             "    let lineHeight: CGFloat",
             "    let weight: Font.Weight",
@@ -193,12 +193,12 @@ class DesignTokens(private val repo: Repo) {
             "    var font: Font { .custom(fontName, size: size, relativeTo: relativeTo) }",
             "}",
             "",
-            "enum ElsaFont {",
+            "enum PapyFont {",
         )
         Json.obj(t["typography"]).forEach { (name, v) ->
             val s = Json.obj(v)
             val weight = s["weight"] as String
-            out += "    static let $name = ElsaTextStyle(size: ${num(s["size"])}, lineHeight: ${num(s["lineHeight"])}, " +
+            out += "    static let $name = PapyTextStyle(size: ${num(s["size"])}, lineHeight: ${num(s["lineHeight"])}, " +
                 "weight: ${SWIFT_WEIGHT.getValue(weight)}, fontName: \"${files.getValue(weight)}\", " +
                 "relativeTo: ${swiftTextStyle((s["size"] as Number).toDouble())})"
         }
@@ -218,15 +218,15 @@ class DesignTokens(private val repo: Repo) {
         out += listOf(
             "extension Color {",
             "    /// 0xRRGGBBAA 값 두 개로 light/dark 동적 색을 만든다.",
-            "    init(elsaLight light: UInt32, dark: UInt32) {",
+            "    init(papyLight light: UInt32, dark: UInt32) {",
             "        self.init(uiColor: UIColor { traits in",
-            "            UIColor(elsaRGBA: traits.userInterfaceStyle == .dark ? dark : light)",
+            "            UIColor(papyRGBA: traits.userInterfaceStyle == .dark ? dark : light)",
             "        })",
             "    }",
             "}",
             "",
             "extension UIColor {",
-            "    convenience init(elsaRGBA value: UInt32) {",
+            "    convenience init(papyRGBA value: UInt32) {",
             "        self.init(",
             "            red: CGFloat((value >> 24) & 0xFF) / 255,",
             "            green: CGFloat((value >> 16) & 0xFF) / 255,",
@@ -249,7 +249,7 @@ class DesignTokens(private val repo: Repo) {
         )
         Json.obj(t["color"]).forEach { (name, v) ->
             val (rgb, a) = parseColor(Json.obj(v)[mode] as String)
-            out += """    <color name="elsa_${snake(name)}">#${hex2(a)}$rgb</color>"""
+            out += """    <color name="papy_${snake(name)}">#${hex2(a)}$rgb</color>"""
         }
         out += listOf("</resources>", "")
         return out.joinToString("\n")

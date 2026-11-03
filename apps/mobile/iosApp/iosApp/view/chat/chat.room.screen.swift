@@ -21,7 +21,7 @@ struct ChatRoomScreen: View {
     }
 
     @Environment(\.locale) private var locale
-    @State private var toast: ElsaToast?
+    @State private var toast: PapyToast?
     /// 보내는 중 사진의 기기 미리보기(말풍선 key → 사진)
     @State private var previews: [String: UIImage] = [:]
     @State private var showAttach = false
@@ -64,13 +64,13 @@ struct ChatRoomScreen: View {
                 if !state.isSearchOpen {
                     VStack(spacing: 0) {
                         if let target = state.replyingTo {
-                            ElsaReplyBar(
+                            PapyReplyBar(
                                 name: replyName(target.isMine),
                                 text: previewText(target.message.text, target.message.attachment?.kind),
                                 onCancel: { viewModel.cancelReply() }
                             )
                         }
-                        ElsaChatInputBar(
+                        PapyChatInputBar(
                             text: Binding(get: { state.input }, set: { viewModel.inputChanged(value: $0) }),
                             canSend: state.canSend,
                             onSend: { viewModel.send() },
@@ -90,26 +90,26 @@ struct ChatRoomScreen: View {
                     }
                 } else {
                     ToolbarItem(placement: .topBarTrailing) {
-                        Button { viewModel.openSearch() } label: { ElsaIcon("elsa_ic_search") }
+                        Button { viewModel.openSearch() } label: { PapyIcon("papy_ic_search") }
                             .accessibilityLabel(String(localized: "chat_search"))
                     }
                 }
             }
             .fullScreenCover(item: $viewer) { image in
-                ElsaImageViewer(preview: image.preview, url: image.url) { viewer = nil }
+                PapyImageViewer(preview: image.preview, url: image.url) { viewer = nil }
             }
-            .elsaScreenBackground(grouped: true)
+            .papyScreenBackground(grouped: true)
             .navigationTitle(state.isSearchOpen ? "" : state.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar(.hidden, for: .tabBar)
-            .elsaToast($toast)
+            .papyToast($toast)
             .quickLookPreview($quickLook)
-            .elsaActionSheet(isPresented: $showAttach, title: String(localized: "attach_title"), actions: [
-                ElsaAction(label: String(localized: "attach_photo"), icon: "elsa_ic_image") { showPhotoPicker = true },
-                ElsaAction(label: String(localized: "attach_camera"), icon: "elsa_ic_camera") { openCamera() },
-                ElsaAction(label: String(localized: "attach_file"), icon: "elsa_ic_file") { showFiles = true },
+            .papyActionSheet(isPresented: $showAttach, title: String(localized: "attach_title"), actions: [
+                PapyAction(label: String(localized: "attach_photo"), icon: "papy_ic_image") { showPhotoPicker = true },
+                PapyAction(label: String(localized: "attach_camera"), icon: "papy_ic_camera") { openCamera() },
+                PapyAction(label: String(localized: "attach_file"), icon: "papy_ic_file") { showFiles = true },
             ])
-            .elsaActionSheet(
+            .papyActionSheet(
                 isPresented: Binding(get: { menuFor != nil }, set: { if !$0 { menuFor = nil } }),
                 actions: menuActions
             )
@@ -134,12 +134,12 @@ struct ChatRoomScreen: View {
     @ViewBuilder
     private var content: some View {
         if state.isLoading && rows.isEmpty {
-            ElsaLoadingIndicator().frame(maxWidth: .infinity, maxHeight: .infinity)
+            PapyLoadingIndicator().frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if let error = state.error, rows.isEmpty {
-            ElsaErrorState(message: error.localizedMessage, onRetry: { viewModel.load() })
+            PapyErrorState(message: error.localizedMessage, onRetry: { viewModel.load() })
                 .frame(maxHeight: .infinity)
         } else if rows.isEmpty {
-            ElsaEmptyState(title: String(localized: "chat_room_empty"))
+            PapyEmptyState(title: String(localized: "chat_room_empty"))
                 .frame(maxHeight: .infinity)
         } else {
             messageList
@@ -151,19 +151,19 @@ struct ChatRoomScreen: View {
             ScrollView {
                 LazyVStack(spacing: 0) {
                     if state.hasOlder {
-                        ElsaLoadingIndicator()
-                            .padding(ElsaSpacing.sm)
+                        PapyLoadingIndicator()
+                            .padding(PapySpacing.sm)
                             .onAppear { viewModel.loadOlder() }
                     }
                     ForEach(rows, id: \.key) { row in
                         rowView(row).id(row.key)
                     }
                     if state.isPeerTyping {
-                        ElsaTypingIndicator().padding(.top, ElsaSpacing.sm).id("typing")
+                        PapyTypingIndicator().padding(.top, PapySpacing.sm).id("typing")
                     }
                 }
-                .padding(.horizontal, ElsaSpacing.md)
-                .padding(.vertical, ElsaSpacing.sm)
+                .padding(.horizontal, PapySpacing.md)
+                .padding(.vertical, PapySpacing.sm)
             }
             // 처음·내용이 늘 때 아래에 붙는다(위에 이전 메시지가 붙어도 보던 자리가 그대로)
             .defaultScrollAnchor(.bottom)
@@ -175,8 +175,8 @@ struct ChatRoomScreen: View {
             }
             .overlay(alignment: .bottomTrailing) {
                 if awayFromBottom {
-                    ElsaScrollToBottomButton { scrollToBottom(proxy) }
-                        .padding(ElsaSpacing.lg)
+                    PapyScrollToBottomButton { scrollToBottom(proxy) }
+                        .padding(PapySpacing.lg)
                 }
             }
             .onChange(of: scrollRequest) { scrollToBottom(proxy) }
@@ -195,7 +195,7 @@ struct ChatRoomScreen: View {
 
     /// 파일 말풍선: 받는 중이면 진행, 받아 두었으면 "저장됨", 실패면 다시 누르라는 안내
     private func fileBubble(_ attachment: Attachment) -> some View {
-        let size = ElsaFormat.fileSize(attachment.size, locale: locale)
+        let size = PapyFormat.fileSize(attachment.size, locale: locale)
         let fileState = state.fileStates[attachment.url]
         let caption: String
         if fileState is DownloadStateFailed {
@@ -206,7 +206,7 @@ struct ChatRoomScreen: View {
             caption = size
         }
         let downloading = fileState as? DownloadStateDownloading
-        return ElsaMessageFile(
+        return PapyMessageFile(
             name: attachment.name,
             size: caption,
             downloading: downloading != nil,
@@ -218,7 +218,7 @@ struct ChatRoomScreen: View {
     private func rowView(_ row: ChatRow) -> some View {
         switch onEnum(of: row) {
         case .dateHeader(let header):
-            ElsaDateSeparator(text: ElsaFormat.dateLong(Date(timeIntervalSince1970: TimeInterval(header.dayStartMillis) / 1000), locale: locale))
+            PapyDateSeparator(text: PapyFormat.dateLong(Date(timeIntervalSince1970: TimeInterval(header.dayStartMillis) / 1000), locale: locale))
         case .bubble(let bubble):
             messageRow(bubble)
         }
@@ -231,35 +231,35 @@ struct ChatRoomScreen: View {
         let startsGroup = row.position == .first || row.position == .single
         let reply = item.message.replyTo
         let canReply = item.sendState == .sent
-        return ElsaMessageBubble(
+        return PapyMessageBubble(
             isMine: item.isMine,
             position: row.position,
-            time: row.showTime ? ElsaFormat.time(epochMillis: item.message.sentAt, locale: locale) : nil,
+            time: row.showTime ? PapyFormat.time(epochMillis: item.message.sentAt, locale: locale) : nil,
             sendState: item.sendState,
             isRead: item.isRead,
             fillContent: isImage
         ) {
-            VStack(alignment: .leading, spacing: ElsaSpacing.xs) {
+            VStack(alignment: .leading, spacing: PapySpacing.xs) {
                 if let reply {
-                    ElsaReplyQuote(name: replyName(item.replyIsMine), text: previewText(reply.text, reply.attachmentKind)) {
+                    PapyReplyQuote(name: replyName(item.replyIsMine), text: previewText(reply.text, reply.attachmentKind)) {
                         viewModel.replyQuoteClicked(messageId: reply.messageId)
                     }
-                    .padding(isImage ? ElsaSpacing.xs : 0)
+                    .padding(isImage ? PapySpacing.xs : 0)
                 }
                 if let attachment {
                     if isImage {
-                        ElsaMessageImage(url: attachment.url, preview: previews[item.key])
+                        PapyMessageImage(url: attachment.url, preview: previews[item.key])
                     } else {
                         fileBubble(attachment)
                     }
                 } else {
-                    ElsaMessageText(text: item.message.text ?? "")
+                    PapyMessageText(text: item.message.text ?? "")
                 }
             }
         }
         .background(
-            highlightKey == item.key ? ElsaColor.primary.opacity(0.15) : Color.clear,
-            in: RoundedRectangle(cornerRadius: ElsaRadius.md, style: .continuous)
+            highlightKey == item.key ? PapyColor.primary.opacity(0.15) : Color.clear,
+            in: RoundedRectangle(cornerRadius: PapyRadius.md, style: .continuous)
         )
         .offset(x: swipe[item.key] ?? 0)
         .contentShape(Rectangle())
@@ -288,24 +288,24 @@ struct ChatRoomScreen: View {
                     withAnimation(.spring(duration: 0.25)) { swipe[item.key] = 0 }
                 }
         )
-        .padding(.top, startsGroup ? ElsaSpacing.sm : ElsaSpacing.xxs)
+        .padding(.top, startsGroup ? PapySpacing.sm : PapySpacing.xxs)
     }
 
-    private var menuActions: [ElsaAction] {
+    private var menuActions: [PapyAction] {
         guard let item = menuFor else { return [] }
-        var actions: [ElsaAction] = []
+        var actions: [PapyAction] = []
         if item.sendState == .sent {
-            actions.append(ElsaAction(label: String(localized: "chat_reply"), icon: "elsa_ic_reply") { viewModel.replyClicked(key: item.key) })
+            actions.append(PapyAction(label: String(localized: "chat_reply"), icon: "papy_ic_reply") { viewModel.replyClicked(key: item.key) })
         }
         if let text = item.message.text {
-            actions.append(ElsaAction(label: String(localized: "chat_copy"), icon: "elsa_ic_copy") {
+            actions.append(PapyAction(label: String(localized: "chat_copy"), icon: "papy_ic_copy") {
                 UIPasteboard.general.string = text
-                toast = ElsaToast(message: String(localized: "chat_copied"), type: .success)
+                toast = PapyToast(message: String(localized: "chat_copied"), type: .success)
             })
         }
         if item.sendState == .failed {
-            actions.append(ElsaAction(label: String(localized: "chat_retry"), icon: "elsa_ic_reply") { viewModel.retry(key: item.key) })
-            actions.append(ElsaAction(label: String(localized: "chat_delete"), icon: "elsa_ic_delete", isDestructive: true) {
+            actions.append(PapyAction(label: String(localized: "chat_retry"), icon: "papy_ic_reply") { viewModel.retry(key: item.key) })
+            actions.append(PapyAction(label: String(localized: "chat_delete"), icon: "papy_ic_delete", isDestructive: true) {
                 viewModel.deleteFailed(key: item.key)
             })
         }
@@ -320,26 +320,26 @@ struct ChatRoomScreen: View {
         let results = state.searchResults.compactMap { $0 as? Message }
         VStack(spacing: 0) {
             // 검색창은 화면 폭으로(상단 바 가운데 칸은 좁다), 열면 바로 입력
-            ElsaSearchBar(
+            PapySearchBar(
                 text: Binding(get: { state.searchQuery }, set: { viewModel.searchQueryChanged(value: $0) }),
                 placeholder: String(localized: "chat_search_placeholder"),
                 focus: $searchFocused,
                 onSearch: {}
             )
             .onAppear { searchFocused = true }
-            .padding(.horizontal, ElsaSize.screenPadding)
-            .padding(.vertical, ElsaSpacing.sm)
+            .padding(.horizontal, PapySize.screenPadding)
+            .padding(.vertical, PapySpacing.sm)
             if state.isSearching && results.isEmpty {
-                ElsaLoadingIndicator().frame(maxHeight: .infinity)
+                PapyLoadingIndicator().frame(maxHeight: .infinity)
             } else if !state.searchQuery.isEmpty && results.isEmpty {
-                ElsaEmptyState(title: String(localized: "chat_search_empty")).frame(maxHeight: .infinity, alignment: .top)
+                PapyEmptyState(title: String(localized: "chat_search_empty")).frame(maxHeight: .infinity, alignment: .top)
             } else {
                 ScrollView {
                     LazyVStack(spacing: 0) {
                         ForEach(results, id: \.id) { message in
-                            ElsaListItem(
+                            PapyListItem(
                                 title: message.text ?? "",
-                                subtitle: ElsaFormat.date(epochMillis: message.sentAt, locale: locale),
+                                subtitle: PapyFormat.date(epochMillis: message.sentAt, locale: locale),
                                 action: { viewModel.searchResultClicked(message: message) }
                             )
                         }
@@ -347,7 +347,7 @@ struct ChatRoomScreen: View {
                 }
             }
         }
-        .background(ElsaColor.background)
+        .background(PapyColor.background)
     }
 
     // MARK: - Attachments
@@ -358,14 +358,14 @@ struct ChatRoomScreen: View {
                 try await Attachments.cameraAccess()
                 showCamera = true
             } catch {
-                toast = ElsaToast(message: AttachmentFailure.from(error).message, type: .error)
+                toast = PapyToast(message: AttachmentFailure.from(error).message, type: .error)
             }
         }
     }
 
     private func loadPhoto(_ item: PhotosPickerItem) async {
         guard let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) else {
-            toast = ElsaToast(message: AttachmentFailure.unreadable.message, type: .error)
+            toast = PapyToast(message: AttachmentFailure.unreadable.message, type: .error)
             return
         }
         send { try Attachments.image(image) }
@@ -378,7 +378,7 @@ struct ChatRoomScreen: View {
             let key = viewModel.sendAttachment(input: picked.input)
             if let preview = picked.preview { previews[key] = preview }
         } catch {
-            toast = ElsaToast(message: AttachmentFailure.from(error).message, type: .error)
+            toast = PapyToast(message: AttachmentFailure.from(error).message, type: .error)
         }
     }
 
@@ -405,11 +405,11 @@ private extension ChatRoomScreen {
                 try? await Task.sleep(for: .milliseconds(50))
                 scrollTarget = target.key
             case .messageNotFound:
-                toast = ElsaToast(message: String(localized: "chat_not_found"), type: .info)
+                toast = PapyToast(message: String(localized: "chat_not_found"), type: .info)
             case .openFile(let open):
                 quickLook = URL(fileURLWithPath: open.file.path)
             case .fileFailed(let failed):
-                toast = ElsaToast(message: failed.error.localizedMessage, type: .error)
+                toast = PapyToast(message: failed.error.localizedMessage, type: .error)
             }
         }
     }

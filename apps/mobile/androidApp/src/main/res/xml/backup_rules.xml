@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Android 11 이하 자동 백업 규칙. data_extraction_rules.xml 과 같은 파일을 뺀다 -->
 <full-backup-content>
-    <exclude domain="file" path="elsa.storage.preferences_pb" />
-    <exclude domain="file" path="elsa.secure.preferences_pb" />
+    <exclude domain="file" path="papy.storage.preferences_pb" />
+    <exclude domain="file" path="papy.secure.preferences_pb" />
 </full-backup-content>

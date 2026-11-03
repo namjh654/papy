@@ -25,9 +25,9 @@ struct ComponentGalleryScreen: View {
     @State private var gender: Gender?
     @State private var birthDate: Date?
     @State private var alarmTime: Date?
-    @State private var images: [ElsaPickedImage] = []
-    @State private var alert: ElsaAlert?
-    @State private var toast: ElsaToast?
+    @State private var images: [PapyPickedImage] = []
+    @State private var alert: PapyAlert?
+    @State private var toast: PapyToast?
     @State private var isLoading = false
     @State private var showSheet = false
     @State private var galleryQuery = ""
@@ -47,27 +47,27 @@ struct ComponentGalleryScreen: View {
     }
 
     var body: some View {
-        ElsaFormScrollView {
+        PapyFormScrollView {
             section("gallery_section_button")
-            ElsaButton("Primary") {}
-            ElsaButton("Secondary", style: .secondary) {}
-            ElsaButton("Outline", style: .outline) {}
-            ElsaButton("Destructive", style: .destructive) {}
-            ElsaButton("Loading", isLoading: true) {}
-            ElsaButton("Disabled", enabled: false) {}
-            HStack(spacing: ElsaSpacing.sm) {
-                ElsaButton("Small", size: .small, fullWidth: false) {}
-                ElsaButton("Text", style: .text, size: .small, fullWidth: false) {}
+            PapyButton("Primary") {}
+            PapyButton("Secondary", style: .secondary) {}
+            PapyButton("Outline", style: .outline) {}
+            PapyButton("Destructive", style: .destructive) {}
+            PapyButton("Loading", isLoading: true) {}
+            PapyButton("Disabled", enabled: false) {}
+            HStack(spacing: PapySpacing.sm) {
+                PapyButton("Small", size: .small, fullWidth: false) {}
+                PapyButton("Text", style: .text, size: .small, fullWidth: false) {}
             }
 
             section("gallery_section_text_field")
-            ElsaTextField(
+            PapyTextField(
                 String(localized: "gallery_name"),
                 text: $name,
                 placeholder: String(localized: "gallery_name_placeholder"),
                 maxLength: 20
             )
-            ElsaTextField(
+            PapyTextField(
                 String(localized: "gallery_email"),
                 text: $email,
                 placeholder: "name@example.com",
@@ -76,23 +76,23 @@ struct ComponentGalleryScreen: View {
                 keyboardType: .emailAddress,
                 textContentType: .emailAddress
             )
-            ElsaTextField(String(localized: "field_password"), text: $password, isSecure: true)
-            ElsaTextField(String(localized: "gallery_memo"), text: $memo, multiline: true, maxLength: 200, submitAction: .done)
-            ElsaTextField(String(localized: "gallery_disabled"), text: .constant(String(localized: "gallery_disabled_value")))
+            PapyTextField(String(localized: "field_password"), text: $password, isSecure: true)
+            PapyTextField(String(localized: "gallery_memo"), text: $memo, multiline: true, maxLength: 200, submitAction: .done)
+            PapyTextField(String(localized: "gallery_disabled"), text: .constant(String(localized: "gallery_disabled_value")))
                 .disabled(true)
 
             section("gallery_section_selection")
-            ElsaCheckbox(
+            PapyCheckbox(
                 label: String(localized: "gallery_agree"),
                 isOn: $agreed,
                 description: String(localized: "gallery_required")
             )
-            ElsaToggle(
+            PapyToggle(
                 label: String(localized: "gallery_notification"),
                 isOn: $notification,
                 description: String(localized: "gallery_notification_description")
             )
-            ElsaRadioGroup(
+            PapyRadioGroup(
                 label: String(localized: "gallery_gender"),
                 options: Gender.allCases,
                 selection: $gender,
@@ -100,11 +100,11 @@ struct ComponentGalleryScreen: View {
             )
 
             section("gallery_section_date_time")
-            ElsaDatePickerField(label: String(localized: "gallery_birth_date"), date: $birthDate, range: Date.distantPast...Date())
-            ElsaTimePickerField(label: String(localized: "gallery_alarm_time"), time: $alarmTime)
+            PapyDatePickerField(label: String(localized: "gallery_birth_date"), date: $birthDate, range: Date.distantPast...Date())
+            PapyTimePickerField(label: String(localized: "gallery_alarm_time"), time: $alarmTime)
 
             section("gallery_section_image")
-            ElsaImagePicker(
+            PapyImagePicker(
                 label: String(format: String(localized: "gallery_photos"), 3),
                 images: $images,
                 maxCount: 3,
@@ -112,39 +112,39 @@ struct ComponentGalleryScreen: View {
             )
 
             section("gallery_section_message")
-            ElsaInlineMessage(message: String(localized: "gallery_message_info"), type: .info)
-            ElsaInlineMessage(message: String(localized: "gallery_message_success"), type: .success)
-            ElsaInlineMessage(
+            PapyInlineMessage(message: String(localized: "gallery_message_info"), type: .info)
+            PapyInlineMessage(message: String(localized: "gallery_message_success"), type: .success)
+            PapyInlineMessage(
                 message: String(localized: "gallery_message_warning"),
                 type: .warning,
                 title: String(localized: "gallery_message_warning_title")
             )
-            ElsaInlineMessage(message: String(localized: "gallery_message_error"), type: .error)
-            ElsaButton(String(localized: "gallery_toast"), style: .secondary) {
-                toast = ElsaToast(message: String(localized: "gallery_toast_saved"), type: .success)
+            PapyInlineMessage(message: String(localized: "gallery_message_error"), type: .error)
+            PapyButton(String(localized: "gallery_toast"), style: .secondary) {
+                toast = PapyToast(message: String(localized: "gallery_toast_saved"), type: .success)
             }
-            ElsaButton(String(localized: "gallery_toast_action"), style: .secondary) {
-                toast = ElsaToast(
+            PapyButton(String(localized: "gallery_toast_action"), style: .secondary) {
+                toast = PapyToast(
                     message: String(localized: "gallery_toast_deleted"),
                     type: .info,
                     actionLabel: String(localized: "gallery_undo")
                 ) {
-                    toast = ElsaToast(message: String(localized: "gallery_toast_restored"), type: .success)
+                    toast = PapyToast(message: String(localized: "gallery_toast_restored"), type: .success)
                 }
             }
-            ElsaButton(String(localized: "gallery_dialog"), style: .outline) {
-                alert = ElsaAlert(
+            PapyButton(String(localized: "gallery_dialog"), style: .outline) {
+                alert = PapyAlert(
                     title: String(localized: "gallery_dialog_title"),
                     message: String(localized: "gallery_dialog_message"),
                     confirmText: String(localized: "gallery_delete"),
                     dismissText: String(localized: "common_cancel"),
                     isDestructive: true,
-                    onConfirm: { toast = ElsaToast(message: String(localized: "gallery_toast_deleted"), type: .error) }
+                    onConfirm: { toast = PapyToast(message: String(localized: "gallery_toast_deleted"), type: .error) }
                 )
             }
 
             section("gallery_section_loading_card")
-            ElsaButton(String(localized: "gallery_loading_overlay"), style: .outline) {
+            PapyButton(String(localized: "gallery_loading_overlay"), style: .outline) {
                 Task {
                     isLoading = true
                     try? await Task.sleep(for: .seconds(2))
@@ -152,103 +152,103 @@ struct ComponentGalleryScreen: View {
                 }
             }
             // 카드는 그룹 배경 위에 놓는 컴포넌트라 예시도 그 위에 둔다
-            ElsaCard {
-                Text("gallery_card_title").elsaFont(ElsaFont.subtitle)
+            PapyCard {
+                Text("gallery_card_title").papyFont(PapyFont.subtitle)
                 Text("gallery_card_description")
-                    .elsaFont(ElsaFont.bodySmall)
-                    .foregroundStyle(ElsaColor.onSurfaceVariant)
+                    .papyFont(PapyFont.bodySmall)
+                    .foregroundStyle(PapyColor.onSurfaceVariant)
             }
-            .padding(ElsaSpacing.md)
-            .background(ElsaColor.backgroundGrouped, in: RoundedRectangle(cornerRadius: ElsaRadius.xl, style: .continuous))
+            .padding(PapySpacing.md)
+            .background(PapyColor.backgroundGrouped, in: RoundedRectangle(cornerRadius: PapyRadius.xl, style: .continuous))
 
             section("gallery_section_list_sheet")
             VStack(spacing: 0) {
-                ElsaListItem(
+                PapyListItem(
                     title: String(localized: "gallery_list_title"),
                     subtitle: String(localized: "gallery_list_subtitle"),
-                    action: { toast = ElsaToast(message: String(localized: "gallery_list_title"), type: .info) },
-                    leading: { ElsaAvatar(name: String(localized: "gallery_list_title"), size: 48) },
+                    action: { toast = PapyToast(message: String(localized: "gallery_list_title"), type: .info) },
+                    leading: { PapyAvatar(name: String(localized: "gallery_list_title"), size: 48) },
                     trailing: {
                         Text("gallery_list_time")
-                            .elsaFont(ElsaFont.caption)
-                            .foregroundStyle(ElsaColor.onSurfaceTertiary)
+                            .papyFont(PapyFont.caption)
+                            .foregroundStyle(PapyColor.onSurfaceTertiary)
                     }
                 )
-                ElsaSettingsDivider()
-                ElsaListItem(
+                PapySettingsDivider()
+                PapyListItem(
                     title: String(localized: "gallery_list_notice"),
-                    action: { toast = ElsaToast(message: String(localized: "gallery_list_title"), type: .info) },
-                    leading: { ElsaIcon("elsa_ic_notification").foregroundStyle(ElsaColor.onSurfaceVariant) }
+                    action: { toast = PapyToast(message: String(localized: "gallery_list_title"), type: .info) },
+                    leading: { PapyIcon("papy_ic_notification").foregroundStyle(PapyColor.onSurfaceVariant) }
                 )
             }
-            .background(ElsaColor.surface, in: RoundedRectangle(cornerRadius: ElsaRadius.xl, style: .continuous))
-            ElsaButton(String(localized: "gallery_sheet"), style: .secondary) { showSheet = true }
-            ElsaButton(String(localized: "gallery_action_sheet"), style: .secondary) { showActions = true }
+            .background(PapyColor.surface, in: RoundedRectangle(cornerRadius: PapyRadius.xl, style: .continuous))
+            PapyButton(String(localized: "gallery_sheet"), style: .secondary) { showSheet = true }
+            PapyButton(String(localized: "gallery_action_sheet"), style: .secondary) { showActions = true }
 
             section("gallery_section_chips")
-            ElsaSearchBar(text: $galleryQuery, onSearch: {})
-            ElsaChipGroup {
+            PapySearchBar(text: $galleryQuery, onSearch: {})
+            PapyChipGroup {
                 ForEach(Array(["gallery_chip_all", "gallery_chip_popular", "gallery_chip_new"].enumerated()), id: \.offset) { i, key in
-                    ElsaChip(label: String(localized: String.LocalizationValue(key)), selected: chip == i, action: { chip = i })
+                    PapyChip(label: String(localized: String.LocalizationValue(key)), selected: chip == i, action: { chip = i })
                 }
             }
-            ElsaSegmentedTabs(
+            PapySegmentedTabs(
                 options: [String(localized: "gallery_segment_list"), String(localized: "gallery_segment_grid")],
                 selectedIndex: segment,
                 onSelect: { segment = $0 }
             )
-            ElsaSkeletonRow().padding(.horizontal, -ElsaSpacing.xl)
+            PapySkeletonRow().padding(.horizontal, -PapySpacing.xl)
 
             section("gallery_section_format")
-            formatRow("gallery_format_date", ElsaFormat.dateLong(Date(), locale: locale))
-            formatRow("gallery_format_time", ElsaFormat.time(sampleTime, locale: locale, is24Hour: false))
-            formatRow("gallery_format_number", ElsaFormat.number(1234567.89, locale: locale))
-            formatRow("gallery_format_percent", ElsaFormat.percent(0.256, locale: locale))
+            formatRow("gallery_format_date", PapyFormat.dateLong(Date(), locale: locale))
+            formatRow("gallery_format_time", PapyFormat.time(sampleTime, locale: locale, is24Hour: false))
+            formatRow("gallery_format_number", PapyFormat.number(1234567.89, locale: locale))
+            formatRow("gallery_format_percent", PapyFormat.percent(0.256, locale: locale))
         }
-        .elsaScreenBackground()
+        .papyScreenBackground()
         .navigationTitle(String(localized: "gallery_title"))
         .navigationBarTitleDisplayMode(.inline)
-        .elsaAlert($alert)
-        .elsaBottomSheet(isPresented: $showSheet, title: String(localized: "gallery_sheet_title")) {
+        .papyAlert($alert)
+        .papyBottomSheet(isPresented: $showSheet, title: String(localized: "gallery_sheet_title")) {
             Text("gallery_sheet_body")
-                .elsaFont(ElsaFont.body)
-                .foregroundStyle(ElsaColor.onSurfaceVariant)
-                .padding(.horizontal, ElsaSpacing.xl)
+                .papyFont(PapyFont.body)
+                .foregroundStyle(PapyColor.onSurfaceVariant)
+                .padding(.horizontal, PapySpacing.xl)
         }
-        .elsaActionSheet(isPresented: $showActions, title: String(localized: "attach_title"), actions: [
-            ElsaAction(label: String(localized: "attach_photo"), icon: "elsa_ic_image") {
-                toast = ElsaToast(message: String(localized: "attach_photo"), type: .info)
+        .papyActionSheet(isPresented: $showActions, title: String(localized: "attach_title"), actions: [
+            PapyAction(label: String(localized: "attach_photo"), icon: "papy_ic_image") {
+                toast = PapyToast(message: String(localized: "attach_photo"), type: .info)
             },
-            ElsaAction(label: String(localized: "attach_camera"), icon: "elsa_ic_camera") {
-                toast = ElsaToast(message: String(localized: "attach_camera"), type: .info)
+            PapyAction(label: String(localized: "attach_camera"), icon: "papy_ic_camera") {
+                toast = PapyToast(message: String(localized: "attach_camera"), type: .info)
             },
-            ElsaAction(label: String(localized: "attach_file"), icon: "elsa_ic_file") {
-                toast = ElsaToast(message: String(localized: "attach_file"), type: .info)
+            PapyAction(label: String(localized: "attach_file"), icon: "papy_ic_file") {
+                toast = PapyToast(message: String(localized: "attach_file"), type: .info)
             },
-            ElsaAction(label: String(localized: "gallery_delete"), icon: "elsa_ic_delete", isDestructive: true) {
-                toast = ElsaToast(message: String(localized: "gallery_toast_deleted"), type: .error)
+            PapyAction(label: String(localized: "gallery_delete"), icon: "papy_ic_delete", isDestructive: true) {
+                toast = PapyToast(message: String(localized: "gallery_toast_deleted"), type: .error)
             },
         ])
-        .elsaToast($toast)
-        .elsaLoadingOverlay(isLoading, message: String(localized: "common_processing"))
+        .papyToast($toast)
+        .papyLoadingOverlay(isLoading, message: String(localized: "common_processing"))
     }
 
     private func section(_ key: LocalizedStringKey) -> some View {
         Text(key)
-            .elsaFont(ElsaFont.title)
-            .foregroundStyle(ElsaColor.onBackground)
-            .padding(.top, ElsaSpacing.sm)
+            .papyFont(PapyFont.title)
+            .foregroundStyle(PapyColor.onBackground)
+            .padding(.top, PapySpacing.sm)
     }
 
     private func formatRow(_ key: LocalizedStringKey, _ value: String) -> some View {
         HStack {
             Text(key)
-                .elsaFont(ElsaFont.body)
-                .foregroundStyle(ElsaColor.onSurfaceVariant)
+                .papyFont(PapyFont.body)
+                .foregroundStyle(PapyColor.onSurfaceVariant)
             Spacer()
             Text(value)
-                .elsaFont(ElsaFont.bodyStrong)
-                .foregroundStyle(ElsaColor.onSurface)
+                .papyFont(PapyFont.bodyStrong)
+                .foregroundStyle(PapyColor.onSurface)
         }
     }
 }

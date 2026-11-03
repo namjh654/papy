@@ -1,7 +1,7 @@
 > **Papy 모노레포 안내 (2026-11-03)**
 >
 > 이 폴더는 KMP 템플릿 [namjh654/kmp](https://github.com/namjh654/kmp) 커밋 `c5a0d93`(v0.4.12)을 복사 편입한 것이다. 아래 본문은 템플릿 원문이다.
-> 아직 Papy 기능·Rust 엔진 연결은 없고, 앱 이름·패키지명(`ELSA`, `cloud.elsa.app`)도 원본 그대로다.
+> 아직 Papy 기능·Rust 엔진 연결은 없다. 템플릿의 ELSA 이름은 Papy 로 바꿨다(프로젝트 `papykmp`, 패키지·앱 ID `io.github.namjh654.papy`, 딥링크 `papy://`).
 > 출처·편입 시 변경·바꿀 식별자 후보는 [docs/architecture/kmp-template-origin.md](../../docs/architecture/kmp-template-origin.md).
 >
 > 실행: 이 폴더에서 `scripts/orca.sh check` (템플릿 점검 + 단위 테스트 + Android dev 빌드 + iOS Kotlin 컴파일 + mac 이면 xcodebuild).
@@ -32,9 +32,9 @@
 | 화면 패턴 | 목록(페이징·당겨서 새로고침·다음 페이지), 상세(id 로 불러오기·수정 → 목록 반영), 공지사항, 알림함, 검색(입력 중 자동 검색·최근 검색어), 권한 요청, 프로필 편집(사진 업로드), 회원 탈퇴, 웹뷰, 컴포넌트 갤러리 |
 | 인증·세션 | 자동 로그인, 보안 저장소(Android Keystore / iOS Keychain), 401 → 토큰 재발급 → 1회 재시도 → 실패 시 로그인으로 |
 | 네트워크 | Ktor(OkHttp / Darwin), 공통 `BaseApi`(get/post/put/delete/**upload**), 오류 정규화 `AppError` → `ErrorCode` |
-| 플랫폼 기능 | 푸시(FCM, 설정 파일 없으면 NoOp), 권한(알림·카메라·위치: 요청 → 재확인 → 설정 이동), 외부 링크 `elsa://<path>`, 강제·선택 업데이트, 인앱 리뷰, 크래시·이벤트(Firebase, 설정 시) |
+| 플랫폼 기능 | 푸시(FCM, 설정 파일 없으면 NoOp), 권한(알림·카메라·위치: 요청 → 재확인 → 설정 이동), 외부 링크 `papy://<path>`, 강제·선택 업데이트, 인앱 리뷰, 크래시·이벤트(Firebase, 설정 시) |
 | 화면 공통 | 다크 모드, 다국어(ko·en), 오프라인 안내, Android 뒤로가기 규칙(다른 탭 → 홈 → "한 번 더 누르면 종료") |
-| 디자인 시스템 | `design/tokens.json` → Kotlin/Swift 토큰 생성, 양 플랫폼 같은 이름의 `Elsa*` 컴포넌트 ([design/README.md](design/README.md) 대응표) |
+| 디자인 시스템 | `design/tokens.json` → Kotlin/Swift 토큰 생성, 양 플랫폼 같은 이름의 `Papy*` 컴포넌트 ([design/README.md](design/README.md) 대응표) |
 | 환경 | dev · staging · prod — `env/*.properties` 한 곳 → KMP `AppConfig`, Android flavor, iOS xcconfig. 세 앱 동시 설치 |
 | 도구 | `newFeature`(새 화면·탭 뼈대를 KMP·Android·iOS 에 한 번에), `renameApp`, `templateCheck`(구조·문자열·토큰·env 검사), `mockServer`(로컬 목업 서버) |
 | 테스트 | KMP 단위 테스트 약 160개(ViewModel·Repository·core, Turbine), UI 흐름 테스트 iOS 14개(`scripts/orca.sh uitest`)·Android 15개(`scripts/orca.sh uitest android`) |

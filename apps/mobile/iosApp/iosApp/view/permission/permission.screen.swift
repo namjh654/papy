@@ -12,7 +12,7 @@ struct PermissionScreen: View {
 
     @Environment(\.scenePhase) private var scenePhase
 
-    @State private var alert: ElsaAlert?
+    @State private var alert: PapyAlert?
 
     private var viewModel: PermissionViewModel { model.viewModel }
     private var state: PermissionUiState { model.state }
@@ -20,28 +20,28 @@ struct PermissionScreen: View {
     private let permissions: [AppPermission] = [.notifications, .camera, .location]
 
     var body: some View {
-        ElsaScrollScreen {
-            ElsaScreenHeader(
+        PapyScrollScreen {
+            PapyScreenHeader(
                 title: String(localized: "permission_title"),
                 description: String(localized: "permission_description")
             )
 
             ForEach(permissions, id: \.self) { permission in
                 let status = state.status(permission: permission)
-                ElsaCard {
-                    HStack(spacing: ElsaSpacing.sm) {
+                PapyCard {
+                    HStack(spacing: PapySpacing.sm) {
                         Text(title(permission))
-                            .elsaFont(ElsaFont.subtitle)
+                            .papyFont(PapyFont.subtitle)
                             .frame(maxWidth: .infinity, alignment: .leading)
                         if let status {
-                            ElsaBadge(text: label(status), type: badgeType(status))
+                            PapyBadge(text: label(status), type: badgeType(status))
                         }
                     }
                     Text(reason(permission))
-                        .elsaFont(ElsaFont.bodySmall)
-                        .foregroundStyle(ElsaColor.onSurfaceVariant)
+                        .papyFont(PapyFont.bodySmall)
+                        .foregroundStyle(PapyColor.onSurfaceVariant)
                     if let status, !status.isGranted {
-                        ElsaButton(
+                        PapyButton(
                             String(localized: status == .permanentlyDenied ? "permission_open_settings" : "permission_allow"),
                             style: .secondary,
                             size: .small,
@@ -54,7 +54,7 @@ struct PermissionScreen: View {
             }
         }
         .navigationBarTitleDisplayMode(.inline)
-        .elsaAlert($alert)
+        .papyAlert($alert)
         // 재확인: 처음 보일 때 + 다른 앱(설정)에서 돌아올 때마다
         .onAppear { viewModel.refresh() }
         .onChange(of: scenePhase) { _, phase in
@@ -90,7 +90,7 @@ struct PermissionScreen: View {
         }
     }
 
-    private func badgeType(_ status: PermissionStatus) -> ElsaMessageType {
+    private func badgeType(_ status: PermissionStatus) -> PapyMessageType {
         switch status {
         case .granted: .success
         case .notRequested: .info
@@ -108,7 +108,7 @@ private extension PermissionScreen {
         for await event in viewModel.events {
             switch onEnum(of: event) {
             case .settingsRequired:
-                alert = ElsaAlert(
+                alert = PapyAlert(
                     title: String(localized: "permission_settings_title"),
                     message: String(localized: "permission_settings_message"),
                     confirmText: String(localized: "permission_open_settings"),

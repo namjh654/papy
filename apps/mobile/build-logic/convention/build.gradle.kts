@@ -2,7 +2,7 @@ plugins {
     `kotlin-dsl`
 }
 
-group = "cloud.elsa.app.buildlogic"
+group = "io.github.namjh654.papy.buildlogic"
 
 dependencies {
     // 플러그인 버전은 루트 build.gradle.kts 의 `apply false` 가 정한다(여기서는 컴파일용 API 만).
@@ -25,27 +25,27 @@ kotlin {
 gradlePlugin {
     plugins {
         register("kmpLibrary") {
-            id = "elsa.kmp.library"
+            id = "papy.kmp.library"
             implementationClass = "KmpLibraryConventionPlugin"
         }
         register("template") {
-            id = "elsa.template"
+            id = "papy.template"
             implementationClass = "TemplateChecksPlugin"
         }
         register("appConfig") {
-            id = "elsa.appconfig"
+            id = "papy.appconfig"
             implementationClass = "AppConfigPlugin"
         }
         register("androidEnvironments") {
-            id = "elsa.android.environments"
+            id = "papy.android.environments"
             implementationClass = "AndroidEnvironmentsPlugin"
         }
         register("kmpFeature") {
-            id = "elsa.kmp.feature"
+            id = "papy.kmp.feature"
             implementationClass = "KmpFeatureConventionPlugin"
         }
         register("kmpDatabase") {
-            id = "elsa.kmp.database"
+            id = "papy.kmp.database"
             implementationClass = "KmpDatabaseConventionPlugin"
         }
     }

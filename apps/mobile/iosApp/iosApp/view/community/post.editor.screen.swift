@@ -15,7 +15,7 @@ struct PostEditorScreen: View {
         _model = StateObject(wrappedValue: SharedViewModel(IOSAppGraph.shared.postEditorViewModel(postId: postId), state: \.uiState))
     }
 
-    @State private var toast: ElsaToast?
+    @State private var toast: PapyToast?
     /// 새로 고른 사진의 기기 미리보기(key → 사진)
     @State private var previews: [String: UIImage] = [:]
     @State private var showAdd = false
@@ -28,37 +28,37 @@ struct PostEditorScreen: View {
     private var images: [PostImage] { state.images.compactMap { $0 as? PostImage } }
 
     var body: some View {
-        ElsaFormScrollView {
-            VStack(alignment: .trailing, spacing: ElsaSpacing.xs) {
+        PapyFormScrollView {
+            VStack(alignment: .trailing, spacing: PapySpacing.xs) {
                 TextField(
                     String(localized: "community_content_placeholder"),
                     text: Binding(get: { state.content }, set: { viewModel.contentChanged(value: $0) }),
                     axis: .vertical
                 )
-                .elsaFont(ElsaFont.body)
+                .papyFont(PapyFont.body)
                 .lineLimit(8...)
-                .padding(ElsaSpacing.lg)
+                .padding(PapySpacing.lg)
                 .frame(minHeight: 200, alignment: .topLeading)
-                .background(ElsaColor.fill, in: RoundedRectangle(cornerRadius: ElsaRadius.lg, style: .continuous))
+                .background(PapyColor.fill, in: RoundedRectangle(cornerRadius: PapyRadius.lg, style: .continuous))
                 Text(verbatim: "\(state.content.count)/\(state.maxContent)")
-                    .elsaFont(ElsaFont.caption)
-                    .foregroundStyle(state.content.count > Int(state.maxContent) ? ElsaColor.error : ElsaColor.onSurfaceTertiary)
+                    .papyFont(PapyFont.caption)
+                    .foregroundStyle(state.content.count > Int(state.maxContent) ? PapyColor.error : PapyColor.onSurfaceTertiary)
             }
 
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: ElsaSpacing.sm) {
+                HStack(spacing: PapySpacing.sm) {
                     ForEach(Array(images.enumerated()), id: \.offset) { index, image in
                         thumbnail(image) { viewModel.removeImage(index: Int32(index)) }
                     }
                     if state.canAddImage {
                         Button { showAdd = true } label: {
-                            VStack(spacing: ElsaSpacing.xxs) {
-                                ElsaIcon("elsa_ic_image")
-                                Text(verbatim: "\(images.count)/\(state.maxImages)").elsaFont(ElsaFont.caption)
+                            VStack(spacing: PapySpacing.xxs) {
+                                PapyIcon("papy_ic_image")
+                                Text(verbatim: "\(images.count)/\(state.maxImages)").papyFont(PapyFont.caption)
                             }
-                            .foregroundStyle(ElsaColor.onSurfaceVariant)
-                            .frame(width: ElsaSize.imageThumbnail, height: ElsaSize.imageThumbnail)
-                            .background(ElsaColor.fill, in: RoundedRectangle(cornerRadius: ElsaRadius.md, style: .continuous))
+                            .foregroundStyle(PapyColor.onSurfaceVariant)
+                            .frame(width: PapySize.imageThumbnail, height: PapySize.imageThumbnail)
+                            .background(PapyColor.fill, in: RoundedRectangle(cornerRadius: PapyRadius.md, style: .continuous))
                         }
                         .accessibilityLabel(String(localized: "community_add_photo"))
                     }
@@ -66,23 +66,23 @@ struct PostEditorScreen: View {
             }
 
             if let error = state.error {
-                ElsaInlineMessage(message: error.localizedMessage, type: .error)
+                PapyInlineMessage(message: error.localizedMessage, type: .error)
             }
         } bottomBar: {
-            ElsaButton(
+            PapyButton(
                 String(localized: state.isEditing ? "community_save" : "community_post"),
                 enabled: state.canSave || state.isSaving,
                 isLoading: state.isSaving
             ) { viewModel.save() }
         }
-        .elsaScreenBackground()
+        .papyScreenBackground()
         .navigationTitle(String(localized: state.isEditing ? "community_edit_title" : "community_new_title"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .tabBar)
-        .elsaToast($toast)
-        .elsaActionSheet(isPresented: $showAdd, title: String(localized: "community_add_photo"), actions: [
-            ElsaAction(label: String(localized: "attach_photo"), icon: "elsa_ic_image") { showPhotos = true },
-            ElsaAction(label: String(localized: "attach_camera"), icon: "elsa_ic_camera") { openCamera() },
+        .papyToast($toast)
+        .papyActionSheet(isPresented: $showAdd, title: String(localized: "community_add_photo"), actions: [
+            PapyAction(label: String(localized: "attach_photo"), icon: "papy_ic_image") { showPhotos = true },
+            PapyAction(label: String(localized: "attach_camera"), icon: "papy_ic_camera") { openCamera() },
         ])
         .photosPicker(
             isPresented: $showPhotos,
@@ -109,18 +109,18 @@ struct PostEditorScreen: View {
             Group {
                 switch onEnum(of: image) {
                 case .local(let local):
-                    if let preview = previews[local.key] { Image(uiImage: preview).resizable().scaledToFill() } else { ElsaColor.fill }
+                    if let preview = previews[local.key] { Image(uiImage: preview).resizable().scaledToFill() } else { PapyColor.fill }
                 case .remote(let remote):
-                    ElsaPostImage(url: remote.url)
+                    PapyPostImage(url: remote.url)
                 }
             }
-            .frame(width: ElsaSize.imageThumbnail, height: ElsaSize.imageThumbnail)
-            .clipShape(RoundedRectangle(cornerRadius: ElsaRadius.md, style: .continuous))
+            .frame(width: PapySize.imageThumbnail, height: PapySize.imageThumbnail)
+            .clipShape(RoundedRectangle(cornerRadius: PapyRadius.md, style: .continuous))
             Button(action: onRemove) {
-                ElsaIcon("elsa_ic_close", size: 14)
-                    .foregroundStyle(ElsaColor.onPrimary)
+                PapyIcon("papy_ic_close", size: 14)
+                    .foregroundStyle(PapyColor.onPrimary)
                     .frame(width: 24, height: 24)
-                    .background(ElsaColor.scrim, in: Circle())
+                    .background(PapyColor.scrim, in: Circle())
                     // 보이는 원은 24, 누르는 영역은 40(Android 와 같다)
                     .frame(width: 40, height: 40)
                     .contentShape(Rectangle())
@@ -135,14 +135,14 @@ struct PostEditorScreen: View {
                 try await Attachments.cameraAccess()
                 showCamera = true
             } catch {
-                toast = ElsaToast(message: AttachmentFailure.from(error).message, type: .error)
+                toast = PapyToast(message: AttachmentFailure.from(error).message, type: .error)
             }
         }
     }
 
     private func loadPhoto(_ item: PhotosPickerItem) async {
         guard let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) else {
-            toast = ElsaToast(message: AttachmentFailure.unreadable.message, type: .error)
+            toast = PapyToast(message: AttachmentFailure.unreadable.message, type: .error)
             return
         }
         add { try Attachments.image(image) }
@@ -155,10 +155,10 @@ struct PostEditorScreen: View {
             if let key = viewModel.addImage(input: picked.input) {
                 previews[key] = picked.preview
             } else {
-                toast = ElsaToast(message: String(localized: "error_too_many_images"), type: .error)
+                toast = PapyToast(message: String(localized: "error_too_many_images"), type: .error)
             }
         } catch {
-            toast = ElsaToast(message: AttachmentFailure.from(error).message, type: .error)
+            toast = PapyToast(message: AttachmentFailure.from(error).message, type: .error)
         }
     }
 }

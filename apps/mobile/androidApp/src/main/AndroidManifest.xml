@@ -14,7 +14,7 @@
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 
     <application
-        android:name=".app.ElsaApplication"
+        android:name=".app.PapyApplication"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
@@ -23,7 +23,7 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:localeConfig="@xml/locales_config"
-        android:theme="@style/Theme.Elsa">
+        android:theme="@style/Theme.Papy">
         <activity
             android:exported="true"
             android:name=".app.MainActivity"
@@ -34,12 +34,12 @@
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <!-- 외부 링크 elsa://<path> → PushManager.openLink (scheme 은 앱에 맞게 바꾼다 — docs/template-setup.md) -->
+            <!-- 외부 링크 papy://<path> → PushManager.openLink (scheme 은 앱에 맞게 바꾼다 — docs/template-setup.md) -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="elsa" />
+                <data android:scheme="papy" />
             </intent-filter>
         </activity>
 
@@ -60,7 +60,7 @@
 
         <!-- FCM 수신 (google-services.json 이 없으면 Firebase 가 초기화되지 않아 호출되지 않는다) -->
         <service
-            android:name=".push.ElsaMessagingService"
+            android:name=".push.PapyMessagingService"
             android:exported="false">
             <intent-filter>
                 <action android:name="com.google.firebase.MESSAGING_EVENT" />
@@ -72,7 +72,7 @@
             android:value="default" />
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_icon"
-            android:resource="@drawable/elsa_ic_notification" />
+            android:resource="@drawable/papy_ic_notification" />
         <!-- 메시지 카메라 첨부: 찍은 사진을 받을 임시 파일을 카메라 앱에 넘긴다(res/xml/file_paths.xml) -->
         <provider
             android:name="androidx.core.content.FileProvider"

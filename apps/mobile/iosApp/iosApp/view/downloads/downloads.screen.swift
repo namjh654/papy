@@ -9,8 +9,8 @@ struct DownloadsScreen: View {
         IOSAppGraph.shared.downloadsViewModel(),
         state: \.uiState
     )
-    @State private var toast: ElsaToast?
-    @State private var alert: ElsaAlert?
+    @State private var toast: PapyToast?
+    @State private var alert: PapyAlert?
     @State private var menuFor: DownloadedFile?
     @State private var quickLook: URL?
     @State private var shareFile: ShareItem?
@@ -21,30 +21,30 @@ struct DownloadsScreen: View {
 
     var body: some View {
         content
-            .elsaScreenBackground()
+            .papyScreenBackground()
             .navigationBarTitleDisplayMode(.inline)
             .toolbar(.hidden, for: .tabBar)
             .toolbar {
                 if !state.files.isEmpty {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button {
-                            alert = ElsaAlert(
+                            alert = PapyAlert(
                                 title: String(localized: "file_delete_all_title"),
                                 confirmText: String(localized: "file_delete_all"),
                                 dismissText: String(localized: "common_cancel"),
                                 isDestructive: true,
                                 onConfirm: { viewModel.deleteAll() }
                             )
-                        } label: { ElsaIcon("elsa_ic_delete") }
+                        } label: { PapyIcon("papy_ic_delete") }
                             .accessibilityLabel(String(localized: "file_delete_all"))
                     }
                 }
             }
-            .elsaToast($toast)
-            .elsaAlert($alert)
+            .papyToast($toast)
+            .papyAlert($alert)
             .quickLookPreview($quickLook)
             .sheet(item: $shareFile) { item in ShareSheet(url: item.url) }
-            .elsaActionSheet(
+            .papyActionSheet(
                 isPresented: Binding(get: { menuFor != nil }, set: { if !$0 { menuFor = nil } }),
                 title: menuFor?.name,
                 actions: menuActions
@@ -54,7 +54,7 @@ struct DownloadsScreen: View {
                     switch onEnum(of: event) {
                     case .open(let open): quickLook = URL(fileURLWithPath: open.file.path)
                     case .share(let share): shareFile = ShareItem(url: URL(fileURLWithPath: share.file.path))
-                    case .deleted: toast = ElsaToast(message: String(localized: "file_deleted"), type: .success)
+                    case .deleted: toast = PapyToast(message: String(localized: "file_deleted"), type: .success)
                     }
                 }
             }
@@ -63,28 +63,28 @@ struct DownloadsScreen: View {
     @ViewBuilder
     private var content: some View {
         if state.isLoading {
-            ElsaLoadingIndicator().frame(maxWidth: .infinity, maxHeight: .infinity)
+            PapyLoadingIndicator().frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    ElsaScreenHeader(
+                    PapyScreenHeader(
                         title: String(localized: "file_title"),
-                        description: String(format: String(localized: "file_description"), ElsaFormat.fileSize(state.totalSize, locale: locale))
+                        description: String(format: String(localized: "file_description"), PapyFormat.fileSize(state.totalSize, locale: locale))
                     )
-                    .padding(ElsaSize.screenPadding)
+                    .padding(PapySize.screenPadding)
                     if state.files.isEmpty {
-                        ElsaEmptyState(title: String(localized: "file_empty"))
+                        PapyEmptyState(title: String(localized: "file_empty"))
                     }
                     ForEach(state.files, id: \.url) { file in
-                        ElsaListItem(
+                        PapyListItem(
                             title: file.name,
-                            subtitle: "\(ElsaFormat.fileSize(file.size, locale: locale)) · \(ElsaFormat.date(epochMillis: file.savedAt, locale: locale))",
+                            subtitle: "\(PapyFormat.fileSize(file.size, locale: locale)) · \(PapyFormat.date(epochMillis: file.savedAt, locale: locale))",
                             action: { viewModel.open(file: file) },
-                            leading: { ElsaIcon("elsa_ic_file").foregroundStyle(ElsaColor.onSurfaceVariant) },
+                            leading: { PapyIcon("papy_ic_file").foregroundStyle(PapyColor.onSurfaceVariant) },
                             trailing: {
                                 Button { menuFor = file } label: {
-                                    ElsaIcon("elsa_ic_more").foregroundStyle(ElsaColor.onSurfaceTertiary)
-                                        .frame(width: ElsaSize.controlHeightSmall, height: ElsaSize.controlHeightSmall)
+                                    PapyIcon("papy_ic_more").foregroundStyle(PapyColor.onSurfaceTertiary)
+                                        .frame(width: PapySize.controlHeightSmall, height: PapySize.controlHeightSmall)
                                 }
                                 .accessibilityLabel(String(localized: "community_more"))
                             }
@@ -95,12 +95,12 @@ struct DownloadsScreen: View {
         }
     }
 
-    private var menuActions: [ElsaAction] {
+    private var menuActions: [PapyAction] {
         guard let file = menuFor else { return [] }
         return [
-            ElsaAction(label: String(localized: "file_open")) { viewModel.open(file: file) },
-            ElsaAction(label: String(localized: "file_share")) { viewModel.share(file: file) },
-            ElsaAction(label: String(localized: "file_delete"), isDestructive: true) { viewModel.delete(file: file) },
+            PapyAction(label: String(localized: "file_open")) { viewModel.open(file: file) },
+            PapyAction(label: String(localized: "file_share")) { viewModel.share(file: file) },
+            PapyAction(label: String(localized: "file_delete"), isDestructive: true) { viewModel.delete(file: file) },
         ]
     }
 }

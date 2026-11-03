@@ -18,7 +18,7 @@ import template.tooling.EnvConfig
 import template.tooling.Repo
 
 /**
- * `elsa.appconfig` — 선택된 환경(env/<env>.properties)으로 commonMain 에 `AppConfig` 상수를 생성한다 (core:data 에 적용).
+ * `papy.appconfig` — 선택된 환경(env/<env>.properties)으로 commonMain 에 `AppConfig` 상수를 생성한다 (core:data 에 적용).
  * core 는 AppConfig 만 보고, 환경을 고르는 일은 빌드가 한다(DEC-058).
  */
 class AppConfigPlugin : Plugin<Project> {

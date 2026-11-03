@@ -16,7 +16,7 @@ import template.tooling.Repo
 import template.tooling.StringsCheck
 
 /**
- * `elsa.template` — 루트 프로젝트에 템플릿 점검·생성 태스크를 등록한다 (Python 스크립트 대체, DEC-056).
+ * `papy.template` — 루트 프로젝트에 템플릿 점검·생성 태스크를 등록한다 (Python 스크립트 대체, DEC-056).
  *
  *   ./gradlew templateCheck            디자인 토큰 최신 + 문자열 키 일치 + 아키텍처 규칙
  *   ./gradlew generateDesignTokens     design/tokens.json → Kotlin/Swift/XML 생성물
@@ -27,7 +27,7 @@ import template.tooling.StringsCheck
  */
 class TemplateChecksPlugin : Plugin<Project> {
     override fun apply(target: Project) = with(target) {
-        require(this == rootProject) { "elsa.template 은 루트 프로젝트에만 적용한다" }
+        require(this == rootProject) { "papy.template 은 루트 프로젝트에만 적용한다" }
 
         val tokens = tasks.register<CheckDesignTokensTask>("checkDesignTokens") {
             group = GROUP

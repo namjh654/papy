@@ -333,7 +333,7 @@ class MockServer(private val port: Int) {
 
     /** 한 쪽짜리 PDF(제목 한 줄) — 받은 파일 열기 확인용. xref 위치는 만들 때 계산한다 */
     private val samplePdf: ByteArray by lazy {
-        val stream = "BT /F1 24 Tf 72 720 Td (ELSA sample file) Tj ET"
+        val stream = "BT /F1 24 Tf 72 720 Td (Papy sample file) Tj ET"
         val objects = listOf(
             "<< /Type /Catalog /Pages 2 0 R >>",
             "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",

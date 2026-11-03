@@ -1,6 +1,6 @@
 // 공통 기반: 에러(AppError·ErrorCode·UiError), UiState/UiEvent 계약, ViewModel 베이스
 plugins {
-    id("elsa.kmp.library")
+    id("papy.kmp.library")
 }
 
 kotlin {

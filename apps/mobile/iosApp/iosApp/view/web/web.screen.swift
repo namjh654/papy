@@ -17,14 +17,14 @@ struct WebScreen: View {
                 .ignoresSafeArea(edges: .bottom)
 
             if failed {
-                ElsaErrorState(message: String(localized: "web_error")) {
+                PapyErrorState(message: String(localized: "web_error")) {
                     failed = false
                     reloadToken += 1
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(ElsaColor.background)
+                .background(PapyColor.background)
             } else if isLoading {
-                ElsaLoadingIndicator()
+                PapyLoadingIndicator()
             }
         }
         .navigationTitle(title)

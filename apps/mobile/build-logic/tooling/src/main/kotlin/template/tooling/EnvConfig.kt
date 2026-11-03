@@ -89,7 +89,7 @@ class EnvConfig(private val repo: Repo) {
 
     /**
      * iOS 소셜 로그인 URL 스킴(DEC-119) — 키가 비밀 파일(local)에만 있으므로 **커밋하지 않는** 파일로 만든다.
-     * 키가 없는 제공자는 쓰이지 않는 자리 값(`elsa-social-off-…`)이라 맨 `kakao` 같은 스킴을 등록하지 않는다.
+     * 키가 없는 제공자는 쓰이지 않는 자리 값(`papy-social-off-…`)이라 맨 `kakao` 같은 스킴을 등록하지 않는다.
      * Config.xcconfig 가 기본값을 두고 이 파일을 `#include?` 한다(없어도 빌드된다).
      */
     fun iosSocialXcconfig(): String {
@@ -101,8 +101,8 @@ class EnvConfig(private val repo: Repo) {
             val v = values(env)
             val kakao = v["social.kakao.appKey"].orEmpty()
             val google = v["social.google.iosClientId"].orEmpty()
-            out += "SOCIAL_KAKAO_URL_SCHEME[config=*-$env] = ${if (kakao.isBlank()) "elsa-social-off-kakao" else "kakao$kakao"}"
-            out += "SOCIAL_GOOGLE_URL_SCHEME[config=*-$env] = ${if (google.isBlank()) "elsa-social-off-google" else reversedGoogleClientId(google)}"
+            out += "SOCIAL_KAKAO_URL_SCHEME[config=*-$env] = ${if (kakao.isBlank()) "papy-social-off-kakao" else "kakao$kakao"}"
+            out += "SOCIAL_GOOGLE_URL_SCHEME[config=*-$env] = ${if (google.isBlank()) "papy-social-off-google" else reversedGoogleClientId(google)}"
             out += ""
         }
         return out.joinToString("\n")
@@ -127,7 +127,7 @@ class EnvConfig(private val repo: Repo) {
             "com.googleusercontent.apps." + clientId.removeSuffix(".apps.googleusercontent.com")
         val REQUIRED = listOf("app.name", "app.idSuffix", "app.nameSuffix", "app.versionName", "app.versionCode", "api.baseUrl", "network.log")
 
-        /** 앱 이름 + 환경 접미사 (예: "ELSA Dev") */
+        /** 앱 이름 + 환경 접미사 (예: "Papy Dev") */
         fun displayName(values: Map<String, String>): String =
             listOf(values["app.name"].orEmpty(), values["app.nameSuffix"].orEmpty()).filter { it.isNotBlank() }.joinToString(" ")
 

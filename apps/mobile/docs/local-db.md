@@ -8,7 +8,7 @@
 | 위치 | 하는 일 |
 |---|---|
 | `core:data` `database/` | `SqlDriverFactory`(Android `AndroidSqliteDriver` → 앱 `databases/<이름>.db`, iOS `NativeSqliteDriver` → Application Support), `databaseDispatcher`(IO), `LocalCache`(사용자별 데이터 정리 계약)·`LocalCacheCleaner` |
-| `build-logic` `elsa.kmp.database` | SQLDelight 플러그인 + DB 이름(`:feature:chat` → `ChatDatabase`, 패키지 `cloud.elsa.app.feature.chat.db`) + 스키마 변경 확인 + 테스트용 메모리 드라이버 의존성 |
+| `build-logic` `papy.kmp.database` | SQLDelight 플러그인 + DB 이름(`:feature:chat` → `ChatDatabase`, 패키지 `io.github.namjh654.papy.feature.chat.db`) + 스키마 변경 확인 + 테스트용 메모리 드라이버 의존성 |
 | 기능 모듈 | 테이블·쿼리(`.sq`), `XCache`(DB 를 감싼 클래스, `LocalCache`), Repository 가 캐시를 쓴다 |
 | `shared` | iOS framework 에 `-lsqlite3`(시스템 sqlite) |
 
@@ -22,8 +22,8 @@
 **새 기능이면 생성기 한 번**: `./gradlew -p build-logic :tooling:run --args="newFeature memo --db"` — 아래 1~6 을 모두 만든다(목록 첫 페이지 테이블, 캐시, 저장소 저장, Paginator cache, 테스트용 메모리 DB). 이미 있는 기능에 붙일 때는 아래 순서대로.
 
 
-1. `feature/<이름>/build.gradle.kts` 에 `id("elsa.kmp.database")` (`elsa.kmp.feature` 다음)
-2. 테이블·쿼리: `feature/<이름>/src/commonMain/sqldelight/cloud/elsa/app/feature/<이름>/db/<Name>.sq`
+1. `feature/<이름>/build.gradle.kts` 에 `id("papy.kmp.database")` (`papy.kmp.feature` 다음)
+2. 테이블·쿼리: `feature/<이름>/src/commonMain/sqldelight/io/github/namjh654/papy/feature/<이름>/db/<Name>.sq`
    - 서버 모델은 `payload TEXT`(AppJson)로 통째로, 정렬·삭제·검색에 쓰는 값만 열로 뺀다 → 서버 필드가 늘어도 스키마 변경이 없다
    - 예시: `feature/chat/.../db/Chat.sq`(목록·메시지·보낼 대기열), `feature/community/.../db/Community.sq`
 3. 캐시 클래스 `cache/<Name>Cache.kt`: DB 를 받고 `LocalCache` 를 구현, 읽기·쓰기는 `withContext(context)`(기본 `databaseDispatcher`), 여러 줄 쓰기는 `database.transaction { }`
@@ -44,7 +44,7 @@
 
 1. 바꾸기 전 스키마를 저장: `./gradlew :feature:<이름>:generateCommonMain<Name>DatabaseSchema` → `src/commonMain/sqldelight/databases/1.db` (처음 한 번)
 2. `.sq` 를 새 모양으로 고치고, 같은 폴더에 `1.sqm`(1 → 2 로 가는 SQL: `ALTER TABLE …`, `CREATE TABLE …`)
-3. `./gradlew :feature:<이름>:verifyCommonMain<Name>DatabaseMigration` — `elsa.kmp.database` 가 켜 둔 확인. 빌드(`orca.sh check`)에서도 돈다
+3. `./gradlew :feature:<이름>:verifyCommonMain<Name>DatabaseMigration` — `papy.kmp.database` 가 켜 둔 확인. 빌드(`orca.sh check`)에서도 돈다
 4. 드라이버가 앱 시작 때 버전을 보고 `.sqm` 을 차례로 적용한다
 
 캐시만 담는 테이블이라 옮길 가치가 없으면 `.sqm` 에서 `DROP TABLE` 후 다시 만들어도 된다(다음에 서버에서 다시 받는다).
@@ -62,8 +62,8 @@
 
 ## 5. 이미지 캐시
 
-서버 이미지는 DB 가 아니라 이미지 로더가 캐시한다. Android 는 Coil(메모리 + 디스크), iOS 는 Nuke(DEC-131 — 메모리의 디코딩된 이미지 + 디스크 200MB, `ElsaImagePipeline`).
-화면은 `ElsaRemoteImage`·`ElsaAvatar` 만 쓴다. 업로드마다 주소가 바뀐다는 전제라 서버 캐시 헤더와 상관없이 디스크에 둔다 — 같은 주소로 이미지를 바꾸는 서버면 주소에 버전(`?v=`)을 붙인다.
+서버 이미지는 DB 가 아니라 이미지 로더가 캐시한다. Android 는 Coil(메모리 + 디스크), iOS 는 Nuke(DEC-131 — 메모리의 디코딩된 이미지 + 디스크 200MB, `PapyImagePipeline`).
+화면은 `PapyRemoteImage`·`PapyAvatar` 만 쓴다. 업로드마다 주소가 바뀐다는 전제라 서버 캐시 헤더와 상관없이 디스크에 둔다 — 같은 주소로 이미지를 바꾸는 서버면 주소에 버전(`?v=`)을 붙인다.
 
 ## 6. 받은 파일 (30-1)
 

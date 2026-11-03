@@ -12,7 +12,7 @@ struct ChatScreen: View {
     )
 
     var body: some View {
-        ElsaPagedList(
+        PapyPagedList(
             state: model.state.list,
             id: \.id,
             emptyTitle: String(localized: "chat_empty"),
@@ -24,17 +24,17 @@ struct ChatScreen: View {
             onRetry: { model.viewModel.load() },
             onRetryLoadMore: { model.viewModel.retryLoadMore() }
         ) {
-            ElsaScreenHeader(title: String(localized: "chat_title"))
+            PapyScreenHeader(title: String(localized: "chat_title"))
         } row: { conversation in
             ConversationRow(conversation: conversation) {
                 model.viewModel.conversationClicked(conversation: conversation)
             }
         }
-        .elsaListSkeleton {
-            VStack(spacing: 0) { ForEach(0..<6, id: \.self) { _ in ElsaSkeletonRow(avatar: 52) } }
-                .padding(.horizontal, -ElsaSpacing.xl)
+        .papyListSkeleton {
+            VStack(spacing: 0) { ForEach(0..<6, id: \.self) { _ in PapySkeletonRow(avatar: 52) } }
+                .padding(.horizontal, -PapySpacing.xl)
         }
-        .elsaScreenBackground()
+        .papyScreenBackground()
         .navigationBarTitleDisplayMode(.inline)
         .task {
             await observeEvents()
@@ -50,38 +50,38 @@ struct ConversationRow: View {
     @Environment(\.locale) private var locale
 
     var body: some View {
-        ElsaListItem(
+        PapyListItem(
             title: conversation.title,
             subtitle: conversation.lastMessage,
             action: action,
-            leading: { ElsaAvatar(name: conversation.title, url: conversation.avatarUrl, size: 52) },
+            leading: { PapyAvatar(name: conversation.title, url: conversation.avatarUrl, size: 52) },
             trailing: {
-                VStack(alignment: .trailing, spacing: ElsaSpacing.xs) {
+                VStack(alignment: .trailing, spacing: PapySpacing.xs) {
                     if let at = conversation.lastMessageAt?.int64Value {
                         Text(time(at))
-                            .elsaFont(ElsaFont.caption)
-                            .foregroundStyle(ElsaColor.onSurfaceTertiary)
+                            .papyFont(PapyFont.caption)
+                            .foregroundStyle(PapyColor.onSurfaceTertiary)
                     }
                     if conversation.unreadCount > 0 {
                         Text(conversation.unreadCount > 99 ? "99+" : "\(conversation.unreadCount)")
-                            .elsaFont(ElsaFont.caption)
-                            .foregroundStyle(ElsaColor.onPrimary)
-                            .padding(.horizontal, ElsaSpacing.xs)
-                            .padding(.vertical, ElsaSpacing.xxs)
+                            .papyFont(PapyFont.caption)
+                            .foregroundStyle(PapyColor.onPrimary)
+                            .padding(.horizontal, PapySpacing.xs)
+                            .padding(.vertical, PapySpacing.xxs)
                             .frame(minWidth: 20)
-                            .background(ElsaColor.primary, in: Capsule())
+                            .background(PapyColor.primary, in: Capsule())
                     }
                 }
             }
         )
         // 목록이 화면 좌우 여백 안에 있으므로 줄 자체의 좌우 여백은 뺀다
-        .padding(.horizontal, -ElsaSpacing.xl)
+        .padding(.horizontal, -PapySpacing.xl)
     }
 
     /// 오늘이면 시각, 아니면 날짜
     private func time(_ millis: Int64) -> String {
         let date = Date(timeIntervalSince1970: TimeInterval(millis) / 1000)
-        return Calendar.current.isDateInToday(date) ? ElsaFormat.time(date, locale: locale) : ElsaFormat.date(date, locale: locale)
+        return Calendar.current.isDateInToday(date) ? PapyFormat.time(date, locale: locale) : PapyFormat.date(date, locale: locale)
     }
 }
 
@@ -105,6 +105,6 @@ private extension ChatScreen {
         ConversationRow(conversation: Conversation(id: "1", title: "엘사", avatarUrl: nil, lastMessage: "내일 봬요!", lastMessageAt: KotlinLong(value: Int64(Date().timeIntervalSince1970 * 1000)), unreadCount: 2)) {}
         ConversationRow(conversation: Conversation(id: "2", title: "디자인팀", avatarUrl: nil, lastMessage: "새 아이콘을 올렸어요.", lastMessageAt: KotlinLong(value: 0), unreadCount: 0)) {}
     }
-    .padding(.horizontal, ElsaSpacing.xl)
-    .elsaScreenBackground()
+    .padding(.horizontal, PapySpacing.xl)
+    .papyScreenBackground()
 }

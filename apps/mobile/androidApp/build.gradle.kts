@@ -4,7 +4,7 @@ plugins {
     alias(libs.plugins.composeCompiler) // Kotlin 2.x 전용 Compose 컴파일러
     alias(libs.plugins.kotlinSerialization) // Navigation type-safe route
     // 환경 flavor dev/staging/prod — 앱 이름·ID 접미사, prod 릴리스 R8, 서명 (docs/environments.md)
-    id("elsa.android.environments")
+    id("papy.android.environments")
 }
 
 kotlin {
@@ -62,7 +62,7 @@ dependencies {
 }
 
 android {
-    namespace = "cloud.elsa.app"
+    namespace = "io.github.namjh654.papy"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
 
     buildFeatures {
@@ -71,10 +71,10 @@ android {
     }
 
     defaultConfig {
-        applicationId = "cloud.elsa.app"
+        applicationId = "io.github.namjh654.papy"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
-        // versionCode·versionName 은 env/common.properties (elsa.android.environments 가 flavor 에 넣는다)
+        // versionCode·versionName 은 env/common.properties (papy.android.environments 가 flavor 에 넣는다)
     }
     packaging {
         resources {

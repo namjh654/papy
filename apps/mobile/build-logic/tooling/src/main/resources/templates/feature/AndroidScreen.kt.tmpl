@@ -11,12 +11,12 @@ import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import __pkg__.R
 import __pkg__.component.EventEffect
-import __pkg__.designsystem.component.ElsaCard
-import __pkg__.designsystem.component.ElsaPagedList
-import __pkg__.designsystem.component.ElsaScaffold
-import __pkg__.designsystem.component.ElsaScreenHeader
-import __pkg__.designsystem.theme.ElsaTheme
-import __pkg__.designsystem.token.ElsaSpacing
+import __pkg__.designsystem.component.PapyCard
+import __pkg__.designsystem.component.PapyPagedList
+import __pkg__.designsystem.component.PapyScaffold
+import __pkg__.designsystem.component.PapyScreenHeader
+import __pkg__.designsystem.theme.PapyTheme
+import __pkg__.designsystem.token.PapySpacing
 import __pkg__.feature.__name__.__Name__Event
 import __pkg__.feature.__name__.__Name__Item
 import __pkg__.feature.__name__.__Name__ViewModel
@@ -40,8 +40,8 @@ fun __Name__Screen(
         }
     }
 
-    ElsaScaffold(onBack = onBack, containerColor = ElsaTheme.colors.backgroundGrouped) { padding ->
-        ElsaPagedList(
+    PapyScaffold(onBack = onBack, containerColor = PapyTheme.colors.backgroundGrouped) { padding ->
+        PapyPagedList(
             state = state.list,
             key = { it.id },
             emptyTitle = stringResource(R.string.__name___empty),
@@ -52,21 +52,21 @@ fun __Name__Screen(
             modifier = Modifier.padding(padding),
             header = {
                 item(key = "header") {
-                    ElsaScreenHeader(
+                    PapyScreenHeader(
                         title = stringResource(R.string.__name___title),
                         description = stringResource(R.string.__name___description),
                     )
                 }
             },
         ) { item ->
-            ElsaCard(
+            PapyCard(
                 modifier = Modifier.fillMaxWidth(),
                 onClick = { viewModel.itemClicked(item) },
-                verticalArrangement = Arrangement.spacedBy(ElsaSpacing.xxs),
+                verticalArrangement = Arrangement.spacedBy(PapySpacing.xxs),
             ) {
-                Text(text = item.title, style = ElsaTheme.typography.subtitle)
+                Text(text = item.title, style = PapyTheme.typography.subtitle)
                 item.subtitle?.let {
-                    Text(text = it, style = ElsaTheme.typography.bodySmall, color = ElsaTheme.colors.onSurfaceVariant)
+                    Text(text = it, style = PapyTheme.typography.bodySmall, color = PapyTheme.colors.onSurfaceVariant)
                 }
             }
         }

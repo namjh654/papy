@@ -9,11 +9,11 @@ package template.tooling
  *   Android screen/<name>/<Name>Screen.kt · AndroidRoute · AndroidNavHost · navigateTo<Name>() · DeepLinkRouter · strings.xml(ko/en)
  *   iOS     view/<name>/<name>.screen.swift · MainRoute · AppNavigation · DeepLinkRouter · Localizable.xcstrings(ko/en)
  *
- * 화면은 목록 패턴(ElsaPagedList: 당겨서 새로고침·다음 페이지)이다.
+ * 화면은 목록 패턴(PapyPagedList: 당겨서 새로고침·다음 페이지)이다.
  * [tab] 이면 하단 탭으로 붙인다: Android MainTab · iOS MainTab 에 탭을 추가하고 뒤로가기 없는 탭 루트로 등록한다.
  * 아니면 탭 위에 쌓이는 화면(Android AndroidRoute, iOS MainRoute)으로 등록한다.
  *
- * [db] 면 로컬 DB(SQLDelight, DEC-130)를 붙인다: `elsa.kmp.database`, `<Name>.sq`(첫 페이지 테이블), `cache/<Name>Cache`(LocalCache),
+ * [db] 면 로컬 DB(SQLDelight, DEC-130)를 붙인다: `papy.kmp.database`, `<Name>.sq`(첫 페이지 테이블), `cache/<Name>Cache`(LocalCache),
  * Repository 가 첫 페이지를 저장하고 ViewModel 은 `Paginator(cache = …)` 로 저장된 목록을 먼저 보인다, 테스트용 메모리 DB(docs/local-db.md).
  *
  * 처음에는 Sample<Name>Api 로 서버 없이 동작한다. 루트 Gradle 빌드 밖(build-logic 의 tooling)에서 실행하므로
@@ -60,7 +60,7 @@ class NewFeature(
         create(
             "feature/$name/build.gradle.kts",
             if (!db) gradle
-            else gradle.replace("    id(\"elsa.kmp.feature\")\n", "    id(\"elsa.kmp.feature\")\n    // 로컬 DB(DEC-130): ${cap}Database — src/commonMain/sqldelight/…/$cap.sq\n    id(\"elsa.kmp.database\")\n"),
+            else gradle.replace("    id(\"papy.kmp.feature\")\n", "    id(\"papy.kmp.feature\")\n    // 로컬 DB(DEC-130): ${cap}Database — src/commonMain/sqldelight/…/$cap.sq\n    id(\"papy.kmp.database\")\n"),
         )
         create("$kmp/${cap}Api.kt", template("Api.kt"))
         create("$kmp/${cap}Repository.kt", template(if (db) "Repository.db.kt" else "Repository.kt"))
@@ -129,7 +129,7 @@ class NewFeature(
         if (tab) {
             edit("$app/navigation/MainTab.kt", beforeMarker(
                 "scaffold:tabs",
-                "    $cap(AndroidRoute.$cap, R.string.tab_$name, R.drawable.elsa_ic_tab_default),",
+                "    $cap(AndroidRoute.$cap, R.string.tab_$name, R.drawable.papy_ic_tab_default),",
                 blankLine = false,
             ))
         }
@@ -159,7 +159,7 @@ class NewFeature(
             val tabs = "$ios/navigation/main.tab.swift"
             edit(tabs, beforeMarker("scaffold:tabs", "    case $name", blankLine = false))
             edit(tabs, beforeMarker("scaffold:tab-titles", """        case .$name: "tab_$name"""", blankLine = false))
-            edit(tabs, beforeMarker("scaffold:tab-images", """        case .$name: "elsa_ic_tab_default"""", blankLine = false))
+            edit(tabs, beforeMarker("scaffold:tab-images", """        case .$name: "papy_ic_tab_default"""", blankLine = false))
             edit(iosNav, beforeMarker("scaffold:tab-roots", "        case .$name:\n            $screen"))
             edit("$ios/navigation/deeplink.router.swift", beforeMarker("scaffold:deeplinks", """        case "$name": return .tab(.$name)""", blankLine = false))
         } else {
@@ -177,7 +177,7 @@ class NewFeature(
             appendLine()
             appendLine("다음 단계")
             if (tab) {
-                appendLine("  1. 하단 탭으로 추가됨. 아이콘: design/icons/tab_$name.svg(Lucide) 를 넣고 ./gradlew generateDesignTokens → Android MainTab 의 R.drawable.elsa_ic_tab_$name, iOS MainTab.icon \"elsa_ic_tab_$name\" 로 바꾼다")
+                appendLine("  1. 하단 탭으로 추가됨. 아이콘: design/icons/tab_$name.svg(Lucide) 를 넣고 ./gradlew generateDesignTokens → Android MainTab 의 R.drawable.papy_ic_tab_$name, iOS MainTab.icon \"papy_ic_tab_$name\" 로 바꾼다")
             } else {
                 appendLine("  1. 진입점 연결: Android navController.navigateTo$cap() / iOS AppNavigation 의 open(.$name)  (예: 홈 메뉴 카드)")
             }

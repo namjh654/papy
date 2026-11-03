@@ -9,13 +9,13 @@ plugins {
 /** 대상 앱 패키지 = androidApp 의 applicationId + env/dev.properties 의 app.idSuffix (renameApp 뒤에도 맞는다) */
 val appPackage: String = run {
     val base = Regex("""applicationId\s*=\s*"([^"]+)"""")
-        .find(rootProject.file("androidApp/build.gradle.kts").readText())?.groupValues?.get(1) ?: "cloud.elsa.app"
+        .find(rootProject.file("androidApp/build.gradle.kts").readText())?.groupValues?.get(1) ?: "io.github.namjh654.papy"
     val env = Properties().apply { rootProject.file("env/dev.properties").reader(Charsets.UTF_8).use { load(it) } }
     base + env.getProperty("app.idSuffix", "")
 }
 
 android {
-    namespace = "cloud.elsa.app.uitest"
+    namespace = "io.github.namjh654.papy.uitest"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
 
     // 앱 프로세스 밖에서 돈다(앱 데이터 삭제·재실행·시스템 권한 창을 다룰 수 있다)

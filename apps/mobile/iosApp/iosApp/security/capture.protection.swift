@@ -10,7 +10,7 @@ struct CaptureProtection: ViewModifier {
     @StateObject private var lockEnabled = FlowState(IOSAppGraph.shared.appLock().isEnabled)
     @Environment(\.scenePhase) private var scenePhase
     @State private var isCaptured = UIScreen.main.isCaptured
-    @State private var toast: ElsaToast?
+    @State private var toast: PapyToast?
 
     func body(content: Content) -> some View {
         content
@@ -21,13 +21,13 @@ struct CaptureProtection: ViewModifier {
                     PrivacyCover(message: nil)
                 }
             }
-            .elsaToast($toast)
+            .papyToast($toast)
             .onReceive(NotificationCenter.default.publisher(for: UIScreen.capturedDidChangeNotification)) { _ in
                 isCaptured = UIScreen.main.isCaptured
             }
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.userDidTakeScreenshotNotification)) { _ in
                 if blockCapture {
-                    toast = ElsaToast(message: String(localized: "capture_screenshot_notice"), type: .info)
+                    toast = PapyToast(message: String(localized: "capture_screenshot_notice"), type: .info)
                 }
             }
     }
@@ -38,20 +38,20 @@ private struct PrivacyCover: View {
     let message: String?
 
     var body: some View {
-        VStack(spacing: ElsaSpacing.md) {
-            ElsaIcon("elsa_ic_lock")
+        VStack(spacing: PapySpacing.md) {
+            PapyIcon("papy_ic_lock")
                 .frame(width: 32, height: 32)
-                .foregroundStyle(ElsaColor.onSurfaceVariant)
+                .foregroundStyle(PapyColor.onSurfaceVariant)
             if let message {
                 Text(message)
-                    .elsaFont(ElsaFont.body)
-                    .foregroundStyle(ElsaColor.onSurfaceVariant)
+                    .papyFont(PapyFont.body)
+                    .foregroundStyle(PapyColor.onSurfaceVariant)
                     .multilineTextAlignment(.center)
             }
         }
-        .padding(ElsaSize.screenPadding)
+        .padding(PapySize.screenPadding)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(ElsaColor.background.ignoresSafeArea())
+        .background(PapyColor.background.ignoresSafeArea())
     }
 }
 

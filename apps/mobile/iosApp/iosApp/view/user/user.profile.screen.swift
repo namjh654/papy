@@ -18,8 +18,8 @@ struct UserProfileScreen: View {
         _model = StateObject(wrappedValue: SharedViewModel(IOSAppGraph.shared.userProfileViewModel(userId: userId), state: \.uiState))
     }
 
-    @State private var toast: ElsaToast?
-    @State private var alert: ElsaAlert?
+    @State private var toast: PapyToast?
+    @State private var alert: PapyAlert?
     @State private var menuOpen = false
 
     private var viewModel: UserProfileViewModel { model.viewModel }
@@ -27,22 +27,22 @@ struct UserProfileScreen: View {
 
     var body: some View {
         content
-            .elsaScreenBackground(grouped: true)
+            .papyScreenBackground(grouped: true)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar(.hidden, for: .tabBar)
             .toolbar {
                 if state.canInteract {
                     ToolbarItem(placement: .topBarTrailing) {
-                        Button { menuOpen = true } label: { ElsaIcon("elsa_ic_more") }
+                        Button { menuOpen = true } label: { PapyIcon("papy_ic_more") }
                             .accessibilityLabel(String(localized: "community_more"))
                     }
                 }
             }
-            .elsaToast($toast)
-            .elsaAlert($alert)
-            .elsaActionSheet(isPresented: $menuOpen, actions: [
-                ElsaAction(label: String(localized: "community_block"), isDestructive: true) {
-                    alert = ElsaAlert(
+            .papyToast($toast)
+            .papyAlert($alert)
+            .papyActionSheet(isPresented: $menuOpen, actions: [
+                PapyAction(label: String(localized: "community_block"), isDestructive: true) {
+                    alert = PapyAlert(
                         title: String(localized: "community_block_title"),
                         message: String(localized: "community_block_message"),
                         confirmText: String(localized: "community_block"),
@@ -60,7 +60,7 @@ struct UserProfileScreen: View {
     @ViewBuilder
     private var content: some View {
         if let profile = state.profile {
-            ElsaPagedList(
+            PapyPagedList(
                 state: state.posts,
                 id: \.id,
                 emptyTitle: String(localized: "user_profile_no_posts"),
@@ -73,7 +73,7 @@ struct UserProfileScreen: View {
                 onRetryLoadMore: { viewModel.retryLoadMore() }
             ) {
                 UserProfileCard(profile: profile, onMessage: { viewModel.messageClicked() })
-                    .padding(.horizontal, ElsaSpacing.lg - ElsaSize.screenPadding)
+                    .padding(.horizontal, PapySpacing.lg - PapySize.screenPadding)
             } row: { post in
                 CommunityPostCard(
                     post: post,
@@ -83,10 +83,10 @@ struct UserProfileScreen: View {
                 )
             }
         } else if let error = state.error {
-            ElsaErrorState(message: error.localizedMessage, onRetry: { viewModel.load() })
+            PapyErrorState(message: error.localizedMessage, onRetry: { viewModel.load() })
                 .frame(maxHeight: .infinity)
         } else {
-            ElsaLoadingIndicator().frame(maxWidth: .infinity, maxHeight: .infinity)
+            PapyLoadingIndicator().frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 
@@ -100,7 +100,7 @@ struct UserProfileScreen: View {
             case .blocked:
                 onClosed()
             case .actionFailed(let failed):
-                toast = ElsaToast(message: failed.error.localizedMessage, type: .error)
+                toast = PapyToast(message: failed.error.localizedMessage, type: .error)
             }
         }
     }
@@ -112,30 +112,30 @@ struct UserProfileCard: View {
     let onMessage: () -> Void
 
     var body: some View {
-        VStack(spacing: ElsaSpacing.sm) {
-            ElsaAvatar(name: profile.name, url: profile.avatarUrl, size: 88)
+        VStack(spacing: PapySpacing.sm) {
+            PapyAvatar(name: profile.name, url: profile.avatarUrl, size: 88)
             Text(profile.name)
-                .elsaFont(ElsaFont.title)
-                .foregroundStyle(ElsaColor.onSurface)
+                .papyFont(PapyFont.title)
+                .foregroundStyle(PapyColor.onSurface)
                 .multilineTextAlignment(.center)
             if let bio = profile.bio, !bio.isEmpty {
                 Text(bio)
-                    .elsaFont(ElsaFont.body)
-                    .foregroundStyle(ElsaColor.onSurfaceVariant)
+                    .papyFont(PapyFont.body)
+                    .foregroundStyle(PapyColor.onSurfaceVariant)
                     .multilineTextAlignment(.center)
             }
             Text(String(format: String(localized: "user_profile_post_count"), Int64(profile.postCount)))
-                .elsaFont(ElsaFont.caption)
-                .foregroundStyle(ElsaColor.onSurfaceTertiary)
+                .papyFont(PapyFont.caption)
+                .foregroundStyle(PapyColor.onSurfaceTertiary)
             if !profile.isMe {
-                ElsaButton(String(localized: "user_profile_message"), icon: "elsa_ic_chat", action: onMessage)
-                    .padding(.top, ElsaSpacing.sm)
+                PapyButton(String(localized: "user_profile_message"), icon: "papy_ic_chat", action: onMessage)
+                    .padding(.top, PapySpacing.sm)
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(ElsaSpacing.lg)
-        .background(ElsaColor.surface, in: RoundedRectangle(cornerRadius: ElsaRadius.xl, style: .continuous))
-        .padding(.bottom, ElsaSpacing.md)
+        .padding(PapySpacing.lg)
+        .background(PapyColor.surface, in: RoundedRectangle(cornerRadius: PapyRadius.xl, style: .continuous))
+        .padding(.bottom, PapySpacing.md)
     }
 }
 
@@ -144,6 +144,6 @@ struct UserProfileCard: View {
         UserProfileCard(profile: UserProfile(id: "u1", name: "엘사", avatarUrl: nil, bio: "겨울을 좋아해요.", postCount: 12, isMe: false), onMessage: {})
         UserProfileCard(profile: UserProfile(id: "me", name: "나", avatarUrl: nil, bio: nil, postCount: 3, isMe: true), onMessage: {})
     }
-    .padding(ElsaSpacing.lg)
-    .background(ElsaColor.backgroundGrouped)
+    .padding(PapySpacing.lg)
+    .background(PapyColor.backgroundGrouped)
 }

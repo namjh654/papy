@@ -12,7 +12,7 @@ struct __Name__Screen: View {
     )
 
     var body: some View {
-        ElsaPagedList(
+        PapyPagedList(
             state: model.state.list,
             id: \.id,
             emptyTitle: String(localized: "__name___empty"),
@@ -24,7 +24,7 @@ struct __Name__Screen: View {
             onRetry: { model.viewModel.load() },
             onRetryLoadMore: { model.viewModel.retryLoadMore() }
         ) {
-            ElsaScreenHeader(
+            PapyScreenHeader(
                 title: String(localized: "__name___title"),
                 description: String(localized: "__name___description")
             )
@@ -32,19 +32,19 @@ struct __Name__Screen: View {
             Button {
                 model.viewModel.itemClicked(item: item)
             } label: {
-                ElsaCard(spacing: ElsaSpacing.xxs) {
+                PapyCard(spacing: PapySpacing.xxs) {
                     Text(item.title)
-                        .elsaFont(ElsaFont.subtitle)
+                        .papyFont(PapyFont.subtitle)
                     if let subtitle = item.subtitle {
                         Text(subtitle)
-                            .elsaFont(ElsaFont.bodySmall)
-                            .foregroundStyle(ElsaColor.onSurfaceVariant)
+                            .papyFont(PapyFont.bodySmall)
+                            .foregroundStyle(PapyColor.onSurfaceVariant)
                     }
                 }
             }
-            .buttonStyle(ElsaPressableButtonStyle())
+            .buttonStyle(PapyPressableButtonStyle())
         }
-        .elsaScreenBackground(grouped: true)
+        .papyScreenBackground(grouped: true)
         .navigationBarTitleDisplayMode(.inline)
         .task {
             await observeEvents()

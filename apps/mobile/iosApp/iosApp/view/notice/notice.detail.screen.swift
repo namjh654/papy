@@ -17,29 +17,29 @@ struct NoticeDetailScreen: View {
     private var state: NoticeDetailUiState { model.state }
 
     var body: some View {
-        ElsaContentState(
+        PapyContentState(
             value: state.item,
             isLoading: state.isLoading,
             error: state.error,
             onRetry: { model.viewModel.load() }
         ) { item in
             ScrollView {
-                VStack(alignment: .leading, spacing: ElsaSpacing.lg) {
-                    ElsaScreenHeader(
+                VStack(alignment: .leading, spacing: PapySpacing.lg) {
+                    PapyScreenHeader(
                         title: item.title,
-                        description: ElsaFormat.date(epochMillis: item.publishedAt, locale: locale)
+                        description: PapyFormat.date(epochMillis: item.publishedAt, locale: locale)
                     )
                     if let body = item.body {
                         Text(body)
-                            .elsaFont(ElsaFont.body)
-                            .foregroundStyle(ElsaColor.onSurface)
+                            .papyFont(PapyFont.body)
+                            .foregroundStyle(PapyColor.onSurface)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
-                .padding(ElsaSize.screenPadding)
+                .padding(PapySize.screenPadding)
             }
         }
-        .elsaScreenBackground()
+        .papyScreenBackground()
         .navigationBarTitleDisplayMode(.inline)
     }
 }

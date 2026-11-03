@@ -43,27 +43,27 @@ struct AppLockScreen: View {
     let onUnlock: () -> Void
 
     var body: some View {
-        VStack(spacing: ElsaSpacing.md) {
+        VStack(spacing: PapySpacing.md) {
             Spacer()
-            ElsaIcon("elsa_ic_lock")
+            PapyIcon("papy_ic_lock")
                 .frame(width: 32, height: 32)
-                .foregroundStyle(ElsaColor.onPrimaryContainer)
+                .foregroundStyle(PapyColor.onPrimaryContainer)
                 .frame(width: 72, height: 72)
-                .background(ElsaColor.primaryContainer, in: Circle())
+                .background(PapyColor.primaryContainer, in: Circle())
             Text("app_lock_title")
-                .elsaFont(ElsaFont.title)
-                .foregroundStyle(ElsaColor.onBackground)
+                .papyFont(PapyFont.title)
+                .foregroundStyle(PapyColor.onBackground)
                 .multilineTextAlignment(.center)
             Text("app_lock_description")
-                .elsaFont(ElsaFont.body)
-                .foregroundStyle(ElsaColor.onSurfaceVariant)
+                .papyFont(PapyFont.body)
+                .foregroundStyle(PapyColor.onSurfaceVariant)
                 .multilineTextAlignment(.center)
             Spacer()
-            ElsaButton(String(localized: "app_lock_unlock"), action: onUnlock)
+            PapyButton(String(localized: "app_lock_unlock"), action: onUnlock)
         }
-        .padding(ElsaSize.screenPadding)
+        .padding(PapySize.screenPadding)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(ElsaColor.background.ignoresSafeArea())
+        .background(PapyColor.background.ignoresSafeArea())
     }
 }
 

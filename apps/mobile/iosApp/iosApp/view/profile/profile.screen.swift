@@ -13,8 +13,8 @@ struct ProfileScreen: View {
 
     @Environment(\.dismiss) private var dismiss
 
-    @State private var toast: ElsaToast?
-    @State private var alert: ElsaAlert?
+    @State private var toast: PapyToast?
+    @State private var alert: PapyAlert?
     @State private var showPicker = false
     @State private var selection: PhotosPickerItem?
     /// 방금 고른 사진(저장되면 서버 주소로 바뀐다)
@@ -27,10 +27,10 @@ struct ProfileScreen: View {
     private let uploadSize: CGFloat = 1024
 
     var body: some View {
-        ElsaFormScrollView {
-            VStack(spacing: ElsaSpacing.sm) {
-                ElsaAvatar(name: state.name, url: state.avatarUrl, picked: preview, size: 96)
-                ElsaButton(
+        PapyFormScrollView {
+            VStack(spacing: PapySpacing.sm) {
+                PapyAvatar(name: state.name, url: state.avatarUrl, picked: preview, size: 96)
+                PapyButton(
                     String(localized: "profile_change_photo"),
                     style: .text,
                     size: .small,
@@ -42,7 +42,7 @@ struct ProfileScreen: View {
             }
             .frame(maxWidth: .infinity)
 
-            ElsaTextField(
+            PapyTextField(
                 String(localized: "field_name"),
                 text: Binding(get: { state.name }, set: { viewModel.nameChanged(value: $0) }),
                 placeholder: String(localized: "field_name_placeholder"),
@@ -51,7 +51,7 @@ struct ProfileScreen: View {
                 autocapitalization: .words
             )
 
-            ElsaTextField(
+            PapyTextField(
                 String(localized: "field_email"),
                 text: Binding(get: { state.email }, set: { viewModel.emailChanged(value: $0) }),
                 placeholder: String(localized: "field_email_placeholder"),
@@ -61,10 +61,10 @@ struct ProfileScreen: View {
             )
 
             if let error = state.error {
-                ElsaInlineMessage(message: error.localizedMessage, type: .error)
+                PapyInlineMessage(message: error.localizedMessage, type: .error)
             }
         } bottomBar: {
-            ElsaButton(
+            PapyButton(
                 String(localized: "profile_save"),
                 enabled: state.canSave || state.isSaving,
                 isLoading: state.isSaving
@@ -72,7 +72,7 @@ struct ProfileScreen: View {
                 viewModel.save()
             }
         }
-        .elsaScreenBackground()
+        .papyScreenBackground()
         .navigationTitle(String(localized: "profile_title"))
         .navigationBarTitleDisplayMode(.inline)
         // 저장하지 않은 변경이 있으면 기본 뒤로(밀어서 닫기 포함) 대신 확인을 거치는 버튼을 단다
@@ -80,7 +80,7 @@ struct ProfileScreen: View {
         .toolbar {
             if state.isDirty {
                 ToolbarItem(placement: .topBarLeading) {
-                    ElsaBackButton { confirmDiscard() }
+                    PapyBackButton { confirmDiscard() }
                 }
             }
         }
@@ -90,15 +90,15 @@ struct ProfileScreen: View {
             guard let item else { return }
             Task { await load(item) }
         }
-        .elsaToast($toast)
-        .elsaAlert($alert)
+        .papyToast($toast)
+        .papyAlert($alert)
         .task {
             await observeEvents()
         }
     }
 
     private func confirmDiscard() {
-        alert = ElsaAlert(
+        alert = PapyAlert(
             title: String(localized: "profile_discard_title"),
             message: String(localized: "profile_discard_message"),
             confirmText: String(localized: "profile_discard_confirm"),
@@ -132,7 +132,7 @@ private extension ProfileScreen {
             case .saved:
                 preview = nil
                 selection = nil
-                toast = ElsaToast(message: String(localized: "profile_saved"), type: .success)
+                toast = PapyToast(message: String(localized: "profile_saved"), type: .success)
             }
         }
     }

@@ -9,7 +9,7 @@ struct NotificationSettingsScreen: View {
         IOSAppGraph.shared.notificationSettingsViewModel(),
         state: \.uiState
     )
-    @State private var toast: ElsaToast?
+    @State private var toast: PapyToast?
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.locale) private var locale
 
@@ -18,10 +18,10 @@ struct NotificationSettingsScreen: View {
 
     var body: some View {
         content
-            .elsaScreenBackground(grouped: true)
+            .papyScreenBackground(grouped: true)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar(.hidden, for: .tabBar)
-            .elsaToast($toast)
+            .papyToast($toast)
             .onChange(of: scenePhase) { _, phase in
                 if phase == .active { viewModel.refreshSystem() }
             }
@@ -29,11 +29,11 @@ struct NotificationSettingsScreen: View {
                 for await event in viewModel.events {
                     switch onEnum(of: event) {
                     case .marketingChanged(let changed):
-                        let date = ElsaFormat.date(epochMillis: changed.atMillis, locale: locale)
+                        let date = PapyFormat.date(epochMillis: changed.atMillis, locale: locale)
                         let key: String.LocalizationValue = changed.agreed ? "notification_marketing_agreed" : "notification_marketing_withdrawn"
-                        toast = ElsaToast(message: String(format: String(localized: key), date), type: .success)
+                        toast = PapyToast(message: String(format: String(localized: key), date), type: .success)
                     case .updateFailed(let failed):
-                        toast = ElsaToast(message: failed.error.localizedMessage, type: .error)
+                        toast = PapyToast(message: failed.error.localizedMessage, type: .error)
                     }
                 }
             }
@@ -43,42 +43,42 @@ struct NotificationSettingsScreen: View {
     private var content: some View {
         if let preferences = state.preferences {
             ScrollView {
-                VStack(alignment: .leading, spacing: ElsaSpacing.xl) {
-                    ElsaScreenHeader(
+                VStack(alignment: .leading, spacing: PapySpacing.xl) {
+                    PapyScreenHeader(
                         title: String(localized: "notification_settings_title"),
                         description: String(localized: "notification_settings_description")
                     )
                     if !state.systemEnabled {
-                        VStack(alignment: .leading, spacing: ElsaSpacing.sm) {
-                            ElsaInlineMessage(message: String(localized: "notification_system_off"), type: .warning)
-                            ElsaButton(String(localized: "notification_open_settings"), style: .secondary, size: .small, fullWidth: false) {
+                        VStack(alignment: .leading, spacing: PapySpacing.sm) {
+                            PapyInlineMessage(message: String(localized: "notification_system_off"), type: .warning)
+                            PapyButton(String(localized: "notification_open_settings"), style: .secondary, size: .small, fullWidth: false) {
                                 viewModel.openSystemSettings()
                             }
                         }
                     }
-                    ElsaSettingsSection(title: String(localized: "notification_section_activity")) {
+                    PapySettingsSection(title: String(localized: "notification_section_activity")) {
                         row(.chat, "notification_chat", "notification_chat_description", preferences.chat)
-                        ElsaSettingsDivider()
+                        PapySettingsDivider()
                         row(.comment, "notification_comment", "notification_comment_description", preferences.comment)
                     }
-                    ElsaSettingsSection(title: String(localized: "notification_section_news")) {
+                    PapySettingsSection(title: String(localized: "notification_section_news")) {
                         row(.notice, "notification_notice", "notification_notice_description", preferences.notice)
-                        ElsaSettingsDivider()
+                        PapySettingsDivider()
                         row(.marketing, "notification_marketing", "notification_marketing_description", preferences.marketing)
                     }
                 }
-                .padding(ElsaSize.screenPadding)
+                .padding(PapySize.screenPadding)
             }
         } else if let error = state.error {
-            ElsaErrorState(message: error.localizedMessage, onRetry: { viewModel.load() })
+            PapyErrorState(message: error.localizedMessage, onRetry: { viewModel.load() })
                 .frame(maxHeight: .infinity)
         } else {
-            ElsaLoadingIndicator().frame(maxWidth: .infinity, maxHeight: .infinity)
+            PapyLoadingIndicator().frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 
     private func row(_ category: NotificationCategory, _ title: String.LocalizationValue, _ description: String.LocalizationValue, _ value: Bool) -> some View {
-        ElsaSettingsToggleRow(
+        PapySettingsToggleRow(
             title: String(localized: title),
             description: String(localized: description),
             isOn: Binding(get: { value }, set: { viewModel.toggle(category: category, enabled: $0) })

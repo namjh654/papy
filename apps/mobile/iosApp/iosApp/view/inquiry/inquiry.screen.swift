@@ -10,19 +10,19 @@ struct InquiryScreen: View {
         IOSAppGraph.shared.inquiryViewModel(),
         state: \.uiState
     )
-    @State private var alert: ElsaAlert?
+    @State private var alert: PapyAlert?
 
     private var viewModel: InquiryViewModel { model.viewModel }
     private var state: InquiryUiState { model.state }
 
     var body: some View {
-        ElsaFormScrollView {
-            ElsaScreenHeader(
+        PapyFormScrollView {
+            PapyScreenHeader(
                 title: String(localized: "inquiry_title"),
                 description: String(localized: "inquiry_description")
             )
             InquiryCategories(selected: state.category) { viewModel.categorySelected(category: $0) }
-            ElsaTextField(
+            PapyTextField(
                 String(localized: "inquiry_content"),
                 text: Binding(get: { state.content }, set: { viewModel.contentChanged(value: $0) }),
                 placeholder: String(localized: "inquiry_content_placeholder"),
@@ -30,7 +30,7 @@ struct InquiryScreen: View {
                 maxLength: Int(state.maxContent),
                 autocapitalization: .sentences
             )
-            ElsaTextField(
+            PapyTextField(
                 String(localized: "field_email"),
                 text: Binding(get: { state.email }, set: { viewModel.emailChanged(value: $0) }),
                 placeholder: String(localized: "field_email_placeholder"),
@@ -40,10 +40,10 @@ struct InquiryScreen: View {
                 submitAction: .done
             )
             if let error = state.error {
-                ElsaInlineMessage(message: error.localizedMessage, type: .error)
+                PapyInlineMessage(message: error.localizedMessage, type: .error)
             }
         } bottomBar: {
-            ElsaButton(
+            PapyButton(
                 String(localized: "inquiry_submit"),
                 enabled: state.canSubmit || state.isSubmitting,
                 isLoading: state.isSubmitting
@@ -51,15 +51,15 @@ struct InquiryScreen: View {
                 viewModel.submit()
             }
         }
-        .elsaScreenBackground()
+        .papyScreenBackground()
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .tabBar)
-        .elsaAlert($alert)
+        .papyAlert($alert)
         .task {
             for await event in viewModel.events {
                 switch onEnum(of: event) {
                 case .submitted:
-                    alert = ElsaAlert(
+                    alert = PapyAlert(
                         title: String(localized: "inquiry_sent_title"),
                         message: String(localized: "inquiry_sent_message"),
                         onConfirm: onDone
@@ -76,13 +76,13 @@ struct InquiryCategories: View {
     let onSelect: (InquiryCategory) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: ElsaSpacing.sm) {
+        VStack(alignment: .leading, spacing: PapySpacing.sm) {
             Text("inquiry_category")
-                .elsaFont(ElsaFont.label)
-                .foregroundStyle(ElsaColor.onSurfaceVariant)
-            ElsaFlowLayout(spacing: ElsaSpacing.xs, lineSpacing: ElsaSpacing.xs) {
+                .papyFont(PapyFont.label)
+                .foregroundStyle(PapyColor.onSurfaceVariant)
+            PapyFlowLayout(spacing: PapySpacing.xs, lineSpacing: PapySpacing.xs) {
                 ForEach(InquiryCategory.allCases, id: \.self) { category in
-                    ElsaChip(label: label(category), selected: category == selected, action: { onSelect(category) })
+                    PapyChip(label: label(category), selected: category == selected, action: { onSelect(category) })
                 }
             }
         }
