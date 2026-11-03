@@ -5,18 +5,18 @@ Source-available cross-platform document viewer and editor (PolyForm Noncommerci
 PDF 와 한국어 문서(HWP/HWPX)를 우선 지원하는 **비상업 용도 무료·오프라인 우선** 통합 문서 앱입니다.
 회원가입·광고·서버 업로드 없이, 사용자가 선택한 파일만 로컬에서 엽니다.
 
-> **상태: 초기 개발 단계 (v0.0.0).** 저장소 구조와 빌드만 갖춘 상태이며, **아직 어떤 문서 포맷도 열 수 없습니다.**
+> **상태: 초기 개발 단계.** 데스크톱 앱에서 PDF·HWP·HWPX 를 열어 볼 수 있지만 아직 배포하지 않았습니다(안정화 중).
 > 지원 포맷·기능은 실제 테스트 문서와 회귀 테스트로 검증된 범위만 이 README 에 표시합니다.
 
 ## 현재 구현 상태
 
 | 영역 | 상태 |
 |---|---|
-| Rust 엔진 (`engine/`) | workspace·crate 골격, 파일 시그니처 기반 포맷 판별(PDF/HWPX/ZIP/CFB 후보)만 구현 |
-| 데스크톱 (`apps/desktop/`) | Tauri 2 앱 골격. 엔진 버전 표시만 함. macOS·Windows·Linux 패키징을 CI 에서 빌드, `v*` 태그로 GitHub Release 배포 |
+| Rust 엔진 (`engine/`) | 세션·상한·취소·오류 코드, 포맷 판별. PDF = PDFium(`papy-pdf`), HWP/HWPX = rhwp(`papy-hwp`): 열기·렌더·텍스트, PDF 목차, 암호 문서 |
+| 데스크톱 (`apps/desktop/`) | Tauri 2 뷰어: 열기(대화상자·끌어다 놓기), 연속 스크롤, 쪽 이동, 확대/축소·맞춤, 썸네일·목차·텍스트 사이드바, 암호 입력, 최근 문서, 라이트/다크. macOS·Windows·Linux 패키징을 CI 에서 빌드 |
 | 웹 (`apps/web/`) | Vite + React 골격. 문서 기능 없음 |
 | 모바일 (`apps/mobile/`) | 기존 KMP 템플릿([namjh654/kmp](https://github.com/namjh654/kmp)) 편입. 아직 Papy 기능·엔진 연결 없음 |
-| PDF / HWPX / HWP / Office | 미구현. 엔진 선정·라이선스 검토 전 |
+| Office (DOCX 등) | 미구현 |
 
 ## 디렉터리
 
@@ -54,6 +54,7 @@ Tauri 의 OS 별 선행 조건(Xcode Command Line Tools, Windows 의 WebView2·M
 
 ```bash
 pnpm install
+pnpm engine:vendor   # 외부 엔진(rhwp 소스, PDFium) 고정 버전 받기 — 엔진·데스크톱 빌드 전에 한 번
 
 # 엔진
 cd engine && cargo test --workspace

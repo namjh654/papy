@@ -14,7 +14,11 @@
       {
         "title": "Papy",
         "width": 1200,
-        "height": 800
+        "height": 800,
+        "label": "main",
+        "minWidth": 640,
+        "minHeight": 480,
+        "dragDropEnabled": true
       }
     ],
     "security": {
@@ -64,6 +68,10 @@
       "rpm": {
         "release": "1"
       }
+    },
+    "resources": {
+      "resources/pdfium/": "pdfium/",
+      "resources/licenses/": "licenses/"
     }
   }
 }

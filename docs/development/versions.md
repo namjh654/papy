@@ -19,6 +19,7 @@
 | `tauri` (crate) | 2.12.5 | 2.x stable 최신. crates.io 최신 태그는 3.0.0-alpha → **사용 안 함** |
 | `tauri-build` (crate) | 2.7.4 | |
 | `@tauri-apps/cli`, `@tauri-apps/api` | 2.12.4 | npm `latest`. `next` 태그(3.0.0-alpha) 사용 안 함 |
+| `tauri-plugin-dialog` (crate), `@tauri-apps/plugin-dialog` | 2.8.4 | 파일 열기 대화상자. Apache-2.0 OR MIT |
 | `react`, `react-dom` | 19.3.1 | |
 | `vite` | 8.3.5 | |
 | `@vitejs/plugin-react` | 6.2.1 | |
