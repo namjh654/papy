@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ko">
+<html lang="{{lang}}">
   <head>
     {{head}}
   </head>
@@ -37,7 +37,7 @@
         <li>GitHub 편집기에서 고친 뒤 <em>Commit changes…</em> → <em>Propose changes</em> 를 누릅니다.</li>
         <li>GitHub 가 Fork 와 브랜치를 자동으로 만들고 Pull Request 화면으로 안내합니다. <em>Create pull request</em> 를 누르면 끝입니다.</li>
       </ol>
-      <p>코드 없이 의견만 있다면 <a href="{{repo}}/issues/new/choose">Issue</a> 나 <a href="/contact/">문의</a>로 알려 주세요.
+      <p>코드 없이 의견만 있다면 <a href="{{repo}}/issues/new/choose">Issue</a> 나 <a href="{{base}}/contact/">문의</a>로 알려 주세요.
         처음이라면 <a href="{{repo}}/labels/good%20first%20issue">good first issue</a> 라벨부터 보세요.</p>
 
       <h2 id="pr">Pull Request 절차</h2>
@@ -63,7 +63,7 @@ git switch -c fix/pdf-zoom upstream/main</code></pre>
           <tbody>
             <tr><td><code>engine/</code></td><td><code>cargo fmt --all --check &amp;&amp; cargo clippy --workspace --all-targets -- -D warnings &amp;&amp; cargo test --workspace</code></td></tr>
             <tr><td><code>apps/desktop/</code></td><td><code>pnpm --filter @papy/desktop typecheck</code> · <code>pnpm desktop:dev</code></td></tr>
-            <tr><td><code>website/</code></td><td><code>pnpm --filter @papy/website build</code></td></tr>
+            <tr><td><code>website/</code></td><td><code>pnpm --filter @papy/website test</code></td></tr>
             <tr><td><code>apps/mobile/</code></td><td><code>cd apps/mobile &amp;&amp; scripts/orca.sh check</code></td></tr>
           </tbody>
         </table>

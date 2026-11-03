@@ -1,10 +1,11 @@
-<a class="skip" href="#main">본문 바로가기</a>
+<a class="skip" href="#main">{{t.site.skip}}</a>
     <header class="site-header">
       <div class="wrap bar">
-        <a class="brand" href="/" aria-label="Papy 홈">
+        <a class="brand" href="{{base}}/" aria-label="{{t.site.home}}">
           <img src="/favicon.svg" alt="" width="28" height="28" />
-          <span>Papy <small>페이피</small></span>
+          <span>Papy{{brandSub}}</span>
         </a>
-        <nav class="nav" aria-label="주 메뉴">{{nav}}</nav>
+        <nav class="nav" aria-label="{{t.site.mainNav}}">{{nav}}</nav>
+        <nav class="lang" aria-label="{{t.site.language}}">{{languages}}</nav>
       </div>
     </header>

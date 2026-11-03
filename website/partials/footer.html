@@ -1,12 +1,12 @@
 <footer class="site-footer">
       <div class="wrap foot">
-        <p>© {{year}} Nam Jeong Hyeok · <a href="{{repo}}/blob/main/LICENSE">PolyForm Noncommercial 1.0.0</a> · 비상업적 용도 무료</p>
+        <p>© {{year}} Nam Jeong Hyeok · <a href="{{repo}}/blob/main/LICENSE">PolyForm Noncommercial 1.0.0</a> · {{t.site.licenseNote}}</p>
         <p>
-          <a href="{{repo}}">GitHub</a>
-          <a href="/developers/">개발자</a>
-          <a href="/contact/">문의</a>
-          <a href="/privacy/">개인정보 처리방침</a>
-          <a href="{{edit}}">이 페이지 수정 제안</a>
+          <a href="{{repo}}">{{t.site.github}}</a>
+          <a href="{{base}}/developers/">{{t.pages.developers.nav}}</a>
+          <a href="{{base}}/contact/">{{t.pages.contact.nav}}</a>
+          <a href="{{base}}/privacy/">{{t.site.privacy}}</a>
+          <a href="{{edit}}">{{t.site.editPage}}</a>
         </p>
       </div>
     </footer>

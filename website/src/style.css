@@ -64,6 +64,11 @@ pre code { background: none; border: 0; padding: 0; }
 .nav a { color: var(--muted); text-decoration: none; padding: 6px 10px; border-radius: 8px; font-size: 15px; }
 .nav a:hover { background: var(--bg-soft); color: var(--fg); }
 .nav a[aria-current="page"] { color: var(--brand); background: var(--brand-soft); font-weight: 600; }
+.lang { display: flex; gap: 2px; padding: 2px; border: 1px solid var(--line); border-radius: 999px; }
+.lang a { color: var(--muted); text-decoration: none; padding: 3px 10px; border-radius: 999px; font-size: 13px; }
+.lang a:hover { color: var(--fg); background: var(--bg-soft); }
+.lang a[aria-current="true"] { color: var(--brand); background: var(--brand-soft); font-weight: 600; }
+.not-found + .not-found { margin-top: 40px; padding-top: 32px; border-top: 1px solid var(--line); }
 
 main { padding: 40px 0 64px; }
 h1 { font-size: clamp(28px, 5vw, 42px); line-height: 1.25; margin: 0 0 12px; letter-spacing: -0.02em; }

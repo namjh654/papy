@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="{{lang}}">
+  <head>
+    {{head}}
+  </head>
+  <body>
+    {{header}}
+    <main id="main" class="wrap">
+      <h1>User guide</h1>
+      <p class="lead">How to open, edit and save documents in Papy. Features marked <span class="badge ok">Next release</span> work in the development build and will ship in the next release.</p>
+      <ul class="toc">
+        <li><a href="#start">Getting started</a></li>
+        <li><a href="#open">Opening documents</a></li>
+        <li><a href="#view">Viewing and navigating</a></li>
+        <li><a href="#edit">Edit mode</a></li>
+        <li><a href="#pdf">Editing PDFs</a></li>
+        <li><a href="#save">Saving and converting</a></li>
+        <li><a href="#formats">What is supported</a></li>
+        <li><a href="#help">Troubleshooting</a></li>
+      </ul>
+
+      <p>On macOS, use <kbd>⌘</kbd> wherever this guide says <kbd>Ctrl</kbd>.</p>
+
+      <h2 id="start">Getting started</h2>
+      <ol class="steps">
+        <li>Install Papy by following the <a href="{{base}}/install/">installation guide</a>, then open it.</li>
+        <li>The start screen appears right away, with no sign-in or sign-up.</li>
+        <li>Documents open in <strong>view mode</strong>. Switch to edit mode only when you want to make changes.</li>
+      </ol>
+
+      <h2 id="open">Opening documents <span class="badge ok">Next release</span></h2>
+      <ul>
+        <li><strong>Choose a file:</strong> the <em>Open</em> button or <kbd>Ctrl</kbd>+<kbd>O</kbd>.</li>
+        <li><strong>Drag and drop:</strong> drop a file onto the Papy window.</li>
+        <li><strong>Double-click:</strong> once installed, PDF, HWP, HWPX and DOCX files can open in Papy.</li>
+        <li><strong>Recent documents:</strong> reopen them from the start screen. The list stays on your computer and you can clear it at any time.</li>
+        <li><strong>Password-protected files:</strong> Papy asks for the password of protected PDF and HWP files. Passwords are never stored.</li>
+      </ul>
+      <p>Papy only reads the files you choose. It does not scan other folders or upload files anywhere.</p>
+
+      <h2 id="view">Viewing and navigating <span class="badge ok">Next release</span></h2>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Action</th><th>How</th></tr></thead>
+          <tbody>
+            <tr><td>Next / previous page</td><td><kbd>→</kbd> / <kbd>←</kbd>, or scroll</td></tr>
+            <tr><td>First / last page</td><td><kbd>Home</kbd> / <kbd>End</kbd></td></tr>
+            <tr><td>Go to a page</td><td>Type the page number in the toolbar</td></tr>
+            <tr><td>Zoom in / out</td><td><kbd>Ctrl</kbd>+<kbd>+</kbd> / <kbd>-</kbd>, fit width <kbd>Ctrl</kbd>+<kbd>0</kbd></td></tr>
+            <tr><td>Outline and page list</td><td><kbd>Ctrl</kbd>+<kbd>\</kbd> opens and closes the side panel</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2 id="edit">Edit mode <span class="badge ok">Next release</span></h2>
+      <p>Use the <em>Edit</em> button in the toolbar or <kbd>Ctrl</kbd>+<kbd>E</kbd> to switch between view mode and edit mode. HWP, HWPX and DOCX files are edited like in a word processor.</p>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Action</th><th>How</th></tr></thead>
+          <tbody>
+            <tr><td>Type text</td><td>Click where you want to type (input methods such as Korean IME are supported)</td></tr>
+            <tr><td>Select</td><td>Drag, <kbd>Shift</kbd>+arrow keys, <kbd>Ctrl</kbd>+<kbd>A</kbd></td></tr>
+            <tr><td>Character format</td><td>Bold <kbd>Ctrl</kbd>+<kbd>B</kbd>, italic <kbd>Ctrl</kbd>+<kbd>I</kbd>, underline <kbd>Ctrl</kbd>+<kbd>U</kbd>; strikethrough, size and color in the format bar</td></tr>
+            <tr><td>Paragraph</td><td>Align left, center, right or justify</td></tr>
+            <tr><td>Undo / redo</td><td><kbd>Ctrl</kbd>+<kbd>Z</kbd> / <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Editing table cells, images and headers is in progress. For now they are preserved as they are.</p>
+
+      <h2 id="pdf">Editing PDFs <span class="badge ok">Next release</span></h2>
+      <p>A toolbar appears when you switch a PDF to edit mode.</p>
+      <ul>
+        <li><strong>Highlight, underline, strikethrough:</strong> pick a tool and drag over the text.</li>
+        <li><strong>Pen:</strong> draw freely, with your choice of color and width.</li>
+        <li><strong>Text box and note:</strong> click where you want it and type (Korean is supported).</li>
+        <li><strong>Pages:</strong> rotate, move forward or back, and delete pages.</li>
+        <li>Undo with <kbd>Ctrl</kbd>+<kbd>Z</kbd>; press <kbd>Esc</kbd> to put the tool down.</li>
+      </ul>
+      <p>Changing text that is already in a PDF is not supported yet.</p>
+
+      <h2 id="save">Saving and converting <span class="badge ok">Next release</span></h2>
+      <ul>
+        <li><strong>Save</strong> <kbd>Ctrl</kbd>+<kbd>S</kbd>: overwrites the original file. Papy writes to a temporary file first, so the original stays intact if something goes wrong.</li>
+        <li><strong>Save as</strong> <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd>: choose a new location and format.</li>
+        <li><strong>Export:</strong> save in another format from the export menu in the toolbar.</li>
+        <li>Unsaved changes are marked on screen, and Papy asks whether to save when you close.</li>
+      </ul>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Open document</th><th>Can be saved as</th></tr></thead>
+          <tbody>
+            <tr><td>HWP · HWPX · DOCX</td><td>HWP, HWPX, DOCX, PDF, plain text</td></tr>
+            <tr><td>PDF</td><td>PDF, plain text</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2 id="formats">What is supported</h2>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Format</th><th>Viewing</th><th>Editing</th></tr></thead>
+          <tbody>
+            <tr><td>PDF</td><td><span class="badge ok">Next release</span></td><td>Annotations, text boxes, pen, page editing</td></tr>
+            <tr><td>HWPX · HWP (5.x)</td><td><span class="badge ok">Next release</span></td><td>Text and formatting / tables and images in progress</td></tr>
+            <tr><td>DOCX</td><td><span class="badge ok">Next release</span></td><td>Text and formatting / images, headers and footnotes in progress</td></tr>
+            <tr><td>XLSX · PPTX</td><td><span class="badge">Planned</span></td><td>Long-term plan</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>DOCX elements that are not carried over yet (images, headers, footnotes and so on) may be lost. Keep a copy of important originals.</p>
+
+      <h2 id="help">Troubleshooting</h2>
+      <h3>The app does not open</h3>
+      <p>Check the security warning steps for your operating system in the <a href="{{base}}/install/">installation guide</a>.</p>
+      <h3>I found a bug / I have an idea</h3>
+      <p>Please open a <a href="{{repo}}/issues/new/choose">GitHub Issue</a>. Describe the symptoms only; do not attach personal documents.</p>
+    </main>
+    {{footer}}
+  </body>
+</html>

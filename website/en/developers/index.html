@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="{{lang}}">
+  <head>
+    {{head}}
+  </head>
+  <body>
+    {{header}}
+    <main id="main" class="wrap">
+      <h1>Developers</h1>
+      <p class="lead">All of Papy’s source code is public on GitHub. Bug fixes, documentation and new features are all welcome — even small pull requests.</p>
+
+      <div class="actions">
+        <a class="btn primary" href="{{repo}}">GitHub repository</a>
+        <a class="btn" href="{{repo}}/fork">Fork</a>
+        <a class="btn" href="{{repo}}/compare">Open a pull request</a>
+        <a class="btn" href="{{repo}}/issues/new/choose">Open an issue</a>
+      </div>
+      <div class="badges" aria-label="CI status">
+        <img alt="engine CI" src="{{repo}}/actions/workflows/engine.yml/badge.svg" height="20" />
+        <img alt="desktop CI" src="{{repo}}/actions/workflows/desktop.yml/badge.svg" height="20" />
+        <img alt="website CI" src="{{repo}}/actions/workflows/website.yml/badge.svg" height="20" />
+        <img alt="mobile CI" src="{{repo}}/actions/workflows/mobile.yml/badge.svg" height="20" />
+      </div>
+
+      <ul class="toc">
+        <li><a href="#quick">The easiest contribution</a></li>
+        <li><a href="#pr">Pull request workflow</a></li>
+        <li><a href="#setup">Development setup</a></li>
+        <li><a href="#structure">Repository layout</a></li>
+        <li><a href="#activity">Open work</a></li>
+        <li><a href="#license">License</a></li>
+      </ul>
+
+      <h2 id="quick">The easiest contribution — edit on the web</h2>
+      <ol class="steps">
+        <li>Click <strong>“Suggest an edit to this page”</strong> at the bottom of any page on this site.</li>
+        <li>Make your change in the GitHub editor, then click <em>Commit changes…</em> → <em>Propose changes</em>.</li>
+        <li>GitHub creates the fork and branch for you and takes you to the pull request screen. Click <em>Create pull request</em> and you are done.</li>
+      </ol>
+      <p>If you have feedback but no code, tell us through an <a href="{{repo}}/issues/new/choose">issue</a> or the <a href="{{base}}/contact/">contact form</a>.
+        New here? Start with issues labeled <a href="{{repo}}/labels/good%20first%20issue">good first issue</a>.</p>
+
+      <h2 id="pr">Pull request workflow</h2>
+      <ol class="steps">
+        <li><a href="{{repo}}/fork">Fork</a> the repository and clone your copy.
+          <pre><code>git clone https://github.com/&lt;your-account&gt;/papy.git
+cd papy
+git remote add upstream {{repo}}.git</code></pre>
+        </li>
+        <li>Create a branch from the latest <code>main</code>: <code>feature/*</code>, <code>fix/*</code> or <code>docs/*</code>.
+          <pre><code>git fetch upstream
+git switch -c fix/pdf-zoom upstream/main</code></pre>
+        </li>
+        <li>Run the checks for the area you changed (table below). CI runs the same commands.</li>
+        <li>Commit, push, then click <a href="{{repo}}/compare">Compare &amp; pull request</a>.
+          <pre><code>git push -u origin fix/pdf-zoom</code></pre>
+        </li>
+        <li>Fill in the checklist and test results in the PR template; it is merged after review.</li>
+      </ol>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Changed</th><th>Local check</th></tr></thead>
+          <tbody>
+            <tr><td><code>engine/</code></td><td><code>cargo fmt --all --check &amp;&amp; cargo clippy --workspace --all-targets -- -D warnings &amp;&amp; cargo test --workspace</code></td></tr>
+            <tr><td><code>apps/desktop/</code></td><td><code>pnpm --filter @papy/desktop typecheck</code> · <code>pnpm desktop:dev</code></td></tr>
+            <tr><td><code>website/</code></td><td><code>pnpm --filter @papy/website test</code></td></tr>
+            <tr><td><code>apps/mobile/</code></td><td><code>cd apps/mobile &amp;&amp; scripts/orca.sh check</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>The full rules are in <a href="{{repo}}/blob/main/CONTRIBUTING.md">CONTRIBUTING.md</a>. The key points: never log document contents or personal paths, and keep the engine independent of the UI.</p>
+
+      <h2 id="setup">Development setup</h2>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Tool</th><th>Version</th></tr></thead>
+          <tbody>
+            <tr><td>Rust</td><td>1.99.1 (installed automatically from <code>rust-toolchain.toml</code>)</td></tr>
+            <tr><td>Node.js / pnpm</td><td>24 or later / 10.27.0</td></tr>
+            <tr><td>Tauri</td><td>2.x stable — see the <a href="https://v2.tauri.app/start/prerequisites/">prerequisites</a> for your OS</td></tr>
+            <tr><td>Mobile</td><td>JDK 21, Android SDK, Xcode (macOS)</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <pre><code>pnpm install
+pnpm desktop:dev                 # run the desktop app
+cd engine &amp;&amp; cargo test --workspace</code></pre>
+
+      <h2 id="structure">Repository layout</h2>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Folder</th><th>Contents</th></tr></thead>
+          <tbody>
+            <tr><td><a href="{{repo}}/tree/main/engine"><code>engine/</code></a></td><td>Rust document engine — parsing, model and rendering. No UI framework dependency</td></tr>
+            <tr><td><a href="{{repo}}/tree/main/apps/desktop"><code>apps/desktop/</code></a></td><td>Tauri 2 + React desktop app (Windows, macOS, Linux)</td></tr>
+            <tr><td><a href="{{repo}}/tree/main/apps/mobile"><code>apps/mobile/</code></a></td><td>Kotlin Multiplatform — Android Compose, iOS SwiftUI (later)</td></tr>
+            <tr><td><a href="{{repo}}/tree/main/apps/web"><code>apps/web/</code></a></td><td>Browser viewer (after WASM validation)</td></tr>
+            <tr><td><a href="{{repo}}/tree/main/website"><code>website/</code></a></td><td>This site</td></tr>
+            <tr><td><a href="{{repo}}/tree/main/docs"><code>docs/</code></a></td><td>Architecture, decision records (ADRs), format and license docs (mostly in Korean)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2 id="activity">Open work</h2>
+      <div class="grid">
+        <section class="card">
+          <h3>Open pull requests</h3>
+          <ul class="list" data-feed="pulls"><li class="meta">Loading…</li></ul>
+          <a href="{{repo}}/pulls">See all</a>
+        </section>
+        <section class="card">
+          <h3>Open issues</h3>
+          <ul class="list" data-feed="issues"><li class="meta">Loading…</li></ul>
+          <a href="{{repo}}/issues">See all</a>
+        </section>
+      </div>
+
+      <h2 id="license">License</h2>
+      <p>Papy uses the <a href="{{repo}}/blob/main/LICENSE">PolyForm Noncommercial 1.0.0</a> license. By sending a pull request you agree to provide your contribution under the same license.
+        Code under licenses that conflict with the noncommercial restriction, such as GPL or AGPL, cannot be accepted.</p>
+    </main>
+    {{footer}}
+    <script type="module" src="/src/developers.ts"></script>
+  </body>
+</html>

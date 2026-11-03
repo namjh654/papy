@@ -1,4 +1,6 @@
 /** 사이트 공통 값. 도메인을 바꾸면 VITE_SITE_URL 만 바꾼다(.env 또는 Vercel 환경 변수). */
+import type { PageId } from "./i18n/index.ts";
+
 export const SITE_URL = (process.env.VITE_SITE_URL ?? "https://papy-omega.vercel.app").replace(/\/$/, "");
 
 export const REPO_URL = "https://github.com/namjh654/papy";
@@ -10,73 +12,25 @@ export const VERIFICATION = {
 };
 
 export interface Page {
-  /** 빌드 입력 HTML (website/ 기준) */
+  id: PageId;
+  /** 기본 언어의 페이지 파일(website/ 기준). 다른 언어는 앞에 "<언어>/" 가 붙는다 */
   file: string;
-  /** 공개 경로 */
+  /** 기본 언어의 공개 경로. 다른 언어는 앞에 "/<언어>" 가 붙는다 */
   path: string;
-  title: string;
-  description: string;
-  /** 상단 메뉴 표시 이름. 없으면 메뉴에 넣지 않는다 */
-  nav?: string;
   /** false 면 sitemap 에서 빼고 noindex 로 둔다 */
   index?: boolean;
+  /** true 면 언어별 파일 없이 하나만 둔다(모든 언어 문구를 한 페이지에 싣는다). Vercel 의 404 는 하나뿐이다 */
+  shared?: boolean;
 }
 
+/** 페이지 목록. 순서대로 상단 메뉴에 나온다(메뉴 이름은 i18n/<언어>.ts 의 pages.<id>.nav). */
 export const PAGES: Page[] = [
-  {
-    file: "index.html",
-    path: "/",
-    title: "Papy (페이피) — 무료·오프라인 PDF·HWPX 문서 뷰어",
-    description:
-      "Papy(페이피)는 PDF와 한글(HWP/HWPX) 문서를 우선 지원하는 소스 공개 문서 뷰어로, 개인·비상업 용도는 무료입니다. 회원가입·광고·서버 업로드 없이 내 컴퓨터에서 바로 엽니다. Windows·macOS·Linux 지원 예정.",
-    nav: "소개",
-  },
-  {
-    file: "download/index.html",
-    path: "/download/",
-    title: "다운로드 — Papy (페이피)",
-    description: "Papy 문서 뷰어를 Windows, macOS, Linux 용으로 무료로 내려받으세요. 모든 설치 파일은 GitHub Releases 에서 공개 빌드됩니다.",
-    nav: "다운로드",
-  },
-  {
-    file: "install/index.html",
-    path: "/install/",
-    title: "설치 방법 — Papy (페이피)",
-    description: "Windows(.msi/.exe), macOS(.dmg), Linux(.AppImage/.deb) 별 Papy 설치 방법과 보안 경고가 뜰 때 여는 방법을 안내합니다.",
-    nav: "설치 방법",
-  },
-  {
-    file: "usage/index.html",
-    path: "/usage/",
-    title: "사용법 — Papy (페이피)",
-    description: "Papy 로 문서를 여는 방법, 화면 구성, 지원 포맷과 현재 개발 상태를 안내합니다.",
-    nav: "사용법",
-  },
-  {
-    file: "developers/index.html",
-    path: "/developers/",
-    title: "개발자 — Papy (페이피) 기여하기",
-    description: "Papy 소스 코드에 기여하는 방법: GitHub 저장소, 이슈 등록, Fork·브랜치·Pull Request 절차, 개발 환경과 저장소 구조를 안내합니다.",
-    nav: "개발자",
-  },
-  {
-    file: "contact/index.html",
-    path: "/contact/",
-    title: "문의 — Papy (페이피)",
-    description: "Papy 개발자에게 버그 신고, 기능 제안, 사용·상업적 이용 문의를 바로 보낼 수 있습니다.",
-    nav: "문의",
-  },
-  {
-    file: "privacy/index.html",
-    path: "/privacy/",
-    title: "개인정보 처리방침 — Papy (페이피)",
-    description: "Papy 는 계정·광고·추적 없이 동작하며 문서를 서버로 보내지 않습니다. 앱과 이 웹사이트가 처리하는 정보를 설명합니다.",
-  },
-  {
-    file: "404.html",
-    path: "/404",
-    title: "페이지를 찾을 수 없습니다 — Papy (페이피)",
-    description: "요청한 페이지가 없습니다.",
-    index: false,
-  },
+  { id: "home", file: "index.html", path: "/" },
+  { id: "download", file: "download/index.html", path: "/download/" },
+  { id: "install", file: "install/index.html", path: "/install/" },
+  { id: "usage", file: "usage/index.html", path: "/usage/" },
+  { id: "developers", file: "developers/index.html", path: "/developers/" },
+  { id: "contact", file: "contact/index.html", path: "/contact/" },
+  { id: "privacy", file: "privacy/index.html", path: "/privacy/" },
+  { id: "notFound", file: "404.html", path: "/404", index: false, shared: true },
 ];
