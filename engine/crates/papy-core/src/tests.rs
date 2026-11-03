@@ -191,14 +191,19 @@ fn unknown_and_unregistered_formats_are_rejected() {
     assert!(error.message.contains("HWPX"));
     assert_eq!(
         Engine::default().supported_formats(),
-        [DocumentFormat::Hwpx, DocumentFormat::CompoundFile]
+        [
+            DocumentFormat::Hwpx,
+            DocumentFormat::CompoundFile,
+            DocumentFormat::ZipContainer
+        ]
     );
     assert_eq!(
         Engine::with_pdfium(Limits::default(), "missing-pdfium").supported_formats(),
         [
             DocumentFormat::Pdf,
             DocumentFormat::Hwpx,
-            DocumentFormat::CompoundFile
+            DocumentFormat::CompoundFile,
+            DocumentFormat::ZipContainer
         ]
     );
 }

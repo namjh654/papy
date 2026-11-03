@@ -384,6 +384,10 @@ impl Document for HwpDocument {
                 None => self.read("save HWP", |doc| doc.export_hwp_native()),
             },
             SaveFormat::Pdf => self.read("export PDF", |doc| doc.render_document_pdf_native()),
+            SaveFormat::Docx => {
+                self.check()?;
+                guard(|| papy_office::docx_from_document(self.doc.document()))?
+            }
             SaveFormat::Text => {
                 let mut text = String::new();
                 for page in 0..self.info.page_count {

@@ -18,6 +18,8 @@ pub enum DocumentFormat {
     CompoundFile,
     /// HWPX 로 판별되지 않은 ZIP 컨테이너(DOCX/XLSX/PPTX 후보). 내부 항목 확인이 더 필요하다.
     ZipContainer,
+    /// Word 문서(DOCX). ZIP 컨테이너를 연 뒤 내부 항목으로 확정한다.
+    Docx,
 }
 
 impl DocumentFormat {
@@ -28,6 +30,7 @@ impl DocumentFormat {
             Self::Hwpx => "HWPX",
             Self::CompoundFile => "OLE compound file",
             Self::ZipContainer => "ZIP container",
+            Self::Docx => "DOCX",
         }
     }
 }
@@ -87,6 +90,8 @@ pub enum SaveFormat {
     Hwpx,
     /// HWP 5.x.
     Hwp,
+    /// Word 문서(DOCX). 본문·글자/문단 서식·표만 옮긴다.
+    Docx,
     /// 일반 텍스트(UTF-8). 서식은 버린다.
     Text,
 }
@@ -98,13 +103,14 @@ impl SaveFormat {
             Self::Pdf => "pdf",
             Self::Hwpx => "hwpx",
             Self::Hwp => "hwp",
+            Self::Docx => "docx",
             Self::Text => "txt",
         }
     }
 
     /// 확장자로 찾는다(대소문자 무시).
     pub fn from_extension(extension: &str) -> Option<Self> {
-        [Self::Pdf, Self::Hwpx, Self::Hwp, Self::Text]
+        [Self::Pdf, Self::Hwpx, Self::Hwp, Self::Docx, Self::Text]
             .into_iter()
             .find(|format| format.extension().eq_ignore_ascii_case(extension))
     }

@@ -2705,6 +2705,7 @@ name = "papy-hwp"
 version = "0.0.0"
 dependencies = [
  "papy-model",
+ "papy-office",
  "papy-render",
  "resvg",
  "rhwp",
@@ -2720,6 +2721,9 @@ name = "papy-office"
 version = "0.0.0"
 dependencies = [
  "papy-model",
+ "quick-xml 0.42.0",
+ "rhwp",
+ "zip",
 ]
 
 [[package]]

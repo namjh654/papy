@@ -7,7 +7,13 @@ export type Mode = "view" | "edit";
 
 const isMac = navigator.userAgent.includes("Mac");
 const mod = isMac ? "⌘" : "Ctrl+";
-const FORMAT_LABELS: Record<string, string> = { hwpx: "HWPX", hwp: "HWP", pdf: "PDF", txt: "텍스트(TXT)" };
+const FORMAT_LABELS: Record<string, string> = {
+  hwpx: "HWPX",
+  hwp: "HWP",
+  docx: "Word(DOCX)",
+  pdf: "PDF",
+  txt: "텍스트(TXT)",
+};
 
 interface Props {
   doc: OpenedDocument | null;

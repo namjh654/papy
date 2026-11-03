@@ -422,3 +422,85 @@ fn caret_motion() {
     assert_eq!(doc.move_caret(pos(1, 1), DocumentStart).unwrap(), pos(0, 0));
     assert_eq!(doc.move_caret(pos(0, 1), DocumentEnd).unwrap(), pos(1, 2));
 }
+
+// ---- DOCX ----
+
+#[test]
+fn docx_round_trip_keeps_text_format_and_tables() {
+    let mut doc = editable(1);
+    doc.apply_char_format(
+        pos(0, 0),
+        pos(0, 4),
+        &CharFormat {
+            bold: Some(true),
+            ..CharFormat::default()
+        },
+    )
+    .unwrap();
+    // 표가 있는 문단을 붙인다(rhwp HTML 붙여넣기).
+    let mut core = DocumentCore::new_empty();
+    core.create_blank_document_native().unwrap();
+    core.insert_text_native(0, 0, 0, "표 위 문단").unwrap();
+    core.paste_html_native(
+        0,
+        0,
+        5,
+        "<table border=\"1\"><tr><td>칸1</td><td>칸2</td></tr></table>",
+    )
+    .unwrap();
+    let with_table = core.export_hwpx_native().unwrap();
+
+    for (source, expected) in [
+        (doc.save(SaveFormat::Docx).unwrap(), "Papy 쪽 1"),
+        (
+            open(HwpBackend::hwpx(), with_table, &options())
+                .unwrap()
+                .save(SaveFormat::Docx)
+                .unwrap(),
+            "칸2",
+        ),
+    ] {
+        assert!(papy_office::is_docx(&source));
+        let mut reopened = open(HwpBackend::docx(), source, &options()).unwrap();
+        let info = reopened.info();
+        assert_eq!(info.format, DocumentFormat::Docx);
+        assert!(
+            info.capabilities.edit && info.capabilities.save_formats.contains(&SaveFormat::Docx)
+        );
+        assert!(
+            reopened.extract_text(0).unwrap().contains(expected),
+            "{expected}"
+        );
+    }
+
+    let mut reopened = open(
+        HwpBackend::docx(),
+        doc.save(SaveFormat::Docx).unwrap(),
+        &options(),
+    )
+    .unwrap();
+    assert_eq!(reopened.char_format(pos(0, 2)).unwrap().bold, Some(true));
+    assert_eq!(reopened.char_format(pos(0, 7)).unwrap().bold, Some(false));
+    // DOCX 로 연 문서도 편집하고 다른 형식으로 저장할 수 있다.
+    reopened.insert_text(pos(0, 0), "편집 ").unwrap();
+    let hwpx = reopened.save(SaveFormat::Hwpx).unwrap();
+    assert!(
+        open(HwpBackend::hwpx(), hwpx, &options())
+            .unwrap()
+            .extract_text(0)
+            .unwrap()
+            .starts_with("편집 Papy")
+    );
+}
+
+#[test]
+fn non_docx_zip_is_rejected() {
+    let error = open(
+        HwpBackend::docx(),
+        b"PK\x03\x04 not really a zip".to_vec(),
+        &options(),
+    )
+    .err()
+    .unwrap();
+    assert_eq!(error.code, ErrorCode::UnsupportedFormat);
+}

@@ -222,7 +222,7 @@ export function describeError(error: unknown): string {
     case ErrorCode.Io:
       return "파일을 읽을 수 없습니다. 파일이 옮겨졌거나 지워졌는지 확인해 주세요.";
     case ErrorCode.UnsupportedFormat:
-      return "지원하지 않는 형식입니다. PDF, HWP, HWPX 문서를 열 수 있습니다.";
+      return "지원하지 않는 형식입니다. PDF, HWP, HWPX, DOCX 문서를 열 수 있습니다.";
     case ErrorCode.InvalidDocument:
       return "문서가 손상됐거나 형식이 올바르지 않아 열 수 없습니다.";
     case ErrorCode.PasswordRequired:
