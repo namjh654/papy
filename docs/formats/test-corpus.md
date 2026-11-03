@@ -25,3 +25,18 @@
 - 렌더: 기준 PNG 와 픽셀 차이 비율 비교(허용치 정의, OS 별 폰트 차이는 별도 기준).
 - 안전: 손상·악성 파일은 패닉·무한 루프·상한 초과 할당 없이 정해진 `ErrorCode` 로 끝나야 한다(시간 제한 포함).
 - fuzz: `cargo fuzz` 로 `detect_format`, HWP 레코드 파서, HWPX ZIP/XML 진입점(어댑터 도입 후).
+
+## 실제 문서 점검 테스트
+
+```bash
+PAPY_CORPUS=/문서/폴더 PAPY_PDFIUM_LIBRARY=engine/vendor/pdfium/<target>/libpdfium.dylib \
+  cargo test --release -p papy-core --test corpus -- --ignored --nocapture
+```
+
+폴더 안 PDF·HWP·HWPX·DOCX 를 모두 열고 모든 쪽을 1배로 그린 뒤 글을 꺼낸다. 문서마다 열기·그리기 시간과 못 옮긴 요소 수를 출력하고(내용은 출력하지 않음), 실패가 있으면 테스트가 실패한다. 문서 파일은 저장소에 넣지 않는다.
+
+### 기록
+
+| 날짜 | 문서 모음 | 결과 |
+|---|---|---|
+| 2026-11-03 | rhwp v0.8.7 `samples/` 13개(HWP 12·HWPX 1, 224쪽) — macOS Apple Silicon, release | 실패 0. 대부분 쪽당 약 0.1초, 가장 느린 쪽 0.34초. 115쪽 문서 열기 0.57초·전체 그리기 11.7초 |

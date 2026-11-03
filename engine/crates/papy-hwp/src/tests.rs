@@ -609,6 +609,39 @@ fn docx_images_are_kept() {
         pdf.starts_with(b"%PDF-") && pdf.windows(6).any(|w| w == b"/Image"),
         "PDF should embed the image"
     );
-    // 알려진 한계(rhwp 0.8.7): rhwp 가 HWPX 로 쓴 그림은 rhwp 로 다시 열면 그려지지 않는다
-    // (HWP 에서 바꾼 HWPX 도 같다). docs/formats/hwp-hwpx.md "알려진 한계" 참고.
+    // DOCX 로 다시 써도 그림이 남는다(word/media + 그림 관계).
+    let docx = doc.save(SaveFormat::Docx).unwrap();
+    {
+        let zip = zip::ZipArchive::new(std::io::Cursor::new(&docx[..])).unwrap();
+        assert!(zip.index_for_name("word/media/image1.png").is_some());
+    }
+    let mut again_docx = open(HwpBackend::docx(), docx, &options()).unwrap();
+    assert_eq!(again_docx.info().dropped_objects, 0);
+    let shown = again_docx
+        .render_page(0, &RenderRequest::with_scale(1.0))
+        .unwrap();
+    let red = shown
+        .pixels
+        .chunks_exact(4)
+        .filter(|p| p[0] > 200 && p[1] < 80 && p[2] < 80)
+        .count();
+    assert!(red > 5_000, "DOCX→DOCX: red pixels {red}");
+    // HWPX 로 저장해도 남는다. rhwp 0.8.7 은 그림 문단의 줄 정보를 쓰지 않아 열 때 채운다(repair.rs).
+    for (label, bytes) in [
+        ("DOCX→HWPX", doc.save(SaveFormat::Hwpx).unwrap()),
+        ("DOCX→HWP→HWPX", reopened.save(SaveFormat::Hwpx).unwrap()),
+    ] {
+        let mut hwpx = open(HwpBackend::hwpx(), bytes, &options()).unwrap();
+        let shown = hwpx
+            .render_page(0, &RenderRequest::with_scale(1.0))
+            .unwrap();
+        let red = shown
+            .pixels
+            .chunks_exact(4)
+            .filter(|p| p[0] > 200 && p[1] < 80 && p[2] < 80)
+            .count();
+        assert!(red > 5_000, "{label}: red pixels {red}");
+        let text = hwpx.extract_text(0).unwrap();
+        assert!(text.contains("그림 아래"), "{label}: {text}");
+    }
 }
