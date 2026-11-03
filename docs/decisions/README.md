@@ -6,6 +6,6 @@
 |---|---|---|
 | [0001](0001-web-framework.md) | apps/web 프레임워크: Vite + React | 제안 |
 | [0002](0002-cargo-workspaces.md) | 엔진과 데스크톱 Cargo workspace 분리 | 제안 |
-| — | PDF 엔진 (PDFium vs MuPDF) | 조사 전 |
-| — | HWP/HWPX 엔진 (OpenHWP 등) | 조사 전 |
-| — | 프로젝트 라이선스 | 미확정 |
+| [0003](0003-pdf-engine.md) | PDF 엔진: PDFium + pdfium-render | 제안 (승인 대기) |
+| [0004](0004-hwp-engine.md) | HWP/HWPX 엔진: rhwp | 제안 (승인 대기) |
+| — | 프로젝트 라이선스: PolyForm Noncommercial 1.0.0 | 승인 (2026-11-03, [licensing.md](../development/licensing.md)) |

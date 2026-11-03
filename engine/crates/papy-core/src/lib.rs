@@ -1,9 +1,32 @@
 //! Papy 엔진 파사드와 세션 관리.
 //!
 //! 앱(Tauri·KMP)은 이 crate(또는 `papy-ffi`)만 호출한다. 이 crate 는 UI 프레임워크 타입에 의존하지 않는다.
-//! `DocumentEngine` / `DocumentSession` API 는 PDF·HWPX PoC 뒤에 확정한다(docs/engine/api-draft.md).
+//!
+//! ```text
+//! Engine ──open()──▶ SessionId ──render_page / extract_text / ...──▶ close()
+//!   └ FormatBackend (포맷별 어댑터, 등록식)      └ Document (열린 문서, 세션마다 잠금)
+//! ```
+//!
+//! - **스레드**: `Engine` 은 `Send + Sync`. 서로 다른 세션은 동시에 작업할 수 있고, 한 세션 안의 호출은 순서대로 실행된다.
+//! - **상한**: 파일 크기·세션 수·페이지 수·렌더 픽셀을 [`Limits`] 로 막는다(손상·악성 파일 방어).
+//! - **오류**: 모든 실패는 [`Error`] + 고정 번호 [`ErrorCode`]. 메시지에 경로·본문을 넣지 않는다.
+//!
+//! API 는 PDF·HWPX 어댑터를 붙이면서 다듬는다(docs/engine/api-draft.md).
 
-pub use papy_model::DocumentFormat;
+use std::collections::HashMap;
+use std::fs::File;
+use std::io::Read;
+use std::num::NonZeroU64;
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex, MutexGuard};
+
+pub use papy_model::{
+    Capabilities, DocumentFormat, DocumentInfo, Error, ErrorCode, OutlineItem, PageSize, Result,
+};
+pub use papy_render::{
+    BackendOpenOptions, Bitmap, CancelToken, Document, FormatBackend, RenderRequest, Source,
+};
 
 /// 엔진 버전(crate 버전).
 pub const ENGINE_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -28,56 +51,322 @@ pub fn detect_format(head: &[u8]) -> Option<DocumentFormat> {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+/// 안전 상한. 기본값은 일반 문서에 넉넉하고 악성 입력은 막는 수준이며, 측정 후 조정한다.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Limits {
+    /// 열 수 있는 최대 파일 크기(바이트).
+    pub max_file_size: u64,
+    /// 동시에 열 수 있는 최대 문서 수.
+    pub max_sessions: usize,
+    /// 문서 하나의 최대 페이지 수.
+    pub max_pages: u32,
+    /// 렌더 결과 하나의 최대 픽셀 수(너비×높이).
+    pub max_render_pixels: u64,
+    /// 허용 배율 범위.
+    pub scale_range: (f32, f32),
+}
 
-    /// 압축 없이 저장된 첫 항목 하나를 가진 ZIP 로컬 헤더를 만든다.
-    fn zip_head(name: &[u8], data: &[u8]) -> Vec<u8> {
-        let mut head = b"PK\x03\x04".to_vec();
-        head.extend_from_slice(&[0; 22]);
-        head.extend_from_slice(&(name.len() as u16).to_le_bytes());
-        head.extend_from_slice(&0u16.to_le_bytes());
-        head.extend_from_slice(name);
-        head.extend_from_slice(data);
-        head
-    }
-
-    #[test]
-    fn detects_pdf() {
-        assert_eq!(detect_format(b"%PDF-1.7\n"), Some(DocumentFormat::Pdf));
-    }
-
-    #[test]
-    fn detects_hwpx() {
-        let head = zip_head(b"mimetype", b"application/hwp+zip");
-        assert_eq!(detect_format(&head), Some(DocumentFormat::Hwpx));
-    }
-
-    #[test]
-    fn other_zip_is_container() {
-        let head = zip_head(b"[Content_Types].xml", b"<?xml");
-        assert_eq!(detect_format(&head), Some(DocumentFormat::ZipContainer));
-    }
-
-    #[test]
-    fn detects_compound_file() {
-        let head = [papy_hwp::CFB_SIGNATURE, &[0; 8]].concat();
-        assert_eq!(detect_format(&head), Some(DocumentFormat::CompoundFile));
-    }
-
-    #[test]
-    fn truncated_or_unknown_input_is_safe() {
-        assert_eq!(detect_format(b""), None);
-        assert_eq!(
-            detect_format(b"PK\x03\x04"),
-            Some(DocumentFormat::ZipContainer)
-        );
-        assert_eq!(detect_format(b"hello"), None);
-        // 이름 길이가 입력보다 길어도 패닉하지 않는다.
-        let mut head = zip_head(b"mimetype", b"");
-        head[26] = 0xFF;
-        head[27] = 0xFF;
-        assert_eq!(detect_format(&head), Some(DocumentFormat::ZipContainer));
+impl Default for Limits {
+    fn default() -> Self {
+        Self {
+            max_file_size: 1 << 30, // 1 GiB
+            max_sessions: 64,
+            max_pages: 100_000,
+            max_render_pixels: 8192 * 8192, // RGBA 256 MiB
+            scale_range: (0.05, 16.0),
+        }
     }
 }
+
+/// 문서 원본.
+#[derive(Debug, Clone)]
+pub enum DocumentSource {
+    /// 사용자가 고른 파일 경로.
+    Path(PathBuf),
+    /// 메모리 버퍼(모바일 content URI, 웹 File 등).
+    Bytes(Arc<[u8]>),
+}
+
+/// 열기 옵션.
+#[derive(Debug, Clone, Default)]
+pub struct OpenOptions {
+    /// 문서 암호.
+    pub password: Option<String>,
+    /// 판별 결과 대신 쓸 포맷(확장자 기반 힌트 등). 보통 `None`.
+    pub format: Option<DocumentFormat>,
+    /// 취소 신호.
+    pub cancel: CancelToken,
+}
+
+/// 열린 문서의 핸들. 0 이 아닌 값이며 닫힌 핸들은 다시 쓰이지 않는다.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct SessionId(NonZeroU64);
+
+impl SessionId {
+    /// 앱·C ABI 로 넘기는 숫자 값.
+    pub fn get(self) -> u64 {
+        self.0.get()
+    }
+
+    /// 숫자 값에서 핸들을 만든다. 0 이면 `None`.
+    pub fn from_raw(raw: u64) -> Option<Self> {
+        NonZeroU64::new(raw).map(Self)
+    }
+}
+
+struct Session {
+    info: DocumentInfo,
+    document: Mutex<Box<dyn Document>>,
+}
+
+/// 문서 엔진. 포맷 어댑터를 등록하고 열린 문서를 세션으로 관리한다.
+pub struct Engine {
+    limits: Limits,
+    backends: Vec<Box<dyn FormatBackend>>,
+    sessions: Mutex<HashMap<SessionId, Arc<Session>>>,
+    next_id: AtomicU64,
+}
+
+impl std::fmt::Debug for Engine {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let formats: Vec<_> = self.backends.iter().map(|b| b.format()).collect();
+        f.debug_struct("Engine")
+            .field("limits", &self.limits)
+            .field("formats", &formats)
+            .field("sessions", &self.session_count())
+            .finish()
+    }
+}
+
+impl Default for Engine {
+    fn default() -> Self {
+        Self::new(Limits::default())
+    }
+}
+
+impl Engine {
+    /// 기본 어댑터를 등록한 엔진. 현재 실제 포맷 어댑터는 아직 없다(엔진 선정 후 추가).
+    pub fn new(limits: Limits) -> Self {
+        Self::with_backends(limits, Vec::new())
+    }
+
+    /// 어댑터를 직접 지정한다. 같은 포맷이 여럿이면 앞의 것을 쓴다.
+    pub fn with_backends(limits: Limits, backends: Vec<Box<dyn FormatBackend>>) -> Self {
+        Self {
+            limits,
+            backends,
+            sessions: Mutex::new(HashMap::new()),
+            next_id: AtomicU64::new(1),
+        }
+    }
+
+    /// 현재 상한.
+    pub fn limits(&self) -> Limits {
+        self.limits
+    }
+
+    /// 열 수 있는 포맷 목록.
+    pub fn supported_formats(&self) -> Vec<DocumentFormat> {
+        self.backends.iter().map(|b| b.format()).collect()
+    }
+
+    /// 문서를 연다.
+    pub fn open(&self, source: DocumentSource, options: OpenOptions) -> Result<SessionId> {
+        if self.session_count() >= self.limits.max_sessions {
+            return Err(Error::new(
+                ErrorCode::LimitExceeded,
+                "too many open documents",
+            ));
+        }
+        let (head, byte_size) = self.sniff(&source)?;
+        let format = match options.format.or_else(|| detect_format(&head)) {
+            Some(format) => format,
+            None => {
+                return Err(Error::new(
+                    ErrorCode::UnsupportedFormat,
+                    "unknown file format",
+                ));
+            }
+        };
+        let backend = self
+            .backends
+            .iter()
+            .find(|b| b.format() == format)
+            .ok_or_else(|| {
+                Error::new(
+                    ErrorCode::UnsupportedFormat,
+                    format!("{} is not supported yet", format.name()),
+                )
+            })?;
+        options.cancel.check()?;
+
+        let backend_options = BackendOpenOptions {
+            password: options.password,
+            max_pages: self.limits.max_pages,
+            cancel: options.cancel,
+        };
+        let backend_source = match &source {
+            DocumentSource::Path(path) => Source::Path(path),
+            DocumentSource::Bytes(bytes) => Source::Bytes(bytes),
+        };
+        let document = backend.open(backend_source, &backend_options)?;
+        let mut info = document.info();
+        info.byte_size = byte_size;
+        if info.page_count > self.limits.max_pages {
+            return Err(Error::new(ErrorCode::LimitExceeded, "too many pages"));
+        }
+
+        let id = SessionId::from_raw(self.next_id.fetch_add(1, Ordering::Relaxed))
+            .ok_or_else(|| Error::new(ErrorCode::Internal, "session id overflow"))?;
+        let session = Arc::new(Session {
+            info,
+            document: Mutex::new(document),
+        });
+        let mut sessions = self.sessions();
+        // 열기 도중 다른 스레드가 열었을 수 있으니 다시 확인한다.
+        if sessions.len() >= self.limits.max_sessions {
+            return Err(Error::new(
+                ErrorCode::LimitExceeded,
+                "too many open documents",
+            ));
+        }
+        sessions.insert(id, session);
+        Ok(id)
+    }
+
+    /// 문서 요약 정보.
+    pub fn info(&self, id: SessionId) -> Result<DocumentInfo> {
+        Ok(self.session(id)?.info.clone())
+    }
+
+    /// 페이지 수.
+    pub fn page_count(&self, id: SessionId) -> Result<u32> {
+        Ok(self.session(id)?.info.page_count)
+    }
+
+    /// 페이지 크기(pt).
+    pub fn page_size(&self, id: SessionId, page: u32) -> Result<PageSize> {
+        self.with_page(id, page, |doc| doc.page_size(page))
+    }
+
+    /// 페이지를 그린다. 결과 크기가 상한을 넘으면 어댑터를 부르기 전에 거절한다.
+    pub fn render_page(&self, id: SessionId, page: u32, request: &RenderRequest) -> Result<Bitmap> {
+        let (min, max) = self.limits.scale_range;
+        if !request.scale.is_finite() || request.scale < min || request.scale > max {
+            return Err(Error::new(
+                ErrorCode::InvalidArgument,
+                format!("scale must be within {min}..={max}"),
+            ));
+        }
+        self.with_page(id, page, |doc| {
+            let (width, height) = request.pixel_size(doc.page_size(page)?);
+            if u64::from(width) * u64::from(height) > self.limits.max_render_pixels {
+                return Err(Error::new(
+                    ErrorCode::LimitExceeded,
+                    "rendered page would be too large",
+                ));
+            }
+            request.cancel.check()?;
+            let bitmap = doc.render_page(page, request)?;
+            let expected = width as usize * height as usize * 4;
+            if bitmap.width != width || bitmap.height != height || bitmap.pixels.len() != expected {
+                return Err(Error::new(
+                    ErrorCode::Internal,
+                    "backend returned a bitmap of unexpected size",
+                ));
+            }
+            Ok(bitmap)
+        })
+    }
+
+    /// 페이지 텍스트.
+    pub fn extract_text(&self, id: SessionId, page: u32) -> Result<String> {
+        self.with_page(id, page, |doc| doc.extract_text(page))
+    }
+
+    /// 목차.
+    pub fn outline(&self, id: SessionId) -> Result<Vec<OutlineItem>> {
+        let session = self.session(id)?;
+        let mut doc = lock(&session.document);
+        doc.outline()
+    }
+
+    /// 문서를 닫는다. 진행 중인 작업이 있으면 그 작업이 끝난 뒤 해제된다.
+    pub fn close(&self, id: SessionId) -> Result<()> {
+        self.sessions()
+            .remove(&id)
+            .map(|_| ())
+            .ok_or_else(|| Error::new(ErrorCode::SessionNotFound, "session not found"))
+    }
+
+    /// 열린 문서 수.
+    pub fn session_count(&self) -> usize {
+        self.sessions().len()
+    }
+
+    fn sessions(&self) -> MutexGuard<'_, HashMap<SessionId, Arc<Session>>> {
+        lock(&self.sessions)
+    }
+
+    fn session(&self, id: SessionId) -> Result<Arc<Session>> {
+        self.sessions()
+            .get(&id)
+            .cloned()
+            .ok_or_else(|| Error::new(ErrorCode::SessionNotFound, "session not found"))
+    }
+
+    fn with_page<T>(
+        &self,
+        id: SessionId,
+        page: u32,
+        f: impl FnOnce(&mut dyn Document) -> Result<T>,
+    ) -> Result<T> {
+        let session = self.session(id)?;
+        if page >= session.info.page_count {
+            return Err(Error::new(
+                ErrorCode::PageOutOfRange,
+                format!("page {page} is out of range"),
+            ));
+        }
+        let mut doc = lock(&session.document);
+        f(doc.as_mut())
+    }
+
+    /// 크기 상한을 확인하고 판별용 앞부분을 읽는다.
+    fn sniff(&self, source: &DocumentSource) -> Result<(Vec<u8>, u64)> {
+        let (head, size) = match source {
+            DocumentSource::Path(path) => {
+                let file = File::open(path)?;
+                let size = file.metadata()?.len();
+                self.check_size(size)?;
+                let mut head = Vec::with_capacity(SNIFF_LEN);
+                file.take(SNIFF_LEN as u64).read_to_end(&mut head)?;
+                (head, size)
+            }
+            DocumentSource::Bytes(bytes) => {
+                let size = bytes.len() as u64;
+                self.check_size(size)?;
+                (bytes[..bytes.len().min(SNIFF_LEN)].to_vec(), size)
+            }
+        };
+        Ok((head, size))
+    }
+
+    fn check_size(&self, size: u64) -> Result<()> {
+        if size > self.limits.max_file_size {
+            Err(Error::new(ErrorCode::LimitExceeded, "file is too large"))
+        } else {
+            Ok(())
+        }
+    }
+}
+
+/// 다른 스레드가 패닉해 잠금이 오염돼도 엔진 전체를 멈추지 않는다(세션 데이터는 호출 단위로 일관).
+fn lock<T: ?Sized>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+    mutex
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
+#[cfg(test)]
+mod tests;
