@@ -264,45 +264,63 @@ fn rasterize(svg: &str, width: u32, height: u32, white_background: bool) -> Resu
     })
 }
 
+const KOREAN_SANS: &[&str] = &[
+    "Malgun Gothic",
+    "Apple SD Gothic Neo",
+    "Noto Sans CJK KR",
+    "Noto Sans KR",
+    "NanumGothic",
+];
+const KOREAN_SERIF: &[&str] = &[
+    "Batang",
+    "AppleMyungjo",
+    "Noto Serif CJK KR",
+    "Noto Serif KR",
+    "NanumMyeongjo",
+];
+const LATIN_FALLBACK: &[&str] = &[
+    "Arial",
+    "Helvetica",
+    "DejaVu Sans",
+    "Liberation Sans",
+    "Noto Sans",
+];
+
 /// SVG 해석 옵션. 시스템 글꼴 목록은 처음 한 번만 읽는다(수백 ms).
 fn svg_options() -> &'static usvg::Options<'static> {
     static OPTIONS: OnceLock<usvg::Options<'static>> = OnceLock::new();
     OPTIONS.get_or_init(|| {
         let mut fonts = usvg::fontdb::Database::new();
         fonts.load_system_fonts();
-        // 문서가 지정한 글꼴이 없을 때 한글이 나오는 글꼴로 대체한다.
+        // 문서가 지정한 글꼴이 없으면 generic(serif 등)으로 떨어진다. fontdb 기본값(Times New Roman 등)이
+        // 설치돼 있지 않으면 글자가 통째로 빠지므로, 한글 글꼴 → 흔한 라틴 글꼴 → 아무 글꼴 순으로 반드시 채운다.
+        let has = |fonts: &usvg::fontdb::Database, name: &str| {
+            fonts
+                .faces()
+                .any(|face| face.families.iter().any(|(family, _)| family == name))
+        };
         let pick = |fonts: &usvg::fontdb::Database, names: &[&str]| {
             names
                 .iter()
-                .find(|name| {
-                    fonts
-                        .faces()
-                        .any(|face| face.families.iter().any(|(family, _)| family == *name))
-                })
+                .find(|name| has(fonts, name))
                 .map(|name| name.to_string())
         };
-        let sans = pick(
-            &fonts,
-            &[
-                "Malgun Gothic",
-                "Apple SD Gothic Neo",
-                "Noto Sans CJK KR",
-                "NanumGothic",
-            ],
-        );
-        let serif = pick(
-            &fonts,
-            &[
-                "Batang",
-                "AppleMyungjo",
-                "Noto Serif CJK KR",
-                "NanumMyeongjo",
-            ],
-        );
+        let any_font = fonts
+            .faces()
+            .next()
+            .and_then(|face| face.families.first())
+            .map(|(family, _)| family.clone());
+        let sans = pick(&fonts, KOREAN_SANS)
+            .or_else(|| pick(&fonts, LATIN_FALLBACK))
+            .or(any_font);
+        let serif = pick(&fonts, KOREAN_SERIF).or_else(|| sans.clone());
         if let Some(sans) = &sans {
             fonts.set_sans_serif_family(sans.clone());
+            fonts.set_monospace_family(sans.clone());
+            fonts.set_cursive_family(sans.clone());
+            fonts.set_fantasy_family(sans.clone());
         }
-        if let Some(serif) = serif.or(sans.clone()) {
+        if let Some(serif) = serif {
             fonts.set_serif_family(serif);
         }
         let mut options = usvg::Options {
