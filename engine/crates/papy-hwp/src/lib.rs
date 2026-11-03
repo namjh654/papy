@@ -84,6 +84,11 @@ impl HwpBackend {
         }
     }
 
+    /// 시스템에 한글 글꼴이 없을 때 쓸 글꼴 파일. 첫 렌더 전에 한 번 부른다(그 뒤에는 무시된다).
+    pub fn set_fallback_font(path: impl Into<std::path::PathBuf>) {
+        let _ = FALLBACK_FONT.set(path.into());
+    }
+
     /// 글꼴 목록을 미리 읽어 둔다. 첫 렌더가 느려지지 않게 앱 시작 때 백그라운드에서 부르면 좋다.
     pub fn warm_up() {
         let _ = svg_options();
@@ -208,6 +213,8 @@ pub(crate) fn rasterize(
     })
 }
 
+static FALLBACK_FONT: OnceLock<std::path::PathBuf> = OnceLock::new();
+
 const KOREAN_SANS: &[&str] = &[
     "Malgun Gothic",
     "Apple SD Gothic Neo",
@@ -236,6 +243,10 @@ fn svg_options() -> &'static usvg::Options<'static> {
     OPTIONS.get_or_init(|| {
         let mut fonts = usvg::fontdb::Database::new();
         fonts.load_system_fonts();
+        if let Some(path) = FALLBACK_FONT.get() {
+            // 읽지 못하면(파일 없음 등) 시스템 글꼴만 쓴다.
+            let _ = fonts.load_font_file(path);
+        }
         // 문서가 지정한 글꼴이 없으면 generic(serif 등)으로 떨어진다. fontdb 기본값(Times New Roman 등)이
         // 설치돼 있지 않으면 글자가 통째로 빠지므로, 한글 글꼴 → 흔한 라틴 글꼴 → 아무 글꼴 순으로 반드시 채운다.
         let has = |fonts: &usvg::fontdb::Database, name: &str| {

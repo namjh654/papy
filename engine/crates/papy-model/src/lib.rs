@@ -69,6 +69,10 @@ pub struct Capabilities {
     pub save: bool,
     /// 본문 편집(커서·입력·서식·되돌리기).
     pub edit: bool,
+    /// 주석 달기(텍스트 상자·형광펜·펜·메모).
+    pub annotate: bool,
+    /// 쪽 편집(회전·삭제·순서 바꾸기).
+    pub page_edit: bool,
     /// 저장·변환할 수 있는 형식.
     pub save_formats: Vec<SaveFormat>,
 }
@@ -171,6 +175,94 @@ pub struct ParaFormat {
     pub alignment: Option<Alignment>,
     /// 줄 간격(%).
     pub line_spacing: Option<f32>,
+}
+
+/// 글줄에 긋는 표시.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MarkupKind {
+    /// 형광펜.
+    Highlight,
+    /// 밑줄.
+    Underline,
+    /// 취소선.
+    StrikeOut,
+}
+
+/// 쪽에 더하는 주석. 좌표는 pt, 화면에 보이는 쪽(회전 반영)의 왼쪽 위 기준. 색은 `#rrggbb`.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Annotation {
+    /// 텍스트 상자(쪽 내용으로 들어간다). `x`,`y` 는 첫 줄의 왼쪽 위.
+    TextBox {
+        /// 쪽.
+        page: u32,
+        /// 왼쪽.
+        x: f32,
+        /// 위.
+        y: f32,
+        /// 글자(`\n` 으로 줄 나눔).
+        text: String,
+        /// 글자 크기(pt).
+        font_size: f32,
+        /// 글자 색.
+        color: String,
+    },
+    /// 영역 안의 글줄에 형광펜·밑줄·취소선.
+    Markup {
+        /// 쪽.
+        page: u32,
+        /// 종류.
+        kind: MarkupKind,
+        /// 사용자가 끈 영역. 그 안의 글줄을 찾아 표시한다.
+        area: PageRect,
+        /// 색.
+        color: String,
+    },
+    /// 펜으로 그린 선 하나.
+    Ink {
+        /// 쪽.
+        page: u32,
+        /// 지나간 점들.
+        points: Vec<(f32, f32)>,
+        /// 색.
+        color: String,
+        /// 굵기(pt).
+        width: f32,
+    },
+    /// 메모(아이콘 + 내용).
+    Note {
+        /// 쪽.
+        page: u32,
+        /// 아이콘 왼쪽.
+        x: f32,
+        /// 아이콘 위.
+        y: f32,
+        /// 내용.
+        text: String,
+    },
+}
+
+/// 쪽 편집.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PageOp {
+    /// 시계 방향으로 90도 × `quarter_turns`(음수면 반시계).
+    Rotate {
+        /// 쪽.
+        page: u32,
+        /// 90도 단위 횟수.
+        quarter_turns: i32,
+    },
+    /// 지운다(마지막 한 쪽은 지울 수 없다).
+    Delete {
+        /// 쪽.
+        page: u32,
+    },
+    /// `from` 쪽을 `to` 자리로 옮긴다.
+    Move {
+        /// 옮길 쪽.
+        from: u32,
+        /// 갈 자리(옮긴 뒤의 번호).
+        to: u32,
+    },
 }
 
 /// 커서 이동 방향.

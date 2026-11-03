@@ -11,8 +11,8 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use papy_model::{
-    CaretMotion, CharFormat, DocumentFormat, DocumentInfo, EditOutcome, Error, ErrorCode,
-    OutlineItem, PageRect, PageSize, ParaFormat, Result, SaveFormat, TextPos,
+    Annotation, CaretMotion, CharFormat, DocumentFormat, DocumentInfo, EditOutcome, Error,
+    ErrorCode, OutlineItem, PageOp, PageRect, PageSize, ParaFormat, Result, SaveFormat, TextPos,
 };
 
 /// 렌더링 결과. RGBA 8비트, 알파는 premultiplied 가 아님, 행 사이 여백 없음(`stride == width * 4`).
@@ -241,6 +241,21 @@ pub trait Document: Send {
         _format: &ParaFormat,
     ) -> Result<()> {
         Err(not_supported("editing"))
+    }
+
+    /// 주석을 더한다(`capabilities.annotate`).
+    fn annotate(&mut self, _annotation: &Annotation) -> Result<()> {
+        Err(not_supported("annotations"))
+    }
+
+    /// 영역 안 글줄의 사각형(형광펜 미리 보기용).
+    fn text_rects(&mut self, _page: u32, _area: PageRect) -> Result<Vec<PageRect>> {
+        Err(not_supported("annotations"))
+    }
+
+    /// 쪽을 회전·삭제·이동한다(`capabilities.page_edit`).
+    fn edit_pages(&mut self, _op: PageOp) -> Result<()> {
+        Err(not_supported("page editing"))
     }
 
     /// 마지막 편집을 되돌린다. 되돌릴 것이 없으면 `None`.

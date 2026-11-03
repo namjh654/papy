@@ -22,8 +22,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 pub use papy_model::{
-    Alignment, Capabilities, CaretMotion, CharFormat, DocumentFormat, DocumentInfo, EditOutcome,
-    Error, ErrorCode, OutlineItem, PageRect, PageSize, ParaFormat, Result, SaveFormat, TextPos,
+    Alignment, Annotation, Capabilities, CaretMotion, CharFormat, DocumentFormat, DocumentInfo,
+    EditOutcome, Error, ErrorCode, MarkupKind, OutlineItem, PageOp, PageRect, PageSize, ParaFormat,
+    Result, SaveFormat, TextPos,
 };
 pub use papy_render::{
     BackendOpenOptions, Bitmap, CancelToken, Document, FormatBackend, RenderRequest, Source,
@@ -86,6 +87,15 @@ impl Default for Limits {
             scale_range: (0.05, 16.0),
         }
     }
+}
+
+/// 앱이 함께 배포하는 엔진용 파일.
+#[derive(Debug, Clone)]
+pub struct EngineResources {
+    /// PDFium 동적 라이브러리.
+    pub pdfium_library: PathBuf,
+    /// 한글 TrueType 글꼴(Noto Sans KR 등). PDF 텍스트 상자와, 시스템에 한글 글꼴이 없을 때 HWP 대체 글꼴로 쓴다.
+    pub korean_font: Option<PathBuf>,
 }
 
 /// 문서 원본.
@@ -173,8 +183,23 @@ impl Engine {
     /// PDF(PDFium)·HWPX·HWP 어댑터를 등록한 엔진. `pdfium_library` 는 PDFium 동적 라이브러리 파일 경로이며
     /// 첫 PDF 를 열 때 로드한다. 로드에 실패하면 PDF 열기만 `UnsupportedFormat` 으로 실패한다.
     pub fn with_pdfium(limits: Limits, pdfium_library: impl Into<PathBuf>) -> Self {
-        let mut backends: Vec<Box<dyn FormatBackend>> =
-            vec![Box::new(papy_pdf::PdfBackend::new(pdfium_library))];
+        Self::with_resources(
+            limits,
+            EngineResources {
+                pdfium_library: pdfium_library.into(),
+                korean_font: None,
+            },
+        )
+    }
+
+    /// 앱이 함께 배포하는 파일로 모든 어댑터를 등록한다.
+    pub fn with_resources(limits: Limits, resources: EngineResources) -> Self {
+        let mut pdf = papy_pdf::PdfBackend::new(resources.pdfium_library);
+        if let Some(font) = resources.korean_font {
+            papy_hwp::HwpBackend::set_fallback_font(&font);
+            pdf = pdf.with_text_font(font);
+        }
+        let mut backends: Vec<Box<dyn FormatBackend>> = vec![Box::new(pdf)];
         backends.extend(Self::hwp_backends());
         Self::with_backends(limits, backends)
     }
@@ -342,7 +367,7 @@ impl Engine {
         doc.save(format)
     }
 
-    /// 편집 작업을 한 번에 실행한다. 문서가 편집을 지원하지 않으면 `NotImplemented`.
+    /// 편집 작업(본문 편집·주석·쪽 편집)을 한 번에 실행한다. 어느 것도 지원하지 않으면 `NotImplemented`.
     ///
     /// 클로저는 세션 잠금 안에서 돈다 — 그동안 같은 문서의 렌더는 기다린다.
     pub fn edit<T>(
@@ -352,7 +377,8 @@ impl Engine {
     ) -> Result<T> {
         let session = self.session(id)?;
         let mut doc = lock(&session.document);
-        if !doc.info().capabilities.edit {
+        let capabilities = doc.info().capabilities;
+        if !(capabilities.edit || capabilities.annotate || capabilities.page_edit) {
             return Err(Error::new(
                 ErrorCode::NotImplemented,
                 "editing is not supported for this document",
