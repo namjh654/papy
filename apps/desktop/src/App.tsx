@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { message, open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { listen } from "@tauri-apps/api/event";
 import {
   closeDocument,
   describeError,
@@ -11,6 +12,7 @@ import {
   openDocument,
   pageLayout,
   saveDocument,
+  takePendingOpens,
   type Annotation,
   type Changed,
   type EditOp,
@@ -326,6 +328,22 @@ export function App() {
   );
 
   const goTo = useCallback((page: number) => viewer.current?.goToPage(page), []);
+
+  // ---- 파일 연결(탐색기·Finder 에서 더블클릭) ----
+
+  useEffect(() => {
+    // 여러 개를 한꺼번에 열면 마지막 파일을 연다(창 하나에 문서 하나).
+    const openPending = () =>
+      void takePendingOpens().then((paths) => {
+        const last = paths[paths.length - 1];
+        if (last) void openPath(last);
+      });
+    openPending();
+    const unlisten = listen("open-files", openPending);
+    return () => {
+      void unlisten.then((stop) => stop());
+    };
+  }, [openPath]);
 
   // ---- 끌어다 놓기 ----
 

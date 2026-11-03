@@ -211,6 +211,11 @@ export function closeDocument(id: number): Promise<void> {
   return call("close_document", { id });
 }
 
+/** 파일 연결(더블클릭 등)로 들어온 열기 요청을 꺼낸다. */
+export function takePendingOpens(): Promise<string[]> {
+  return call("take_pending_opens");
+}
+
 export function engineVersion(): Promise<string> {
   return call("engine_version");
 }
