@@ -518,11 +518,36 @@ pub fn open(
     if !path.is_file() {
         return Err(Error::new(ErrorCode::Io, "not a regular file"));
     }
+    open_source(engine, DocumentSource::Path(path), file_name, password)
+}
+
+/// 메모리에 있는 문서(예: HWP 고급 편집기가 돌려준 바이트)를 새 세션으로 연다.
+pub fn open_bytes(
+    engine: &Engine,
+    bytes: Vec<u8>,
+    file_name: String,
+) -> papy_core::Result<OpenedDocument> {
+    open_source(engine, DocumentSource::Bytes(bytes.into()), file_name, None)
+}
+
+/// 문서를 `extension` 형식의 바이트로 내보낸다(파일에 쓰지 않는다).
+pub fn export(engine: &Engine, id: u64, extension: &str) -> papy_core::Result<Vec<u8>> {
+    let format = SaveFormat::from_extension(extension)
+        .ok_or_else(|| Error::new(ErrorCode::UnsupportedFormat, "unknown format"))?;
+    engine.save(session(id)?, format)
+}
+
+fn open_source(
+    engine: &Engine,
+    source: DocumentSource,
+    file_name: String,
+    password: Option<String>,
+) -> papy_core::Result<OpenedDocument> {
     let options = OpenOptions {
         password,
         ..OpenOptions::default()
     };
-    let id = engine.open(DocumentSource::Path(path), options)?;
+    let id = engine.open(source, options)?;
     let describe = || -> papy_core::Result<OpenedDocument> {
         let info = engine.info(id)?;
         let pages = page_sizes(engine, id)?;

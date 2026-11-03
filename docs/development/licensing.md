@@ -45,5 +45,6 @@
 
 ## 미작성 / 후속
 
+- HWP 고급 편집기(rhwp-studio, ADR 0005): studio·@rhwp/core WASM·@rhwp/editor SDK 모두 MIT. 번들 의존성 canvaskit-wasm(BSD-3-Clause)·@noble/hashes(MIT)·pixelmatch(ISC)·pngjs(MIT). 글꼴은 OFL-1.1(Noto·나눔·Pretendard·고운·D2Coding·스포카 한 산스·Source Han Serif)과 GUST(Latin Modern Math)만 넣는다. studio FONTS.md 에 "무료 배포"로만 적힌 Cafe24·행복고딕은 재배포 조건이 분명하지 않아 빼고, 함초롬체 CDN(비상업 조건·외부 접속)은 `RHWP_DISABLE_EXTERNAL_WEBFONTS=1` 로 끈다.
 - `THIRD_PARTY_NOTICES`: `node scripts/third-party-notices.mjs` 가 데스크톱에 들어가는 Rust crate(개발 의존성 제외)·화면 JS 의존성·PDFium·rhwp·Noto Sans KR 의 라이선스 본문을 모아 앱 리소스 `licenses/THIRD_PARTY_NOTICES.txt` 로 넣는다(같은 본문은 한 번만). CI 데스크톱·릴리스 빌드가 매번 만든다. 라이선스 파일을 싣지 않은 crate 는 SPDX 식별자만 적힌다(2026-11-03 기준 44개) — 배포 전 검토.
 - SBOM: 후보 — Rust `cargo-cyclonedx` 또는 `cargo-about`(고지 생성), JS `pnpm licenses list` / CycloneDX npm, Gradle CycloneDX 플러그인. 도입 시 라이선스·사용법 확인 후 결정.

@@ -107,6 +107,27 @@ if (existsSync(licensesDir)) {
 add("PDFium (chromium/8125, bblanchon/pdfium-binaries)", "BSD-3-Clause AND Apache-2.0 (and bundled third-party licenses)", pdfiumTexts);
 add("Noto Sans KR Regular (font)", "OFL-1.1", licenseTexts(join(vendor, "rhwp", "ttfs", "opensource")));
 
+// ---- HWP 고급 편집기(rhwp-studio, scripts/fetch-rhwp-studio.mjs) — 받아 둔 경우만 ----
+const studioOut = join(root, "apps", "desktop", "public", "studio");
+const studioSrc = join(vendor, "rhwp-studio");
+if (existsSync(studioOut) && existsSync(studioSrc)) {
+  add("rhwp-studio, @rhwp/core (WASM), @rhwp/editor (HWP editor)", "MIT", licenseTexts(studioSrc));
+  const fontsDir = join(studioOut, "fonts");
+  const fontTexts = [{ name: "FONTS.md (font list and licenses)", text: readFileSync(join(fontsDir, "FONTS.md"), "utf8").trim() }];
+  for (const name of readdirSync(fontsDir).filter((file) => /\.txt$/i.test(file))) {
+    fontTexts.push({ name, text: readFileSync(join(fontsDir, name), "utf8").trim() });
+  }
+  add("rhwp-studio bundled fonts (Noto, Nanum, Pretendard, Gowun, D2Coding, Spoqa Han Sans, Source Han Serif, Latin Modern Math)", "OFL-1.1, GUST Font License", fontTexts);
+  const studioApp = join(studioSrc, "rhwp-studio");
+  const studioPkg = JSON.parse(readFileSync(join(studioApp, "package.json"), "utf8"));
+  for (const name of Object.keys(studioPkg.dependencies ?? {}).sort()) {
+    const dir = join(studioApp, "node_modules", name);
+    if (!existsSync(dir)) continue;
+    const pkg = JSON.parse(readFileSync(join(dir, "package.json"), "utf8"));
+    add(`${pkg.name} ${pkg.version} (npm, rhwp-studio)`, pkg.license ?? "(see text)", licenseTexts(dir));
+  }
+}
+
 // ---- 쓰기 ----
 const rule = "=".repeat(78);
 let out = `Papy — Third-party notices\n\nPapy itself is licensed under PolyForm Noncommercial 1.0.0 (see LICENSE).\nThis file lists third-party components distributed with the desktop app and their licenses.\nComponents: ${sections.length}\n`;

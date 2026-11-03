@@ -9,7 +9,9 @@ import {
   edit,
   EngineError,
   ErrorCode,
+  exportDocument,
   openDocument,
+  openDocumentBytes,
   pageLayout,
   saveDocument,
   takePendingOpens,
@@ -22,6 +24,7 @@ import { PdfToolBar } from "./components/PdfToolBar";
 import type { PdfToolSettings } from "./components/PdfLayer";
 import { useEditor } from "./editor/useEditor";
 import { FormatBar } from "./components/FormatBar";
+import { StudioEditor, studioAvailable, type StudioFormat } from "./components/StudioEditor";
 import { clearRecent, forgetRecent, loadRecent, rememberRecent, type RecentFile } from "./recent";
 import { RenderQueue } from "./renderQueue";
 import { PasswordDialog } from "./components/PasswordDialog";
@@ -52,6 +55,9 @@ const FORMAT_NAMES: Record<string, string> = {
   pdf: "PDF",
   txt: "텍스트",
 };
+/** 고급 편집기(rhwp-studio)로 넘길 형식. HWP·HWPX 만 된다. */
+const studioFormat = (doc: OpenedDocument): StudioFormat | null =>
+  doc.format === "HWPX" ? "hwpx" : doc.format === "OLE compound file" ? "hwp" : null;
 const clampZoom = (zoom: number) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoom));
 
 export function App() {
@@ -69,6 +75,8 @@ export function App() {
   const [dirty, setDirty] = useState(false);
   const [revision, setRevision] = useState(0);
   const [notice, setNotice] = useState<string | null>(null);
+  const [studio, setStudio] = useState(false);
+  const [hasStudio, setHasStudio] = useState(false);
   const [pdfSettings, setPdfSettings] = useState<PdfToolSettings>({
     tool: "highlight",
     color: "#facc15",
@@ -290,6 +298,35 @@ export function App() {
     setMode((value) => (value === "view" && canModify(docRef.current) ? "edit" : "view"));
   }, []);
 
+  // ---- 고급 편집(rhwp-studio) ----
+
+  useEffect(() => {
+    void studioAvailable().then(setHasStudio);
+  }, []);
+
+  /** studio 가 내보낸 문서로 바꾼다. 경로·이름은 그대로 두고 저장하지 않은 상태로 둔다. */
+  const applyStudio = useCallback(
+    async (bytes: Uint8Array) => {
+      const current = docRef.current;
+      if (!current) return;
+      try {
+        const opened = await openDocumentBytes(bytes, current.fileName);
+        queue.clear();
+        void closeDocument(current.id);
+        setDoc({ ...opened, path: current.path, fileName: current.fileName });
+        setDirty(true);
+        setRevision((value) => value + 1);
+        setCurrent((page) => Math.min(page, Math.max(0, opened.pageCount - 1)));
+        setStudio(false);
+        setNotice("고급 편집 내용을 반영했습니다. 저장하면 파일에 씁니다.");
+      } catch (caught) {
+        setError(describeError(caught));
+        throw caught;
+      }
+    },
+    [queue],
+  );
+
   // ---- 배율 ----
 
   useEffect(() => {
@@ -451,7 +488,13 @@ export function App() {
         onSaveAs={() => void saveAs()}
         onExport={(ext) => void exportAs(ext)}
       />
-      {doc && mode === "edit" && doc.canEdit && <FormatBar editor={editor} refocus={() => viewer.current?.focusInput()} />}
+      {doc && mode === "edit" && doc.canEdit && (
+        <FormatBar
+          editor={editor}
+          refocus={() => viewer.current?.focusInput()}
+          onAdvanced={hasStudio && studioFormat(doc) ? () => setStudio(true) : undefined}
+        />
+      )}
       {doc && pdfMode && (
         <PdfToolBar
           doc={doc}
@@ -516,6 +559,15 @@ export function App() {
         <div className="drop-overlay">
           <div>여기에 놓으면 문서를 엽니다</div>
         </div>
+      )}
+      {studio && doc && studioFormat(doc) && (
+        <StudioEditor
+          fileName={doc.fileName}
+          format={studioFormat(doc)!}
+          load={() => exportDocument(doc.id, studioFormat(doc)!)}
+          onApply={applyStudio}
+          onCancel={() => setStudio(false)}
+        />
       )}
       {password && (
         <PasswordDialog

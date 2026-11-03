@@ -161,6 +161,66 @@ async fn save_document(state: State<'_, AppState>, id: u64, path: String) -> Com
     .await
 }
 
+/// 문서를 `format`(hwp·hwpx 등 확장자) 바이트로 내보낸다. HWP 고급 편집기에 넘길 때 쓴다.
+#[tauri::command]
+async fn export_document(
+    state: State<'_, AppState>,
+    id: u64,
+    format: String,
+) -> CommandResult<Response> {
+    let bytes = blocking(&state, move |engine| host::export(engine, id, &format)).await?;
+    Ok(Response::new(bytes))
+}
+
+/// 고급 편집기가 돌려준 문서 바이트(요청 본문)를 새 세션으로 연다. 파일 이름은 `x-papy-file-name`
+/// 헤더(URI 인코딩)로 받는다. 원래 세션은 화면이 닫는다.
+#[tauri::command]
+async fn open_document_bytes(
+    state: State<'_, AppState>,
+    request: tauri::ipc::Request<'_>,
+) -> CommandResult<OpenedDocument> {
+    let bytes = match request.body() {
+        tauri::ipc::InvokeBody::Raw(bytes) => bytes.clone(),
+        // IPC 가 JSON 으로 떨어진 경우(숫자 배열)도 받는다.
+        tauri::ipc::InvokeBody::Json(serde_json::Value::Array(items)) => items
+            .iter()
+            .map(|item| item.as_u64().and_then(|n| u8::try_from(n).ok()))
+            .collect::<Option<Vec<u8>>>()
+            .ok_or_else(|| Error::new(papy_core::ErrorCode::InvalidArgument, "expected bytes"))?,
+        _ => {
+            return Err(Error::new(papy_core::ErrorCode::InvalidArgument, "expected bytes").into());
+        }
+    };
+    let file_name = request
+        .headers()
+        .get("x-papy-file-name")
+        .and_then(|value| value.to_str().ok())
+        .and_then(percent_decode)
+        .unwrap_or_else(|| "document.hwp".to_owned());
+    blocking(&state, move |engine| {
+        host::open_bytes(engine, bytes, file_name)
+    })
+    .await
+}
+
+/// `encodeURIComponent` 결과를 되돌린다.
+fn percent_decode(value: &str) -> Option<String> {
+    let mut out = Vec::with_capacity(value.len());
+    let bytes = value.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'%' {
+            let hex = std::str::from_utf8(bytes.get(i + 1..i + 3)?).ok()?;
+            out.push(u8::from_str_radix(hex, 16).ok()?);
+            i += 3;
+        } else {
+            out.push(bytes[i]);
+            i += 1;
+        }
+    }
+    String::from_utf8(out).ok()
+}
+
 /// 번들된 리소스 파일 위치(`resources/` 아래 상대 경로). 개발 빌드에서 리소스 폴더에 없으면
 /// build.rs 가 모아 둔 src-tauri/resources 를 본다.
 fn resource(app: &tauri::App, relative: &Path) -> PathBuf {
@@ -210,6 +270,8 @@ pub fn run() {
             edit,
             page_layout,
             save_document,
+            export_document,
+            open_document_bytes,
             take_pending_opens
         ])
         .build(tauri::generate_context!())
@@ -225,4 +287,19 @@ pub fn run() {
                 queue_opens(_app, paths);
             }
         });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::percent_decode;
+
+    #[test]
+    fn percent_decode_round_trips_encode_uri_component() {
+        // encodeURIComponent("보고서 1.hwp")
+        assert_eq!(percent_decode("%EB%B3%B4%EA%B3%A0%EC%84%9C%201.hwp").as_deref(), Some("보고서 1.hwp"));
+        assert_eq!(percent_decode("plain.hwpx").as_deref(), Some("plain.hwpx"));
+        assert_eq!(percent_decode("%E"), None);
+        assert_eq!(percent_decode("%ZZ"), None);
+        assert_eq!(percent_decode("%FF"), None);
+    }
 }

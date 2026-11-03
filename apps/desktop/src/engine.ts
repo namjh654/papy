@@ -211,6 +211,22 @@ export function closeDocument(id: number): Promise<void> {
   return call("close_document", { id });
 }
 
+/** 문서를 `format`(hwp·hwpx 등) 바이트로 내보낸다(파일에 쓰지 않는다). */
+export async function exportDocument(id: number, format: string): Promise<Uint8Array> {
+  return new Uint8Array(await call<ArrayBuffer>("export_document", { id, format }));
+}
+
+/** 메모리의 문서 바이트를 새 세션으로 연다. */
+export async function openDocumentBytes(bytes: Uint8Array, fileName: string): Promise<OpenedDocument> {
+  try {
+    return await invoke<OpenedDocument>("open_document_bytes", bytes, {
+      headers: { "x-papy-file-name": encodeURIComponent(fileName) },
+    });
+  } catch (error) {
+    throw toEngineError(error);
+  }
+}
+
 /** 파일 연결(더블클릭 등)로 들어온 열기 요청을 꺼낸다. */
 export function takePendingOpens(): Promise<string[]> {
   return call("take_pending_opens");

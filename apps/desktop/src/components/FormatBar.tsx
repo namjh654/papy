@@ -11,9 +11,11 @@ interface Props {
   editor: Editor;
   /** 툴바 버튼을 누른 뒤 입력란으로 포커스를 되돌린다. */
   refocus(): void;
+  /** 고급 편집(표·개체·머리말, rhwp-studio). 없으면 버튼을 숨긴다 */
+  onAdvanced?: () => void;
 }
 
-export function FormatBar({ editor, refocus }: Props) {
+export function FormatBar({ editor, refocus, onAdvanced }: Props) {
   const { charFormat, paraFormat, caret } = editor.state;
   const disabled = !caret;
   const run = (action: () => unknown) => () => {
@@ -97,6 +99,14 @@ export function FormatBar({ editor, refocus }: Props) {
           <Icon name={`align-${value}`} />
         </button>
       ))}
+      {onAdvanced && (
+        <>
+          <span className="spacer" />
+          <button className="ghost small" onClick={onAdvanced} title="표·그림·머리말까지 고치는 편집기">
+            고급 편집
+          </button>
+        </>
+      )}
     </div>
   );
 }
