@@ -22,11 +22,22 @@ pnpm --filter @papy/desktop tauri build        # 패키징 (macOS: .app/.dmg, Wi
 - 권한(capabilities)은 `core:default` 만. 파일 대화상자 등은 기능을 승인받을 때 플러그인과 함께 추가한다.
 - CSP 는 `self` 만 허용한다(원격 리소스 로드 없음).
 
+## 릴리스
+
+`v*` 태그를 push 하면 `.github/workflows/release.yml` 이 아래 파일을 빌드해 GitHub Release(미리보기)에 올린다. 코드 서명은 아직 없다.
+
+| OS | 러너 | 산출물 |
+|---|---|---|
+| macOS (Apple Silicon / Intel) | macos-latest | `.dmg`, `.app.tar.gz` |
+| Windows x64 | windows-latest | NSIS `-setup.exe`(한국어/영어), `.msi`(ko-KR, en-US) |
+| Linux x64 | ubuntu-22.04 | `.AppImage`, `.deb`, `.rpm` |
+
+Linux 빌드에는 `libwebkit2gtk-4.1-dev` 등 [Tauri Linux 선행 조건](https://v2.tauri.app/start/prerequisites/#linux)이 필요하다.
+
 ## 검증 결과 (2026-11-03)
 
-| 항목 | macOS 26.6.2 arm64 | Windows |
-|---|---|---|
-| `typecheck` | 통과 | CI(`desktop.yml`)에서 확인 예정 |
-| `cargo fmt --check`, `clippy -D warnings` | 통과 | CI 예정 |
-| `tauri build --bundles app` | 통과 (`Papy.app` 9.6 MiB, 서명 안 함) | `--bundles nsis` CI 예정 |
-| 앱 실행·엔진 버전 표시 | 수동 확인 안 함 | 미확인 |
+| 항목 | macOS 26.6.2 arm64 (로컬) | Windows (CI) | Linux (CI) |
+|---|---|---|---|
+| `typecheck`, `cargo fmt --check`, `clippy -D warnings` | 통과 | 통과 | PR CI 에서 확인 |
+| 패키징 | `.app`, `.dmg`(2.7 MiB) 통과 | NSIS 통과 | `deb`, `AppImage` PR CI 에서 확인 |
+| 앱 실행·엔진 버전 표시 | 수동 확인 안 함(이 환경에 화면 캡처 권한 없음) | 미확인 | 미확인 |

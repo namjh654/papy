@@ -13,7 +13,7 @@ PDF 와 한국어 문서(HWP/HWPX)를 우선 지원하는 **무료·오프라인
 | 영역 | 상태 |
 |---|---|
 | Rust 엔진 (`engine/`) | workspace·crate 골격, 파일 시그니처 기반 포맷 판별(PDF/HWPX/ZIP/CFB 후보)만 구현 |
-| 데스크톱 (`apps/desktop/`) | Tauri 2 앱 골격. 엔진 버전 표시만 함. macOS `.app` 빌드 확인, Windows 는 CI 에서 확인 예정 |
+| 데스크톱 (`apps/desktop/`) | Tauri 2 앱 골격. 엔진 버전 표시만 함. macOS·Windows·Linux 패키징을 CI 에서 빌드, `v*` 태그로 GitHub Release 배포 |
 | 웹 (`apps/web/`) | Vite + React 골격. 문서 기능 없음 |
 | 모바일 (`apps/mobile/`) | 기존 KMP 템플릿([namjh654/kmp](https://github.com/namjh654/kmp)) 편입. 아직 Papy 기능·엔진 연결 없음 |
 | PDF / HWPX / HWP / Office | 미구현. 엔진 선정·라이선스 검토 전 |
@@ -31,7 +31,7 @@ papy/
 ├── docs/            아키텍처·엔진·포맷·결정 기록·개발 가이드
 ├── tests/           포맷별 테스트, fixtures(배포 권리가 확인된 문서만)
 ├── scripts/         빌드·검증 자동화
-├── website/         소개·다운로드 사이트 (후속)
+├── website/         소개·다운로드·설치·사용법 사이트 (Vercel)
 └── .github/         CI, Issue/PR 템플릿
 ```
 

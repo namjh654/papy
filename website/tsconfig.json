@@ -1,0 +1,15 @@
+{
+  "extends": "@papy/config/tsconfig.base.json",
+  "compilerOptions": {
+    "types": [
+      "vite/client",
+      "node"
+    ],
+    "allowImportingTsExtensions": true
+  },
+  "include": [
+    "src",
+    "vite.config.ts",
+    "site.config.ts"
+  ]
+}

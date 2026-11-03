@@ -36,3 +36,6 @@ GoogleService-Info.plist
 
 # 테스트 문서 — 배포 권리가 확인된 파일만 tests/fixtures 에 둔다. 비공개 문서는 이 폴더에
 tests/private/
+
+# Vercel CLI (vercel link 가 만드는 연결 정보·OIDC 토큰 .env.local 은 위 .env.* 규칙으로 제외)
+.vercel/
