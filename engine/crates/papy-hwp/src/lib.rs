@@ -19,6 +19,7 @@ use resvg::{tiny_skia, usvg};
 use rhwp::wasm_api::HwpDocument as Rhwp;
 
 mod document;
+mod notes;
 mod repair;
 
 use document::HwpDocument;
@@ -176,18 +177,20 @@ impl HwpBackend {
         }
         let (html, report) = papy_office::docx_to_html(bytes)?;
         options.cancel.check()?;
-        let doc = guard(|| -> std::result::Result<Rhwp, rhwp::HwpError> {
-            let mut doc = Rhwp::create_empty();
-            doc.create_blank_document_native()?;
-            doc.paste_html_native(0, 0, 0, &html)?;
-            Ok(doc)
-        })?
-        .map_err(|_| {
-            Error::new(
-                ErrorCode::InvalidDocument,
-                "could not convert the DOCX document",
-            )
-        })?;
+        let (doc, dropped_notes) =
+            guard(|| -> std::result::Result<(Rhwp, usize), rhwp::HwpError> {
+                let mut doc = Rhwp::create_empty();
+                doc.create_blank_document_native()?;
+                doc.paste_html_native(0, 0, 0, &html)?;
+                let dropped = notes::apply(&mut doc, &report)?;
+                Ok((doc, dropped))
+            })?
+            .map_err(|_| {
+                Error::new(
+                    ErrorCode::InvalidDocument,
+                    "could not convert the DOCX document",
+                )
+            })?;
         let page_count = doc.page_count();
         if page_count > options.max_pages {
             return Err(Error::new(ErrorCode::LimitExceeded, "too many pages"));
@@ -197,7 +200,10 @@ impl HwpBackend {
             page_count,
             byte_size: bytes.len() as u64,
             title: None,
-            dropped_objects: u32::try_from(report.dropped_drawings).unwrap_or(u32::MAX),
+            dropped_objects: u32::try_from(
+                report.dropped_drawings + report.dropped_notes + dropped_notes,
+            )
+            .unwrap_or(u32::MAX),
             capabilities: Capabilities {
                 render: true,
                 extract_text: true,

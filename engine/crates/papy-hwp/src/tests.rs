@@ -645,3 +645,109 @@ fn docx_images_are_kept() {
         assert!(text.contains("그림 아래"), "{label}: {text}");
     }
 }
+
+#[test]
+fn docx_headers_footers_and_footnotes() {
+    use std::io::Write;
+    let document = r#"<w:document xmlns:w="w" xmlns:r="r"><w:body><w:p><w:r><w:t>본문</w:t></w:r><w:r><w:footnoteReference w:id="2"/></w:r><w:r><w:t xml:space="preserve"> 계속</w:t></w:r><w:r><w:footnoteReference w:id="3"/></w:r></w:p><w:p><w:r><w:t>다음 문단</w:t></w:r></w:p><w:sectPr><w:headerReference w:type="default" r:id="rIdH"/><w:footerReference w:type="default" r:id="rIdF"/></w:sectPr></w:body></w:document>"#;
+    let parts = [
+        ("[Content_Types].xml", "<Types/>"),
+        ("word/document.xml", document),
+        (
+            "word/_rels/document.xml.rels",
+            r#"<Relationships xmlns="r"><Relationship Id="rIdH" Type="header" Target="header1.xml"/><Relationship Id="rIdF" Type="footer" Target="footer1.xml"/></Relationships>"#,
+        ),
+        (
+            "word/header1.xml",
+            r#"<w:hdr xmlns:w="w"><w:p><w:r><w:t>머리말 글</w:t></w:r></w:p></w:hdr>"#,
+        ),
+        (
+            "word/footer1.xml",
+            r#"<w:ftr xmlns:w="w"><w:p><w:r><w:t>꼬리말 글</w:t></w:r></w:p><w:p><w:r><w:t>둘째 줄</w:t></w:r></w:p></w:ftr>"#,
+        ),
+        (
+            "word/footnotes.xml",
+            r#"<w:footnotes xmlns:w="w"><w:footnote w:id="2"><w:p><w:r><w:t>첫 각주</w:t></w:r></w:p></w:footnote><w:footnote w:id="3"><w:p><w:r><w:t>둘째 각주</w:t></w:r></w:p><w:p><w:r><w:t>각주 둘째 문단</w:t></w:r></w:p></w:footnote></w:footnotes>"#,
+        ),
+    ];
+    let mut buffer = std::io::Cursor::new(Vec::new());
+    let mut zip = zip::ZipWriter::new(&mut buffer);
+    for (name, xml) in parts {
+        zip.start_file(name, zip::write::SimpleFileOptions::default())
+            .unwrap();
+        zip.write_all(xml.as_bytes()).unwrap();
+    }
+    zip.finish().unwrap();
+    let mut doc = open(HwpBackend::docx(), buffer.into_inner(), &options()).unwrap();
+    assert_eq!(doc.info().dropped_objects, 0);
+    let text = doc.extract_text(0).unwrap();
+    // 쪽 글자: 각주 번호가 본문 자리에, 머리말·꼬리말·각주 글자가 쪽에 나온다.
+    assert!(text.contains("본문1) 계속2)"), "{text:?}");
+    assert!(!text.contains(papy_office::FOOTNOTE_MARK), "{text:?}");
+    for part in [
+        "머리말 글",
+        "꼬리말 글",
+        "둘째 줄",
+        "첫 각주",
+        "각주 둘째 문단",
+    ] {
+        assert!(text.contains(part), "{part}: {text:?}");
+    }
+    let docx = doc.save(SaveFormat::Docx).unwrap();
+    let read = |bytes: &[u8], name: &str| -> Option<String> {
+        let mut zip = zip::ZipArchive::new(std::io::Cursor::new(bytes)).ok()?;
+        let mut text = String::new();
+        std::io::Read::read_to_string(&mut zip.by_name(name).ok()?, &mut text).ok()?;
+        Some(text)
+    };
+    let body = read(&docx, "word/document.xml").unwrap();
+    assert_eq!(body.matches("<w:footnoteReference").count(), 2, "{body}");
+    assert!(
+        body.contains(r#"<w:headerReference w:type="default""#),
+        "{body}"
+    );
+    assert!(
+        body.contains(r#"<w:footerReference w:type="default""#),
+        "{body}"
+    );
+    let notes = read(&docx, "word/footnotes.xml").unwrap();
+    assert!(
+        notes.contains("첫 각주") && notes.contains("각주 둘째 문단"),
+        "{notes}"
+    );
+    let header = (1..=2)
+        .filter_map(|i| read(&docx, &format!("word/header{i}.xml")))
+        .collect::<String>();
+    assert!(header.contains("머리말 글"), "{header}");
+    let footer = (1..=2)
+        .filter_map(|i| read(&docx, &format!("word/footer{i}.xml")))
+        .collect::<String>();
+    assert!(
+        footer.contains("꼬리말 글") && footer.contains("둘째 줄"),
+        "{footer}"
+    );
+    let types = read(&docx, "[Content_Types].xml").unwrap();
+    assert!(
+        types.contains("/word/footnotes.xml") && types.contains("header+xml"),
+        "{types}"
+    );
+
+    // 다시 열어도(DOCX→DOCX) 남고, HWPX·HWP 로 저장해도 머리말·각주가 남는다.
+    let mut reopened = open(HwpBackend::docx(), docx, &options()).unwrap();
+    assert_eq!(reopened.info().dropped_objects, 0);
+    for (backend, format) in [
+        (HwpBackend::hwpx(), SaveFormat::Hwpx),
+        (HwpBackend::hwp(), SaveFormat::Hwp),
+    ] {
+        let bytes = reopened.save(format).unwrap();
+        let mut again = open(backend, bytes, &options()).unwrap();
+        let docx = again.save(SaveFormat::Docx).unwrap();
+        let notes = read(&docx, "word/footnotes.xml").unwrap_or_default();
+        assert!(
+            notes.contains("첫 각주") && notes.contains("둘째 각주"),
+            "{format:?}: {notes}"
+        );
+        let header = read(&docx, "word/header1.xml").unwrap_or_default();
+        assert!(header.contains("머리말 글"), "{format:?}: {header}");
+    }
+}

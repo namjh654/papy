@@ -1,4 +1,5 @@
 use super::*;
+use crate::notes::{FOOTNOTE_MARK, HeaderFooterText};
 use std::io::{Cursor, Write};
 
 /// 주어진 document.xml(과 styles.xml)로 최소 DOCX 를 만든다.
@@ -205,4 +206,84 @@ fn normalizes_package_paths() {
         "word/media/a.png"
     );
     assert_eq!(read::normalize_path("word/../../x"), "");
+}
+
+pub(crate) const NOTES_DOCUMENT: &str = r#"<w:document xmlns:w="w" xmlns:r="r"><w:body>
+<w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr></w:pPr><w:r><w:t>첫째</w:t></w:r></w:p>
+<w:p><w:pPr><w:numPr><w:ilvl w:val="1"/><w:numId w:val="1"/></w:numPr></w:pPr><w:r><w:t>하위</w:t></w:r></w:p>
+<w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr></w:pPr><w:r><w:t>둘째</w:t></w:r></w:p>
+<w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="2"/></w:numPr></w:pPr><w:r><w:t>점</w:t></w:r></w:p>
+<w:p><w:r><w:t>본문</w:t></w:r><w:r><w:footnoteReference w:id="2"/></w:r><w:r><w:t xml:space="preserve"> 계속</w:t></w:r></w:p>
+<w:tbl><w:tr><w:tc><w:p><w:r><w:t>칸</w:t></w:r><w:r><w:footnoteReference w:id="3"/></w:r></w:p></w:tc></w:tr></w:tbl>
+<w:p><w:r><w:t>끝</w:t></w:r><w:r><w:endnoteReference w:id="1"/></w:r></w:p>
+<w:sectPr><w:headerReference w:type="default" r:id="rIdH"/><w:footerReference w:type="default" r:id="rIdF"/><w:headerReference w:type="first" r:id="rIdH"/></w:sectPr>
+</w:body></w:document>"#;
+
+pub(crate) const NOTES_PARTS: [(&str, &str); 5] = [
+    (
+        "word/_rels/document.xml.rels",
+        r#"<Relationships xmlns="r"><Relationship Id="rIdH" Type="header" Target="header1.xml"/><Relationship Id="rIdF" Type="footer" Target="footer1.xml"/></Relationships>"#,
+    ),
+    (
+        "word/header1.xml",
+        r#"<w:hdr xmlns:w="w"><w:p><w:r><w:t>머리 글</w:t></w:r></w:p></w:hdr>"#,
+    ),
+    (
+        "word/footer1.xml",
+        r#"<w:ftr xmlns:w="w"><w:p><w:r><w:t>꼬리</w:t><w:tab/><w:t>글</w:t></w:r></w:p></w:ftr>"#,
+    ),
+    (
+        "word/footnotes.xml",
+        r#"<w:footnotes xmlns:w="w"><w:footnote w:type="separator" w:id="-1"><w:p><w:r><w:separator/></w:r></w:p></w:footnote><w:footnote w:id="2"><w:p><w:r><w:footnoteRef/></w:r><w:r><w:t xml:space="preserve"> 각주 &amp; 하나</w:t></w:r></w:p><w:p><w:r><w:t>둘째 줄</w:t></w:r></w:p></w:footnote><w:footnote w:id="3"><w:p><w:r><w:t>표 각주</w:t></w:r></w:p></w:footnote></w:footnotes>"#,
+    ),
+    (
+        "word/numbering.xml",
+        r#"<w:numbering xmlns:w="w"><w:abstractNum w:abstractNumId="7"><w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="decimal"/><w:lvlText w:val="%1."/></w:lvl><w:lvl w:ilvl="1"><w:start w:val="1"/><w:numFmt w:val="ganada"/><w:lvlText w:val="%1-%2)"/></w:lvl></w:abstractNum><w:abstractNum w:abstractNumId="8"><w:lvl w:ilvl="0"><w:numFmt w:val="bullet"/><w:lvlText w:val="&#61623;"/></w:lvl></w:abstractNum><w:num w:numId="1"><w:abstractNumId w:val="7"/></w:num><w:num w:numId="2"><w:abstractNumId w:val="8"/></w:num></w:numbering>"#,
+    ),
+];
+
+pub(crate) fn notes_docx() -> Vec<u8> {
+    let parts: Vec<(&str, &[u8])> = NOTES_PARTS
+        .iter()
+        .map(|(name, xml)| (*name, xml.as_bytes()))
+        .collect();
+    docx_with(NOTES_DOCUMENT, &parts)
+}
+
+#[test]
+fn numbering_footnotes_headers_and_footers() {
+    let (html, report) = docx_to_html(&notes_docx()).unwrap();
+    assert!(html.contains("<p>1. 첫째</p>"), "{html}");
+    assert!(html.contains("<p>1-가) 하위</p>"), "{html}");
+    assert!(html.contains("<p>2. 둘째</p>"), "{html}");
+    assert!(html.contains("<p>• 점</p>"), "{html}");
+    assert!(
+        html.contains(&format!("본문{FOOTNOTE_MARK} 계속")),
+        "{html}"
+    );
+    assert_eq!(
+        report.footnotes,
+        vec![vec![" 각주 & 하나".to_string(), "둘째 줄".to_string()]]
+    );
+    // 표 안 각주, 미주, 첫 쪽 머리말은 옮기지 못한다.
+    assert_eq!(report.dropped_notes, 3);
+    assert_eq!(
+        report.headers,
+        vec![HeaderFooterText {
+            apply_to: 0,
+            paragraphs: vec!["머리 글".into()]
+        }]
+    );
+    assert_eq!(report.footers[0].paragraphs, vec!["꼬리\t글".to_string()]);
+}
+
+#[test]
+fn number_formats() {
+    use crate::notes::format_number;
+    assert_eq!(format_number(4, "lowerRoman"), "iv");
+    assert_eq!(format_number(1994, "upperRoman"), "MCMXCIV");
+    assert_eq!(format_number(27, "lowerLetter"), "aa");
+    assert_eq!(format_number(15, "ganada"), "가");
+    assert_eq!(format_number(3, "decimalEnclosedCircle"), "③");
+    assert_eq!(format_number(7, "decimal"), "7");
 }
