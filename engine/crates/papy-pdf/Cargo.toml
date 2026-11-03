@@ -10,6 +10,9 @@ publish.workspace = true
 
 [dependencies]
 papy-model.workspace = true
+papy-render.workspace = true
+# PDFium 8125 바인딩. thread_safe 는 끈다 — 이 crate 가 전용 워커 스레드로 직렬화한다.
+pdfium-render = { version = "=0.9.5", default-features = false, features = ["pdfium_8125"] }
 
 [lints]
 workspace = true
