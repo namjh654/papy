@@ -87,6 +87,7 @@ impl Document for FakeDoc {
             page_count: self.pages,
             byte_size: 0,
             title: None,
+            dropped_objects: 0,
             capabilities: Capabilities {
                 render: true,
                 extract_text: true,

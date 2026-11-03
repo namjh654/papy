@@ -57,6 +57,9 @@ pub struct DocumentInfo {
     pub title: Option<String>,
     /// 이 문서에서 쓸 수 있는 기능.
     pub capabilities: Capabilities,
+    /// 열 때 옮기지 못한 요소 수(예: DOCX 의 도형·지원하지 않는 그림). 0 이면 손실 없음.
+    /// 앱은 0 보다 크면 "일부 내용이 빠졌다"고 알린다.
+    pub dropped_objects: u32,
 }
 
 /// 포맷 어댑터가 지원하는 기능. 앱은 이 값으로 메뉴를 켜고 끈다.

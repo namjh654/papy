@@ -161,6 +161,22 @@ pub trait Document: Send {
         Err(not_supported("saving"))
     }
 
+    /// 암호를 걸지 않고 직렬화한다(다른 편집기에 잠시 넘길 때). 암호가 없는 문서는 `save` 와 같다.
+    /// 결과는 파일로 쓰지 않는다 — 다시 열어 [`Document::set_save_password`] 로 암호를 되돌린다.
+    fn save_unprotected(&mut self, format: SaveFormat) -> Result<Vec<u8>> {
+        self.save(format)
+    }
+
+    /// 저장할 때 걸 암호(열 때 쓴 암호). 앱 화면으로 보내지 않는다 — 세션 사이에 옮길 때만 쓴다.
+    fn save_password(&self) -> Option<String> {
+        None
+    }
+
+    /// 저장할 때 걸 암호를 바꾼다. `None` 이면 암호 없이 저장한다.
+    fn set_save_password(&mut self, _password: Option<String>) -> Result<()> {
+        Err(not_supported("document passwords"))
+    }
+
     // ---- 본문 편집. `info().capabilities.edit` 가 참일 때만 부른다. 좌표는 pt(쪽 왼쪽 위 기준). ----
 
     /// 쪽 위 점에 가장 가까운 본문 위치.

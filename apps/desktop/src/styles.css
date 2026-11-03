@@ -308,3 +308,16 @@ button:disabled { cursor: default; opacity: 0.4; }
 .studio-frame { position: relative; flex: 1; min-height: 0; }
 .studio-frame iframe { display: block; }
 .studio-status { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); }
+
+/* 열 때 빠진 내용 안내 */
+.loss-banner { display: flex; align-items: center; gap: 12px; padding: 8px 16px; font-size: 13px; background: color-mix(in srgb, #f59e0b 14%, var(--bg)); border-bottom: 1px solid var(--line); }
+.loss-banner span { flex: 1; }
+
+/* 정보·오픈소스 라이선스 */
+.about-link { margin-top: 24px; color: var(--muted); }
+.dialog.licenses { width: min(720px, calc(100vw - 48px)); max-height: calc(100vh - 80px); }
+.dialog.licenses h3 { margin: 6px 0 0; font-size: 14px; }
+.dialog.licenses input[type="search"] { width: 100%; }
+.licenses-list { overflow: auto; min-height: 120px; max-height: 50vh; border: 1px solid var(--line); border-radius: 8px; padding: 4px 8px; }
+.licenses-list summary { cursor: pointer; padding: 4px 0; font-size: 13px; }
+.licenses-list pre { white-space: pre-wrap; font-size: 11px; color: var(--muted); margin: 4px 0 12px; }

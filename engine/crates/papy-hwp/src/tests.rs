@@ -406,6 +406,46 @@ fn encrypted_documents_stay_encrypted() {
 }
 
 #[test]
+fn unprotected_export_and_password_transfer() {
+    let with_password = BackendOpenOptions {
+        password: Some("papy-pw".into()),
+        ..options()
+    };
+    let mut doc = open(
+        HwpBackend::hwpx(),
+        sample(1, true, Some("papy-pw")),
+        &with_password,
+    )
+    .unwrap();
+    assert_eq!(doc.save_password().as_deref(), Some("papy-pw"));
+    // 다른 편집기로 넘길 바이트는 암호 없이 열린다. 원래 문서의 암호는 그대로다.
+    let plain = doc.save_unprotected(SaveFormat::Hwpx).unwrap();
+    let mut copy = open(HwpBackend::hwpx(), plain, &options()).unwrap();
+    assert_eq!(copy.save_password(), None);
+    assert!(doc.save_password().is_some());
+    // 암호를 되돌리면 저장 결과가 다시 암호를 요구한다.
+    copy.set_save_password(doc.save_password()).unwrap();
+    let saved = copy.save(SaveFormat::Hwpx).unwrap();
+    assert_eq!(
+        open(HwpBackend::hwpx(), saved.clone(), &options())
+            .err()
+            .unwrap()
+            .code,
+        ErrorCode::PasswordRequired
+    );
+    assert!(open(HwpBackend::hwpx(), saved, &with_password).is_ok());
+    // HWP 도 같다.
+    let mut hwp = open(
+        HwpBackend::hwp(),
+        sample(1, false, Some("papy-pw")),
+        &with_password,
+    )
+    .unwrap();
+    let plain = hwp.save_unprotected(SaveFormat::Hwp).unwrap();
+    assert!(open(HwpBackend::hwp(), plain, &options()).is_ok());
+}
+
+#[test]
 fn caret_motion() {
     use papy_model::CaretMotion::*;
     let mut doc = editable(1);
@@ -503,4 +543,72 @@ fn non_docx_zip_is_rejected() {
     .err()
     .unwrap();
     assert_eq!(error.code, ErrorCode::UnsupportedFormat);
+}
+
+/// 40×20 빨간 PNG
+const RED_PNG: &[u8] = &[
+    0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
+    0x00, 0x00, 0x00, 0x28, 0x00, 0x00, 0x00, 0x14, 0x08, 0x02, 0x00, 0x00, 0x00, 0x70, 0x24, 0xE8,
+    0xEC, 0x00, 0x00, 0x00, 0x23, 0x49, 0x44, 0x41, 0x54, 0x78, 0xDA, 0xED, 0xCD, 0xB1, 0x0D, 0x00,
+    0x00, 0x08, 0xC0, 0xA0, 0xFE, 0xFF, 0xB4, 0x9E, 0xE1, 0x20, 0x09, 0x3B, 0x4D, 0x9D, 0x48, 0x2C,
+    0x16, 0x8B, 0xC5, 0x62, 0xB1, 0xF8, 0x4F, 0xBC, 0x7D, 0xFA, 0x1D, 0x0E, 0xA2, 0x1E, 0x87, 0x3D,
+    0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82,
+];
+
+fn docx_with_image() -> Vec<u8> {
+    use std::io::Write;
+    let document = r#"<w:document xmlns:w="w" xmlns:wp="wp" xmlns:a="a" xmlns:pic="pic" xmlns:r="r"><w:body><w:p><w:r><w:t>그림 위</w:t></w:r></w:p><w:p><w:r><w:drawing><wp:inline><wp:extent cx="1905000" cy="952500"/><a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="rId9"/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p><w:p><w:r><w:t>그림 아래</w:t></w:r></w:p></w:body></w:document>"#;
+    let rels = r#"<Relationships xmlns="r"><Relationship Id="rId9" Type="image" Target="media/red.png"/></Relationships>"#;
+    let mut buffer = std::io::Cursor::new(Vec::new());
+    let mut zip = zip::ZipWriter::new(&mut buffer);
+    let options = zip::write::SimpleFileOptions::default();
+    for (name, bytes) in [
+        ("[Content_Types].xml", &b"<Types/>"[..]),
+        ("word/document.xml", document.as_bytes()),
+        ("word/_rels/document.xml.rels", rels.as_bytes()),
+        ("word/media/red.png", RED_PNG),
+    ] {
+        zip.start_file(name, options).unwrap();
+        zip.write_all(bytes).unwrap();
+    }
+    zip.finish().unwrap();
+    buffer.into_inner()
+}
+
+#[test]
+fn docx_images_are_kept() {
+    let mut doc = open(HwpBackend::docx(), docx_with_image(), &options()).unwrap();
+    assert_eq!(doc.info().dropped_objects, 0);
+    let text = doc.extract_text(0).unwrap();
+    assert!(
+        text.contains("그림 위") && text.contains("그림 아래"),
+        "{text}"
+    );
+    // 그림(200×100px)이 빨갛게 그려진다.
+    let bitmap = doc.render_page(0, &RenderRequest::with_scale(1.0)).unwrap();
+    let red = bitmap
+        .pixels
+        .chunks_exact(4)
+        .filter(|p| p[0] > 200 && p[1] < 80 && p[2] < 80)
+        .count();
+    assert!(red > 5_000, "red pixels: {red}");
+    // HWP 로 저장해도 그림이 남고, PDF 에도 들어간다.
+    let hwp = doc.save(SaveFormat::Hwp).unwrap();
+    let mut reopened = open(HwpBackend::hwp(), hwp, &options()).unwrap();
+    let again = reopened
+        .render_page(0, &RenderRequest::with_scale(1.0))
+        .unwrap();
+    let red_again = again
+        .pixels
+        .chunks_exact(4)
+        .filter(|p| p[0] > 200 && p[1] < 80 && p[2] < 80)
+        .count();
+    assert!(red_again > 5_000, "red pixels after HWP: {red_again}");
+    let pdf = doc.save(SaveFormat::Pdf).unwrap();
+    assert!(
+        pdf.starts_with(b"%PDF-") && pdf.windows(6).any(|w| w == b"/Image"),
+        "PDF should embed the image"
+    );
+    // 알려진 한계(rhwp 0.8.7): rhwp 가 HWPX 로 쓴 그림은 rhwp 로 다시 열면 그려지지 않는다
+    // (HWP 에서 바꾼 HWPX 도 같다). docs/formats/hwp-hwpx.md "알려진 한계" 참고.
 }

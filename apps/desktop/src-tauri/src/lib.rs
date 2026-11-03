@@ -20,6 +20,8 @@ struct AppState {
     engine: Arc<Engine>,
     /// 파일 연결(더블클릭·"다음으로 열기")로 들어온, 화면이 아직 열지 않은 파일 경로.
     pending_opens: Mutex<Vec<String>>,
+    /// 번들된 라이선스 고지 폴더(`resources/licenses`).
+    licenses: PathBuf,
 }
 
 /// Papy 가 여는 확장자. 파일 연결 인자에서 이것만 받는다.
@@ -91,6 +93,16 @@ async fn blocking<T: Send + 'static>(
         .await
         .map_err(|_| CommandError::from(Error::new(ErrorCode::Internal, "engine task failed")))?
         .map_err(Into::into)
+}
+
+/// 서드파티 라이선스 고지 전문(`licenses/THIRD_PARTY_NOTICES.txt`, scripts/third-party-notices.mjs 가 만든다).
+#[tauri::command]
+async fn license_notices(state: State<'_, AppState>) -> CommandResult<String> {
+    let path = state.licenses.join("THIRD_PARTY_NOTICES.txt");
+    tauri::async_runtime::spawn_blocking(move || std::fs::read_to_string(path))
+        .await
+        .map_err(|_| Error::new(papy_core::ErrorCode::Internal, "notice reader stopped"))?
+        .map_err(|error| Error::from(error).into())
 }
 
 /// 엔진 버전을 돌려준다(엔진 연결 확인용).
@@ -173,7 +185,7 @@ async fn export_document(
 }
 
 /// 고급 편집기가 돌려준 문서 바이트(요청 본문)를 새 세션으로 연다. 파일 이름은 `x-papy-file-name`
-/// 헤더(URI 인코딩)로 받는다. 원래 세션은 화면이 닫는다.
+/// 헤더(URI 인코딩), 저장 암호를 이어받을 원래 세션은 `x-papy-inherit` 헤더로 받는다. 원래 세션은 화면이 닫는다.
 #[tauri::command]
 async fn open_document_bytes(
     state: State<'_, AppState>,
@@ -197,8 +209,13 @@ async fn open_document_bytes(
         .and_then(|value| value.to_str().ok())
         .and_then(percent_decode)
         .unwrap_or_else(|| "document.hwp".to_owned());
+    let inherit = request
+        .headers()
+        .get("x-papy-inherit")
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.parse::<u64>().ok());
     blocking(&state, move |engine| {
-        host::open_bytes(engine, bytes, file_name)
+        host::open_bytes(engine, bytes, file_name, inherit)
     })
     .await
 }
@@ -238,6 +255,27 @@ fn resource(app: &tauri::App, relative: &Path) -> PathBuf {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        // 가장 먼저 등록해야 한다: 두 번째 실행은 여기서 첫 창에 인자를 넘기고 끝난다.
+        .plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
+            let cwd = PathBuf::from(cwd);
+            let paths = args
+                .into_iter()
+                .skip(1)
+                .map(PathBuf::from)
+                .map(|path| {
+                    if path.is_absolute() {
+                        path
+                    } else {
+                        cwd.join(path)
+                    }
+                })
+                .collect();
+            queue_opens(app, paths);
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.unminimize();
+                let _ = window.set_focus();
+            }
+        }))
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let pdfium = Path::new("pdfium").join(papy_core::pdfium_library_file_name());
@@ -252,6 +290,7 @@ pub fn run() {
             app.manage(AppState {
                 engine: Arc::new(engine),
                 pending_opens: Mutex::new(Vec::new()),
+                licenses: resource(app, Path::new("licenses")),
             });
             // Windows·Linux: 파일을 더블클릭하면 경로가 실행 인자로 온다.
             let args: Vec<PathBuf> = std::env::args_os().skip(1).map(PathBuf::from).collect();
@@ -272,7 +311,8 @@ pub fn run() {
             save_document,
             export_document,
             open_document_bytes,
-            take_pending_opens
+            take_pending_opens,
+            license_notices
         ])
         .build(tauri::generate_context!())
         .expect("error while building Papy desktop")

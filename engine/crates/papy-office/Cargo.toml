@@ -14,6 +14,8 @@ rhwp.workspace = true
 # rhwp 가 이미 쓰는 버전과 같다(의존성 그래프가 늘지 않는다).
 zip = { version = "8.5", default-features = false, features = ["deflate"] }
 quick-xml = "0.42"
+# 그림을 data: URI 로 넘긴다. rhwp 가 이미 쓰는 버전이다.
+base64 = "0.23"
 
 [lints]
 workspace = true

@@ -368,6 +368,30 @@ impl Engine {
         doc.save(format)
     }
 
+    /// 암호 없이 직렬화한다(HWP 고급 편집기처럼 다른 편집기에 잠시 넘길 때). 파일로 쓰지 않는다.
+    /// 돌려받은 문서는 [`Engine::copy_save_password`] 로 원래 암호를 되돌린다.
+    pub fn save_unprotected(&self, id: SessionId, format: SaveFormat) -> Result<Vec<u8>> {
+        let session = self.session(id)?;
+        let mut doc = lock(&session.document);
+        if !doc.info().capabilities.save_formats.contains(&format) {
+            return Err(Error::new(
+                ErrorCode::NotImplemented,
+                format!("cannot save this document as {}", format.extension()),
+            ));
+        }
+        doc.save_unprotected(format)
+    }
+
+    /// `from` 세션의 저장 암호를 `to` 세션에 건다. `from` 에 암호가 없으면 아무것도 하지 않는다.
+    /// 암호 문자열은 엔진 밖으로 나가지 않는다.
+    pub fn copy_save_password(&self, from: SessionId, to: SessionId) -> Result<()> {
+        let password = lock(&self.session(from)?.document).save_password();
+        match password {
+            Some(password) => lock(&self.session(to)?.document).set_save_password(Some(password)),
+            None => Ok(()),
+        }
+    }
+
     /// 편집 작업(본문 편집·주석·쪽 편집)을 한 번에 실행한다. 어느 것도 지원하지 않으면 `NotImplemented`.
     ///
     /// 클로저는 세션 잠금 안에서 돈다 — 그동안 같은 문서의 렌더는 기다린다.

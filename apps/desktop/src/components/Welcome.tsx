@@ -6,11 +6,12 @@ interface Props {
   onOpen(): void;
   onOpenRecent(file: RecentFile): void;
   onClearRecent(): void;
+  onAbout(): void;
 }
 
 const isMac = navigator.userAgent.includes("Mac");
 
-export function Welcome({ recent, onOpen, onOpenRecent, onClearRecent }: Props) {
+export function Welcome({ recent, onOpen, onOpenRecent, onClearRecent, onAbout }: Props) {
   return (
     <div className="welcome">
       <div className="welcome-card">
@@ -48,6 +49,9 @@ export function Welcome({ recent, onOpen, onOpenRecent, onClearRecent }: Props) 
           </ul>
         </section>
       )}
+      <button className="ghost small about-link" onClick={onAbout}>
+        정보 · 오픈소스 라이선스
+      </button>
     </div>
   );
 }
