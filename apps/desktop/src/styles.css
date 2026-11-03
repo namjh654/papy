@@ -277,12 +277,13 @@ button:disabled { cursor: default; opacity: 0.4; }
 /* ---- PDF 편집 ---- */
 .pdf-layer { position: absolute; inset: 0; z-index: 1; touch-action: none; }
 .pdf-layer.tool-select { pointer-events: none; }
-.pdf-layer.tool-highlight, .pdf-layer.tool-underline, .pdf-layer.tool-strikeOut { cursor: text; }
+.pdf-layer.tool-highlight, .pdf-layer.tool-underline, .pdf-layer.tool-strikeOut, .pdf-layer.tool-replace { cursor: text; }
 .pdf-layer.tool-pen { cursor: crosshair; }
 .pdf-layer.tool-text, .pdf-layer.tool-note { cursor: copy; }
 .pdf-drag { position: absolute; border: 1px dashed var(--brand); background: rgb(37 99 235 / 0.08); pointer-events: none; }
 .pdf-preview { position: absolute; pointer-events: none; }
 .pdf-preview.highlight { background: color-mix(in srgb, var(--mark) 45%, transparent); mix-blend-mode: multiply; }
+.pdf-preview.replace { outline: 2px dashed var(--brand); outline-offset: 1px; background: color-mix(in srgb, var(--brand) 10%, transparent); }
 .pdf-preview.underline { border-bottom: 2px solid var(--mark); }
 .pdf-preview.strikeOut { background: linear-gradient(transparent 45%, var(--mark) 45%, var(--mark) 58%, transparent 58%); }
 .pdf-stroke { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }

@@ -84,6 +84,7 @@ export type EditOp =
   | { kind: "undo" }
   | { kind: "redo" }
   | { kind: "textRects"; page: number; area: Area }
+  | { kind: "textInArea"; page: number; area: Area }
   | { kind: "annotate"; annotation: Annotation }
   | { kind: "editPages"; op: PageOp };
 
@@ -101,7 +102,9 @@ export type Annotation =
   | { type: "textBox"; page: number; x: number; y: number; text: string; fontSize: number; color: string }
   | { type: "markup"; page: number; kind: MarkupKind; area: Area; color: string }
   | { type: "ink"; page: number; points: [number, number][]; color: string; width: number }
-  | { type: "note"; page: number; x: number; y: number; text: string };
+  | { type: "note"; page: number; x: number; y: number; text: string }
+  /** 쪽에 있는 글자를 지우고 그 자리에 새 글자를 넣는다. fontSize 가 없으면 원래 크기 */
+  | { type: "replaceText"; page: number; area: Area; text: string; color: string; fontSize?: number };
 
 export type PageOp =
   | { type: "rotate"; page: number; quarterTurns: number }

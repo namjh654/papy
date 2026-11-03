@@ -251,12 +251,21 @@ impl State {
             .collect())
     }
 
+    pub(crate) fn text_in_area(&mut self, id: u64, page: u32, area: PageRect) -> Result<String> {
+        let index = self.page_index(id, page)?;
+        let page_handle = self.entry(id)?.doc.pages().get(index).map_err(map_error)?;
+        let frame = Frame::of(&page_handle)?;
+        let text = page_handle.text().map_err(map_error)?;
+        Ok(text.inside_rect(frame.rect_to_user(area)).trim().to_owned())
+    }
+
     pub(crate) fn annotate(&mut self, id: u64, annotation: &Annotation) -> Result<()> {
         let page = match annotation {
             Annotation::TextBox { page, .. }
             | Annotation::Markup { page, .. }
             | Annotation::Ink { page, .. }
-            | Annotation::Note { page, .. } => *page,
+            | Annotation::Note { page, .. }
+            | Annotation::ReplaceText { page, .. } => *page,
         };
         let index = self.page_index(id, page)?;
         // 입력을 먼저 검사해 잘못된 요청이 되돌리기 단계를 남기지 않게 한다.
@@ -291,6 +300,14 @@ impl State {
             Annotation::Note { text, .. } => {
                 if text.trim().is_empty() {
                     return Err(bad("note needs text"));
+                }
+            }
+            Annotation::ReplaceText {
+                color, font_size, ..
+            } => {
+                parse_color(color, 255)?;
+                if font_size.is_some_and(|size| !(4.0..=200.0).contains(&size)) {
+                    return Err(bad("font size must be between 4 and 200"));
                 }
             }
         }
@@ -402,52 +419,84 @@ impl State {
                 ..
             } => {
                 let color = parse_color(color, 255)?;
-                // ASCII 만 있으면 내장 Helvetica(파일 크기 증가 없음), 아니면 한글 글꼴을 넣는다.
-                let font = if text.is_ascii() {
-                    entry.doc.fonts_mut().helvetica()
-                } else if let Some(font) = entry.font {
-                    font
-                } else {
-                    let path = font_path.ok_or_else(|| {
-                        Error::new(
-                            ErrorCode::NotImplemented,
-                            "no font for non-Latin text is available",
-                        )
-                    })?;
-                    let bytes = std::fs::read(&path)?;
-                    let font = entry
-                        .doc
-                        .fonts_mut()
-                        .load_true_type_from_bytes(&bytes, true)
-                        .map_err(map_error)?;
-                    entry.font = Some(font);
-                    font
+                place_text(
+                    entry,
+                    &mut page,
+                    &frame,
+                    font_path,
+                    (*x, *y),
+                    text,
+                    *font_size,
+                    color,
+                )?;
+                page.regenerate_content().map_err(map_error)?;
+            }
+            Annotation::ReplaceText {
+                area,
+                text,
+                color,
+                font_size,
+                ..
+            } => {
+                let color = parse_color(color, 255)?;
+                let area = frame.rect_to_user(*area);
+                let inside = |rect: &PdfRect| {
+                    let cx = (rect.left().value + rect.right().value) / 2.0;
+                    let cy = (rect.bottom().value + rect.top().value) / 2.0;
+                    cx >= area.left().value
+                        && cx <= area.right().value
+                        && cy >= area.bottom().value
+                        && cy <= area.top().value
                 };
-                let line_height = font_size * 1.25;
-                for (line_no, line) in text.split('\n').enumerate() {
-                    if line.is_empty() {
+                // 가운데가 영역 안에 있는 글자 개체: 위치·크기를 모은 뒤 뒤에서부터 지운다.
+                let mut hits = Vec::new();
+                let mut union: Option<PdfRect> = None;
+                let mut size: Option<f32> = None;
+                for (index, object) in page.objects().iter().enumerate() {
+                    let Some(text_object) = object.as_text_object() else {
+                        continue;
+                    };
+                    let Ok(bounds) = object.bounds() else {
+                        continue;
+                    };
+                    let rect = bounds.to_rect();
+                    if !inside(&rect) {
                         continue;
                     }
-                    // 기준선은 줄 위에서 글자 크기만큼 아래.
-                    let (ux, uy) = frame.to_user(*x, *y + font_size + line_no as f32 * line_height);
-                    let mut object = page
-                        .objects_mut()
-                        .create_text_object(
-                            PdfPoints::new(ux),
-                            PdfPoints::new(uy),
-                            line,
-                            font,
-                            PdfPoints::new(*font_size),
-                        )
+                    hits.push(index);
+                    size.get_or_insert(text_object.scaled_font_size().value);
+                    union = Some(match union {
+                        None => rect,
+                        Some(acc) => PdfRect::new_from_values(
+                            acc.bottom().value.min(rect.bottom().value),
+                            acc.left().value.min(rect.left().value),
+                            acc.top().value.max(rect.top().value),
+                            acc.right().value.max(rect.right().value),
+                        ),
+                    });
+                }
+                let Some(union) = union else {
+                    return Err(bad("no text in the selected area"));
+                };
+                for index in hits.into_iter().rev() {
+                    page.objects_mut()
+                        .remove_object_at_index(index)
                         .map_err(map_error)?;
-                    object.set_fill_color(color).map_err(map_error)?;
-                    if frame.quarter_turns != 0 {
-                        // 회전한 쪽에서도 화면에서 바로 읽히게 글자를 반대로 돌린다.
-                        let degrees = -90.0 * frame.quarter_turns as f32;
-                        object
-                            .rotate_counter_clockwise_degrees(-degrees)
-                            .map_err(map_error)?;
-                    }
+                }
+                if !text.trim().is_empty() {
+                    let size = font_size.or(size).unwrap_or(12.0).clamp(4.0, 200.0);
+                    // 지운 글자의 왼쪽 위(화면 좌표)에서 시작한다.
+                    let screen = frame.rect_to_screen(0, &union);
+                    place_text(
+                        entry,
+                        &mut page,
+                        &frame,
+                        font_path,
+                        (screen.x, screen.y),
+                        text,
+                        size,
+                        color,
+                    )?;
                 }
                 page.regenerate_content().map_err(map_error)?;
             }
@@ -513,4 +562,66 @@ impl State {
         }
         Ok(self.entry(id)?.doc.pages().len() as u32)
     }
+}
+
+/// 글자를 쪽 내용으로 넣는다(화면 좌표 `(x, y)` = 첫 줄 왼쪽 위). ASCII 는 내장 Helvetica, 그 밖은 한글 글꼴.
+#[allow(clippy::too_many_arguments)]
+fn place_text(
+    entry: &mut Entry,
+    page: &mut PdfPage,
+    frame: &Frame,
+    font_path: Option<std::path::PathBuf>,
+    (x, y): (f32, f32),
+    text: &str,
+    font_size: f32,
+    color: PdfColor,
+) -> Result<()> {
+    // ASCII 만 있으면 내장 Helvetica(파일 크기 증가 없음), 아니면 한글 글꼴을 넣는다.
+    let font = if text.is_ascii() {
+        entry.doc.fonts_mut().helvetica()
+    } else if let Some(font) = entry.font {
+        font
+    } else {
+        let path = font_path.ok_or_else(|| {
+            Error::new(
+                ErrorCode::NotImplemented,
+                "no font for non-Latin text is available",
+            )
+        })?;
+        let bytes = std::fs::read(&path)?;
+        let font = entry
+            .doc
+            .fonts_mut()
+            .load_true_type_from_bytes(&bytes, true)
+            .map_err(map_error)?;
+        entry.font = Some(font);
+        font
+    };
+    let line_height = font_size * 1.25;
+    for (line_no, line) in text.split('\n').enumerate() {
+        if line.is_empty() {
+            continue;
+        }
+        // 기준선은 줄 위에서 글자 크기만큼 아래.
+        let (ux, uy) = frame.to_user(x, y + font_size + line_no as f32 * line_height);
+        let mut object = page
+            .objects_mut()
+            .create_text_object(
+                PdfPoints::new(ux),
+                PdfPoints::new(uy),
+                line,
+                font,
+                PdfPoints::new(font_size),
+            )
+            .map_err(map_error)?;
+        object.set_fill_color(color).map_err(map_error)?;
+        if frame.quarter_turns != 0 {
+            // 회전한 쪽에서도 화면에서 바로 읽히게 글자를 반대로 돌린다.
+            let degrees = -90.0 * frame.quarter_turns as f32;
+            object
+                .rotate_counter_clockwise_degrees(-degrees)
+                .map_err(map_error)?;
+        }
+    }
+    Ok(())
 }

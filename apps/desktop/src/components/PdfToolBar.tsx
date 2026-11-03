@@ -14,6 +14,7 @@ const TOOLS: [PdfTool, string, IconName][] = [
   ["pen", "펜", "pen"],
   ["text", "텍스트 상자", "textbox"],
   ["note", "메모", "note"],
+  ["replace", "글자 고치기 (고칠 글자를 끌어서)", "edit"],
 ];
 
 interface Props {
