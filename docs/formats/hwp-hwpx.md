@@ -21,5 +21,5 @@
 
 ## 알려진 한계 (rhwp v0.8.7, 2026-11-03)
 
-- **HWPX 의 그림**: rhwp 가 HWPX 로 쓴 그림(`<hp:pic>` + `BinData/`)은 rhwp 로 다시 열면 그려지지 않는다. 그림 파일과 참조(`binaryItemIDRef`)·매니페스트는 들어 있어 한컴오피스 등 다른 프로그램에서는 열릴 수 있으나 확인 전이다. HWP 로 저장하면 그림이 유지된다. DOCX 에서 가져온 그림, HWP 에서 바꾼 HWPX 모두 같다 — 엔진 테스트 `docx_images_are_kept` 주석 참고. 업스트림 보고 대상.
+- **HWPX 의 그림(해결, 우회)**: rhwp 가 HWPX 로 쓴 "그림만 든 문단"에는 줄 정보(`<hp:linesegarray>`)가 없고, rhwp 의 HWPX 읽기는 그 줄을 다시 계산하지 않아 그림이 그려지지 않았다. Papy 는 HWPX 를 열 때 그런 문단에 rhwp 가 HTML 그림에 쓰는 것과 같은 줄 정보를 채운다(`papy-hwp/src/repair.rs`, 테스트 `docx_images_are_kept`). 남은 점: 고급 편집기(studio, WASM rhwp)에 HWPX 를 넘기면 studio 쪽에서는 같은 문제가 남을 수 있다. 업스트림에 writer 수정(그림 문단 linesegarray 출력)을 제안할 것.
 - **고급 편집(rhwp-studio)**: 암호 문서는 엔진이 암호 없이 넘기고, 돌려받을 때 원래 암호를 새 세션에 다시 건다(`Engine::save_unprotected`·`copy_save_password`). 암호 문자열은 화면으로 가지 않는다.

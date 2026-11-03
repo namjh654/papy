@@ -19,6 +19,7 @@ use resvg::{tiny_skia, usvg};
 use rhwp::wasm_api::HwpDocument as Rhwp;
 
 mod document;
+mod repair;
 
 use document::HwpDocument;
 #[cfg(test)]
@@ -122,11 +123,14 @@ impl FormatBackend for HwpBackend {
             return self.open_docx(bytes, options);
         }
         let password = options.password.as_deref();
-        let doc = guard(|| match password {
+        let mut doc = guard(|| match password {
             Some(password) => Rhwp::from_bytes_with_password(bytes, password.as_bytes()),
             None => Rhwp::from_bytes(bytes),
         })?
         .map_err(|error| map_open_error(&error.to_string()))?;
+        if self.format == DocumentFormat::Hwpx {
+            guard(|| repair::repair_inline_pictures(&mut doc))?;
+        }
         options.cancel.check()?;
 
         let page_count = doc.page_count();
