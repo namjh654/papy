@@ -322,3 +322,5 @@ button:disabled { cursor: default; opacity: 0.4; }
 .licenses-list { overflow: auto; min-height: 120px; max-height: 50vh; border: 1px solid var(--line); border-radius: 8px; padding: 4px 8px; }
 .licenses-list summary { cursor: pointer; padding: 4px 0; font-size: 13px; }
 .licenses-list pre { white-space: pre-wrap; font-size: 11px; color: var(--muted); margin: 4px 0 12px; }
+.dialog.licenses .language-pick { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.dialog.licenses .language-pick select { font: inherit; padding: 2px 6px; }

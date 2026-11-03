@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState } from "react";
 import { message } from "@tauri-apps/plugin-dialog";
 import { createStudio, type RhwpEditor } from "../vendor/rhwp-editor/index.js";
+import { t } from "../i18n";
 
 /** 앱 번들 안의 studio(scripts/fetch-rhwp-studio.mjs 가 public/studio 에 넣는다) */
 const STUDIO_URL = "/studio/index.html";
@@ -75,32 +76,32 @@ export function StudioEditor({ fileName, format, load, onApply, onCancel }: Prop
   const cancel = async () => {
     const dirty = await studio.current?.getDocumentState().then((state) => state.dirty, () => false);
     if (dirty) {
-      const answer = await message("고급 편집에서 고친 내용을 버릴까요?", {
-        title: "고급 편집 취소",
+      const answer = await message(t.studio.discardQuestion, {
+        title: t.studio.discardTitle,
         kind: "warning",
-        buttons: { ok: "버리기", cancel: "계속 편집" },
+        buttons: { ok: t.studio.discard, cancel: t.studio.keepEditing },
       });
-      if (answer !== "버리기" && answer !== "Ok") return;
+      if (answer !== t.studio.discard && answer !== "Ok") return;
     }
     onCancel();
   };
 
   return (
-    <div className="studio" role="dialog" aria-label="고급 편집">
+    <div className="studio" role="dialog" aria-label={t.studio.title}>
       <div className="studio-bar">
-        <strong>고급 편집</strong>
+        <strong>{t.studio.title}</strong>
         <span className="studio-file">{fileName}</span>
-        <span className="studio-hint">표·그림·머리말까지 고칩니다. 적용하면 문서에 반영되고, 저장은 Papy 에서 합니다.</span>
+        <span className="studio-hint">{t.studio.hint}</span>
         <button className="ghost" onClick={() => void cancel()} disabled={state === "applying"}>
-          취소
+          {t.common.cancel}
         </button>
         <button className="primary" onClick={() => void apply()} disabled={state !== "ready"}>
-          {state === "applying" ? "적용하는 중…" : "적용"}
+          {state === "applying" ? t.studio.applying : t.studio.apply}
         </button>
       </div>
       <div className="studio-frame" ref={host}>
-        {state === "loading" && <div className="studio-status">편집기를 불러오는 중…</div>}
-        {state === "failed" && <div className="studio-status">편집기를 열지 못했습니다. 취소를 눌러 돌아가 주세요.</div>}
+        {state === "loading" && <div className="studio-status">{t.studio.loading}</div>}
+        {state === "failed" && <div className="studio-status">{t.studio.failed}</div>}
       </div>
     </div>
   );

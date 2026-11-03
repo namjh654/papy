@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "./Icon";
+import { t } from "../i18n";
 
 interface Props {
   fileName: string;
@@ -30,9 +31,9 @@ export function PasswordDialog({ fileName, retry, onSubmit, onCancel }: Props) {
         <div className="dialog-icon">
           <Icon name="lock" size={22} />
         </div>
-        <h2 id="password-title">암호가 걸린 문서</h2>
+        <h2 id="password-title">{t.password.title}</h2>
         <p className="muted">
-          <strong>{fileName}</strong> 을(를) 열려면 암호를 입력하세요.
+          <strong>{fileName}</strong>{t.password.prompt}
         </p>
         <input
           ref={input}
@@ -45,15 +46,15 @@ export function PasswordDialog({ fileName, retry, onSubmit, onCancel }: Props) {
         />
         {retry && (
           <p id="password-error" className="error-text">
-            암호가 맞지 않습니다. 다시 입력해 주세요.
+            {t.password.wrong}
           </p>
         )}
         <div className="dialog-actions">
           <button type="button" className="ghost" onClick={onCancel}>
-            취소
+            {t.common.cancel}
           </button>
           <button type="submit" className="primary" disabled={!password}>
-            열기
+            {t.common.open}
           </button>
         </div>
       </form>

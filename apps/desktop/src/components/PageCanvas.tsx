@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { renderPage } from "../engine";
 import type { RenderQueue } from "../renderQueue";
+import { t } from "../i18n";
 
 interface Props {
   docId: number;
@@ -52,7 +53,7 @@ export function PageCanvas({ docId, page, width, height, scale, queue, priority,
   return (
     <div className={`page-canvas ${state}`} style={{ width, height }}>
       <canvas ref={canvas} style={{ width, height }} />
-      {state === "error" && <span className="page-error">이 쪽을 그리지 못했습니다</span>}
+      {state === "error" && <span className="page-error">{t.page.renderFailed}</span>}
     </div>
   );
 }

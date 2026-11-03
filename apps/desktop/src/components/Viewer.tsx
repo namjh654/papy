@@ -5,6 +5,7 @@ import type { RenderQueue } from "../renderQueue";
 import { EditInput } from "./EditInput";
 import { PageCanvas } from "./PageCanvas";
 import { PdfLayer, type PdfToolSettings } from "./PdfLayer";
+import { t } from "../i18n";
 
 /** 1pt 를 100% 배율에서 몇 CSS px 로 보이나(실제 크기). */
 export const PX_PER_PT = 96 / 72;
@@ -222,7 +223,7 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(
         key={page}
         className={`page ${editor ? "editing" : ""}`}
         style={{ top: layout.tops[page], width, height, left: pageLeft(width) }}
-        aria-label={`${page + 1}쪽`}
+        aria-label={t.common.page(page + 1)}
         onMouseDown={(event) => onPageMouseDown(event, page)}
         onMouseMove={(event) => onPageMouseMove(event, page)}
       >

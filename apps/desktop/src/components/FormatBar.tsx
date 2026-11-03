@@ -1,6 +1,7 @@
 import type { Alignment } from "../engine";
 import type { Editor } from "../editor/useEditor";
 import { Icon } from "./Icon";
+import { t } from "../i18n";
 
 const SIZES = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 32, 36, 48, 72];
 const COLORS = ["#000000", "#5b6474", "#d92d20", "#dc6803", "#079455", "#1570ef", "#6938ef"];
@@ -26,21 +27,21 @@ export function FormatBar({ editor, refocus, onAdvanced }: Props) {
   const align = (alignment: Alignment) => run(() => editor.formatParagraphs({ alignment }));
 
   return (
-    <div className="format-bar" role="toolbar" aria-label="서식" onMouseDown={(event) => event.preventDefault()}>
-      <button className="icon" onClick={run(editor.undo)} title={`되돌리기 (${mod}Z)`}>
+    <div className="format-bar" role="toolbar" aria-label={t.format.toolbar} onMouseDown={(event) => event.preventDefault()}>
+      <button className="icon" onClick={run(editor.undo)} title={t.common.undo(mod)}>
         <Icon name="undo" />
       </button>
-      <button className="icon" onClick={run(editor.redo)} title={`다시 하기 (${isMac ? "⇧⌘Z" : "Ctrl+Y"})`}>
+      <button className="icon" onClick={run(editor.redo)} title={t.common.redo(isMac ? "⇧⌘Z" : "Ctrl+Y")}>
         <Icon name="redo" />
       </button>
       <span className="divider" />
 
-      <span className="font-name" title="글꼴">
+      <span className="font-name" title={t.format.font}>
         {charFormat.fontFamily ?? "—"}
       </span>
       <select
         className="size-select"
-        aria-label="글자 크기"
+        aria-label={t.format.fontSize}
         disabled={disabled}
         value={charFormat.fontSize ? String(Math.round(charFormat.fontSize * 10) / 10) : ""}
         onChange={(event) => {
@@ -60,25 +61,25 @@ export function FormatBar({ editor, refocus, onAdvanced }: Props) {
       </select>
       <span className="divider" />
 
-      <button className="icon text" aria-pressed={!!charFormat.bold} disabled={disabled} onClick={toggle("bold")} title={`굵게 (${mod}B)`}>
-        <b>가</b>
+      <button className="icon text" aria-pressed={!!charFormat.bold} disabled={disabled} onClick={toggle("bold")} title={t.format.bold(mod)}>
+        <b>{t.format.sample}</b>
       </button>
-      <button className="icon text" aria-pressed={!!charFormat.italic} disabled={disabled} onClick={toggle("italic")} title={`기울임 (${mod}I)`}>
-        <i>가</i>
+      <button className="icon text" aria-pressed={!!charFormat.italic} disabled={disabled} onClick={toggle("italic")} title={t.format.italic(mod)}>
+        <i>{t.format.sample}</i>
       </button>
-      <button className="icon text" aria-pressed={!!charFormat.underline} disabled={disabled} onClick={toggle("underline")} title={`밑줄 (${mod}U)`}>
-        <u>가</u>
+      <button className="icon text" aria-pressed={!!charFormat.underline} disabled={disabled} onClick={toggle("underline")} title={t.format.underline(mod)}>
+        <u>{t.format.sample}</u>
       </button>
-      <button className="icon text" aria-pressed={!!charFormat.strikethrough} disabled={disabled} onClick={toggle("strikethrough")} title="취소선">
-        <s>가</s>
+      <button className="icon text" aria-pressed={!!charFormat.strikethrough} disabled={disabled} onClick={toggle("strikethrough")} title={t.format.strikethrough}>
+        <s>{t.format.sample}</s>
       </button>
-      <div className="color-pick" title="글자 색">
+      <div className="color-pick" title={t.format.textColor}>
         {COLORS.map((color) => (
           <button
             key={color}
             className="swatch"
             disabled={disabled}
-            aria-label={`글자 색 ${color}`}
+            aria-label={t.format.textColorOf(color)}
             aria-pressed={charFormat.color?.toLowerCase() === color}
             style={{ background: color }}
             onClick={run(() => editor.formatChars({ color }))}
@@ -94,7 +95,7 @@ export function FormatBar({ editor, refocus, onAdvanced }: Props) {
           disabled={disabled}
           aria-pressed={paraFormat.alignment === value}
           onClick={align(value)}
-          title={{ left: "왼쪽 정렬", center: "가운데 정렬", right: "오른쪽 정렬", justify: "양쪽 정렬" }[value]}
+          title={{ left: t.format.left, center: t.format.center, right: t.format.right, justify: t.format.justify }[value]}
         >
           <Icon name={`align-${value}`} />
         </button>
@@ -102,8 +103,8 @@ export function FormatBar({ editor, refocus, onAdvanced }: Props) {
       {onAdvanced && (
         <>
           <span className="spacer" />
-          <button className="ghost small" onClick={onAdvanced} title="표·그림·머리말까지 고치는 편집기">
-            고급 편집
+          <button className="ghost small" onClick={onAdvanced} title={t.format.advancedHint}>
+            {t.format.advanced}
           </button>
         </>
       )}

@@ -2,6 +2,7 @@
 // 끌어서 고른 기존 글자 고쳐 쓰기.
 import { useEffect, useRef, useState } from "react";
 import { edit, type Annotation, type Area, type PageRect } from "../engine";
+import { t } from "../i18n";
 
 export type PdfTool = "select" | "highlight" | "underline" | "strikeOut" | "pen" | "text" | "note" | "replace";
 
@@ -193,7 +194,7 @@ export function PdfLayer({ docId, page, scale, settings, onAnnotate }: Props) {
             ref={input}
             rows={draft.kind === "note" ? 3 : 1}
             defaultValue={draft.initial}
-            placeholder={draft.kind === "note" ? "메모 내용" : "텍스트 입력"}
+            placeholder={draft.kind === "note" ? t.pdf.notePlaceholder : t.pdf.textPlaceholder}
             style={
               draft.kind === "text"
                 ? { fontSize: settings.fontSize * scale, color, lineHeight: 1.25 }
@@ -216,7 +217,7 @@ export function PdfLayer({ docId, page, scale, settings, onAnnotate }: Props) {
             onBlur={commitDraft}
           />
           <span className="pdf-draft-hint">
-            {navigator.userAgent.includes("Mac") ? "⌘" : "Ctrl"}+Enter 또는 바깥 클릭으로 {draft.kind === "replace" ? "바꾸기" : "넣기"} · Esc 취소
+            {t.pdf.draftHint(navigator.userAgent.includes("Mac") ? "⌘" : "Ctrl", draft.kind === "replace")}
           </span>
         </div>
       )}

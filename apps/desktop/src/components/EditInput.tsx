@@ -1,5 +1,6 @@
 import { forwardRef, useRef } from "react";
 import type { Editor } from "../editor/useEditor";
+import { t } from "../i18n";
 
 interface Props {
   editor: Editor;
@@ -99,7 +100,7 @@ export const EditInput = forwardRef<HTMLTextAreaElement, Props>(function EditInp
           else if (ref) ref.current = element;
         }}
         className="edit-input"
-        aria-label="문서 편집"
+        aria-label={t.editor.label}
         autoCapitalize="off"
         autoComplete="off"
         autoCorrect="off"
