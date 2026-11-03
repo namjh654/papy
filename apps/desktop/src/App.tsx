@@ -584,7 +584,9 @@ export function App() {
         <StudioEditor
           fileName={doc.fileName}
           format={studioFormat(doc)!}
-          load={() => exportDocument(doc.id, studioFormat(doc)!)}
+          // studio 에는 늘 HWP 로 넘긴다: rhwp 0.8.7 의 HWPX 쓰기는 그림만 든 문단의 줄 정보를 빼서
+          // studio(WASM)가 그림을 그리지 못한다. 돌려받을 때는 원래 형식(format)으로 받는다.
+          load={() => exportDocument(doc.id, "hwp")}
           onApply={applyStudio}
           onCancel={() => setStudio(false)}
         />

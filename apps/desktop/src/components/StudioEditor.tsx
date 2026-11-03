@@ -14,6 +14,7 @@ export type StudioFormat = "hwp" | "hwpx";
 interface Props {
   fileName: string;
   format: StudioFormat;
+  /** studio 에 넣을 HWP 바이트 */
   load(): Promise<Uint8Array>;
   onApply(bytes: Uint8Array): Promise<void>;
   onCancel(): void;
@@ -44,7 +45,8 @@ export function StudioEditor({ fileName, format, load, onApply, onCancel }: Prop
         const [editor, bytes] = await Promise.all([createStudio(element, { studioUrl: STUDIO_URL }), load()]);
         if (cancelled) return editor.destroy();
         studio.current = editor;
-        await editor.loadFile(bytes, fileName);
+        // load() 는 HWP 바이트를 준다(App.tsx). 이름도 .hwp 로 맞춘다.
+        await editor.loadFile(bytes, fileName.replace(/\.[^.]+$/, "") + ".hwp");
         console.info(`[papy] studio ready in ${Math.round(performance.now() - started)} ms`);
         if (!cancelled) setState("ready");
       } catch (error) {
