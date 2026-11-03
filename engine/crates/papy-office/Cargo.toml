@@ -1,6 +1,6 @@
 [package]
 name = "papy-office"
-description = "Papy DOCX/XLSX/PPTX format adapter (experimental)"
+description = "Papy DOCX import/export (rhwp document model)"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -10,6 +10,10 @@ publish.workspace = true
 
 [dependencies]
 papy-model.workspace = true
+rhwp.workspace = true
+# rhwp 가 이미 쓰는 버전과 같다(의존성 그래프가 늘지 않는다).
+zip = { version = "8.5", default-features = false, features = ["deflate"] }
+quick-xml = "0.42"
 
 [lints]
 workspace = true

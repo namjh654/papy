@@ -8,16 +8,59 @@
 pub mod host;
 
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use host::{EditOp, OpenedDocument, OutlineDto, PageSizeDto};
 use papy_core::{Engine, EngineResources, Error, ErrorCode, Limits};
 use serde::Serialize;
 use serde_json::Value;
-use tauri::{Manager, State, ipc::Response};
+use tauri::{Emitter, Manager, State, ipc::Response};
 
 struct AppState {
     engine: Arc<Engine>,
+    /// 파일 연결(더블클릭·"다음으로 열기")로 들어온, 화면이 아직 열지 않은 파일 경로.
+    pending_opens: Mutex<Vec<String>>,
+}
+
+/// Papy 가 여는 확장자. 파일 연결 인자에서 이것만 받는다.
+const OPENABLE: [&str; 4] = ["pdf", "hwp", "hwpx", "docx"];
+
+fn openable(path: &Path) -> bool {
+    path.extension()
+        .and_then(|ext| ext.to_str())
+        .is_some_and(|ext| OPENABLE.iter().any(|known| ext.eq_ignore_ascii_case(known)))
+        && path.is_file()
+}
+
+/// 앱이 받은 "열어 달라"는 파일을 쌓고 화면에 알린다.
+fn queue_opens(app: &tauri::AppHandle, paths: Vec<PathBuf>) {
+    let paths: Vec<String> = paths
+        .into_iter()
+        .filter(|path| openable(path))
+        .map(|path| path.to_string_lossy().into_owned())
+        .collect();
+    if paths.is_empty() {
+        return;
+    }
+    if let Some(state) = app.try_state::<AppState>() {
+        state
+            .pending_opens
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner())
+            .extend(paths);
+        let _ = app.emit("open-files", ());
+    }
+}
+
+/// 쌓인 열기 요청을 꺼낸다(화면이 시작할 때와 `open-files` 이벤트를 받을 때 부른다).
+#[tauri::command]
+fn take_pending_opens(state: State<'_, AppState>) -> Vec<String> {
+    std::mem::take(
+        &mut *state
+            .pending_opens
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner()),
+    )
 }
 
 /// 앱으로 넘기는 오류. `code` 는 `papy_core::ErrorCode` 숫자 값.
@@ -148,7 +191,11 @@ pub fn run() {
             );
             app.manage(AppState {
                 engine: Arc::new(engine),
+                pending_opens: Mutex::new(Vec::new()),
             });
+            // Windows·Linux: 파일을 더블클릭하면 경로가 실행 인자로 온다.
+            let args: Vec<PathBuf> = std::env::args_os().skip(1).map(PathBuf::from).collect();
+            queue_opens(app.handle(), args);
             // 글꼴 목록 읽기(수백 ms)를 첫 문서 전에 끝내 둔다.
             std::thread::spawn(papy_core::warm_up);
             Ok(())
@@ -162,8 +209,20 @@ pub fn run() {
             close_document,
             edit,
             page_layout,
-            save_document
+            save_document,
+            take_pending_opens
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running Papy desktop");
+        .build(tauri::generate_context!())
+        .expect("error while building Papy desktop")
+        .run(|_app, _event| {
+            // macOS: Finder 에서 연 파일은 실행 인자가 아니라 이벤트로 온다.
+            #[cfg(any(target_os = "macos", target_os = "ios"))]
+            if let tauri::RunEvent::Opened { urls } = _event {
+                let paths = urls
+                    .into_iter()
+                    .filter_map(|url| url.to_file_path().ok())
+                    .collect();
+                queue_opens(_app, paths);
+            }
+        });
 }

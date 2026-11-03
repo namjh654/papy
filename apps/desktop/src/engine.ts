@@ -211,6 +211,11 @@ export function closeDocument(id: number): Promise<void> {
   return call("close_document", { id });
 }
 
+/** 파일 연결(더블클릭 등)로 들어온 열기 요청을 꺼낸다. */
+export function takePendingOpens(): Promise<string[]> {
+  return call("take_pending_opens");
+}
+
 export function engineVersion(): Promise<string> {
   return call("engine_version");
 }
@@ -222,7 +227,7 @@ export function describeError(error: unknown): string {
     case ErrorCode.Io:
       return "파일을 읽을 수 없습니다. 파일이 옮겨졌거나 지워졌는지 확인해 주세요.";
     case ErrorCode.UnsupportedFormat:
-      return "지원하지 않는 형식입니다. PDF, HWP, HWPX 문서를 열 수 있습니다.";
+      return "지원하지 않는 형식입니다. PDF, HWP, HWPX, DOCX 문서를 열 수 있습니다.";
     case ErrorCode.InvalidDocument:
       return "문서가 손상됐거나 형식이 올바르지 않아 열 수 없습니다.";
     case ErrorCode.PasswordRequired:

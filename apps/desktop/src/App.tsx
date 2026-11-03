@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { message, open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { listen } from "@tauri-apps/api/event";
 import {
   closeDocument,
   describeError,
@@ -11,6 +12,7 @@ import {
   openDocument,
   pageLayout,
   saveDocument,
+  takePendingOpens,
   type Annotation,
   type Changed,
   type EditOp,
@@ -31,7 +33,7 @@ import { Welcome } from "./components/Welcome";
 const ZOOM_STEPS = [0.25, 0.33, 0.5, 0.67, 0.75, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 5];
 const ZOOM_MIN = ZOOM_STEPS[0]!;
 const ZOOM_MAX = ZOOM_STEPS[ZOOM_STEPS.length - 1]!;
-const EXTENSIONS = ["pdf", "hwp", "hwpx"];
+const EXTENSIONS = ["pdf", "hwp", "hwpx", "docx"];
 
 type Opened = OpenedDocument & { path: string };
 type PasswordPrompt = { path: string; fileName: string; retry: boolean; attempt: number };
@@ -41,9 +43,15 @@ const extensionOf = (path: string) => (/\.([^.\\/]+)$/.exec(path)?.[1] ?? "").to
 const stemOf = (name: string) => name.replace(/\.[^.]+$/, "");
 /** 편집한 내용을 그대로 다시 열 수 있는 형식(저장하면 이 파일이 작업 파일이 된다). 나머지는 내보내기. */
 const workFormats = (doc: OpenedDocument) =>
-  doc.format === "PDF" ? ["pdf"] : doc.saveFormats.filter((ext) => ext === "hwpx" || ext === "hwp");
+  doc.format === "PDF" ? ["pdf"] : doc.saveFormats.filter((ext) => ext === "hwpx" || ext === "hwp" || ext === "docx");
 const canModify = (doc: OpenedDocument | null) => !!doc && (doc.canEdit || doc.canAnnotate || doc.canEditPages);
-const FORMAT_NAMES: Record<string, string> = { hwpx: "HWPX 문서", hwp: "HWP 문서", pdf: "PDF", txt: "텍스트" };
+const FORMAT_NAMES: Record<string, string> = {
+  hwpx: "HWPX 문서",
+  hwp: "HWP 문서",
+  docx: "Word 문서",
+  pdf: "PDF",
+  txt: "텍스트",
+};
 const clampZoom = (zoom: number) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoom));
 
 export function App() {
@@ -263,7 +271,7 @@ export function App() {
     const selected = await openDialog({
       multiple: false,
       directory: false,
-      filters: [{ name: "문서 (PDF, HWP, HWPX)", extensions: EXTENSIONS }],
+      filters: [{ name: "문서 (PDF, HWP, HWPX, DOCX)", extensions: EXTENSIONS }],
     });
     if (typeof selected === "string") void openPath(selected);
   }, [openPath]);
@@ -321,6 +329,22 @@ export function App() {
 
   const goTo = useCallback((page: number) => viewer.current?.goToPage(page), []);
 
+  // ---- 파일 연결(탐색기·Finder 에서 더블클릭) ----
+
+  useEffect(() => {
+    // 여러 개를 한꺼번에 열면 마지막 파일을 연다(창 하나에 문서 하나).
+    const openPending = () =>
+      void takePendingOpens().then((paths) => {
+        const last = paths[paths.length - 1];
+        if (last) void openPath(last);
+      });
+    openPending();
+    const unlisten = listen("open-files", openPending);
+    return () => {
+      void unlisten.then((stop) => stop());
+    };
+  }, [openPath]);
+
   // ---- 끌어다 놓기 ----
 
   useEffect(() => {
@@ -334,7 +358,7 @@ export function App() {
           EXTENSIONS.includes(item.split(".").pop()?.toLowerCase() ?? ""),
         );
         if (path) void openPath(path);
-        else if (event.payload.paths.length > 0) setError("PDF, HWP, HWPX 파일만 열 수 있습니다.");
+        else if (event.payload.paths.length > 0) setError("PDF, HWP, HWPX, DOCX 파일만 열 수 있습니다.");
       }
     });
     return () => {

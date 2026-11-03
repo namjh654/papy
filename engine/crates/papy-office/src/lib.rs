@@ -1,3 +1,18 @@
-//! Papy DOCX/XLSX/PPTX 어댑터(실험).
+//! Papy Office 문서 변환 — 지금은 DOCX(Word).
 //!
-//! P1/P2 범위다. LibreOffice·ONLYOFFICE 계열 엔진의 임베딩 가능성과 라이선스를 검토한 뒤 시작한다.
+//! DOCX 는 자체 배치 엔진을 만들지 않고 rhwp 문서 구조로 바꿔 HWP 와 같은 엔진으로 보이고 편집한다
+//! (docs/decisions/0004·로드맵 6b, 2026-11-03 결정).
+//!
+//! - [`docx_to_html`]: DOCX → HTML(문단·글자 서식·표). rhwp 의 HTML 붙여넣기로 문서를 만든다.
+//! - [`docx_from_document`]: rhwp 문서 → DOCX(문단·글자 서식·정렬·줄 간격·표·쪽 크기).
+//!
+//! 그림·도형·각주·머리말·변경 추적 등은 아직 옮기지 않는다(본문 텍스트와 서식만).
+
+mod read;
+mod write;
+
+pub use read::{DocxReadReport, docx_to_html, is_docx};
+pub use write::docx_from_document;
+
+#[cfg(test)]
+mod tests;

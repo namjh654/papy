@@ -16,7 +16,7 @@ export function Welcome({ recent, onOpen, onOpenRecent, onClearRecent }: Props) 
       <div className="welcome-card">
         <img src="/papy.svg" alt="" width={56} height={56} />
         <h1>Papy</h1>
-        <p className="muted">PDF와 한글(HWP·HWPX) 문서를 인터넷 없이 엽니다.</p>
+        <p className="muted">PDF·한글(HWP·HWPX)·Word(DOCX) 문서를 인터넷 없이 열고 편집합니다.</p>
         <button className="primary" onClick={onOpen}>
           <Icon name="open" /> 문서 열기
         </button>

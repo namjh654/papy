@@ -8,4 +8,5 @@
 | [0002](0002-cargo-workspaces.md) | 엔진과 데스크톱 Cargo workspace 분리 | 제안 |
 | [0003](0003-pdf-engine.md) | PDF 엔진: PDFium + pdfium-render | 승인 (2026-11-03) |
 | [0004](0004-hwp-engine.md) | HWP/HWPX 엔진: rhwp | 승인 (2026-11-03) |
+| [0005](0005-rhwp-studio-editor.md) | HWP/HWPX 편집기: rhwp-studio 도입 검토 | 제안 (PoC 승인 대기) |
 | — | 프로젝트 라이선스: PolyForm Noncommercial 1.0.0 | 승인 (2026-11-03, [licensing.md](../development/licensing.md)) |

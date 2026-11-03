@@ -73,6 +73,44 @@
       "resources/pdfium/": "pdfium/",
       "resources/fonts/": "fonts/",
       "resources/licenses/": "licenses/"
-    }
+    },
+    "fileAssociations": [
+      {
+        "ext": [
+          "pdf"
+        ],
+        "name": "PDF",
+        "description": "PDF 문서",
+        "role": "Viewer",
+        "mimeType": "application/pdf"
+      },
+      {
+        "ext": [
+          "hwp"
+        ],
+        "name": "HWP",
+        "description": "한글 문서",
+        "role": "Editor",
+        "mimeType": "application/x-hwp"
+      },
+      {
+        "ext": [
+          "hwpx"
+        ],
+        "name": "HWPX",
+        "description": "한글 문서(HWPX)",
+        "role": "Editor",
+        "mimeType": "application/hwp+zip"
+      },
+      {
+        "ext": [
+          "docx"
+        ],
+        "name": "DOCX",
+        "description": "Word 문서",
+        "role": "Editor",
+        "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+      }
+    ]
   }
 }

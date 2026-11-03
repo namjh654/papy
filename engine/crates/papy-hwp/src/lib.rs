@@ -77,6 +77,14 @@ impl HwpBackend {
         }
     }
 
+    /// DOCX(Word) 어댑터. ZIP 컨테이너로 판별된 파일을 열어 `word/document.xml` 이 있으면 rhwp 문서로 바꿔
+    /// HWP 와 같은 엔진으로 보이고 편집한다. 그림·도형 등은 옮기지 않는다.
+    pub fn docx() -> Self {
+        Self {
+            format: DocumentFormat::ZipContainer,
+        }
+    }
+
     /// HWP 5.x(OLE 복합 문서) 어댑터. 다른 CFB 문서(구형 DOC 등)는 `UnsupportedFormat` 으로 거절한다.
     pub fn hwp() -> Self {
         Self {
@@ -110,6 +118,9 @@ impl FormatBackend for HwpBackend {
             }
             Source::Bytes(bytes) => bytes,
         };
+        if self.format == DocumentFormat::ZipContainer {
+            return self.open_docx(bytes, options);
+        }
         let password = options.password.as_deref();
         let doc = guard(|| match password {
             Some(password) => Rhwp::from_bytes_with_password(bytes, password.as_bytes()),
@@ -135,6 +146,7 @@ impl FormatBackend for HwpBackend {
                 save_formats: vec![
                     SaveFormat::Hwpx,
                     SaveFormat::Hwp,
+                    SaveFormat::Docx,
                     SaveFormat::Pdf,
                     SaveFormat::Text,
                 ],
@@ -146,6 +158,56 @@ impl FormatBackend for HwpBackend {
             info,
             options.password.clone(),
         )))
+    }
+}
+
+impl HwpBackend {
+    fn open_docx(&self, bytes: &[u8], options: &BackendOpenOptions) -> Result<Box<dyn Document>> {
+        if !papy_office::is_docx(bytes) {
+            return Err(Error::new(
+                ErrorCode::UnsupportedFormat,
+                "only DOCX is supported among ZIP-based office files",
+            ));
+        }
+        let (html, _report) = papy_office::docx_to_html(bytes)?;
+        options.cancel.check()?;
+        let doc = guard(|| -> std::result::Result<Rhwp, rhwp::HwpError> {
+            let mut doc = Rhwp::create_empty();
+            doc.create_blank_document_native()?;
+            doc.paste_html_native(0, 0, 0, &html)?;
+            Ok(doc)
+        })?
+        .map_err(|_| {
+            Error::new(
+                ErrorCode::InvalidDocument,
+                "could not convert the DOCX document",
+            )
+        })?;
+        let page_count = doc.page_count();
+        if page_count > options.max_pages {
+            return Err(Error::new(ErrorCode::LimitExceeded, "too many pages"));
+        }
+        let info = DocumentInfo {
+            format: DocumentFormat::Docx,
+            page_count,
+            byte_size: bytes.len() as u64,
+            title: None,
+            capabilities: Capabilities {
+                render: true,
+                extract_text: true,
+                save: true,
+                edit: true,
+                save_formats: vec![
+                    SaveFormat::Docx,
+                    SaveFormat::Hwpx,
+                    SaveFormat::Hwp,
+                    SaveFormat::Pdf,
+                    SaveFormat::Text,
+                ],
+                ..Capabilities::default()
+            },
+        };
+        Ok(Box::new(HwpDocument::new(doc, info, None)))
     }
 }
 

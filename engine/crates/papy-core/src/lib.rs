@@ -208,6 +208,7 @@ impl Engine {
         vec![
             Box::new(papy_hwp::HwpBackend::hwpx()),
             Box::new(papy_hwp::HwpBackend::hwp()),
+            Box::new(papy_hwp::HwpBackend::docx()),
         ]
     }
 
