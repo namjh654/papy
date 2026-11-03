@@ -1,0 +1,65 @@
+name: release
+
+# v* 태그를 push 하면 Windows·macOS·Linux 설치 파일을 빌드해 GitHub Release 에 올린다.
+# 웹사이트 다운로드 페이지(website/download)는 이 Release 의 파일 목록을 읽는다.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (예: v0.1.0) — 태그가 없으면 현재 커밋에 만든다"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            target: aarch64-apple-darwin
+          - os: macos-latest
+            target: x86_64-apple-darwin
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+          # 오래된 glibc 에서 빌드해야 AppImage/deb 가 더 많은 배포판에서 돈다.
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+      - run: rustup target add ${{ matrix.target }}
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri
+          key: ${{ matrix.target }}
+      - run: pnpm install --frozen-lockfile
+      # 코드 서명 없음 — 설치 시 OS 보안 경고 안내는 website/install 참고.
+      - uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: apps/desktop
+          tagName: ${{ inputs.tag || github.ref_name }}
+          releaseName: "Papy ${{ inputs.tag || github.ref_name }}"
+          releaseBody: |
+            미리보기 빌드입니다. 아직 문서를 열 수 없습니다 — 설치·실행 확인용입니다.
+            설치 방법과 보안 경고 해결: https://github.com/namjh654/papy/tree/main/website/install
+            코드 서명이 없어 첫 실행 시 OS 보안 경고가 나올 수 있습니다.
+          releaseDraft: false
+          prerelease: true
+          args: --target ${{ matrix.target }}

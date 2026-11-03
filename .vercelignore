@@ -1,0 +1,9 @@
+# Vercel 에는 website 빌드에 필요한 것만 올린다.
+/apps
+/engine
+/tests
+/docs
+/scripts
+**/node_modules
+**/target
+**/dist

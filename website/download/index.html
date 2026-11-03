@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    {{head}}
+  </head>
+  <body>
+    {{header}}
+    <main id="main" class="wrap">
+      <h1>다운로드</h1>
+      <p class="lead">운영체제에 맞는 설치 파일을 받으세요. 모든 파일은 GitHub Actions 에서 공개 소스로 빌드되어 <a href="{{repo}}/releases">GitHub Releases</a>에 올라갑니다.</p>
+
+      <p id="release-status" class="notice" role="status">최신 버전 정보를 불러오는 중…</p>
+
+      <div class="grid">
+        <section class="card os-card" data-os="windows">
+          <h2 style="margin:0">Windows</h2>
+          <p>Windows 10 · 11, 64비트</p>
+          <div class="files" data-files></div>
+        </section>
+        <section class="card os-card" data-os="macos">
+          <h2 style="margin:0">macOS</h2>
+          <p>macOS 10.13 이상 · Apple Silicon / Intel</p>
+          <div class="files" data-files></div>
+        </section>
+        <section class="card os-card" data-os="linux">
+          <h2 style="margin:0">Linux</h2>
+          <p>x86_64 · AppImage(대부분 배포판) / .deb(Ubuntu·Debian) / .rpm(Fedora)</p>
+          <div class="files" data-files></div>
+        </section>
+      </div>
+
+      <h2>어떤 파일을 받아야 하나요?</h2>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>운영체제</th><th>파일</th><th>설명</th></tr></thead>
+          <tbody>
+            <tr><td>Windows</td><td><code>…_x64-setup.exe</code></td><td>일반 사용자용 설치 프로그램(권장)</td></tr>
+            <tr><td>Windows</td><td><code>…_x64_ko-KR.msi</code> / <code>…_en-US.msi</code></td><td>회사·학교 등 일괄 배포용</td></tr>
+            <tr><td>macOS</td><td><code>…_aarch64.dmg</code></td><td>Apple Silicon(M1 이후) Mac</td></tr>
+            <tr><td>macOS</td><td><code>…_x64.dmg</code></td><td>Intel Mac</td></tr>
+            <tr><td>Linux</td><td><code>…_amd64.AppImage</code></td><td>설치 없이 실행(대부분 배포판)</td></tr>
+            <tr><td>Linux</td><td><code>…_amd64.deb</code> / <code>…x86_64.rpm</code></td><td>패키지 관리자로 설치</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>받은 뒤에는 <a href="/install/">설치 방법</a>을 따라 주세요. 아직 코드 서명이 없어 처음 실행할 때 보안 경고가 나올 수 있습니다.</p>
+
+      <h2>모바일</h2>
+      <p>Android·iOS 앱은 데스크톱 엔진이 안정된 뒤 준비합니다. <span class="badge">준비 중</span></p>
+
+      <h2>직접 빌드하기</h2>
+      <p>소스에서 빌드하는 방법은 <a href="{{repo}}#실행">GitHub README</a>를 참고하세요.</p>
+    </main>
+    {{footer}}
+    <script type="module" src="/src/download.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    {{head}}
+  </head>
+  <body>
+    {{header}}
+    <main id="main" class="wrap">
+      <h1>사용법</h1>
+      <p class="lead">Papy 로 문서를 여는 방법과 지원 범위입니다. 표시가 <span class="badge ok">사용 가능</span>인 것만 지금 버전에서 동작합니다.</p>
+      <ul class="toc">
+        <li><a href="#start">시작하기</a></li>
+        <li><a href="#open">문서 열기</a></li>
+        <li><a href="#view">보기·이동</a></li>
+        <li><a href="#formats">지원 범위</a></li>
+        <li><a href="#help">문제 해결</a></li>
+      </ul>
+
+      <div class="notice" role="note">
+        <strong>현재 버전은 미리보기입니다.</strong> 앱 설치·실행과 엔진 연결만 확인할 수 있고, 문서 열기 기능은 개발 중입니다.
+      </div>
+
+      <h2 id="start">시작하기 <span class="badge ok">사용 가능</span></h2>
+      <ol class="steps">
+        <li><a href="/install/">설치 방법</a>대로 설치하고 Papy 를 실행합니다.</li>
+        <li>로그인·회원가입 없이 바로 시작 화면이 나옵니다.</li>
+        <li>화면에 표시되는 <strong>엔진 버전</strong>으로 설치된 버전을 확인할 수 있습니다.</li>
+      </ol>
+
+      <h2 id="open">문서 열기 <span class="badge">준비 중</span></h2>
+      <ul>
+        <li><strong>파일 선택:</strong> <em>열기</em> 버튼(또는 <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>O</kbd>)으로 문서를 고릅니다.</li>
+        <li><strong>끌어 놓기:</strong> 파일을 Papy 창으로 끌어다 놓습니다.</li>
+        <li><strong>최근 문서:</strong> 최근에 연 문서를 시작 화면에서 다시 엽니다. 목록은 내 컴퓨터에만 저장되고 언제든 지울 수 있습니다.</li>
+      </ul>
+      <p>Papy 는 사용자가 직접 고른 파일만 읽습니다. 다른 폴더를 뒤지거나 파일을 어딘가로 올리지 않습니다.</p>
+
+      <h2 id="view">보기·이동 <span class="badge">준비 중</span></h2>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>동작</th><th>방법</th></tr></thead>
+          <tbody>
+            <tr><td>다음/이전 페이지</td><td><kbd>PageDown</kbd> / <kbd>PageUp</kbd>, 스크롤</td></tr>
+            <tr><td>특정 페이지로</td><td>페이지 번호 입력</td></tr>
+            <tr><td>확대/축소</td><td><kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>+</kbd> / <kbd>-</kbd>, 원래 크기 <kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>0</kbd></td></tr>
+            <tr><td>문서 정보</td><td>파일명·페이지 수·파일 크기 보기</td></tr>
+            <tr><td>검색·목차</td><td>엔진 준비 상황에 따라 단계적으로 추가</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>단축키는 개발 과정에서 바뀔 수 있습니다.</p>
+
+      <h2 id="formats">지원 범위</h2>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>포맷</th><th>열람</th><th>편집</th></tr></thead>
+          <tbody>
+            <tr><td>PDF</td><td><span class="badge">개발 중</span></td><td>주석·하이라이트·회전 계획</td></tr>
+            <tr><td>HWPX</td><td><span class="badge">개발 중</span></td><td>텍스트·문단·표 편집 계획</td></tr>
+            <tr><td>HWP (5.x)</td><td><span class="badge">검증 예정</span></td><td>—</td></tr>
+            <tr><td>DOCX · XLSX · PPTX</td><td><span class="badge">계획</span></td><td>장기 계획</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>지원하지 않는 요소(일부 개체·글꼴 등)가 있으면 화면에 따로 알려 드릴 예정입니다.</p>
+
+      <h2 id="help">문제 해결</h2>
+      <h3>앱이 열리지 않아요</h3>
+      <p><a href="/install/">설치 방법</a>의 운영체제별 보안 경고 안내를 확인하세요.</p>
+      <h3>버그를 찾았어요 / 기능을 제안하고 싶어요</h3>
+      <p><a href="{{repo}}/issues/new/choose">GitHub Issues</a>에 남겨 주세요. 개인적인 문서는 첨부하지 말고 증상만 적어 주세요.</p>
+    </main>
+    {{footer}}
+  </body>
+</html>
