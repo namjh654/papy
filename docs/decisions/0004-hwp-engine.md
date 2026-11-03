@@ -1,6 +1,6 @@
 # 0004. HWP/HWPX 엔진
 
-- 상태: **제안 — 저장소 소유자 결정 대기**
+- 상태: **승인** (2026-11-03, 저장소 소유자 — "추천대로 rhwp")
 - 조사일: 2026-11-03 (GitHub API·저장소 README·Cargo.toml 기준)
 
 ## 후보 비교
@@ -38,3 +38,19 @@
 2. rhwp 의 페이지 렌더 결과(PNG/RGBA)를 `Bitmap` 으로 변환, 텍스트 추출.
 3. 지원하지 않는 요소는 정보 손실 경고로 노출(기획서 3.2).
 4. 코퍼스 회귀 테스트, 폰트 폴백 정책 확인(OFL 폰트 번들 여부).
+
+## 구현 메모 (2026-11-03)
+
+- **받는 방법**: rhwp 저장소는 문서·PDF·샘플 포함 약 5.3GB 라 cargo git 의존성으로 쓰면 CI 마다 전체를 받는다.
+  `scripts/fetch-rhwp.mjs` 가 v0.8.7 커밋(`1a76570e`)을 얕게·sparse 로 받아 빌드에 필요한 파일(약 47MB: `Cargo.toml`, `build.rs`,
+  `src/`, `crates/`, `saved/blank2010.hwp`, 라이선스)만 `engine/vendor/rhwp` 에 둔다(gitignore). 엔진 워크스페이스는 `exclude = ["vendor"]`.
+  rhwp 의 `[patch.crates-io]`(svg2pdf 포크)는 의존성으로 쓸 때 적용되지 않는다 — Papy 는 rhwp 의 PDF 내보내기를 쓰지 않으므로 영향 없다.
+- **렌더 경로**: rhwp `DocumentCore::render_page_svg_native`(96 DPI px) → resvg 0.45.1(MIT OR Apache-2.0, rhwp 와 같은 usvg) 로
+  `Bitmap` 래스터화. `native-skia` feature(skia-safe 사전 빌드 수십 MB)는 쓰지 않는다. A4 한 쪽 약 5ms(릴리스, M 시리즈).
+- **글꼴**: 시스템 글꼴을 한 번 읽어(약 250ms) 쓰고, 문서 글꼴이 없으면 맑은 고딕/Apple SD Gothic Neo/Noto Sans CJK KR 순으로 대체.
+  OFL 한글 글꼴 번들 여부는 렌더 품질 비교 후 결정한다.
+- **안전**: rhwp 호출은 `catch_unwind` 로 감싸고 패닉 뒤 그 문서는 닫힌 것으로 취급한다. rhwp 오류 원문은 버리고 고정 문구만 낸다.
+  SVG 의 외부 파일 참조는 따라가지 않는다. rhwp 가 stderr 에 파서 진단(본문 아님)을 찍는 경우가 있다.
+- **테스트 문서**: rhwp 로 빈 문서를 만들어 글자·쪽 나누기·암호를 넣고 HWP/HWPX 로 저장해 쓴다(저작권 없음).
+- **미구현**: 목차, 제목 메타데이터, 정보 손실 경고(기획서 3.2), HWP 3.x·HWPML 판별, 코퍼스 회귀.
+

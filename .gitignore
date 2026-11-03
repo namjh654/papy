@@ -40,5 +40,5 @@ tests/private/
 # Vercel CLI (vercel link 가 만드는 연결 정보·OIDC 토큰 .env.local 은 위 .env.* 규칙으로 제외)
 .vercel/
 
-# PDFium 사전 빌드 (scripts/fetch-pdfium.mjs 로 받음)
+# 외부 엔진: PDFium 사전 빌드·rhwp 소스 (scripts/fetch-pdfium.mjs, scripts/fetch-rhwp.mjs 로 받음)
 engine/vendor/

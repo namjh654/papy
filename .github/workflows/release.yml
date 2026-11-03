@@ -48,6 +48,8 @@ jobs:
           workspaces: apps/desktop/src-tauri
           key: ${{ matrix.target }}
       - run: pnpm install --frozen-lockfile
+      - run: node scripts/fetch-rhwp.mjs
+      - run: node scripts/fetch-pdfium.mjs ${{ matrix.target }}
       # 코드 서명 없음 — 설치 시 OS 보안 경고 안내는 website/install 참고.
       - uses: tauri-apps/tauri-action@v1
         env:

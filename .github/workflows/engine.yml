@@ -3,9 +3,9 @@ name: engine
 on:
   push:
     branches: [main]
-    paths: ["engine/**", "rust-toolchain.toml", ".github/workflows/engine.yml"]
+    paths: ["engine/**", "scripts/fetch-*.mjs", "rust-toolchain.toml", ".github/workflows/engine.yml"]
   pull_request:
-    paths: ["engine/**", "rust-toolchain.toml", ".github/workflows/engine.yml"]
+    paths: ["engine/**", "scripts/fetch-*.mjs", "rust-toolchain.toml", ".github/workflows/engine.yml"]
 
 permissions:
   contents: read
@@ -22,10 +22,17 @@ jobs:
         working-directory: engine
     steps:
       - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      # 외부 엔진: rhwp 소스(고정 커밋)와 PDFium 사전 빌드(SHA-256 고정)를 engine/vendor 에 받는다.
+      - run: node ../scripts/fetch-rhwp.mjs
+      - run: node ../scripts/fetch-pdfium.mjs
       # rustup 이 rust-toolchain.toml 의 버전을 설치한다.
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: engine
-      - run: cargo fmt --all --check
+      # --all 은 path 의존성(vendor/rhwp)까지 건드리므로 쓰지 않는다. 워크스페이스 멤버만 검사한다.
+      - run: cargo fmt --check
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - run: cargo test --workspace --locked

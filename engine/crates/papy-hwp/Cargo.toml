@@ -10,6 +10,11 @@ publish.workspace = true
 
 [dependencies]
 papy-model.workspace = true
+papy-render.workspace = true
+rhwp.workspace = true
+# rhwp 가 만든 SVG 를 비트맵으로 그린다. usvg 0.45 는 rhwp 가 이미 쓰는 버전과 같다.
+resvg = { version = "=0.45.1", default-features = false, features = ["text", "system-fonts", "raster-images"] }
+serde_json = "1"
 
 [lints]
 workspace = true

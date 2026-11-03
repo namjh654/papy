@@ -1,6 +1,8 @@
 [workspace]
 resolver = "3"
 members = ["crates/*"]
+# 외부 소스(scripts/fetch-*.mjs 로 받음). rhwp 는 자체 [workspace] 를 가지므로 멤버에서 뺀다.
+exclude = ["vendor"]
 
 [workspace.package]
 version = "0.0.0"
@@ -17,6 +19,8 @@ papy-pdf = { path = "crates/papy-pdf" }
 papy-hwp = { path = "crates/papy-hwp" }
 papy-office = { path = "crates/papy-office" }
 papy-core = { path = "crates/papy-core" }
+# HWP/HWPX 엔진(MIT). `node scripts/fetch-rhwp.mjs` 로 받는다 — crates.io 에 없고 저장소가 수 GB 라 git 의존성 대신 쓴다.
+rhwp = { path = "vendor/rhwp", default-features = false }
 
 [workspace.lints.rust]
 unsafe_op_in_unsafe_fn = "deny"
