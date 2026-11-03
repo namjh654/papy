@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 보안 취약점 신고
+    url: https://github.com/namjh654/papy/security/advisories/new
+    about: 보안 문제는 공개 Issue 대신 비공개로 신고해 주세요 (SECURITY.md).

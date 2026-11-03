@@ -1,0 +1,22 @@
+[package]
+name = "papy-desktop"
+version = "0.0.0"
+description = "Papy desktop app (Tauri host)"
+edition = "2024"
+rust-version = "1.85"
+license = "Apache-2.0"
+publish = false
+
+# engine/ 워크스페이스와 분리된 독립 패키지. 엔진은 path 의존성으로만 가져온다(엔진 → 앱 방향).
+[workspace]
+
+[lib]
+name = "papy_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "=2.7.4", features = [] }
+
+[dependencies]
+papy-core = { path = "../../../engine/crates/papy-core" }
+tauri = { version = "=2.12.5", features = [] }

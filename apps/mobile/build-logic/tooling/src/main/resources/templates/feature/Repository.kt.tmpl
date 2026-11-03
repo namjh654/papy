@@ -1,0 +1,10 @@
+package __pkg__.feature.__name__
+
+import __pkg__.core.common.paging.Page
+
+/** __TITLE_KO__ 데이터. 캐시·저장·여러 API 조합·검증 규칙이 생기면 여기에 둔다. */
+class __Name__Repository(
+    private val api: __Name__Api,
+) {
+    suspend fun items(page: String?): Page<__Name__Item> = api.items(page)
+}

@@ -1,0 +1,38 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Rust
+target/
+
+# JS
+node_modules/
+dist/
+*.tsbuildinfo
+.vite/
+
+# Editors
+.idea/
+.vscode/
+*.iml
+
+# Logs
+*.log
+
+# Secrets — 절대 커밋하지 않는다 (SECURITY.md)
+.env
+.env.*
+!.env.example
+*.jks
+*.keystore
+*.p12
+*.p8
+*.mobileprovision
+*.pem
+keystore.properties
+service-account.json
+google-services.json
+GoogleService-Info.plist
+
+# 테스트 문서 — 배포 권리가 확인된 파일만 tests/fixtures 에 둔다. 비공개 문서는 이 폴더에
+tests/private/

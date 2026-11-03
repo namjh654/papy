@@ -1,0 +1,5 @@
+# mac/windows 공용: 셸 스크립트는 항상 LF (CRLF 이면 Git Bash/mac 에서 실행 실패)
+*.sh              text eol=lf
+gradlew           text eol=lf
+.orca/**          text eol=lf
+scripts/orca.cmd  text eol=crlf

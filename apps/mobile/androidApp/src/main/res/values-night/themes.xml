@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 다크 모드 시작 시 흰 화면이 번쩍이지 않도록 어두운 부모 테마 + 다크 배경을 쓴다. -->
+    <style name="Theme.Elsa" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/elsa_background</item>
+        <item name="android:colorBackground">@color/elsa_background</item>
+        <item name="android:colorPrimary">@color/elsa_primary</item>
+        <item name="android:colorAccent">@color/elsa_primary</item>
+    </style>
+</resources>

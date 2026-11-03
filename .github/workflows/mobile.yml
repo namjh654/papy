@@ -1,0 +1,42 @@
+name: mobile
+
+on:
+  push:
+    branches: [main]
+    paths: ["apps/mobile/**", ".github/workflows/mobile.yml"]
+  pull_request:
+    paths: ["apps/mobile/**", ".github/workflows/mobile.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: apps/mobile
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: corretto
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v6
+      # scripts/orca.sh check 의 Gradle 단계와 같다: 템플릿 점검 + 단위 테스트 + Android dev 빌드
+      - run: ./gradlew -Papp.env=dev templateCheck testAndroidHostTest :androidApp:assembleDevDebug
+
+  # macOS runner 비용이 커서 수동 실행만 한다. 평소 iOS 검증은 로컬 mac 에서 scripts/orca.sh check.
+  ios:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: corretto
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v6
+      - run: scripts/orca.sh check

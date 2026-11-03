@@ -1,0 +1,9 @@
+package __pkg__.feature.__name__
+
+import __pkg__.core.common.paging.ListState
+import __pkg__.core.common.viewmodel.UiState
+
+/** 목록 화면: 목록 상태(로딩·새로고침·다음 페이지·오류·빈 화면)는 [ListState] 하나로 둔다 */
+data class __Name__UiState(
+    val list: ListState<__Name__Item> = ListState(),
+) : UiState

@@ -1,0 +1,146 @@
+[versions]
+agp = "9.3.1"
+android-compileSdk = "37"
+android-minSdk = "24"
+android-targetSdk = "36"
+androidx-activity = "1.13.0"
+androidx-lifecycle = "2.11.0"
+androidx-navigation = "2.9.4"
+kotlin = "2.4.20"
+kotlinx-serialization = "1.10.0"
+coroutines = "1.11.0"
+kotlinx-datetime = "0.8.0"
+koin = "4.2.2"
+androidx-datastore = "1.2.1"
+okio = "3.16.0"
+# 로컬 DB(DEC-130) — 기능 모듈마다 자기 DB(.sq), 드라이버는 core:data
+sqldelight = "2.4.1"
+ktor = "3.5.0"
+skie = "0.10.15"
+coil = "3.3.0"
+firebase-bom = "34.19.0"
+# 소셜 로그인 SDK(DEC-106·119) — Android 만. iOS 는 SPM
+kakao-sdk = "2.26.0"
+naver-oauth = "5.12.0"
+androidx-credentials = "1.6.0"
+googleid = "1.2.1"
+google-services = "4.5.0"
+compose-bom = "2026.09.00"
+turbine = "1.2.1"
+androidx-test = "1.7.0"
+androidx-test-junit = "1.3.0"
+uiautomator = "2.4.0"
+kermit = "2.2.0"
+play-review = "2.0.2"
+play-app-update = "2.1.0"
+# 앱 잠금(26-1, DEC-134) — 정식판 1.1.0(1.4.0 은 alpha)
+androidx-biometric = "1.1.0"
+firebase-crashlytics-plugin = "3.0.8"
+kover = "0.9.11"
+
+[libraries]
+# --- Shared (KMP Common) Dependencies ---
+
+coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
+coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
+kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinx-serialization" }
+# 날짜 계산(달력 기준 며칠 전 등) — core:common time/
+kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.ref = "kotlinx-datetime" }
+
+# Ktor Network
+ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktor" }
+ktor-client-logging = { module = "io.ktor:ktor-client-logging", version.ref = "ktor" }
+ktor-client-okhttp = { module = "io.ktor:ktor-client-okhttp", version.ref = "ktor" }
+ktor-client-darwin = { module = "io.ktor:ktor-client-darwin", version.ref = "ktor" }
+
+# DataStore & Storage
+androidx-datastore-core = { module = "androidx.datastore:datastore-core-okio", version.ref = "androidx-datastore" }
+androidx-datastore-preferences-core = { module = "androidx.datastore:datastore-preferences-core", version.ref = "androidx-datastore" }
+okio = { module = "com.squareup.okio:okio", version.ref = "okio" }
+# 파일 저장 테스트용 메모리 파일 시스템(30-1)
+okio-fakefilesystem = { module = "com.squareup.okio:okio-fakefilesystem", version.ref = "okio" }
+
+# 로컬 DB (SQLDelight, DEC-130) — 드라이버는 core:data 가 만들고, 테이블(.sq)은 기능 모듈이 가진다
+sqldelight-runtime = { module = "app.cash.sqldelight:runtime", version.ref = "sqldelight" }
+sqldelight-android-driver = { module = "app.cash.sqldelight:android-driver", version.ref = "sqldelight" }
+sqldelight-native-driver = { module = "app.cash.sqldelight:native-driver", version.ref = "sqldelight" }
+# Android host test(JVM)용 메모리 DB
+sqldelight-sqlite-driver = { module = "app.cash.sqldelight:sqlite-driver", version.ref = "sqldelight" }
+
+# 로깅 (DEC-065) — 환경별 수준, prod 는 크래시 리포터로만 (core:common api)
+kermit = { module = "co.touchlab:kermit", version.ref = "kermit" }
+
+# KMP ViewModel & DI Core
+androidx-lifecycle-viewmodel = { module = "org.jetbrains.androidx.lifecycle:lifecycle-viewmodel", version.ref = "androidx-lifecycle" }
+koin-core = { module = "io.insert-koin:koin-core", version.ref = "koin" }
+
+# --- Android App Only Dependencies ---
+androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "androidx-activity" }
+androidx-lifecycle-runtimeCompose = { module = "androidx.lifecycle:lifecycle-runtime-compose", version.ref = "androidx-lifecycle" }
+androidx-lifecycle-viewmodelCompose = { module = "androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "androidx-lifecycle" }
+androidx-navigation-compose = { module = "androidx.navigation:navigation-compose", version.ref = "androidx-navigation" }
+
+# Jetpack Compose (BOM 이 버전을 맞춘다 — 아래 항목은 버전 없이 선언)
+compose-bom = { module = "androidx.compose:compose-bom", version.ref = "compose-bom" }
+compose-ui = { module = "androidx.compose.ui:ui" }
+compose-ui-graphics = { module = "androidx.compose.ui:ui-graphics" }
+compose-ui-tooling = { module = "androidx.compose.ui:ui-tooling" }
+compose-ui-tooling-preview = { module = "androidx.compose.ui:ui-tooling-preview" }
+compose-material3 = { module = "androidx.compose.material3:material3" }
+
+# Android Design System (이미지 로딩: 선택한 사진 미리보기 등)
+coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }
+# 원격 이미지(URL) 불러오기 — ElsaRemoteImage·ElsaAvatar
+coil-network-okhttp = { module = "io.coil-kt.coil3:coil-network-okhttp", version.ref = "coil" }
+
+# Push (FCM) — google-services.json 이 있을 때만 켜진다 (docs/push.md)
+firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebase-bom" }
+kakao-user = { module = "com.kakao.sdk:v2-user", version.ref = "kakao-sdk" }
+naver-oauth = { module = "com.navercorp.nid:oauth", version.ref = "naver-oauth" }
+androidx-credentials = { module = "androidx.credentials:credentials", version.ref = "androidx-credentials" }
+androidx-credentials-play-services = { module = "androidx.credentials:credentials-play-services-auth", version.ref = "androidx-credentials" }
+googleid = { module = "com.google.android.libraries.identity.googleid:googleid", version.ref = "googleid" }
+firebase-messaging = { module = "com.google.firebase:firebase-messaging" }
+# 크래시·이벤트 (설정 파일이 있을 때만 켜진다, DEC-065)
+firebase-crashlytics = { module = "com.google.firebase:firebase-crashlytics" }
+firebase-analytics = { module = "com.google.firebase:firebase-analytics" }
+
+# Play 인앱 리뷰·업데이트 (Android 전용, 인터페이스 뒤)
+play-review = { module = "com.google.android.play:review-ktx", version.ref = "play-review" }
+play-app-update = { module = "com.google.android.play:app-update-ktx", version.ref = "play-app-update" }
+
+# 앱 잠금: 생체 인증·기기 암호(BiometricPrompt, Android 전용)
+androidx-biometric = { module = "androidx.biometric:biometric", version.ref = "androidx-biometric" }
+
+# Android DI
+koin-android = { module = "io.insert-koin:koin-android", version.ref = "koin" }
+koin-androidx-compose = { module = "io.insert-koin:koin-androidx-compose", version.ref = "koin" }
+
+# Testing
+kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
+# Flow(StateFlow·이벤트) 테스트 — awaitItem() 으로 순서대로 검증 (DEC-065)
+turbine = { module = "app.cash.turbine:turbine", version.ref = "turbine" }
+# Android UI 흐름 테스트(:androidUiTest — 설치된 앱을 밖에서 조작, iOS UITests 와 같은 방식)
+androidx-test-runner = { module = "androidx.test:runner", version.ref = "androidx-test" }
+androidx-test-ext-junit = { module = "androidx.test.ext:junit", version.ref = "androidx-test-junit" }
+androidx-test-uiautomator = { module = "androidx.test.uiautomator:uiautomator", version.ref = "uiautomator" }
+
+# build-logic (convention plugin 컴파일용)
+android-gradlePlugin = { module = "com.android.tools.build:gradle", version.ref = "agp" }
+kotlin-gradlePlugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
+sqldelight-gradlePlugin = { module = "app.cash.sqldelight:gradle-plugin", version.ref = "sqldelight" }
+
+[plugins]
+kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
+kotlinSerialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+composeCompiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+androidApplication = { id = "com.android.application", version.ref = "agp" }
+androidTest = { id = "com.android.test", version.ref = "agp" }
+androidMultiplatformLibrary = { id = "com.android.kotlin.multiplatform.library", version.ref = "agp" }
+skie = { id = "co.touchlab.skie", version.ref = "skie" }
+googleServices = { id = "com.google.gms.google-services", version.ref = "google-services" }
+# 커버리지 리포트: ./gradlew koverHtmlReport (DEC-065)
+kover = { id = "org.jetbrains.kotlinx.kover", version.ref = "kover" }
+# 로컬 DB 코드 생성 — DB 가 있는 기능 모듈만 적용 (docs/local-db.md)
+sqldelight = { id = "app.cash.sqldelight", version.ref = "sqldelight" }
+firebaseCrashlytics = { id = "com.google.firebase.crashlytics", version.ref = "firebase-crashlytics-plugin" }

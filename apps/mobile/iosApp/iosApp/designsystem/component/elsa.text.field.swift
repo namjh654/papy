@@ -1,0 +1,206 @@
+import SwiftUI
+
+/// 공통 텍스트 필드. 라벨은 위, 도움말/에러는 아래 (Android `ElsaTextField` 와 동일 배치).
+///
+/// - `isSecure`: 비밀번호 입력 + 보기/숨기기 버튼
+/// - `maxLength`: 초과 입력 차단 + 글자 수 표시
+/// - `submitAction`: 키보드 리턴 키. 기본 `.next`(다음 필드), 마지막 필드는 `.done` + `onSubmit` (Android imeAction)
+/// - `multiline`: 여러 줄 입력 (세로로 늘어남)
+/// - 포커스 이동/키보드 스크롤은 `ElsaFormScrollView` + `.elsaFormField(_:focus:)` 로 처리한다.
+struct ElsaTextField: View {
+    let label: String?
+    @Binding var text: String
+    var placeholder: String = ""
+    var helperText: String? = nil
+    var errorText: String? = nil
+    var isSecure = false
+    var multiline = false
+    var maxLength: Int? = nil
+    var keyboardType: UIKeyboardType = .default
+    var textContentType: UITextContentType? = nil
+    var autocapitalization: TextInputAutocapitalization = .never
+    var submitAction: ElsaSubmitAction = .next
+    var icon: String? = nil
+    var onSubmit: (() -> Void)? = nil
+
+    @State private var isRevealed = false
+    @State private var fieldID = UUID()
+    @FocusState private var isFocused: Bool
+    @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.elsaFormCoordinator) private var form
+
+    init(
+        _ label: String?,
+        text: Binding<String>,
+        placeholder: String = "",
+        helperText: String? = nil,
+        errorText: String? = nil,
+        isSecure: Bool = false,
+        multiline: Bool = false,
+        maxLength: Int? = nil,
+        keyboardType: UIKeyboardType = .default,
+        textContentType: UITextContentType? = nil,
+        autocapitalization: TextInputAutocapitalization = .never,
+        submitAction: ElsaSubmitAction = .next,
+        icon: String? = nil,
+        onSubmit: (() -> Void)? = nil
+    ) {
+        self.label = label
+        self._text = text
+        self.placeholder = placeholder
+        self.helperText = helperText
+        self.errorText = errorText
+        self.isSecure = isSecure
+        self.multiline = multiline
+        self.maxLength = maxLength
+        self.keyboardType = keyboardType
+        self.textContentType = textContentType
+        self.autocapitalization = autocapitalization
+        self.submitAction = submitAction
+        self.icon = icon
+        self.onSubmit = onSubmit
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: ElsaSpacing.xs) {
+            if let label {
+                ElsaFieldLabel(text: label)
+            }
+
+            HStack(spacing: ElsaSpacing.sm) {
+                if let icon {
+                    ElsaIcon(icon)
+                        .foregroundStyle(ElsaColor.onSurfaceVariant)
+                }
+
+                input
+                    .elsaFont(ElsaFont.body)
+                    .foregroundStyle(isEnabled ? ElsaColor.onSurface : ElsaColor.onDisabled)
+                    .tint(ElsaColor.primary)
+                    .focused($isFocused)
+                    .keyboardType(keyboardType)
+                    .textContentType(textContentType)
+                    .textInputAutocapitalization(autocapitalization)
+                    .autocorrectionDisabled(isSecure || keyboardType != .default)
+                    .submitLabel(submitAction.label)
+                    .onSubmit(handleSubmit)
+                    .onChange(of: text) { _, newValue in
+                        if let maxLength, newValue.count > maxLength {
+                            text = String(newValue.prefix(maxLength))
+                        }
+                    }
+
+                if isSecure {
+                    Button {
+                        isRevealed.toggle()
+                    } label: {
+                        ElsaIcon(isRevealed ? "elsa_ic_visibility_off" : "elsa_ic_visibility")
+                            .foregroundStyle(ElsaColor.onSurfaceVariant)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(String(localized: isRevealed ? "field_password_hide" : "field_password_show"))
+                }
+            }
+            .padding(.vertical, multiline ? ElsaSpacing.md : 0)
+            .elsaFieldBackground(isFocused: isFocused, isError: errorText != nil)
+            .contentShape(Rectangle())
+            .onTapGesture { isFocused = true }
+
+            ElsaFieldFooter(
+                helperText: helperText,
+                errorText: errorText,
+                counter: maxLength.map { "\(text.count)/\($0)" }
+            )
+        }
+        .modifier(ElsaFormFieldRegistration(id: fieldID, focus: $isFocused, form: form))
+    }
+
+    /// '다음' 은 폼의 다음 필드로, 그 외(또는 마지막 필드)는 키보드를 닫는다.
+    private func handleSubmit() {
+        onSubmit?()
+        if submitAction == .next, form?.focusNext(after: fieldID) == true { return }
+        isFocused = false
+    }
+
+    @ViewBuilder
+    private var input: some View {
+        if isSecure && !isRevealed {
+            SecureField(
+                "",
+                text: $text,
+                prompt: Text(placeholder).foregroundStyle(ElsaColor.onSurfaceTertiary)
+            )
+        } else if multiline {
+            TextField(
+                "",
+                text: $text,
+                prompt: Text(placeholder).foregroundStyle(ElsaColor.onSurfaceTertiary),
+                axis: .vertical
+            )
+            .lineLimit(3...8)
+        } else {
+            TextField(
+                "",
+                text: $text,
+                prompt: Text(placeholder).foregroundStyle(ElsaColor.onSurfaceTertiary)
+            )
+        }
+    }
+}
+
+/// 탭하면 선택 UI(날짜/시간/목록 등)를 여는 읽기 전용 필드. ElsaTextField 와 같은 모양.
+struct ElsaSelectField: View {
+    let label: String?
+    let value: String?
+    var placeholder: String? = nil
+    var helperText: String? = nil
+    var errorText: String? = nil
+    var icon: String? = nil
+    let onTap: () -> Void
+
+    @Environment(\.isEnabled) private var isEnabled
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: ElsaSpacing.xs) {
+            if let label {
+                ElsaFieldLabel(text: label)
+            }
+
+            Button(action: onTap) {
+                HStack {
+                    Text(value ?? placeholder ?? String(localized: "common_select"))
+                        .elsaFont(ElsaFont.body)
+                        .foregroundStyle(
+                            !isEnabled ? ElsaColor.onDisabled
+                                : (value == nil ? ElsaColor.onSurfaceTertiary : ElsaColor.onSurface)
+                        )
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    if let icon {
+                        ElsaIcon(icon)
+                            .foregroundStyle(ElsaColor.onSurfaceVariant)
+                    }
+                }
+                .elsaFieldBackground(isError: errorText != nil)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            ElsaFieldFooter(helperText: helperText, errorText: errorText)
+        }
+    }
+}
+
+/// 키보드 리턴 키 종류. (Android `ImeAction` 대응)
+enum ElsaSubmitAction {
+    case next, done, go, search, send
+
+    var label: SubmitLabel {
+        switch self {
+        case .next: .next
+        case .done: .done
+        case .go: .go
+        case .search: .search
+        case .send: .send
+        }
+    }
+}

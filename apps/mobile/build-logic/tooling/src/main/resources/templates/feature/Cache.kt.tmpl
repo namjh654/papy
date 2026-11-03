@@ -1,0 +1,31 @@
+package __pkg__.feature.__name__.cache
+
+import __pkg__.core.data.database.LocalCache
+import __pkg__.core.data.database.databaseDispatcher
+import __pkg__.core.data.serialization.AppJson
+import __pkg__.feature.__name__.__Name__Item
+import __pkg__.feature.__name__.db.__Name__Database
+import kotlinx.coroutines.withContext
+import kotlin.coroutines.CoroutineContext
+
+/** __TITLE_KO__ 로컬 DB(SQLDelight `__Name__.sq`): 목록 첫 페이지. 로그아웃하면 [clear](LocalCache) */
+class __Name__Cache(
+    private val database: __Name__Database,
+    /** DB 를 읽고 쓰는 곳. 테스트는 EmptyCoroutineContext(부른 코루틴에서 그대로 — 테스트 스케줄러 순서 유지) */
+    private val context: CoroutineContext = databaseDispatcher,
+) : LocalCache {
+
+    private val queries get() = database.__name__Queries
+
+    suspend fun items(): List<__Name__Item> = withContext(context) { queries.items().executeAsList().map(AppJson::decodeFromString) }
+
+    /** 첫 페이지를 통째로 바꾼다 */
+    suspend fun saveItems(items: List<__Name__Item>) = write {
+        queries.deleteAll()
+        items.forEachIndexed { index, item -> queries.insertItem(item.id, index.toLong(), AppJson.encodeToString(item)) }
+    }
+
+    override suspend fun clear() = write { queries.deleteAll() }
+
+    private suspend fun write(block: () -> Unit) = withContext(context) { database.transaction { block() } }
+}

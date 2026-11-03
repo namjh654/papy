@@ -1,0 +1,14 @@
+name: 기능 제안
+description: 새 기능이나 포맷 지원 제안
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 해결하려는 문제
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 제안 내용과 대안

@@ -1,0 +1,55 @@
+package __pkg__.feature.__name__
+
+import __pkg__.core.common.paging.Page
+import __pkg__.core.data.network.BaseApi
+import kotlinx.serialization.Serializable
+
+@Serializable
+data class __Name__Item(
+    val id: String,
+    val title: String,
+    val subtitle: String? = null,
+)
+
+/** 서버 응답 한 페이지 (가정 계약: `GET /api/__name__?page=N` → `{items, nextPage}`) */
+@Serializable
+internal data class __Name__PageResponse(
+    val items: List<__Name__Item> = emptyList(),
+    val nextPage: String? = null,
+)
+
+/**
+ * __TITLE_KO__ API 계약. 서버 연동은 [Remote__Name__Api], 서버 없이 개발할 때는 [Sample__Name__Api].
+ * 어느 쪽을 쓸지는 di/__Name__Module.kt 한 곳에서 정한다.
+ */
+interface __Name__Api {
+    /** @param page null 이면 첫 페이지 */
+    suspend fun items(page: String?): Page<__Name__Item>
+}
+
+internal class Remote__Name__Api(
+    private val baseApi: BaseApi,
+) : __Name__Api {
+    // {BASE_URL}/api/__name__?page=N
+    override suspend fun items(page: String?): Page<__Name__Item> {
+        val response: __Name__PageResponse = baseApi.get("/api/__name__", query = page?.let { mapOf("page" to it) }.orEmpty())
+        return Page(items = response.items, nextKey = response.nextPage)
+    }
+}
+
+/** 서버 없이 화면을 확인하기 위한 예시 데이터(서버 응답 대용이라 문구 리소스가 아니다). 3페이지 × 15개 */
+internal class Sample__Name__Api : __Name__Api {
+    override suspend fun items(page: String?): Page<__Name__Item> {
+        val number = page?.toIntOrNull() ?: 1
+        val items = (1..PAGE_SIZE).map { i ->
+            val n = (number - 1) * PAGE_SIZE + i
+            __Name__Item(id = "$n", title = "Sample $n", subtitle = if (n == 1) "Remote__Name__Api" else null)
+        }
+        return Page(items = items, nextKey = if (number < LAST_PAGE) "${number + 1}" else null)
+    }
+
+    private companion object {
+        const val PAGE_SIZE = 15
+        const val LAST_PAGE = 3
+    }
+}

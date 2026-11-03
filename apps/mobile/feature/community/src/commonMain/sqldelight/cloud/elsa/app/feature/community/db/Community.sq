@@ -1,0 +1,26 @@
+-- 커뮤니티 로컬 DB(DEC-130): 전체 글 목록 첫 페이지 — 다시 켜면 바로 보이고 오프라인이어도 보인다.
+-- payload 는 Post JSON(AppJson). 지우기·차단에 쓰는 값만 열로 뺀다.
+CREATE TABLE post (
+    id TEXT NOT NULL PRIMARY KEY,
+    author_id TEXT NOT NULL,
+    position INTEGER NOT NULL,
+    payload TEXT NOT NULL
+);
+
+posts:
+SELECT payload FROM post ORDER BY position;
+
+insertPost:
+INSERT OR REPLACE INTO post(id, author_id, position, payload) VALUES (?, ?, ?, ?);
+
+updatePayload:
+UPDATE post SET payload = ? WHERE id = ?;
+
+deletePost:
+DELETE FROM post WHERE id = ?;
+
+deleteByAuthor:
+DELETE FROM post WHERE author_id = ?;
+
+deleteAll:
+DELETE FROM post;

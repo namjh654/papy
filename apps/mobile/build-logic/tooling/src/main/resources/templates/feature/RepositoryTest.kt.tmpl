@@ -1,0 +1,22 @@
+package __pkg__.feature.__name__
+
+import kotlinx.coroutines.test.runTest
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNull
+
+class __Name__RepositoryTest {
+
+    @Test
+    fun sampleApiPagesUntilLastPage() = runTest {
+        val repository = __Name__Repository(Sample__Name__Api())
+
+        val first = repository.items(page = null)
+        assertEquals("1", first.items.first().id)
+        assertEquals("2", first.nextKey)
+
+        val last = repository.items(page = "3")
+        assertEquals("45", last.items.last().id)
+        assertNull(last.nextKey)
+    }
+}

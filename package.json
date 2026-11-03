@@ -1,0 +1,16 @@
+{
+  "name": "papy",
+  "private": true,
+  "description": "Open-source cross-platform document viewer and editor",
+  "license": "Apache-2.0",
+  "packageManager": "pnpm@10.27.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "typecheck": "pnpm -r --if-present typecheck",
+    "build": "pnpm -r --if-present build",
+    "web:dev": "pnpm --filter @papy/web dev",
+    "desktop:dev": "pnpm --filter @papy/desktop tauri dev"
+  }
+}

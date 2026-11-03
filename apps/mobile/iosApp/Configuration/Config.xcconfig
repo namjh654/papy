@@ -1,0 +1,16 @@
+// 앱 공통 빌드 설정. 환경별 값(APP_ENV·앱 이름·번들 ID 접미사)은 env/*.properties 에서 생성한 파일에서 온다.
+#include "Env.generated.xcconfig"
+
+// 소셜 로그인 URL 스킴(DEC-119) — 키가 없으면 쓰이지 않는 자리 값. 키가 있으면 아래 파일(env 비밀 키에서 생성, 커밋 안 함)이 덮어쓴다
+SOCIAL_KAKAO_URL_SCHEME = elsa-social-off-kakao
+SOCIAL_GOOGLE_URL_SCHEME = elsa-social-off-google
+#include? "Social.local.generated.xcconfig"
+
+TEAM_ID=LWDTN6PM35
+
+// 앱 번들 파일 이름. 홈 화면 이름은 APP_DISPLAY_NAME(env: app.name + app.nameSuffix)
+PRODUCT_NAME=elsa app
+// 환경별 접미사(.dev, .staging)로 세 앱을 한 기기에 함께 설치한다
+PRODUCT_BUNDLE_IDENTIFIER=cloud.elsa.app.elsaapp$(BUNDLE_ID_SUFFIX)
+
+// 버전(MARKETING_VERSION·CURRENT_PROJECT_VERSION)은 env/common.properties 의 app.versionName·app.versionCode → Env.generated.xcconfig

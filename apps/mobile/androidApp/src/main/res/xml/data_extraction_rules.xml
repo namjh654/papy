@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Android 12+ 클라우드 백업·기기 이전 규칙. 앱 저장소(설정·로그인 옵션·사용자)와 보안 저장소(토큰)는 옮기지 않는다
+    → 재설치·새 기기는 깨끗한 상태(테마·언어 기본값 = 시스템)로 시작한다. 복원된 설정이 시스템과 어긋나 보이는 문제 방지.
+    옮기고 싶은 값이 생기면 별도 DataStore 파일로 두고 여기서 include 한다. (Android 11 이하는 backup_rules.xml)
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="file" path="elsa.storage.preferences_pb" />
+        <exclude domain="file" path="elsa.secure.preferences_pb" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="file" path="elsa.storage.preferences_pb" />
+        <exclude domain="file" path="elsa.secure.preferences_pb" />
+    </device-transfer>
+</data-extraction-rules>

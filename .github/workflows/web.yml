@@ -1,0 +1,25 @@
+name: web
+
+on:
+  push:
+    branches: [main]
+    paths: ["apps/web/**", "packages/**", "pnpm-lock.yaml", ".github/workflows/web.yml"]
+  pull_request:
+    paths: ["apps/web/**", "packages/**", "pnpm-lock.yaml", ".github/workflows/web.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @papy/web typecheck
+      - run: pnpm --filter @papy/web build

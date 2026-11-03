@@ -1,0 +1,35 @@
+package __pkg__.feature.__name__
+
+import kotlinx.coroutines.test.runTest
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+
+class __Name__RepositoryTest {
+
+    private val cache = testCache()
+    private val repository = __Name__Repository(Sample__Name__Api(), cache)
+
+    @Test
+    fun sampleApiPagesUntilLastPage() = runTest {
+        val first = repository.items(page = null)
+        assertEquals("1", first.items.first().id)
+        assertEquals("2", first.nextKey)
+
+        val last = repository.items(page = "3")
+        assertEquals("45", last.items.last().id)
+        assertNull(last.nextKey)
+    }
+
+    @Test
+    fun firstPageIsSavedAndClearedOnLogout() = runTest {
+        repository.items(page = null)
+        repository.items(page = "2") // 다음 페이지는 저장하지 않는다
+        assertEquals(15, repository.cachedItems().size)
+        assertEquals("1", repository.cachedItems().first().id)
+
+        cache.clear()
+        assertTrue(repository.cachedItems().isEmpty())
+    }
+}

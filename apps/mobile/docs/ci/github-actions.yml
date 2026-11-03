@@ -1,0 +1,61 @@
+# CI 예시 (GitHub Actions). 이 위치에서는 동작하지 않는다 — 켜는 방법: docs/ci.md
+# 공통 테스트 · Android assemble · iOS xcodebuild
+name: CI
+
+on:
+  push:
+    branches: [main, ocra, ocra-android, ocra-ios]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  core-test:
+    name: 템플릿 점검 + KMP 테스트
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '21' }
+      - uses: gradle/actions/setup-gradle@v4
+      - run: ./gradlew templateCheck testAndroidHostTest koverXmlReport koverHtmlReport
+      # 커버리지(Kover, DEC-065) — 목표치로 막지 않고 리포트만 남긴다
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: kover-report
+          path: build/reports/kover/
+          if-no-files-found: ignore
+
+  android-assemble:
+    name: Android ${{ matrix.env }} (${{ matrix.task }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { env: dev, task: assembleDevDebug }
+          - { env: staging, task: assembleStagingDebug }
+          - { env: prod, task: assembleProdRelease }   # R8·리소스 축소 경로 (서명 비밀이 없으면 unsigned)
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '21' }
+      - uses: gradle/actions/setup-gradle@v4
+      - run: ./gradlew -Papp.env=${{ matrix.env }} :androidApp:${{ matrix.task }}
+
+  ios-build:
+    name: iOS xcodebuild (simulator, Debug-dev)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '21' }
+      - uses: gradle/actions/setup-gradle@v4
+      - name: xcodebuild (공유 scheme iosApp-dev, 서명 없음)
+        run: |
+          xcodebuild -project iosApp/iosApp.xcodeproj -scheme iosApp-dev -configuration Debug-dev \
+            -destination 'generic/platform=iOS Simulator' \
+            ARCHS=arm64 ONLY_ACTIVE_ARCH=YES CODE_SIGNING_ALLOWED=NO build

@@ -1,0 +1,41 @@
+package __pkg__.feature.__name__
+
+import __pkg__.core.common.paging.Paginator
+import __pkg__.core.common.viewmodel.StatefulViewModel
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.StateFlow
+
+/**
+ * 목록 화면 기준 예시: 진입 시 첫 페이지, 당겨서 새로고침, 끝에 닿으면 다음 페이지.
+ * 오류는 [Paginator] 가 ListState 에 담으므로 onError 를 두지 않는다.
+ */
+class __Name__ViewModel(
+    private val repository: __Name__Repository,
+) : StatefulViewModel<__Name__UiState, __Name__Event>(__Name__UiState()) {
+
+    val uiState: StateFlow<__Name__UiState> = state
+
+    val events: Flow<__Name__Event> = eventFlow
+
+    private val paginator = Paginator { page -> repository.items(page) }
+
+    init {
+        launch { paginator.state.collect { list -> setState { copy(list = list) } } }
+        load()
+    }
+
+    /** 첫 페이지(전체 오류 화면의 다시 시도도 이것) */
+    fun load() = launch { paginator.load() }
+
+    fun refresh() = launch { paginator.refresh() }
+
+    /** 목록 끝에 닿았을 때 */
+    fun loadMore() = launch { paginator.loadMore() }
+
+    /** 다음 페이지 실패 후 다시 시도 */
+    fun retryLoadMore() = launch { paginator.retryLoadMore() }
+
+    fun itemClicked(item: __Name__Item) = launch {
+        sendEvent(__Name__Event.ItemSelected(item))
+    }
+}

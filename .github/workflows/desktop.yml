@@ -1,0 +1,42 @@
+name: desktop
+
+on:
+  push:
+    branches: [main]
+    paths: ["apps/desktop/**", "engine/**", "packages/**", "pnpm-lock.yaml", "rust-toolchain.toml", ".github/workflows/desktop.yml"]
+  pull_request:
+    paths: ["apps/desktop/**", "engine/**", "packages/**", "pnpm-lock.yaml", "rust-toolchain.toml", ".github/workflows/desktop.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            bundles: app
+          - os: windows-latest
+            bundles: nsis
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @papy/desktop typecheck
+      - name: clippy
+        working-directory: apps/desktop/src-tauri
+        run: |
+          cargo fmt --check
+          cargo clippy --all-targets --locked -- -D warnings
+      # 서명 없이 패키징만 검증한다. 산출물은 아직 배포하지 않는다.
+      - run: pnpm --filter @papy/desktop tauri build --bundles ${{ matrix.bundles }}

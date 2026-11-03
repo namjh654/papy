@@ -1,0 +1,86 @@
+# .gitignore
+
+# Gradle
+
+.gradle/
+build/
+out/
+
+# Kotlin
+
+*.kotlin_module
+.kotlin/*
+
+# Android Studio
+
+.idea/
+*.iml
+local.properties
+
+# Android
+
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Compose
+
+sharedApp/build/
+
+# KMP
+
+iosApp/build/
+iosApp/iosApp.xcodeproj/project.xcworkspace/xcuserdata/
+iosApp/iosApp.xcodeproj/xcuserdata/
+iosApp/DerivedData/
+DerivedData/
+
+# MacOS
+
+.DS_Store
+
+# Windows
+
+Thumbs.db
+
+# Logs
+
+*.log
+
+# Environment
+
+.env
+
+# Secrets
+
+keystore.properties
+*.jks
+*.keystore
+service-account.json
+
+# Coverage
+
+coverage/
+jacoco/
+
+# VSCode
+
+.vscode/
+
+# Generated
+
+generated/
+
+# Orca
+
+.orca/.cache/
+
+# Firebase 설정 파일 — 커밋하지 않는다 (docs/template-setup.md §3, docs/push.md)
+google-services.json
+GoogleService-Info.plist
+
+# 환경 비밀 값 (docs/environments.md) — env/*.local.properties.example 만 커밋
+env/*.local.properties
+
+# iOS 소셜 로그인 URL 스킴 — env 비밀 키에서 생성(DEC-119)
+iosApp/Configuration/Social.local.generated.xcconfig

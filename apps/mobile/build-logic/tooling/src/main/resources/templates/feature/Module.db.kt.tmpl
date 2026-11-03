@@ -1,0 +1,24 @@
+package __pkg__.feature.__name__.di
+
+import __pkg__.core.data.database.LocalCache
+import __pkg__.core.data.database.SqlDriverFactory
+import __pkg__.feature.__name__.__Name__Api
+import __pkg__.feature.__name__.__Name__Repository
+import __pkg__.feature.__name__.Remote__Name__Api
+import __pkg__.feature.__name__.__Name__ViewModel
+import __pkg__.feature.__name__.Sample__Name__Api
+import __pkg__.feature.__name__.cache.__Name__Cache
+import __pkg__.feature.__name__.db.__Name__Database
+import org.koin.dsl.bind
+import org.koin.dsl.module
+
+/** feature:__name__ 의 Koin 모듈 */
+val __name__Module = module {
+    // 서버가 준비되면 아래 줄을 이것으로 바꾼다: single<__Name__Api> { Remote__Name__Api(baseApi = get()) }
+    single<__Name__Api> { Sample__Name__Api() }
+    // 로컬 DB(DEC-130): 로그아웃하면 LocalCache 로 지워진다
+    single { __Name__Database(get<SqlDriverFactory>().create(__Name__Database.Schema, "__name__")) }
+    single { __Name__Cache(database = get()) } bind LocalCache::class
+    single { __Name__Repository(api = get(), cache = get()) }
+    factory { __Name__ViewModel(repository = get()) }
+}

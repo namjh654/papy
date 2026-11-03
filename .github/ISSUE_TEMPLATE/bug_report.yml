@@ -1,0 +1,29 @@
+name: 버그 신고
+description: 문서가 잘못 열리거나 앱이 오동작할 때
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: 개인·민감한 문서는 첨부하지 마세요. 재현 가능한 공개 문서나 증상 설명만 올려 주세요.
+  - type: dropdown
+    id: platform
+    attributes:
+      label: 플랫폼
+      options: [Windows, macOS, Web, Android, iOS]
+    validations:
+      required: true
+  - type: dropdown
+    id: format
+    attributes:
+      label: 문서 포맷
+      options: [PDF, HWPX, HWP, DOCX, XLSX, PPTX, 기타/해당 없음]
+  - type: input
+    id: version
+    attributes:
+      label: 앱 버전 / 커밋
+  - type: textarea
+    id: steps
+    attributes:
+      label: 재현 방법과 기대 동작
+    validations:
+      required: true

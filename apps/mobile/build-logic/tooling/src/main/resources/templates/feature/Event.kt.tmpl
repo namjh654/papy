@@ -1,0 +1,8 @@
+package __pkg__.feature.__name__
+
+import __pkg__.core.common.viewmodel.UiEvent
+
+/** 화면 이동은 플랫폼 Navigation 이 결정한다. ViewModel 은 무슨 일이 있었는지만 알린다. */
+sealed interface __Name__Event : UiEvent {
+    data class ItemSelected(val item: __Name__Item) : __Name__Event
+}

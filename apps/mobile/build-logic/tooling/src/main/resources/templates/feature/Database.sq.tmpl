@@ -1,0 +1,16 @@
+-- __TITLE_KO__ 로컬 DB(newFeature --db, DEC-130): 목록 첫 페이지 — 다시 켜면 바로 보이고 오프라인이어도 보인다.
+-- payload 는 __Name__Item JSON(AppJson). 정렬·삭제·검색에 쓰는 값만 열로 뺀다. 스키마를 바꾸는 법: docs/local-db.md §3
+CREATE TABLE item (
+    id TEXT NOT NULL PRIMARY KEY,
+    position INTEGER NOT NULL,
+    payload TEXT NOT NULL
+);
+
+items:
+SELECT payload FROM item ORDER BY position;
+
+insertItem:
+INSERT OR REPLACE INTO item(id, position, payload) VALUES (?, ?, ?);
+
+deleteAll:
+DELETE FROM item;

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- FileProvider 로 다른 앱에 넘기는 경로 — 카메라 첨부의 임시 파일(cache/camera), 받아 둔 파일(files/downloads, 30-1) -->
+<paths>
+    <cache-path name="camera" path="camera/" />
+    <files-path name="downloads" path="downloads/" />
+</paths>

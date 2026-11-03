@@ -1,0 +1,36 @@
+package __pkg__.feature.__name__
+
+import __pkg__.core.common.paging.Page
+import __pkg__.feature.__name__.cache.__Name__Cache
+import kotlinx.coroutines.CancellationException
+
+/**
+ * __TITLE_KO__ 데이터. 서버가 원본이고 로컬 DB([__Name__Cache])에 첫 페이지를 둔다 — 화면 진입 때 먼저 보이고 오프라인이어도 보인다.
+ * DB 는 보조라 읽기·쓰기 실패는 서버 흐름을 막지 않는다.
+ */
+class __Name__Repository(
+    private val api: __Name__Api,
+    private val cache: __Name__Cache,
+) {
+    suspend fun items(page: String?): Page<__Name__Item> {
+        val result = api.items(page)
+        if (page == null) {
+            try {
+                cache.saveItems(result.items)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Throwable) {
+            }
+        }
+        return result
+    }
+
+    /** 저장된 첫 페이지(읽지 못하면 빈 목록) */
+    suspend fun cachedItems(): List<__Name__Item> = try {
+        cache.items()
+    } catch (e: CancellationException) {
+        throw e
+    } catch (_: Throwable) {
+        emptyList()
+    }
+}

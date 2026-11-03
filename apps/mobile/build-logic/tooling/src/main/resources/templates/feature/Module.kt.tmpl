@@ -1,0 +1,16 @@
+package __pkg__.feature.__name__.di
+
+import __pkg__.feature.__name__.__Name__Api
+import __pkg__.feature.__name__.__Name__Repository
+import __pkg__.feature.__name__.Remote__Name__Api
+import __pkg__.feature.__name__.__Name__ViewModel
+import __pkg__.feature.__name__.Sample__Name__Api
+import org.koin.dsl.module
+
+/** feature:__name__ 의 Koin 모듈 */
+val __name__Module = module {
+    // 서버가 준비되면 아래 줄을 이것으로 바꾼다: single<__Name__Api> { Remote__Name__Api(baseApi = get()) }
+    single<__Name__Api> { Sample__Name__Api() }
+    single { __Name__Repository(api = get()) }
+    factory { __Name__ViewModel(repository = get()) }
+}

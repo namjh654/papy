@@ -1,0 +1,3 @@
+# Orca 설정 (ocra 브랜치에 커밋, 모든 머신 공통)
+# mode: auto | manual  — 워크트리·역할은 동일, 승인 게이트만 다름
+mode=auto
