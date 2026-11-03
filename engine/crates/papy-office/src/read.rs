@@ -1,6 +1,8 @@
 //! DOCX → HTML. rhwp 의 HTML 붙여넣기(`paste_html_native`)가 받는 범위의 태그만 만든다:
-//! `<p style="text-align">`, `<span style="font-*;color;text-decoration">`, `<table>`/`<td colspan rowspan>`.
+//! `<p style="text-align">`, `<span style="font-*;color;text-decoration">`, `<table>`/`<td colspan rowspan>`,
+//! `<img src="data:…" width height>`(그림은 본문 관계·word/media 에서 꺼낸다).
 
+use base64::Engine as _;
 use std::collections::HashMap;
 use std::io::{Cursor, Read};
 
@@ -16,8 +18,92 @@ const MAX_TABLE_DEPTH: usize = 16;
 /// 변환하면서 옮기지 못한 것.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct DocxReadReport {
-    /// 그림·도형 개수(옮기지 않음).
+    /// 옮긴 그림 수(PNG·JPEG·GIF·BMP).
+    pub images: usize,
+    /// 옮기지 못한 그림·도형·개체 수(도형, 지원하지 않는 그림 형식, 크기 제한 초과 등).
     pub dropped_drawings: usize,
+}
+
+/// 그림 하나의 최대 크기, 문서 전체 그림 크기 합의 최대치.
+const MAX_IMAGE_BYTES: u64 = 32 * 1024 * 1024;
+const MAX_TOTAL_IMAGE_BYTES: u64 = 256 * 1024 * 1024;
+/// EMU(English Metric Unit) → CSS px(96 dpi)
+const EMU_PER_PX: f64 = 9525.0;
+
+/// 본문 관계(rId → 파일 경로, word/ 기준으로 푼 값).
+fn parse_rels(xml: &str) -> HashMap<String, String> {
+    let mut rels = HashMap::new();
+    let mut reader = Reader::from_str(xml);
+    while let Ok(event) = reader.read_event() {
+        match event {
+            Event::Eof => break,
+            Event::Start(e) | Event::Empty(e) if local(e.name().as_ref()) == "Relationship" => {
+                let external = attr(&e, "TargetMode").as_deref() == Some("External");
+                if let (Some(id), Some(target), false) =
+                    (attr(&e, "Id"), attr(&e, "Target"), external)
+                {
+                    let path = match target.strip_prefix('/') {
+                        Some(absolute) => absolute.to_owned(),
+                        None => format!("word/{target}"),
+                    };
+                    rels.insert(id, normalize_path(&path));
+                }
+            }
+            _ => {}
+        }
+    }
+    rels
+}
+
+/// "word/media/../media/a.png" → "word/media/a.png". 패키지 밖(../ 가 넘침)이면 빈 문자열.
+pub(crate) fn normalize_path(path: &str) -> String {
+    let mut parts: Vec<&str> = Vec::new();
+    for part in path.split('/') {
+        match part {
+            "" | "." => {}
+            ".." => {
+                if parts.pop().is_none() {
+                    return String::new();
+                }
+            }
+            other => parts.push(other),
+        }
+    }
+    parts.join("/")
+}
+
+/// 그림 파일 형식. rhwp 가 넣을 수 있는 것만.
+fn image_mime(bytes: &[u8]) -> Option<&'static str> {
+    if bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
+        Some("image/png")
+    } else if bytes.starts_with(&[0xFF, 0xD8, 0xFF]) {
+        Some("image/jpeg")
+    } else if bytes.starts_with(b"GIF8") {
+        Some("image/gif")
+    } else if bytes.starts_with(b"BM") {
+        Some("image/bmp")
+    } else {
+        None
+    }
+}
+
+fn read_binary(
+    archive: &mut zip::ZipArchive<Cursor<&[u8]>>,
+    name: &str,
+    limit: u64,
+) -> Option<Vec<u8>> {
+    let file = archive.by_name(name).ok()?;
+    let mut bytes = Vec::new();
+    file.take(limit + 1).read_to_end(&mut bytes).ok()?;
+    (bytes.len() as u64 <= limit).then_some(bytes)
+}
+
+/// 본문 안 그림(`<w:drawing>`) 하나: 크기(EMU)와 그림 관계 id.
+#[derive(Default)]
+struct Drawing {
+    cx: Option<f64>,
+    cy: Option<f64>,
+    embed: Option<String>,
 }
 
 fn invalid(message: &str) -> Error {
@@ -330,6 +416,12 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
         .map(|xml| parse_styles(&xml))
         .unwrap_or_default();
 
+    let rels = read_part(&mut archive, "word/_rels/document.xml.rels")?
+        .map(|xml| parse_rels(&xml))
+        .unwrap_or_default();
+    let mut image_budget = MAX_TOTAL_IMAGE_BYTES;
+    let mut drawing: Option<Drawing> = None;
+
     let mut report = DocxReadReport::default();
     let mut reader = Reader::from_str(&document);
     // 출력 대상: 본문 또는 열린 표 칸들(중첩 표 지원).
@@ -430,6 +522,18 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
                         );
                         para_html.push_str("<br>");
                     }
+                    "drawing" if !empty => drawing = Some(Drawing::default()),
+                    "extent" if drawing.is_some() => {
+                        if let Some(current) = drawing.as_mut() {
+                            current.cx = attr(&e, "cx").and_then(|v| v.parse().ok());
+                            current.cy = attr(&e, "cy").and_then(|v| v.parse().ok());
+                        }
+                    }
+                    "blip" if drawing.is_some() => {
+                        if let Some(current) = drawing.as_mut() {
+                            current.embed = current.embed.take().or_else(|| attr(&e, "embed"));
+                        }
+                    }
                     "drawing" | "pict" | "object" => report.dropped_drawings += 1,
                     "tbl" => {
                         if tables.len() >= MAX_TABLE_DEPTH {
@@ -486,6 +590,45 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
                 }
             }
             Event::End(e) => match local(e.name().as_ref()) {
+                "drawing" => {
+                    let Some(done) = drawing.take() else { continue };
+                    let image = done
+                        .embed
+                        .as_ref()
+                        .and_then(|id| rels.get(id))
+                        .filter(|path| !path.is_empty())
+                        .and_then(|path| {
+                            read_binary(&mut archive, path, MAX_IMAGE_BYTES.min(image_budget))
+                        })
+                        .and_then(|bytes| image_mime(&bytes).map(|mime| (mime, bytes)));
+                    match image {
+                        Some((mime, bytes)) => {
+                            image_budget = image_budget.saturating_sub(bytes.len() as u64);
+                            // 크기를 모르면 rhwp 기본값(200×150px)을 쓴다.
+                            let size = match (done.cx, done.cy) {
+                                (Some(cx), Some(cy)) if cx > 0.0 && cy > 0.0 => format!(
+                                    " width=\"{}\" height=\"{}\"",
+                                    (cx / EMU_PER_PX).round().clamp(1.0, 20000.0),
+                                    (cy / EMU_PER_PX).round().clamp(1.0, 20000.0)
+                                ),
+                                _ => String::new(),
+                            };
+                            flush(
+                                &mut para_html,
+                                &mut run_text,
+                                &run,
+                                &para_style.0,
+                                &defaults,
+                            );
+                            para_html.push_str(&format!(
+                                "<img src=\"data:{mime};base64,{}\"{size}>",
+                                base64::engine::general_purpose::STANDARD.encode(&bytes)
+                            ));
+                            report.images += 1;
+                        }
+                        None => report.dropped_drawings += 1,
+                    }
+                }
                 "t" => in_text = false,
                 "rPr" => in_rpr = false,
                 "pPr" => in_ppr = false,

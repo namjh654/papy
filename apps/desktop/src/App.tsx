@@ -32,6 +32,7 @@ import { Sidebar } from "./components/Sidebar";
 import { Toolbar, type Mode, type ZoomMode } from "./components/Toolbar";
 import { PX_PER_PT, Viewer, type ViewerHandle } from "./components/Viewer";
 import { Welcome } from "./components/Welcome";
+import { LicensesDialog } from "./components/LicensesDialog";
 
 const ZOOM_STEPS = [0.25, 0.33, 0.5, 0.67, 0.75, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 5];
 const ZOOM_MIN = ZOOM_STEPS[0]!;
@@ -76,6 +77,9 @@ export function App() {
   const [revision, setRevision] = useState(0);
   const [notice, setNotice] = useState<string | null>(null);
   const [studio, setStudio] = useState(false);
+  /** 문서를 열 때 빠진 내용 안내(닫을 때까지 보인다) */
+  const [loss, setLoss] = useState<string | null>(null);
+  const [about, setAbout] = useState(false);
   const [hasStudio, setHasStudio] = useState(false);
   const [pdfSettings, setPdfSettings] = useState<PdfToolSettings>({
     tool: "highlight",
@@ -248,6 +252,11 @@ export function App() {
         queue.clear();
         if (previous) void closeDocument(previous.id);
         setDoc({ ...opened, path });
+        setLoss(
+          opened.droppedObjects > 0
+            ? `이 문서의 도형·그림 ${opened.droppedObjects}개는 아직 옮기지 못해 보이지 않습니다. 저장하면 빠진 채로 저장되니 원본은 따로 두세요.`
+            : null,
+        );
         setMode("view");
         setDirty(false);
         setCurrent(0);
@@ -290,6 +299,7 @@ export function App() {
     queue.clear();
     void closeDocument(previous.id);
     setDoc(null);
+    setLoss(null);
     setDirty(false);
     setMode("view");
   }, [queue, confirmDiscard]);
@@ -310,7 +320,7 @@ export function App() {
       const current = docRef.current;
       if (!current) return;
       try {
-        const opened = await openDocumentBytes(bytes, current.fileName);
+        const opened = await openDocumentBytes(bytes, current.fileName, current.id);
         queue.clear();
         void closeDocument(current.id);
         setDoc({ ...opened, path: current.path, fileName: current.fileName });
@@ -511,6 +521,14 @@ export function App() {
           }
         />
       )}
+      {doc && loss && (
+        <div className="loss-banner" role="status">
+          <span>{loss}</span>
+          <button className="ghost small" onClick={() => setLoss(null)}>
+            닫기
+          </button>
+        </div>
+      )}
       <div className="workspace">
         {doc && sidebarOpen && <Sidebar doc={doc} current={current} queue={queue} onGoTo={goTo} revision={revision} />}
         <main className="main" ref={main}>
@@ -532,6 +550,7 @@ export function App() {
               onOpen={chooseFile}
               onOpenRecent={(file) => void openPath(file.path)}
               onClearRecent={() => setRecent(clearRecent())}
+              onAbout={() => setAbout(true)}
             />
           )}
         </main>
@@ -569,6 +588,7 @@ export function App() {
           onCancel={() => setStudio(false)}
         />
       )}
+      {about && <LicensesDialog onClose={() => setAbout(false)} />}
       {password && (
         <PasswordDialog
           // 시도마다 새로 만들어 입력란을 비운다.

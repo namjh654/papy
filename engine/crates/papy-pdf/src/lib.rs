@@ -389,6 +389,7 @@ impl State {
             page_count,
             byte_size: 0,
             title,
+            dropped_objects: 0,
             capabilities: Capabilities {
                 render: true,
                 extract_text: true,

@@ -366,6 +366,22 @@ impl Document for HwpDocument {
         guard(|| rasterize(&svg, width, height, request.white_background))?
     }
 
+    fn save_unprotected(&mut self, format: SaveFormat) -> Result<Vec<u8>> {
+        let password = self.password.take();
+        let result = self.save(format);
+        self.password = password;
+        result
+    }
+
+    fn save_password(&self) -> Option<String> {
+        self.password.clone()
+    }
+
+    fn set_save_password(&mut self, password: Option<String>) -> Result<()> {
+        self.password = password.filter(|pw| !pw.is_empty());
+        Ok(())
+    }
+
     fn extract_text(&mut self, page: u32) -> Result<String> {
         self.read("extract text", |doc| doc.extract_page_text_native(page))
     }

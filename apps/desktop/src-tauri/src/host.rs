@@ -41,6 +41,8 @@ pub struct OpenedDocument {
     save_formats: Vec<&'static str>,
     /// 쪽마다 크기(pt). 앱이 스크롤 영역을 미리 잡는 데 쓴다.
     pages: Vec<PageSizeDto>,
+    /// 열 때 옮기지 못한 요소 수(DOCX 도형 등). 0 보다 크면 앱이 알린다.
+    dropped_objects: u32,
 }
 
 #[derive(Serialize)]
@@ -522,19 +524,30 @@ pub fn open(
 }
 
 /// 메모리에 있는 문서(예: HWP 고급 편집기가 돌려준 바이트)를 새 세션으로 연다.
+/// `inherit` 세션이 있으면 그 저장 암호를 이어받는다(암호 문서는 암호 없이 넘겼다가 되돌린다).
 pub fn open_bytes(
     engine: &Engine,
     bytes: Vec<u8>,
     file_name: String,
+    inherit: Option<u64>,
 ) -> papy_core::Result<OpenedDocument> {
-    open_source(engine, DocumentSource::Bytes(bytes.into()), file_name, None)
+    let opened = open_source(engine, DocumentSource::Bytes(bytes.into()), file_name, None)?;
+    if let Some(from) = inherit {
+        let to = session(opened.id)?;
+        if let Err(error) = engine.copy_save_password(session(from)?, to) {
+            let _ = engine.close(to);
+            return Err(error);
+        }
+    }
+    Ok(opened)
 }
 
-/// 문서를 `extension` 형식의 바이트로 내보낸다(파일에 쓰지 않는다).
+/// 문서를 `extension` 형식의 바이트로 내보낸다(파일에 쓰지 않는다). 다른 편집기에 넘기는 용도라
+/// 암호는 걸지 않는다 — 돌려받을 때 [`open_bytes`] 의 `inherit` 으로 되돌린다.
 pub fn export(engine: &Engine, id: u64, extension: &str) -> papy_core::Result<Vec<u8>> {
     let format = SaveFormat::from_extension(extension)
         .ok_or_else(|| Error::new(ErrorCode::UnsupportedFormat, "unknown format"))?;
-    engine.save(session(id)?, format)
+    engine.save_unprotected(session(id)?, format)
 }
 
 fn open_source(
@@ -570,6 +583,7 @@ fn open_source(
                 .map(|format| format.extension())
                 .collect(),
             pages,
+            dropped_objects: info.dropped_objects,
         })
     };
     describe().inspect_err(|_| {

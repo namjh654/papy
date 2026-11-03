@@ -18,21 +18,85 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const tauriDir = join(root, "apps", "desktop", "src-tauri");
 const outFile = join(tauriDir, "notices", "THIRD_PARTY_NOTICES.txt");
 const LICENSE_FILE = /^(licen[cs]e|copying|notice|ofl)([-._].*)?$/i;
+/** 글꼴 폴더의 "NotoSansKR-OFL.txt" 같은 OFL 본문 */
+const OFL_FILE = /(^|[-_.])ofl[-_.].*txt$|[-_]ofl\.txt$/i;
 
 /** 폴더 바로 아래의 라이선스 파일 본문들. */
 function licenseTexts(dir) {
   if (!existsSync(dir)) return [];
   return readdirSync(dir)
-    .filter((name) => LICENSE_FILE.test(name) && statSync(join(dir, name)).isFile())
+    .filter((name) => (LICENSE_FILE.test(name) || OFL_FILE.test(name)) && statSync(join(dir, name)).isFile())
     .sort()
     .map((name) => ({ name, text: readFileSync(join(dir, name), "utf8").trim() }));
 }
 
 const sections = [];
 const missing = [];
-function add(title, license, texts) {
+function add(title, license, texts, extra = {}) {
   if (texts.length === 0) missing.push(title);
-  sections.push({ title, license, texts });
+  sections.push({ title, license, texts, ...extra });
+}
+
+// 라이선스 파일을 싣지 않은 crate: SPDX 식별자의 표준 본문을 저작자 이름으로 채운다(MIT 를 고를 수 있으면 MIT).
+const MIT_TEXT = (holders) => `MIT License
+
+Copyright (c) ${holders}
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.`;
+const BSD3_TEXT = (holders) => `BSD 3-Clause License
+
+Copyright (c) ${holders}
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its
+   contributors may be used to endorse or promote products derived from
+   this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.`;
+/** 저작자 표기(Cargo authors 의 이메일은 뺀다) */
+const holdersOf = (pkg) =>
+  (pkg.authors ?? []).map((author) => author.replace(/\s*<[^>]*>/, "").trim()).filter(Boolean).join(", ") ||
+  `the ${pkg.name} developers`;
+/** 표준 본문으로 채울 수 있으면 [이름, 본문]. MPL 등은 다른 crate 가 실은 전문을 가리킨다(아래 fill 단계). */
+function standardText(pkg) {
+  const offered = (pkg.license ?? "").split(/\s+OR\s+|\//).map((id) => id.trim());
+  if (offered.includes("MIT")) return ["LICENSE (MIT, chosen from: " + pkg.license + ")", MIT_TEXT(holdersOf(pkg))];
+  if (offered.includes("BSD-3-Clause")) return ["LICENSE (BSD-3-Clause)", BSD3_TEXT(holdersOf(pkg))];
+  return null;
 }
 
 // ---- Rust ----
@@ -62,7 +126,14 @@ for (const pkg of metadata.packages
   const dir = dirname(pkg.manifest_path);
   // Papy 자체 crate 는 PolyForm NC(저장소 LICENSE) — 고지 대상이 아니다. 단 vendor(rhwp)는 서드파티.
   if (dir.startsWith(ownPrefix) && !dir.includes("/engine/vendor/")) continue;
-  add(`${pkg.name} ${pkg.version} (Rust crate)`, pkg.license ?? pkg.license_file ?? "(see text)", licenseTexts(dir));
+  let texts = licenseTexts(dir);
+  const extra = { source: `https://crates.io/crates/${pkg.name}/${pkg.version}` };
+  if (texts.length === 0) {
+    const standard = standardText(pkg);
+    if (standard) texts = [{ name: standard[0], text: standard[1] }];
+    else if ((pkg.license ?? "").includes("MPL-2.0")) extra.fullTextOf = "Mozilla Public License Version 2.0";
+  }
+  add(`${pkg.name} ${pkg.version} (Rust crate)`, pkg.license ?? pkg.license_file ?? "(see text)", texts, extra);
 }
 
 // ---- JS (화면 번들) ----
@@ -135,6 +206,16 @@ let out = `Papy — Third-party notices\n\nPapy itself is licensed under PolyFor
 const firstSeen = new Map();
 for (const section of sections) {
   out += `\n${rule}\n${section.title}\nLicense: ${section.license}\n${rule}\n`;
+  if (section.source) out += `Source: ${section.source}\n`;
+  if (section.texts.length === 0 && section.fullTextOf) {
+    // 같은 라이선스 전문을 실은 다른 구성요소를 가리킨다(본문을 중복해 싣지 않는다).
+    const holder = sections.find((other) => other.texts.some((t) => t.text.includes(section.fullTextOf)));
+    if (holder) {
+      out += `\n--- ${section.license} full text: same text as ${holder.title} ---\n`;
+      missing.splice(missing.indexOf(section.title), 1);
+      continue;
+    }
+  }
   for (const { name, text } of section.texts) {
     const earlier = firstSeen.get(text);
     if (earlier) {

@@ -25,6 +25,8 @@ export interface OpenedDocument {
   /** 저장·변환 가능한 형식의 확장자(pdf, hwpx, hwp, txt) */
   saveFormats: string[];
   pages: PageSize[];
+  /** 열 때 옮기지 못한 요소 수(DOCX 도형 등) */
+  droppedObjects: number;
 }
 
 // ---- 편집 ----
@@ -216,12 +218,12 @@ export async function exportDocument(id: number, format: string): Promise<Uint8A
   return new Uint8Array(await call<ArrayBuffer>("export_document", { id, format }));
 }
 
-/** 메모리의 문서 바이트를 새 세션으로 연다. */
-export async function openDocumentBytes(bytes: Uint8Array, fileName: string): Promise<OpenedDocument> {
+/** 메모리의 문서 바이트를 새 세션으로 연다. `inheritFrom` 세션의 저장 암호를 이어받는다. */
+export async function openDocumentBytes(bytes: Uint8Array, fileName: string, inheritFrom?: number): Promise<OpenedDocument> {
+  const headers: Record<string, string> = { "x-papy-file-name": encodeURIComponent(fileName) };
+  if (inheritFrom !== undefined) headers["x-papy-inherit"] = String(inheritFrom);
   try {
-    return await invoke<OpenedDocument>("open_document_bytes", bytes, {
-      headers: { "x-papy-file-name": encodeURIComponent(fileName) },
-    });
+    return await invoke<OpenedDocument>("open_document_bytes", bytes, { headers });
   } catch (error) {
     throw toEngineError(error);
   }
@@ -230,6 +232,11 @@ export async function openDocumentBytes(bytes: Uint8Array, fileName: string): Pr
 /** 파일 연결(더블클릭 등)로 들어온 열기 요청을 꺼낸다. */
 export function takePendingOpens(): Promise<string[]> {
   return call("take_pending_opens");
+}
+
+/** 서드파티 라이선스 고지 전문 */
+export function licenseNotices(): Promise<string> {
+  return call("license_notices");
 }
 
 export function engineVersion(): Promise<string> {

@@ -131,3 +131,78 @@ fn writes_a_valid_package() {
     let (html, _) = docx_to_html(&bytes).unwrap();
     assert!(html.contains("Word &lt;안녕&gt; &amp; 문서"), "{html}");
 }
+
+/// 1×1 빨간 점 PNG
+pub(crate) const PNG_1X1: &[u8] = &[
+    0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
+    0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x77, 0x53,
+    0xDE, 0x00, 0x00, 0x00, 0x0C, 0x49, 0x44, 0x41, 0x54, 0x08, 0xD7, 0x63, 0xF8, 0xCF, 0xC0, 0x00,
+    0x00, 0x03, 0x01, 0x01, 0x00, 0x18, 0xDD, 0x8D, 0xB0, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E,
+    0x44, 0xAE, 0x42, 0x60, 0x82,
+];
+
+/// document.xml 과 추가 파일로 DOCX 를 만든다.
+pub(crate) fn docx_with(document: &str, parts: &[(&str, &[u8])]) -> Vec<u8> {
+    let mut buffer = Cursor::new(Vec::new());
+    let mut zip = zip::ZipWriter::new(&mut buffer);
+    let options = zip::write::SimpleFileOptions::default();
+    zip.start_file("[Content_Types].xml", options).unwrap();
+    zip.write_all(b"<Types/>").unwrap();
+    zip.start_file("word/document.xml", options).unwrap();
+    zip.write_all(document.as_bytes()).unwrap();
+    for (name, bytes) in parts {
+        zip.start_file(*name, options).unwrap();
+        zip.write_all(bytes).unwrap();
+    }
+    zip.finish().unwrap();
+    buffer.into_inner()
+}
+
+pub(crate) fn drawing(embed: &str) -> String {
+    format!(
+        r#"<w:r><w:drawing><wp:inline><wp:extent cx="914400" cy="457200"/><a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="{embed}"/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>"#
+    )
+}
+
+pub(crate) const RELS: &str = r#"<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId5" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image1.png"/><Relationship Id="rId6" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../../outside.png"/><Relationship Id="rId7" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/notes.txt"/><Relationship Id="rId8" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="https://example.com/a.png" TargetMode="External"/></Relationships>"#;
+
+#[test]
+fn images_become_data_uris() {
+    let document = format!(
+        r#"<w:document {NS} xmlns:wp="wp" xmlns:a="a" xmlns:pic="pic" xmlns:r="r"><w:body><w:p><w:r><w:t>앞</w:t></w:r>{}<w:r><w:t>뒤</w:t></w:r></w:p><w:p>{}{}{}</w:p><w:p><w:r><w:drawing/></w:r></w:p></w:body></w:document>"#,
+        drawing("rId5"),
+        drawing("rId6"),
+        drawing("rId7"),
+        drawing("rId8"),
+    );
+    let bytes = docx_with(
+        &document,
+        &[
+            ("word/_rels/document.xml.rels", RELS.as_bytes()),
+            ("word/media/image1.png", PNG_1X1),
+            ("word/media/notes.txt", b"not an image"),
+        ],
+    );
+    let (html, report) = docx_to_html(&bytes).unwrap();
+    assert_eq!(report.images, 1, "{html}");
+    // 패키지 밖 경로, 그림이 아닌 파일, 외부 링크, 빈 drawing 은 옮기지 않는다.
+    assert_eq!(report.dropped_drawings, 4, "{html}");
+    assert!(
+        html.contains(r#"<img src="data:image/png;base64,iVBORw0KGgo"#),
+        "{html}"
+    );
+    assert!(html.contains(r#"width="96" height="48""#), "{html}");
+    // 그림 앞뒤 글자가 순서대로 남는다.
+    let (front, back) = (html.find('앞').unwrap(), html.find('뒤').unwrap());
+    let image = html.find("<img").unwrap();
+    assert!(front < image && image < back, "{html}");
+}
+
+#[test]
+fn normalizes_package_paths() {
+    assert_eq!(
+        read::normalize_path("word/media/../media/a.png"),
+        "word/media/a.png"
+    );
+    assert_eq!(read::normalize_path("word/../../x"), "");
+}

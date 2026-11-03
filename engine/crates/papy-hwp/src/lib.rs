@@ -138,6 +138,7 @@ impl FormatBackend for HwpBackend {
             page_count,
             byte_size: bytes.len() as u64,
             title: None,
+            dropped_objects: 0,
             capabilities: Capabilities {
                 render: true,
                 extract_text: true,
@@ -169,7 +170,7 @@ impl HwpBackend {
                 "only DOCX is supported among ZIP-based office files",
             ));
         }
-        let (html, _report) = papy_office::docx_to_html(bytes)?;
+        let (html, report) = papy_office::docx_to_html(bytes)?;
         options.cancel.check()?;
         let doc = guard(|| -> std::result::Result<Rhwp, rhwp::HwpError> {
             let mut doc = Rhwp::create_empty();
@@ -192,6 +193,7 @@ impl HwpBackend {
             page_count,
             byte_size: bytes.len() as u64,
             title: None,
+            dropped_objects: u32::try_from(report.dropped_drawings).unwrap_or(u32::MAX),
             capabilities: Capabilities {
                 render: true,
                 extract_text: true,
