@@ -1,5 +1,6 @@
 // GitHub Releases 에서 최신 버전의 설치 파일 목록을 읽어 운영체제별 카드에 채운다.
 // 실패하면 Releases 페이지 링크만 보여 준다. 이 요청 외에 다른 외부 요청은 하지 않는다.
+import { fill, lang, t } from "./i18n.ts";
 
 const REPO = "namjh654/papy";
 const RELEASES_URL = `https://github.com/${REPO}/releases`;
@@ -22,16 +23,26 @@ interface Release {
   assets: Asset[];
 }
 
+const L = t.download.labels;
 const RULES: { os: Os; test: RegExp; label: string }[] = [
-  { os: "windows", test: /-setup\.exe$/i, label: "설치 프로그램 (.exe, 권장)" },
-  { os: "windows", test: /\.msi$/i, label: "MSI 패키지" },
-  { os: "macos", test: /aarch64\.dmg$/i, label: "Apple Silicon (.dmg)" },
-  { os: "macos", test: /x64\.dmg$/i, label: "Intel (.dmg)" },
-  { os: "macos", test: /universal\.dmg$/i, label: "Universal (.dmg)" },
-  { os: "linux", test: /\.AppImage$/i, label: "AppImage" },
-  { os: "linux", test: /\.deb$/i, label: "Debian/Ubuntu (.deb)" },
-  { os: "linux", test: /\.rpm$/i, label: "Fedora/openSUSE (.rpm)" },
+  { os: "windows", test: /-setup\.exe$/i, label: L.exe },
+  { os: "windows", test: /\.msi$/i, label: L.msi },
+  { os: "macos", test: /aarch64\.dmg$/i, label: L.dmgArm },
+  { os: "macos", test: /x64\.dmg$/i, label: L.dmgIntel },
+  { os: "macos", test: /universal\.dmg$/i, label: L.dmgUniversal },
+  { os: "linux", test: /\.AppImage$/i, label: L.appImage },
+  { os: "linux", test: /\.deb$/i, label: L.deb },
+  { os: "linux", test: /\.rpm$/i, label: L.rpm },
 ];
+
+/** 문구 안의 {link} 를 Releases 링크로 바꿔 넣는다(문구는 텍스트로만 넣는다). */
+function withLink(element: HTMLElement, template: string) {
+  const [before, after = ""] = template.split("{link}");
+  const link = document.createElement("a");
+  link.href = RELEASES_URL;
+  link.textContent = "GitHub Releases";
+  element.replaceChildren(before ?? "", link, after);
+}
 
 function detectOs(): Os | undefined {
   const ua = navigator.userAgent;
@@ -73,7 +84,7 @@ function renderFiles(release: Release | undefined) {
     if (links.length === 0) {
       const link = document.createElement("a");
       link.href = RELEASES_URL;
-      link.textContent = "GitHub Releases 에서 보기";
+      link.textContent = t.download.viewOnGithub;
       links.push(link);
     }
     box.append(...links);
@@ -89,15 +100,15 @@ async function main() {
     renderFiles(release);
     if (!status) return;
     if (!release) {
-      status.innerHTML = `아직 공개된 설치 파일이 없습니다. 첫 빌드가 올라오면 이곳에 자동으로 표시됩니다. <a href="${RELEASES_URL}">GitHub Releases</a>`;
+      withLink(status, t.download.none);
       return;
     }
-    const date = release.published_at ? new Date(release.published_at).toLocaleDateString("ko-KR") : "";
-    const pre = release.prerelease ? " (미리보기 빌드 — 아직 문서를 열 수 없습니다)" : "";
-    status.textContent = `최신 버전: ${release.name || release.tag_name}${date ? ` · ${date}` : ""}${pre}`;
+    const date = release.published_at ? new Date(release.published_at).toLocaleDateString(lang) : "";
+    const pre = release.prerelease ? t.download.prerelease : "";
+    status.textContent = fill(t.download.latest, { name: release.name || release.tag_name, date: date ? ` · ${date}` : "" }) + pre;
   } catch {
     renderFiles(undefined);
-    if (status) status.innerHTML = `버전 정보를 불러오지 못했습니다. <a href="${RELEASES_URL}">GitHub Releases</a>에서 직접 받아 주세요.`;
+    if (status) withLink(status, t.download.failed);
   }
 }
 

@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="{{lang}}">
+  <head>
+    {{head}}
+  </head>
+  <body>
+    {{header}}
+    <main id="main" class="wrap">
+      <h1>Installation</h1>
+      <p class="lead">How to install Papy and open it for the first time on each operating system. Get the files from the <a href="{{base}}/download/">download</a> page.</p>
+      <ul class="toc">
+        <li><a href="#windows">Windows</a></li>
+        <li><a href="#macos">macOS</a></li>
+        <li><a href="#linux">Linux</a></li>
+        <li><a href="#update">Update and uninstall</a></li>
+      </ul>
+
+      <div class="notice" role="note">
+        <strong>Why you may see a security warning:</strong> Papy is not yet signed with an operating-system developer certificate.
+        The files are built from public source on GitHub Actions. Only download them from the <a href="{{base}}/download/">official download page</a> or <a href="{{repo}}/releases">GitHub Releases</a>.
+      </div>
+
+      <h2 id="windows">Windows</h2>
+      <ol class="steps">
+        <li>Download and run <code>Papy_…_x64-setup.exe</code>.</li>
+        <li>If <strong>“Windows protected your PC”</strong> appears, click <em>More info</em> → <em>Run anyway</em>.</li>
+        <li>Follow the setup wizard. Papy installs for the current user without administrator rights.</li>
+        <li>Start <strong>Papy</strong> from the Start menu.</li>
+      </ol>
+      <p>Papy uses <strong>Microsoft Edge WebView2</strong>, which comes with Windows. If it is missing, the installer downloads it automatically (the only time an internet connection is needed).</p>
+
+      <h2 id="macos">macOS</h2>
+      <ol class="steps">
+        <li>Download the <code>.dmg</code> for your Mac: <code>aarch64</code> for Apple Silicon, <code>x64</code> for Intel. (Check your chip under Apple menu → About This Mac.)</li>
+        <li>Open the <code>.dmg</code> and drag <strong>Papy</strong> into the <strong>Applications</strong> folder.</li>
+        <li>If an “unidentified developer” warning appears the first time:
+          <ul>
+            <li><strong>macOS 15 or later:</strong> try to open Papy once, then click <em>Open Anyway</em> at the bottom of <em>System Settings → Privacy &amp; Security</em>.</li>
+            <li><strong>macOS 14 or earlier:</strong> in Finder, <kbd>control</kbd>-click Papy → <em>Open</em> → <em>Open</em>.</li>
+          </ul>
+        </li>
+        <li>If you see “Papy is damaged and can’t be opened”, run the following in Terminal and open it again.
+          <pre><code>xattr -dr com.apple.quarantine /Applications/Papy.app</code></pre>
+        </li>
+      </ol>
+
+      <h2 id="linux">Linux</h2>
+      <h3>AppImage (runs without installing)</h3>
+      <pre><code>chmod +x Papy_*_amd64.AppImage
+./Papy_*_amd64.AppImage</code></pre>
+      <p>If it does not start, you may need FUSE: on Ubuntu 22.04 or later run <code>sudo apt install libfuse2</code> (<code>libfuse2t64</code> on 24.04).</p>
+      <h3>Debian · Ubuntu (.deb)</h3>
+      <pre><code>sudo apt install ./Papy_*_amd64.deb</code></pre>
+      <h3>Fedora · openSUSE (.rpm)</h3>
+      <pre><code>sudo dnf install ./Papy-*.x86_64.rpm</code></pre>
+      <p>Installing a package also installs the WebKitGTK libraries Papy needs and adds Papy to your application menu.</p>
+
+      <h2 id="update">Update and uninstall</h2>
+      <h3>Update</h3>
+      <p>Download the new version and install it the same way; it replaces the old one. Automatic updates are not available yet. <span class="badge">Coming later</span></p>
+      <h3>Uninstall</h3>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>OS</th><th>How</th></tr></thead>
+          <tbody>
+            <tr><td>Windows</td><td>Settings → Apps → Installed apps → Papy → Uninstall</td></tr>
+            <tr><td>macOS</td><td>Move Papy from the Applications folder to the Trash</td></tr>
+            <tr><td>Linux</td><td>Delete the AppImage file, or run <code>sudo apt remove papy</code> / <code>sudo dnf remove papy</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </main>
+    {{footer}}
+  </body>
+</html>

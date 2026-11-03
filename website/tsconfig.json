@@ -10,6 +10,8 @@
   },
   "include": [
     "src",
+    "i18n",
+    "test",
     "api",
     "vite.config.ts",
     "site.config.ts"

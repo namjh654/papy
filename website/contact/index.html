@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ko">
+<html lang="{{lang}}">
   <head>
     {{head}}
   </head>
@@ -46,7 +46,8 @@
           <input name="website" type="text" tabindex="-1" autocomplete="off" />
         </label>
         <input name="startedAt" type="hidden" value="0" />
-        <p class="hint">보내기를 누르면 입력한 내용이 이메일로 개발자에게 전달됩니다. 자세한 내용은 <a href="/privacy/">개인정보 처리방침</a>을 보세요.</p>
+        <input name="lang" type="hidden" value="{{locale}}" />
+        <p class="hint">보내기를 누르면 입력한 내용이 이메일로 개발자에게 전달됩니다. 자세한 내용은 <a href="{{base}}/privacy/">개인정보 처리방침</a>을 보세요.</p>
         <div class="actions"><button class="btn primary" type="submit">보내기</button></div>
       </form>
 
@@ -55,7 +56,7 @@
       <div class="actions">
         <a class="btn" href="{{repo}}/issues/new?template=bug_report.yml">버그 신고 (Issue)</a>
         <a class="btn" href="{{repo}}/issues/new?template=feature_request.yml">기능 제안 (Issue)</a>
-        <a class="btn" href="/developers/">코드로 기여하기</a>
+        <a class="btn" href="{{base}}/developers/">코드로 기여하기</a>
       </div>
       <p class="hint">보안 취약점은 공개 Issue 대신 <a href="{{repo}}/security/advisories/new">비공개 보안 신고</a>를 이용해 주세요.</p>
     </main>

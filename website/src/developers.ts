@@ -1,4 +1,5 @@
 // 열린 PR·Issue 최근 5개를 GitHub API 에서 읽어 보여 준다. 실패하면 "전체 보기" 링크만 남긴다.
+import { lang, t } from "./i18n.ts";
 
 const REPO = "namjh654/papy";
 
@@ -26,7 +27,7 @@ function render(list: HTMLElement, items: Item[]) {
   if (items.length === 0) {
     const li = document.createElement("li");
     li.className = "meta";
-    li.textContent = "지금은 없습니다.";
+    li.textContent = t.developers.empty;
     list.append(li);
     return;
   }
@@ -37,7 +38,7 @@ function render(list: HTMLElement, items: Item[]) {
     link.textContent = `#${item.number} ${item.title}`;
     const meta = document.createElement("span");
     meta.className = "meta";
-    meta.textContent = `${item.user?.login ?? ""} · ${new Date(item.updated_at).toLocaleDateString("ko-KR")}`;
+    meta.textContent = `${item.user?.login ?? ""} · ${new Date(item.updated_at).toLocaleDateString(lang)}`;
     li.append(link, meta);
     list.append(li);
   }

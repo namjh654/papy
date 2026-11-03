@@ -4,10 +4,12 @@
     <meta name="description" content="{{description}}" />
     <meta name="robots" content="{{robots}}" />
     <link rel="canonical" href="{{url}}" />
+    {{alternates}}
     {{verification}}
     <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="Papy (페이피)" />
-    <meta property="og:locale" content="ko_KR" />
+    <meta property="og:site_name" content="{{t.site.name}}" />
+    <meta property="og:locale" content="{{ogLocale}}" />
+    {{ogAlternates}}
     <meta property="og:title" content="{{title}}" />
     <meta property="og:description" content="{{description}}" />
     <meta property="og:url" content="{{url}}" />
@@ -17,3 +19,4 @@
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="stylesheet" href="/src/style.css" />
+    {{i18n}}

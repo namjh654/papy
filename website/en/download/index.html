@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="{{lang}}">
+  <head>
+    {{head}}
+  </head>
+  <body>
+    {{header}}
+    <main id="main" class="wrap">
+      <h1>Download</h1>
+      <p class="lead">Pick the installer for your operating system. Every file is built from public source on GitHub Actions and published on <a href="{{repo}}/releases">GitHub Releases</a>.</p>
+
+      <p id="release-status" class="notice" role="status">Loading the latest version…</p>
+
+      <div class="grid">
+        <section class="card os-card" data-os="windows">
+          <h2 style="margin:0">Windows</h2>
+          <p>Windows 10 · 11, 64-bit</p>
+          <div class="files" data-files></div>
+        </section>
+        <section class="card os-card" data-os="macos">
+          <h2 style="margin:0">macOS</h2>
+          <p>macOS 10.13 or later · Apple Silicon / Intel</p>
+          <div class="files" data-files></div>
+        </section>
+        <section class="card os-card" data-os="linux">
+          <h2 style="margin:0">Linux</h2>
+          <p>x86_64 · AppImage (most distributions) / .deb (Ubuntu, Debian) / .rpm (Fedora)</p>
+          <div class="files" data-files></div>
+        </section>
+      </div>
+
+      <h2>Which file do I need?</h2>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>OS</th><th>File</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td>Windows</td><td><code>…_x64-setup.exe</code></td><td>Installer for most people (recommended)</td></tr>
+            <tr><td>Windows</td><td><code>…_x64_ko-KR.msi</code> / <code>…_en-US.msi</code></td><td>For managed deployment at companies and schools</td></tr>
+            <tr><td>macOS</td><td><code>…_aarch64.dmg</code></td><td>Apple Silicon (M1 and later) Macs</td></tr>
+            <tr><td>macOS</td><td><code>…_x64.dmg</code></td><td>Intel Macs</td></tr>
+            <tr><td>Linux</td><td><code>…_amd64.AppImage</code></td><td>Runs without installing (most distributions)</td></tr>
+            <tr><td>Linux</td><td><code>…_amd64.deb</code> / <code>…x86_64.rpm</code></td><td>Install with your package manager</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>After downloading, follow the <a href="{{base}}/install/">installation guide</a>. The app is not code-signed yet, so you may see a security warning the first time you open it.</p>
+
+      <h2>Mobile</h2>
+      <p>Android and iOS apps will follow once the desktop engine is stable. <span class="badge">Coming later</span></p>
+
+      <h2>Build it yourself</h2>
+      <p>See the <a href="{{repo}}#readme">GitHub README</a> for building from source.</p>
+    </main>
+    {{footer}}
+    <script type="module" src="/src/download.ts"></script>
+  </body>
+</html>

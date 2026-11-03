@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ko">
+<html lang="{{lang}}">
   <head>
     {{head}}
   </head>
@@ -7,7 +7,7 @@
     {{header}}
     <main id="main" class="wrap">
       <h1>설치 방법</h1>
-      <p class="lead">운영체제별로 설치하고 처음 실행하는 방법입니다. 파일은 <a href="/download/">다운로드</a> 페이지에서 받으세요.</p>
+      <p class="lead">운영체제별로 설치하고 처음 실행하는 방법입니다. 파일은 <a href="{{base}}/download/">다운로드</a> 페이지에서 받으세요.</p>
       <ul class="toc">
         <li><a href="#windows">Windows</a></li>
         <li><a href="#macos">macOS</a></li>
@@ -17,7 +17,7 @@
 
       <div class="notice" role="note">
         <strong>보안 경고가 뜨는 이유:</strong> Papy 는 아직 운영체제 개발자 인증서로 서명되지 않았습니다.
-        파일은 공개 소스에서 GitHub Actions 로 빌드되며, 반드시 <a href="/download/">공식 다운로드</a>나 <a href="{{repo}}/releases">GitHub Releases</a>에서만 받으세요.
+        파일은 공개 소스에서 GitHub Actions 로 빌드되며, 반드시 <a href="{{base}}/download/">공식 다운로드</a>나 <a href="{{repo}}/releases">GitHub Releases</a>에서만 받으세요.
       </div>
 
       <h2 id="windows">Windows</h2>

@@ -1,4 +1,5 @@
 // 문의 폼을 /api/contact 로 보내고 결과를 보여 준다. 스크립트가 없어도 폼은 일반 POST 로 동작한다.
+import { fill, t } from "./i18n.ts";
 
 const form = document.getElementById("contact-form") as HTMLFormElement | null;
 const status = document.getElementById("contact-status");
@@ -11,8 +12,14 @@ function show(message: string, ok: boolean) {
   status.scrollIntoView({ block: "nearest" });
 }
 
-const SENT = "문의를 보냈습니다. 확인 후 적어 주신 이메일로 답장드리겠습니다.";
-const FAILED = "보내지 못했습니다. 잠시 후 다시 시도하거나 GitHub Issues 를 이용해 주세요.";
+const SENT = t.contact.sent;
+const FAILED = t.contact.failed;
+/** 최소 글자 수는 폼의 minlength 와 같다. */
+const MIN_MESSAGE = 10;
+const errorText = (code: string | undefined) => {
+  const errors = t.contact.errors as Record<string, string>;
+  return code && code in errors ? fill(errors[code]!, { min: MIN_MESSAGE }) : FAILED;
+};
 
 const params = new URLSearchParams(location.search);
 if (params.has("sent")) show(SENT, true);
@@ -39,7 +46,7 @@ if (form) {
         startedAt.value = String(Date.now());
         show(SENT, true);
       } else {
-        show(body.error ?? FAILED, false);
+        show(errorText(body.error), false);
       }
     } catch {
       show(FAILED, false);

@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="{{lang}}">
+  <head>
+    {{head}}
+  </head>
+  <body>
+    {{header}}
+    <main id="main" class="wrap narrow">
+      <h1>Contact</h1>
+      <p class="lead">Send bug reports, feature ideas, usage questions or commercial-use inquiries straight to the developer. We reply to the email address you enter.</p>
+
+      <p id="contact-status" class="notice" role="status" hidden></p>
+
+      <form id="contact-form" class="form" method="post" action="/api/contact" novalidate>
+        <label>
+          <span>Topic</span>
+          <select name="type" required>
+            <option value="bug">Bug report</option>
+            <option value="feature">Feature idea</option>
+            <option value="question" selected>Usage question</option>
+            <option value="other">Other (commercial use, etc.)</option>
+          </select>
+        </label>
+        <div class="row">
+          <label>
+            <span>Name <small>(optional)</small></span>
+            <input name="name" type="text" maxlength="100" autocomplete="name" />
+          </label>
+          <label>
+            <span>Email for our reply</span>
+            <input name="email" type="email" maxlength="200" autocomplete="email" required />
+          </label>
+        </div>
+        <label>
+          <span>Subject <small>(optional)</small></span>
+          <input name="subject" type="text" maxlength="150" />
+        </label>
+        <label>
+          <span>Message</span>
+          <textarea name="message" rows="8" minlength="10" maxlength="5000" required
+            placeholder="For bugs, include your operating system, Papy version and steps to reproduce. Do not include the contents of personal documents."></textarea>
+        </label>
+        <!-- Hidden field to stop bots: people leave it empty -->
+        <label class="hp" aria-hidden="true">
+          <span>Website</span>
+          <input name="website" type="text" tabindex="-1" autocomplete="off" />
+        </label>
+        <input name="startedAt" type="hidden" value="0" />
+        <input name="lang" type="hidden" value="{{locale}}" />
+        <p class="hint">When you press Send, your message is emailed to the developer. See the <a href="{{base}}/privacy/">privacy policy</a> for details.</p>
+        <div class="actions"><button class="btn primary" type="submit">Send</button></div>
+      </form>
+
+      <h2>Post on GitHub</h2>
+      <p>If it is fine to discuss in public, post it on GitHub so other users can follow along.</p>
+      <div class="actions">
+        <a class="btn" href="{{repo}}/issues/new?template=bug_report.yml">Report a bug (Issue)</a>
+        <a class="btn" href="{{repo}}/issues/new?template=feature_request.yml">Suggest a feature (Issue)</a>
+        <a class="btn" href="{{base}}/developers/">Contribute code</a>
+      </div>
+      <p class="hint">Please report security vulnerabilities through a <a href="{{repo}}/security/advisories/new">private security advisory</a>, not a public issue.</p>
+    </main>
+    {{footer}}
+    <script type="module" src="/src/contact.ts"></script>
+  </body>
+</html>
