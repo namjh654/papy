@@ -6,11 +6,11 @@
 -->
 <data-extraction-rules>
     <cloud-backup>
-        <exclude domain="file" path="elsa.storage.preferences_pb" />
-        <exclude domain="file" path="elsa.secure.preferences_pb" />
+        <exclude domain="file" path="papy.storage.preferences_pb" />
+        <exclude domain="file" path="papy.secure.preferences_pb" />
     </cloud-backup>
     <device-transfer>
-        <exclude domain="file" path="elsa.storage.preferences_pb" />
-        <exclude domain="file" path="elsa.secure.preferences_pb" />
+        <exclude domain="file" path="papy.storage.preferences_pb" />
+        <exclude domain="file" path="papy.secure.preferences_pb" />
     </device-transfer>
 </data-extraction-rules>

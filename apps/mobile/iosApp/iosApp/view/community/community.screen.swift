@@ -12,13 +12,13 @@ struct CommunityScreen: View {
         IOSAppGraph.shared.communityViewModel(),
         state: \.uiState
     )
-    @State private var toast: ElsaToast?
+    @State private var toast: PapyToast?
     /// 새 글을 올린 뒤 맨 위로
     @State private var scrollToTop = 0
 
     var body: some View {
         ScrollViewReader { proxy in
-            ElsaPagedList(
+            PapyPagedList(
                 state: model.state.list,
                 id: \.id,
                 emptyTitle: String(localized: "community_empty"),
@@ -30,14 +30,14 @@ struct CommunityScreen: View {
                 onRetry: { model.viewModel.load() },
                 onRetryLoadMore: { model.viewModel.retryLoadMore() }
             ) {
-                VStack(alignment: .leading, spacing: ElsaSpacing.md) {
-                    ElsaScreenHeader(title: String(localized: "community_title")).id("top")
-                    ElsaSegmentedTabs(
+                VStack(alignment: .leading, spacing: PapySpacing.md) {
+                    PapyScreenHeader(title: String(localized: "community_title")).id("top")
+                    PapySegmentedTabs(
                         options: [String(localized: "community_filter_all"), String(localized: "community_filter_mine")],
                         selectedIndex: model.state.filter == .mine ? 1 : 0,
                         onSelect: { model.viewModel.filterChanged(filter: $0 == 1 ? .mine : .all) }
                     )
-                    .padding(.horizontal, ElsaSpacing.lg - ElsaSize.screenPadding)
+                    .padding(.horizontal, PapySpacing.lg - PapySize.screenPadding)
                 }
             } row: { post in
                 CommunityPostCard(
@@ -48,21 +48,21 @@ struct CommunityScreen: View {
                 )
             }
             .onChange(of: scrollToTop) { withAnimation { proxy.scrollTo("top", anchor: .top) } }
-            .elsaListSkeleton {
-                VStack(spacing: ElsaSpacing.md) { ForEach(0..<3, id: \.self) { _ in ElsaSkeletonCard() } }
-                    .padding(.horizontal, ElsaSpacing.lg - ElsaSize.screenPadding)
+            .papyListSkeleton {
+                VStack(spacing: PapySpacing.md) { ForEach(0..<3, id: \.self) { _ in PapySkeletonCard() } }
+                    .padding(.horizontal, PapySpacing.lg - PapySize.screenPadding)
             }
         }
-        .safeAreaPadding(.bottom, ElsaSize.controlHeight)
+        .safeAreaPadding(.bottom, PapySize.controlHeight)
         .overlay(alignment: .bottomTrailing) {
-            ElsaFloatingButton(icon: "elsa_ic_edit", label: String(localized: "community_write")) {
+            PapyFloatingButton(icon: "papy_ic_edit", label: String(localized: "community_write")) {
                 model.viewModel.composeClicked()
             }
-            .padding(ElsaSize.screenPadding)
+            .padding(PapySize.screenPadding)
         }
-        .elsaScreenBackground(grouped: true)
+        .papyScreenBackground(grouped: true)
         .navigationBarTitleDisplayMode(.inline)
-        .elsaToast($toast)
+        .papyToast($toast)
         .task {
             await observeEvents()
         }
@@ -77,10 +77,10 @@ struct CommunityPostCard: View {
     let onAuthorTap: (() -> Void)?
 
     var body: some View {
-        ElsaPostCard(
+        PapyPostCard(
             authorName: post.author.name,
             avatarUrl: post.author.avatarUrl,
-            time: ElsaFormat.relative(epochMillis: post.createdAt),
+            time: PapyFormat.relative(epochMillis: post.createdAt),
             content: post.content,
             imageCount: post.imageUrls.count,
             liked: post.likedByMe,
@@ -90,10 +90,10 @@ struct CommunityPostCard: View {
             onLike: onLike,
             onAuthorTap: onAuthorTap
         ) { index in
-            ElsaPostImage(url: post.imageUrls[index])
+            PapyPostImage(url: post.imageUrls[index])
         }
         // 목록 좌우 여백(24)보다 카드는 조금 넓게 — Android 와 같은 16
-        .padding(.horizontal, ElsaSpacing.lg - ElsaSize.screenPadding)
+        .padding(.horizontal, PapySpacing.lg - PapySize.screenPadding)
     }
 }
 
@@ -109,7 +109,7 @@ private extension CommunityScreen {
             case .composeRequested:
                 onCompose()
             case .likeFailed:
-                toast = ElsaToast(message: String(localized: "community_like_failed"), type: .error)
+                toast = PapyToast(message: String(localized: "community_like_failed"), type: .error)
             case .scrollToTop:
                 scrollToTop += 1
             }

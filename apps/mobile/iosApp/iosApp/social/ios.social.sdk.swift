@@ -62,7 +62,7 @@ enum IOSSocialSdk {
         case .apple: result = await AppleSignIn().start()
         case .naver: result = await naver()
         }
-        if case .failed(let error) = result { print("[ElsaSocial] \(provider.id) 로그인 실패: \(String(describing: error))") }
+        if case .failed(let error) = result { print("[PapySocial] \(provider.id) 로그인 실패: \(String(describing: error))") }
         return result
     }
 

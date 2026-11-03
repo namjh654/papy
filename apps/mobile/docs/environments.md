@@ -22,8 +22,8 @@ core 코드는 `AppConfig` 의 값(URL·플래그)만 쓰고 환경 이름으로
 
 | 대상 | 결과 | 생성 |
 |---|---|---|
-| KMP | `core:data` 의 `AppConfig` 상수 (`API_BASE_URL`, `NETWORK_LOG`, `FEATURE_EXAMPLE`, `SECRET_…`, `ENVIRONMENT`) | 빌드할 때 자동 (`elsa.appconfig`, build/ 아래 — 커밋 안 함) |
-| Android | flavor `dev`·`staging`·`prod`: applicationId 접미사 `app.idSuffix`, 앱 이름 `app.name` + `app.nameSuffix` | 빌드할 때 자동 (`elsa.android.environments`) |
+| KMP | `core:data` 의 `AppConfig` 상수 (`API_BASE_URL`, `NETWORK_LOG`, `FEATURE_EXAMPLE`, `SECRET_…`, `ENVIRONMENT`) | 빌드할 때 자동 (`papy.appconfig`, build/ 아래 — 커밋 안 함) |
+| Android | flavor `dev`·`staging`·`prod`: applicationId 접미사 `app.idSuffix`, 앱 이름 `app.name` + `app.nameSuffix` | 빌드할 때 자동 (`papy.android.environments`) |
 | iOS | `iosApp/Configuration/Env.generated.xcconfig` (APP_ENV·APP_DISPLAY_NAME·BUNDLE_ID_SUFFIX 를 `[config=*-<env>]` 로) | `./gradlew generateEnvConfig` → **커밋** (최신 여부는 templateCheck 가 검사) |
 
 키 이름 → 상수: `api.baseUrl` → `API_BASE_URL`, `feature.newHome` → `FEATURE_NEW_HOME`. 값 타입: `true/false` → Boolean, 정수 → Int, 그 밖 → String.
@@ -51,7 +51,7 @@ scripts/orca.sh check --env staging        # staging (ORCA_ENV=staging 도 같�
 |---|---|---|
 | 이름 | flavor `dev` / `staging` / `prod` | Build Configuration `Debug-dev` … `Release-prod` (6개), scheme `iosApp-dev` / `iosApp-staging` / `iosApp-prod` |
 | 동시 설치 | applicationId `…​.dev`, `…​.staging`, (prod 접미사 없음) | 번들 ID `…$(BUNDLE_ID_SUFFIX)` |
-| 앱 이름 | `resValue app_name` = `ELSA Dev` / `ELSA Stg` / `ELSA` | `CFBundleDisplayName = $(APP_DISPLAY_NAME)` |
+| 앱 이름 | `resValue app_name` = `Papy Dev` / `Papy Stg` / `Papy` | `CFBundleDisplayName = $(APP_DISPLAY_NAME)` |
 | Firebase | `androidApp/src/<env>/google-services.json` (없는 flavor 는 경고 후 푸시 NoOp) | `iosApp/Configuration/Firebase/<env>/GoogleService-Info.plist` (빌드 단계가 복사, 없으면 NoOp) |
 | 릴리스 | `prodRelease` 에만 R8·리소스 축소·`Log.v/d/i` 제거(`proguard-rules.pro`) | `Release-*` 는 Kotlin framework release 빌드 |
 | 서명 | `env/release-signing.local.properties` 또는 `ANDROID_KEYSTORE_FILE`·`ANDROID_KEYSTORE_PASSWORD`·`ANDROID_KEY_ALIAS`·`ANDROID_KEY_PASSWORD` (없으면 unsigned) | Xcode Signing(TEAM_ID) |

@@ -15,7 +15,7 @@ struct InboxScreen: View {
     @Environment(\.locale) private var locale
 
     var body: some View {
-        ElsaPagedList(
+        PapyPagedList(
             state: model.state.list,
             id: \.id,
             emptyTitle: String(localized: "inbox_empty"),
@@ -27,36 +27,36 @@ struct InboxScreen: View {
             onRetry: { model.viewModel.load() },
             onRetryLoadMore: { model.viewModel.retryLoadMore() }
         ) {
-            ElsaScreenHeader(title: String(localized: "inbox_title"))
+            PapyScreenHeader(title: String(localized: "inbox_title"))
         } row: { item in
             Button {
                 model.viewModel.itemClicked(item: item)
             } label: {
-                ElsaCard(spacing: ElsaSpacing.xxs) {
-                    HStack(spacing: ElsaSpacing.sm) {
+                PapyCard(spacing: PapySpacing.xxs) {
+                    HStack(spacing: PapySpacing.sm) {
                         if !item.read {
                             Circle()
-                                .fill(ElsaColor.primary)
+                                .fill(PapyColor.primary)
                                 .frame(width: 8, height: 8)
                         }
                         Text(item.title)
-                            .elsaFont(item.read ? ElsaFont.body : ElsaFont.bodyStrong)
-                            .foregroundStyle(item.read ? ElsaColor.onSurfaceVariant : ElsaColor.onSurface)
+                            .papyFont(item.read ? PapyFont.body : PapyFont.bodyStrong)
+                            .foregroundStyle(item.read ? PapyColor.onSurfaceVariant : PapyColor.onSurface)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                        Text(ElsaFormat.relative(epochMillis: item.createdAt, locale: locale))
-                            .elsaFont(ElsaFont.caption)
-                            .foregroundStyle(ElsaColor.onSurfaceTertiary)
+                        Text(PapyFormat.relative(epochMillis: item.createdAt, locale: locale))
+                            .papyFont(PapyFont.caption)
+                            .foregroundStyle(PapyColor.onSurfaceTertiary)
                     }
                     if let body = item.body {
                         Text(body)
-                            .elsaFont(ElsaFont.bodySmall)
-                            .foregroundStyle(ElsaColor.onSurfaceVariant)
+                            .papyFont(PapyFont.bodySmall)
+                            .foregroundStyle(PapyColor.onSurfaceVariant)
                     }
                 }
             }
-            .buttonStyle(ElsaPressableButtonStyle())
+            .buttonStyle(PapyPressableButtonStyle())
         }
-        .elsaScreenBackground(grouped: true)
+        .papyScreenBackground(grouped: true)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             if model.state.hasUnread {

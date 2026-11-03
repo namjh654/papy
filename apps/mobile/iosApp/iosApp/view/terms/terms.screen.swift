@@ -98,19 +98,19 @@ struct TermsContent: View {
     private let agreements: [Agreement] = [.service, .privacy, .marketing]
 
     var body: some View {
-        ElsaFormScrollView {
-            ElsaScreenHeader(title: String(localized: "terms_title"))
+        PapyFormScrollView {
+            PapyScreenHeader(title: String(localized: "terms_title"))
 
             // 화면 배경 위에 바로 둔다 — 같은 색 카드는 보이지 않고 들여쓰기만 생긴다(제목과 왼쪽 정렬)
-            VStack(alignment: .leading, spacing: ElsaSpacing.md) {
-                ElsaCheckbox(
+            VStack(alignment: .leading, spacing: PapySpacing.md) {
+                PapyCheckbox(
                     label: String(localized: "terms_all"),
                     isOn: Binding(get: { state.allChecked }, set: { _ in onToggleAll() })
                 )
-                ElsaSettingsDivider()
+                PapySettingsDivider()
                 ForEach(agreements, id: \.self) { agreement in
                     HStack {
-                        ElsaCheckbox(
+                        PapyCheckbox(
                             label: title(agreement),
                             isOn: Binding(
                                 get: { state.isChecked(agreement: agreement) },
@@ -120,7 +120,7 @@ struct TermsContent: View {
                         )
                         Spacer(minLength: 0)
                         if let url = state.url(agreement: agreement).flatMap(URL.init(string:)) {
-                            ElsaButton(String(localized: "terms_view"), style: .text, size: .small, fullWidth: false) {
+                            PapyButton(String(localized: "terms_view"), style: .text, size: .small, fullWidth: false) {
                                 onOpenWeb(url, title(agreement))
                             }
                         }
@@ -129,14 +129,14 @@ struct TermsContent: View {
             }
 
             if let error {
-                ElsaInlineMessage(message: error, type: .error)
+                PapyInlineMessage(message: error, type: .error)
             }
         } bottomBar: {
-            ElsaButton(String(localized: "terms_continue"), enabled: state.canContinue || isLoading, isLoading: isLoading) {
+            PapyButton(String(localized: "terms_continue"), enabled: state.canContinue || isLoading, isLoading: isLoading) {
                 onContinue()
             }
         }
-        .elsaScreenBackground()
+        .papyScreenBackground()
         .navigationBarTitleDisplayMode(.inline)
     }
 

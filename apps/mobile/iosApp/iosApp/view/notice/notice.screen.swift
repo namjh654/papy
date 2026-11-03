@@ -15,7 +15,7 @@ struct NoticeScreen: View {
     @Environment(\.locale) private var locale
 
     var body: some View {
-        ElsaPagedList(
+        PapyPagedList(
             state: model.state.list,
             id: \.id,
             emptyTitle: String(localized: "notice_empty"),
@@ -27,7 +27,7 @@ struct NoticeScreen: View {
             onRetry: { model.viewModel.load() },
             onRetryLoadMore: { model.viewModel.retryLoadMore() }
         ) {
-            ElsaScreenHeader(
+            PapyScreenHeader(
                 title: String(localized: "notice_title"),
                 description: String(localized: "notice_description")
             )
@@ -35,22 +35,22 @@ struct NoticeScreen: View {
             Button {
                 model.viewModel.itemClicked(item: item)
             } label: {
-                ElsaCard(spacing: ElsaSpacing.xxs) {
-                    HStack(spacing: ElsaSpacing.xs) {
+                PapyCard(spacing: PapySpacing.xxs) {
+                    HStack(spacing: PapySpacing.xs) {
                         Text(item.title)
-                            .elsaFont(ElsaFont.subtitle)
+                            .papyFont(PapyFont.subtitle)
                         if item.isNew {
-                            ElsaBadge(text: String(localized: "notice_new"))
+                            PapyBadge(text: String(localized: "notice_new"))
                         }
                     }
-                    Text(ElsaFormat.relative(epochMillis: item.publishedAt, locale: locale))
-                        .elsaFont(ElsaFont.bodySmall)
-                        .foregroundStyle(ElsaColor.onSurfaceVariant)
+                    Text(PapyFormat.relative(epochMillis: item.publishedAt, locale: locale))
+                        .papyFont(PapyFont.bodySmall)
+                        .foregroundStyle(PapyColor.onSurfaceVariant)
                 }
             }
-            .buttonStyle(ElsaPressableButtonStyle())
+            .buttonStyle(PapyPressableButtonStyle())
         }
-        .elsaScreenBackground(grouped: true)
+        .papyScreenBackground(grouped: true)
         .navigationBarTitleDisplayMode(.inline)
         .task {
             await observeEvents()

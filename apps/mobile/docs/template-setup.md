@@ -29,16 +29,16 @@ scripts/orca.sh check
 
 | 항목 | 바뀌는 곳 |
 |---|---|
-| 패키지 `cloud.elsa.app` | 모든 `src/*/kotlin/cloud/elsa/app` 디렉터리 이동, Kotlin `package`/`import`, Android `applicationId`·`namespace`(모듈별 자동), 스크립트 경로 |
+| 패키지 `io.github.namjh654.papy` | 모든 `src/*/kotlin/io/github/namjh654/papy` 디렉터리 이동, Kotlin `package`/`import`, Android `applicationId`·`namespace`(모듈별 자동), 스크립트 경로 |
 | 앱 이름 | Android `app_name`(`res/values/strings.xml`), iOS `PRODUCT_NAME`(`iosApp/Configuration/Config.xcconfig`), `rootProject.name` |
 | iOS 번들 ID | `Config.xcconfig` 의 `PRODUCT_BUNDLE_IDENTIFIER` |
 | Team ID | `Config.xcconfig` 의 `TEAM_ID`, `project.pbxproj` 의 `DEVELOPMENT_TEAM = "$(TEAM_ID)"` |
-| 저장소 이름 | Keystore alias·Keychain service·UserDefaults suite 는 새 패키지 기준으로 바뀐다. Android DataStore 파일 이름(`elsa.*.preferences_pb`)은 그대로 — 백업 제외 규칙(`res/xml/data_extraction_rules.xml`)과 맞아야 하므로 바꾸려면 둘 다 바꾼다 |
+| 저장소 이름 | Keystore alias·Keychain service·UserDefaults suite 는 새 패키지 기준으로 바뀐다. Android DataStore 파일 이름(`papy.*.preferences_pb`)은 그대로 — 백업 제외 규칙(`res/xml/data_extraction_rules.xml`)과 맞아야 하므로 바꾸려면 둘 다 바꾼다 |
 
 직접 할 것
 - 스크립트가 마지막에 출력하는 남은 흔적 수정 — `README.md` 제목, `env/common.properties` 주석, `docs/environments.md` 의 앱 이름 예시
 - 앱 아이콘: Android `androidApp/src/main/res/mipmap-*`, iOS `iosApp/iosApp/Assets.xcassets/AppIcon.appiconset`
-- (선택) 디자인 시스템 접두어 `Elsa*`, convention plugin id `elsa.kmp.*` — 바꾸려면 IDE 의 이름 변경 기능을 쓴다. 바꾸지 않아도 동작한다
+- (선택) 디자인 시스템 접두어 `Papy*`, convention plugin id `papy.kmp.*` — 바꾸려면 IDE 의 이름 변경 기능을 쓴다. 바꾸지 않아도 동작한다
 - dev·staging·prod 앱은 이미 한 기기에 함께 설치된다(Android applicationId·iOS 번들 ID 에 env `app.idSuffix` 접미사). 추가 작업 없음
 - 버전은 `env/common.properties` 의 `app.versionName`·`app.versionCode` 한 곳 ([release.md](release.md) §1)
 
@@ -112,7 +112,7 @@ dev 는 `social.mock=true` 라 키 없이도 버튼이 모두 보이고 로컬 �
 | 네이버 | `social.naver.clientId`, `social.naver.clientSecret` | [네이버 개발자센터](https://developers.naver.com/apps) → 애플리케이션 → 네이버 로그인, Android 패키지명·iOS URL Scheme 등록 |
 | 애플 | `social.apple.enabled=true`(공개 값, iOS 만) | Apple Developer → Identifier 에 **Sign in with Apple**, Xcode Signing & Capabilities 에 추가 |
 
-- **로고**: 템플릿에는 각 사 로고를 넣지 않았다(DEC-119). 각 사 가이드에서 공식 로고를 받아 Android `res/drawable/social_logo_<provider>` 로 넣고 `ElsaSocialButton.kt` 의 `SocialBrandLogo` 에서 연결한다. 버튼 색·문구는 가이드대로 되어 있다 — [카카오](https://developers.kakao.com/docs/latest/ko/kakaologin/design-guide), [구글](https://developers.google.com/identity/branding-guidelines), [네이버](https://developers.naver.com/docs/login/bi/bi.md), [애플](https://developer.apple.com/design/human-interface-guidelines/sign-in-with-apple)
+- **로고**: 템플릿에는 각 사 로고를 넣지 않았다(DEC-119). 각 사 가이드에서 공식 로고를 받아 Android `res/drawable/social_logo_<provider>` 로 넣고 `PapySocialButton.kt` 의 `SocialBrandLogo` 에서 연결한다. 버튼 색·문구는 가이드대로 되어 있다 — [카카오](https://developers.kakao.com/docs/latest/ko/kakaologin/design-guide), [구글](https://developers.google.com/identity/branding-guidelines), [네이버](https://developers.naver.com/docs/login/bi/bi.md), [애플](https://developer.apple.com/design/human-interface-guidelines/sign-in-with-apple)
 - **서버**: 서버가 각 사 토큰을 검증하고 우리 토큰을 돌려준다(가정 계약 `POST /api/auth/social` — 위 표). 구글·애플은 ID 토큰과 nonce, 카카오·네이버는 access token 을 보낸다
 - **iOS 설정**: 키를 넣고 `./gradlew generateEnvConfig`(빌드 때도 돈다)를 하면 `iosApp/Configuration/Social.local.generated.xcconfig`(커밋 안 함)가 생기고 Info.plist 의 URL 스킴이 채워진다 — 카카오 `kakao<앱 키>`, 구글 역순 클라이언트 ID(`com.googleusercontent.apps.…`), 네이버 `naverlogin-<번들 ID>`(네이버 콘솔의 iOS URL Scheme 에 이 값을 넣는다). 애플은 Xcode → Signing & Capabilities → **Sign in with Apple** 추가(템플릿은 entitlement 를 켜 두지 않았다 — 팀 서명이 필요하다)
 - **처음 가입한 소셜 사용자**: 서버가 `isNewUser=true` 를 주면 로그인 대신 약관 동의 화면이 열린다(같은 약관 화면, 회원가입과 같은 필수·선택). 동의하면 `POST /api/auth/social/agreements` 후 메인, 뒤로 가면 로그아웃하고 로그인으로
@@ -132,8 +132,8 @@ dev 는 `social.mock=true` 라 키 없이도 버튼이 모두 보이고 로컬 �
 
 1. 삭제: `feature/example/`, `androidApp/.../screen/example/`, `iosApp/iosApp/view/example/`
 2. KMP 등록: `settings.gradle.kts`(include), `shared/build.gradle.kts`(exported), `AppKoin.kt`(import·`exampleModule`), `IOSAppGraph.kt`(import·`exampleViewModel()`)
-3. Android: `AndroidRoute.kt`(Example), `MainTab.kt`(Example 탭), `AndroidNavHost.kt`(import·`composable<AndroidRoute.Example>`·홈의 `onExampleClick`), `AndroidNavigator.kt`(`navigateToExample`), `DeepLinkRouter.kt`("example"), `HomeScreen.kt`(`onExampleClick` 파라미터·예시 `ElsaMenuCard`)
-4. iOS: `main.tab.swift`(`case example`·title·icon), `app.navigation.swift`(`root(for:)` 의 `.example`·홈의 `onExampleTap`), `deeplink.router.swift`("example"), `home.screen.swift`(`onExampleTap`·예시 `ElsaMenuCard`)
+3. Android: `AndroidRoute.kt`(Example), `MainTab.kt`(Example 탭), `AndroidNavHost.kt`(import·`composable<AndroidRoute.Example>`·홈의 `onExampleClick`), `AndroidNavigator.kt`(`navigateToExample`), `DeepLinkRouter.kt`("example"), `HomeScreen.kt`(`onExampleClick` 파라미터·예시 `PapyMenuCard`)
+4. iOS: `main.tab.swift`(`case example`·title·icon), `app.navigation.swift`(`root(for:)` 의 `.example`·홈의 `onExampleTap`), `deeplink.router.swift`("example"), `home.screen.swift`(`onExampleTap`·예시 `PapyMenuCard`)
 5. 문자열: `example_*`, `home_menu_example*`, `tab_example` 키를 `strings.xml`(ko/en)·`Localizable.xcstrings` 에서 삭제
 6. `scripts/orca.sh check` — 누락이 있으면 `./gradlew templateCheck`(아키텍처·문자열)·컴파일 오류가 알려 준다
 

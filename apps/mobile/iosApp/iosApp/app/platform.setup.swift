@@ -6,7 +6,7 @@ import FirebaseCore
 
 /// KMP 에 넘길 플랫폼 SDK 구현 묶음(`PlatformServices`). Firebase SDK(SPM)가 링크돼 있고
 /// `GoogleService-Info.plist` 가 번들에 있으면 푸시·크래시·이벤트가 켜지고, 아니면 각각 NoOp — 빌드·실행은 같다.
-/// (Android `ElsaApplication`)
+/// (Android `PapyApplication`)
 enum PlatformSetup {
 
     static func makeServices() -> PlatformServices {

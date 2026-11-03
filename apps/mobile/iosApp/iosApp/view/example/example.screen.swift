@@ -13,7 +13,7 @@ struct ExampleScreen: View {
     )
 
     var body: some View {
-        ElsaPagedList(
+        PapyPagedList(
             state: model.state.list,
             id: \.id,
             emptyTitle: String(localized: "example_empty"),
@@ -25,7 +25,7 @@ struct ExampleScreen: View {
             onRetry: { model.viewModel.load() },
             onRetryLoadMore: { model.viewModel.retryLoadMore() }
         ) {
-            ElsaScreenHeader(
+            PapyScreenHeader(
                 title: String(localized: "example_title"),
                 description: String(localized: "example_description")
             )
@@ -33,24 +33,24 @@ struct ExampleScreen: View {
             Button {
                 model.viewModel.itemClicked(item: item)
             } label: {
-                ElsaCard(spacing: ElsaSpacing.xxs) {
-                    HStack(spacing: ElsaSpacing.xs) {
+                PapyCard(spacing: PapySpacing.xxs) {
+                    HStack(spacing: PapySpacing.xs) {
                         Text(item.title)
-                            .elsaFont(ElsaFont.subtitle)
+                            .papyFont(PapyFont.subtitle)
                         if item.favorite {
-                            ElsaBadge(text: String(localized: "example_favorite"))
+                            PapyBadge(text: String(localized: "example_favorite"))
                         }
                     }
                     if let subtitle = item.subtitle {
                         Text(subtitle)
-                            .elsaFont(ElsaFont.bodySmall)
-                            .foregroundStyle(ElsaColor.onSurfaceVariant)
+                            .papyFont(PapyFont.bodySmall)
+                            .foregroundStyle(PapyColor.onSurfaceVariant)
                     }
                 }
             }
-            .buttonStyle(ElsaPressableButtonStyle())
+            .buttonStyle(PapyPressableButtonStyle())
         }
-        .elsaScreenBackground(grouped: true)
+        .papyScreenBackground(grouped: true)
         .navigationBarTitleDisplayMode(.inline)
         .task {
             await observeEvents()

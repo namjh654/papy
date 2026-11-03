@@ -10,7 +10,7 @@ import XCTest
 /// 환경(스크립트가 TEST_RUNNER_ 접두어로 넘긴다): APP_BUNDLE_ID, MOCK_URL, CAPTURE(`orca.sh capture` 에서만 1)
 final class AppFlowTests: XCTestCase {
     private let env = ProcessInfo.processInfo.environment
-    private lazy var app = XCUIApplication(bundleIdentifier: env["APP_BUNDLE_ID"] ?? "cloud.elsa.app.elsaapp.dev")
+    private lazy var app = XCUIApplication(bundleIdentifier: env["APP_BUNDLE_ID"] ?? "io.github.namjh654.papy.dev")
     private let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
 
     private let username = "tester"
@@ -176,12 +176,12 @@ final class AppFlowTests: XCTestCase {
         el("나가기").tap()
     }
 
-    /// 외부 링크: 실행 중 elsa://notice/5 → 상세, elsa://settings
+    /// 외부 링크: 실행 중 papy://notice/5 → 상세, papy://settings
     func test11_deepLink() {
         home()
-        open("elsa://notice/5")
+        open("papy://notice/5")
         XCTAssertTrue(has("Notice 5"))
-        open("elsa://settings")
+        open("papy://settings")
         XCTAssertTrue(has("앱 버전"))
     }
 
@@ -232,7 +232,7 @@ final class AppFlowTests: XCTestCase {
     func test12d_fileDownload() {
         home()
         app.tabBars.buttons["메시지"].tap()
-        el("Elsa").tap()
+        el("Papy").tap()
         // 예시 PDF 는 가장 최근 메시지(맨 아래). 저장된 메시지를 먼저 보여 준 뒤 새로 받으면 위치가 위에 남을 수 있어 아래로 내린다
         let file = app.descendants(matching: .any).matching(label(contains: "guide.pdf")).firstMatch
         for _ in 0..<8 where !file.waitForExistence(timeout: 2) { app.swipeUp() }
@@ -375,9 +375,9 @@ final class AppFlowTests: XCTestCase {
         for _ in 0..<4 where !has("아이디와 비밀번호를 입력해 주세요", 1) { back() }
         login()
         app.tabBars.buttons["메시지"].tap()
-        XCTAssertTrue(has("Elsa", 10))
+        XCTAssertTrue(has("Papy", 10))
         capture("08-chat-list")
-        el("Elsa").tap()
+        el("Papy").tap()
         XCTAssertTrue(has("Sample message 60", 10))
         capture("09-chat-room")
         back()
@@ -446,10 +446,10 @@ final class AppFlowTests: XCTestCase {
         return any
     }
 
-    /// 토스트(`elsa.toast`)는 곧 사라지므로 식별자로 바로 찾는다
+    /// 토스트(`papy.toast`)는 곧 사라지므로 식별자로 바로 찾는다
     private func hasToast(_ text: String, _ timeout: TimeInterval = 5) -> Bool {
         // 글자 요소로 바로 묻는다(전체 트리를 훑는 .any 는 느려서, 앞 테스트가 많이 돈 뒤에는 2.5초 안에 못 찾을 때가 있었다)
-        let toast = app.staticTexts["elsa.toast"]
+        let toast = app.staticTexts["papy.toast"]
         return toast.waitForExistence(timeout: timeout) && toast.label.contains(text)
     }
 

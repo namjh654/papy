@@ -26,12 +26,12 @@ enum MainTab: Hashable, CaseIterable {
     /// 아이콘 에셋(design/icons, DEC-118) — Android `MainTab` 과 같은 아이콘
     var icon: String {
         switch self {
-        case .home: "elsa_ic_tab_home"
-        case .example: "elsa_ic_tab_list"
-        case .chat: "elsa_ic_tab_chat"
-        case .community: "elsa_ic_tab_community"
+        case .home: "papy_ic_tab_home"
+        case .example: "papy_ic_tab_list"
+        case .chat: "papy_ic_tab_chat"
+        case .community: "papy_ic_tab_community"
         // scaffold:tab-images
-        case .settings: "elsa_ic_tab_settings"
+        case .settings: "papy_ic_tab_settings"
         }
     }
 }

@@ -26,54 +26,54 @@ struct HomeScreen: View {
 
     var body: some View {
         // 목록·대시보드 화면: 회색 그룹 배경 위에 카드
-        ElsaScrollScreen {
-            VStack(alignment: .leading, spacing: ElsaSpacing.xs) {
-                Text(String(format: String(localized: "home_today"), ElsaFormat.dateLong(Date(), locale: locale)))
-                    .elsaFont(ElsaFont.bodySmall)
-                    .foregroundStyle(ElsaColor.onSurfaceVariant)
+        PapyScrollScreen {
+            VStack(alignment: .leading, spacing: PapySpacing.xs) {
+                Text(String(format: String(localized: "home_today"), PapyFormat.dateLong(Date(), locale: locale)))
+                    .papyFont(PapyFont.bodySmall)
+                    .foregroundStyle(PapyColor.onSurfaceVariant)
                 Text(greeting)
-                    .elsaFont(ElsaFont.headline)
-                    .foregroundStyle(ElsaColor.onBackground)
+                    .papyFont(PapyFont.headline)
+                    .foregroundStyle(PapyColor.onBackground)
             }
-            .padding(.top, ElsaSpacing.xl)
+            .padding(.top, PapySpacing.xl)
 
             Text("home_section_menu")
-                .elsaFont(ElsaFont.bodyStrong)
-                .foregroundStyle(ElsaColor.onSurfaceVariant)
-                .padding(.horizontal, ElsaSpacing.xs)
-                .padding(.top, ElsaSpacing.lg)
+                .papyFont(PapyFont.bodyStrong)
+                .foregroundStyle(PapyColor.onSurfaceVariant)
+                .padding(.horizontal, PapySpacing.xs)
+                .padding(.top, PapySpacing.lg)
 
-            ElsaMenuCard(
+            PapyMenuCard(
                 title: String(localized: "home_menu_example"),
                 description: String(localized: "home_menu_example_description"),
                 action: onExampleTap
             )
 
-            ElsaMenuCard(
+            PapyMenuCard(
                 title: String(localized: "notice_title"),
                 description: String(localized: "home_menu_notice_description"),
                 action: onNoticeTap
             )
 
-            ElsaMenuCard(
+            PapyMenuCard(
                 title: String(localized: "inbox_title"),
                 description: String(localized: "home_menu_inbox_description"),
                 action: onInboxTap
             )
 
-            ElsaMenuCard(
+            PapyMenuCard(
                 title: String(localized: "search_title"),
                 description: String(localized: "home_menu_search_description"),
                 action: onSearchTap
             )
 
-            ElsaMenuCard(
+            PapyMenuCard(
                 title: String(localized: "permission_title"),
                 description: String(localized: "home_menu_permission_description"),
                 action: onPermissionTap
             )
 
-            ElsaMenuCard(
+            PapyMenuCard(
                 title: String(localized: "home_menu_gallery"),
                 description: String(localized: "home_menu_gallery_description"),
                 action: onComponentGalleryTap

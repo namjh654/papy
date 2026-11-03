@@ -13,19 +13,19 @@ struct PasswordResetScreen: View {
         state: \.uiState
     )
 
-    @State private var toast: ElsaToast?
+    @State private var toast: PapyToast?
 
     private var viewModel: PasswordResetViewModel { model.viewModel }
     private var state: PasswordResetUiState { model.state }
 
     var body: some View {
-        ElsaFormScrollView {
+        PapyFormScrollView {
             if state.step == .request {
-                ElsaScreenHeader(
+                PapyScreenHeader(
                     title: String(localized: "reset_title"),
                     description: String(localized: "reset_request_description")
                 )
-                ElsaTextField(
+                PapyTextField(
                     String(localized: "field_username"),
                     text: binding(\.username, viewModel.usernameChanged),
                     placeholder: String(localized: "field_username_placeholder"),
@@ -34,25 +34,25 @@ struct PasswordResetScreen: View {
                     onSubmit: { if state.canRequest { viewModel.requestCode() } }
                 )
             } else {
-                ElsaScreenHeader(
+                PapyScreenHeader(
                     title: String(localized: "reset_title"),
                     description: String(format: String(localized: "reset_confirm_description"), state.username)
                 )
-                ElsaTextField(
+                PapyTextField(
                     String(localized: "field_code"),
                     text: binding(\.code, viewModel.codeChanged),
                     placeholder: String(localized: "field_code_placeholder"),
                     keyboardType: .numberPad,
                     textContentType: .oneTimeCode
                 )
-                ElsaTextField(
+                PapyTextField(
                     String(localized: "field_new_password"),
                     text: binding(\.password, viewModel.passwordChanged),
                     placeholder: String(localized: "field_new_password_placeholder"),
                     isSecure: true,
                     textContentType: .newPassword
                 )
-                ElsaTextField(
+                PapyTextField(
                     String(localized: "field_password_confirm"),
                     text: binding(\.passwordConfirmation, viewModel.passwordConfirmationChanged),
                     placeholder: String(localized: "field_password_confirm_placeholder"),
@@ -61,7 +61,7 @@ struct PasswordResetScreen: View {
                     submitAction: .done,
                     onSubmit: { if state.canConfirm { viewModel.confirm() } }
                 )
-                ElsaButton(
+                PapyButton(
                     String(localized: "reset_resend"),
                     style: .text,
                     size: .small,
@@ -73,11 +73,11 @@ struct PasswordResetScreen: View {
             }
 
             if let error = state.error {
-                ElsaInlineMessage(message: error.localizedMessage, type: .error)
+                PapyInlineMessage(message: error.localizedMessage, type: .error)
             }
         } bottomBar: {
             if state.step == .request {
-                ElsaButton(
+                PapyButton(
                     String(localized: "reset_request_button"),
                     enabled: state.canRequest || state.isLoading,
                     isLoading: state.isLoading
@@ -85,7 +85,7 @@ struct PasswordResetScreen: View {
                     viewModel.requestCode()
                 }
             } else {
-                ElsaButton(
+                PapyButton(
                     String(localized: "reset_confirm_button"),
                     enabled: state.canConfirm || state.isLoading,
                     isLoading: state.isLoading
@@ -94,18 +94,18 @@ struct PasswordResetScreen: View {
                 }
             }
         }
-        .elsaScreenBackground()
+        .papyScreenBackground()
         .navigationBarTitleDisplayMode(.inline)
         // 둘째 단계에서는 기본 뒤로(화면 닫기) 대신 "첫 단계로" 버튼을 단다(밀어서 닫기도 막힌다)
         .navigationBarBackButtonHidden(state.canGoToPreviousStep)
         .toolbar {
             if state.canGoToPreviousStep {
                 ToolbarItem(placement: .topBarLeading) {
-                    ElsaBackButton { viewModel.previousStep() }
+                    PapyBackButton { viewModel.previousStep() }
                 }
             }
         }
-        .elsaToast($toast)
+        .papyToast($toast)
         .task {
             await observeEvents()
         }
@@ -134,7 +134,7 @@ private extension PasswordResetScreen {
         for await event in viewModel.events {
             switch onEnum(of: event) {
             case .codeResent:
-                toast = ElsaToast(message: String(localized: "reset_resent"), type: .success)
+                toast = PapyToast(message: String(localized: "reset_resent"), type: .success)
             case .done:
                 onDone()
             }

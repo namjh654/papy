@@ -12,23 +12,23 @@ struct WithdrawScreen: View {
         state: \.uiState
     )
 
-    @State private var alert: ElsaAlert?
+    @State private var alert: PapyAlert?
 
     private var viewModel: WithdrawViewModel { model.viewModel }
     private var state: WithdrawUiState { model.state }
 
     var body: some View {
-        ElsaFormScrollView {
-            ElsaScreenHeader(
+        PapyFormScrollView {
+            PapyScreenHeader(
                 title: String(localized: "withdraw_title"),
                 description: String(localized: "withdraw_description")
             )
 
-            ElsaInlineMessage(message: String(localized: "withdraw_notice"), type: .warning)
+            PapyInlineMessage(message: String(localized: "withdraw_notice"), type: .warning)
 
             // 소셜로 가입한 사용자는 비밀번호가 없다 — 체크만으로 본인 의사를 확인한다(18-4)
             if state.requiresPassword {
-                ElsaTextField(
+                PapyTextField(
                 String(localized: "field_password"),
                 text: Binding(get: { state.password }, set: { viewModel.passwordChanged(value: $0) }),
                 placeholder: String(localized: "field_password_placeholder"),
@@ -39,22 +39,22 @@ struct WithdrawScreen: View {
                 )
             }
 
-            ElsaCheckbox(
+            PapyCheckbox(
                 label: String(localized: "withdraw_agree"),
                 isOn: Binding(get: { state.confirmed }, set: { viewModel.confirmedChanged(value: $0) })
             )
 
             if let error = state.error {
-                ElsaInlineMessage(message: error.localizedMessage, type: .error)
+                PapyInlineMessage(message: error.localizedMessage, type: .error)
             }
         } bottomBar: {
-            ElsaButton(
+            PapyButton(
                 String(localized: "withdraw_button"),
                 style: .destructive,
                 enabled: state.canSubmit || state.isLoading,
                 isLoading: state.isLoading
             ) {
-                alert = ElsaAlert(
+                alert = PapyAlert(
                     title: String(localized: "withdraw_confirm_title"),
                     message: String(localized: "withdraw_confirm_message"),
                     confirmText: String(localized: "withdraw_button"),
@@ -64,9 +64,9 @@ struct WithdrawScreen: View {
                 )
             }
         }
-        .elsaScreenBackground()
+        .papyScreenBackground()
         .navigationBarTitleDisplayMode(.inline)
-        .elsaAlert($alert)
+        .papyAlert($alert)
         .task {
             await observeEvents()
         }

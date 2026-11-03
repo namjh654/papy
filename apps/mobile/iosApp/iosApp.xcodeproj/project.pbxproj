@@ -19,7 +19,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		72137EF397420CD5002804C6 /* elsa app.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "elsa app.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		72137EF397420CD5002804C6 /* papy app.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "papy app.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -71,7 +71,7 @@
 		7FE5F43902C9CF74623335B0 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				72137EF397420CD5002804C6 /* elsa app.app */,
+				72137EF397420CD5002804C6 /* papy app.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -118,7 +118,7 @@
 				F1A5E0020000000000000019 /* NidThirdPartyLogin */,
 			);
 			productName = iosApp;
-			productReference = 72137EF397420CD5002804C6 /* elsa app.app */;
+			productReference = 72137EF397420CD5002804C6 /* papy app.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */

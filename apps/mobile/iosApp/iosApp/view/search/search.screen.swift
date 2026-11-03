@@ -17,17 +17,17 @@ struct SearchScreen: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            ElsaSearchBar(
+            PapySearchBar(
                 text: Binding(get: { state.query }, set: { viewModel.queryChanged(value: $0) }),
                 onSearch: { viewModel.submit() }
             )
-            .padding(.horizontal, ElsaSize.screenPadding)
-            .padding(.vertical, ElsaSpacing.sm)
+            .padding(.horizontal, PapySize.screenPadding)
+            .padding(.vertical, PapySpacing.sm)
 
             if state.showRecent {
                 recentSearches
             } else {
-                ElsaPagedList(
+                PapyPagedList(
                     state: state.results,
                     id: \.id,
                     emptyTitle: String(format: String(localized: "search_no_results"), state.searched ?? ""),
@@ -44,21 +44,21 @@ struct SearchScreen: View {
                     Button {
                         viewModel.itemClicked(item: item)
                     } label: {
-                        ElsaCard(spacing: ElsaSpacing.xxs) {
+                        PapyCard(spacing: PapySpacing.xxs) {
                             Text(item.title)
-                                .elsaFont(ElsaFont.subtitle)
+                                .papyFont(PapyFont.subtitle)
                             if let subtitle = item.subtitle {
                                 Text(subtitle)
-                                    .elsaFont(ElsaFont.bodySmall)
-                                    .foregroundStyle(ElsaColor.onSurfaceVariant)
+                                    .papyFont(PapyFont.bodySmall)
+                                    .foregroundStyle(PapyColor.onSurfaceVariant)
                             }
                         }
                     }
-                    .buttonStyle(ElsaPressableButtonStyle())
+                    .buttonStyle(PapyPressableButtonStyle())
                 }
             }
         }
-        .elsaScreenBackground()
+        .papyScreenBackground()
         .navigationTitle(String(localized: "search_title"))
         .navigationBarTitleDisplayMode(.inline)
         .task {
@@ -69,29 +69,29 @@ struct SearchScreen: View {
     @ViewBuilder
     private var recentSearches: some View {
         if state.recent.isEmpty {
-            ElsaEmptyState(title: String(localized: "search_recent_empty"))
+            PapyEmptyState(title: String(localized: "search_recent_empty"))
             Spacer()
         } else {
             ScrollView {
                 VStack(spacing: 0) {
                     HStack {
                         Text("search_recent")
-                            .elsaFont(ElsaFont.bodyStrong)
-                            .foregroundStyle(ElsaColor.onSurfaceVariant)
+                            .papyFont(PapyFont.bodyStrong)
+                            .foregroundStyle(PapyColor.onSurfaceVariant)
                         Spacer()
-                        ElsaButton(String(localized: "search_recent_clear"), style: .text, size: .small, fullWidth: false) {
+                        PapyButton(String(localized: "search_recent_clear"), style: .text, size: .small, fullWidth: false) {
                             viewModel.clearRecent()
                         }
                     }
                     // 최근 검색어는 칩(누르면 다시 검색, x 로 지우기) — 21-2
-                    ElsaChipGroup {
+                    PapyChipGroup {
                         ForEach(state.recent, id: \.self) { query in
-                            ElsaChip(label: query, action: { viewModel.recentClicked(query: query) }, onRemove: { viewModel.removeRecent(query: query) })
+                            PapyChip(label: query, action: { viewModel.recentClicked(query: query) }, onRemove: { viewModel.removeRecent(query: query) })
                         }
                     }
-                    .padding(.vertical, ElsaSpacing.sm)
+                    .padding(.vertical, PapySpacing.sm)
                 }
-                .padding(.horizontal, ElsaSize.screenPadding)
+                .padding(.horizontal, PapySize.screenPadding)
             }
         }
     }

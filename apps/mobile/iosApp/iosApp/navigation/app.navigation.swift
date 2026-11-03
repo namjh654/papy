@@ -99,13 +99,13 @@ struct AppNavigation: View {
                         .badge(badge(for: tab))
                     }
                 }
-                .tint(ElsaColor.onSurface)
+                .tint(PapyColor.onSurface)
                 .transition(.opacity)
             }
         }
         .safeAreaInset(edge: .top, spacing: 0) {
             if !online.value.boolValue {
-                ElsaOfflineBanner()
+                PapyOfflineBanner()
             }
         }
         .animation(.easeInOut(duration: 0.26), value: phase)
@@ -117,7 +117,7 @@ struct AppNavigation: View {
         .appLockGate()
         // 화면 캡처 막기(30-2): 녹화 중 가림·스크린샷 안내(env security.blockCapture), 앱 전환 화면 가림
         .captureProtection()
-        // 외부 링크 elsa://<path> → 알림 탭과 같은 길(pendingDeepLink)로 연다
+        // 외부 링크 papy://<path> → 알림 탭과 같은 길(pendingDeepLink)로 연다
         .onOpenURL { url in
             // 소셜 SDK 로 돌아온 URL 이 먼저(카카오·구글·네이버), 아니면 앱 링크
             if IOSSocialSdk.handle(url: url) { return }

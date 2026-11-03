@@ -8,7 +8,7 @@ struct BlockedUsersScreen: View {
         IOSAppGraph.shared.blockedUsersViewModel(),
         state: \.uiState
     )
-    @State private var toast: ElsaToast?
+    @State private var toast: PapyToast?
 
     private var state: BlockedUsersUiState { model.state }
     private var users: [Author] { state.users.compactMap { $0 as? Author } }
@@ -16,24 +16,24 @@ struct BlockedUsersScreen: View {
     var body: some View {
         Group {
             if state.isLoading && users.isEmpty {
-                ElsaLoadingIndicator().frame(maxWidth: .infinity, maxHeight: .infinity)
+                PapyLoadingIndicator().frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if let error = state.error, users.isEmpty {
-                ElsaErrorState(message: error.localizedMessage, onRetry: { model.viewModel.load() })
+                PapyErrorState(message: error.localizedMessage, onRetry: { model.viewModel.load() })
                     .frame(maxHeight: .infinity)
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
-                        ElsaScreenHeader(title: String(localized: "blocked_title"))
-                            .padding(ElsaSize.screenPadding)
+                        PapyScreenHeader(title: String(localized: "blocked_title"))
+                            .padding(PapySize.screenPadding)
                         if users.isEmpty {
-                            ElsaEmptyState(title: String(localized: "blocked_empty"))
+                            PapyEmptyState(title: String(localized: "blocked_empty"))
                         }
                         ForEach(users, id: \.id) { user in
-                            ElsaListItem(
+                            PapyListItem(
                                 title: user.name,
-                                leading: { ElsaAvatar(name: user.name, url: user.avatarUrl, size: 40) },
+                                leading: { PapyAvatar(name: user.name, url: user.avatarUrl, size: 40) },
                                 trailing: {
-                                    ElsaButton(String(localized: "blocked_unblock"), style: .secondary, size: .small, fullWidth: false) {
+                                    PapyButton(String(localized: "blocked_unblock"), style: .secondary, size: .small, fullWidth: false) {
                                         model.viewModel.unblock(user: user)
                                     }
                                 }
@@ -43,14 +43,14 @@ struct BlockedUsersScreen: View {
                 }
             }
         }
-        .elsaScreenBackground()
+        .papyScreenBackground()
         .navigationBarTitleDisplayMode(.inline)
-        .elsaToast($toast)
+        .papyToast($toast)
         .task {
             for await event in model.viewModel.events {
                 switch onEnum(of: event) {
                 case .unblocked:
-                    toast = ElsaToast(message: String(localized: "blocked_unblocked"), type: .success)
+                    toast = PapyToast(message: String(localized: "blocked_unblocked"), type: .success)
                 }
             }
         }

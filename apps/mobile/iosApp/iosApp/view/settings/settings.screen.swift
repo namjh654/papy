@@ -2,7 +2,7 @@ import SwiftUI
 import Core
 
 /// 설정 탭: 화면(테마·언어) · 정보(버전·환경·약관) · 계정(로그아웃). (Android `SettingsScreen`)
-/// 새 행은 ElsaSettingsRow 한 줄 + 값은 KMP AppSettingsRepository / SettingsUiState.
+/// 새 행은 PapySettingsRow 한 줄 + 값은 KMP AppSettingsRepository / SettingsUiState.
 struct SettingsScreen: View {
 
     let onLoggedOut: () -> Void
@@ -21,7 +21,7 @@ struct SettingsScreen: View {
 
     @State private var showThemeSheet = false
     @State private var showLanguageSheet = false
-    @State private var alert: ElsaAlert?
+    @State private var alert: PapyAlert?
 
     private var state: SettingsUiState { model.state }
 
@@ -40,46 +40,46 @@ struct SettingsScreen: View {
     }
 
     var body: some View {
-        ElsaScrollScreen(spacing: ElsaSpacing.xl) {
-            ElsaScreenHeader(title: String(localized: "settings_title"))
+        PapyScrollScreen(spacing: PapySpacing.xl) {
+            PapyScreenHeader(title: String(localized: "settings_title"))
 
             if let user = state.user {
                 Button(action: onProfileTap) {
-                    ElsaCard {
-                        HStack(spacing: ElsaSpacing.lg) {
-                            ElsaAvatar(name: user.name, url: user.avatarUrl)
-                            VStack(alignment: .leading, spacing: ElsaSpacing.xxs) {
+                    PapyCard {
+                        HStack(spacing: PapySpacing.lg) {
+                            PapyAvatar(name: user.name, url: user.avatarUrl)
+                            VStack(alignment: .leading, spacing: PapySpacing.xxs) {
                                 Text(user.name)
-                                    .elsaFont(ElsaFont.subtitle)
+                                    .papyFont(PapyFont.subtitle)
                                 Text(user.email ?? String(localized: "settings_profile_edit"))
-                                    .elsaFont(ElsaFont.bodySmall)
-                                    .foregroundStyle(ElsaColor.onSurfaceVariant)
+                                    .papyFont(PapyFont.bodySmall)
+                                    .foregroundStyle(PapyColor.onSurfaceVariant)
                             }
                             Spacer(minLength: 0)
                         }
                     }
                 }
-                .buttonStyle(ElsaPressableButtonStyle())
+                .buttonStyle(PapyPressableButtonStyle())
             }
 
-            ElsaSettingsSection(title: String(localized: "settings_section_display")) {
-                ElsaSettingsRow(title: String(localized: "settings_theme"), value: label(state.theme)) {
+            PapySettingsSection(title: String(localized: "settings_section_display")) {
+                PapySettingsRow(title: String(localized: "settings_theme"), value: label(state.theme)) {
                     showThemeSheet = true
                 }
-                ElsaSettingsDivider()
-                ElsaSettingsRow(title: String(localized: "settings_language"), value: label(state.language)) {
+                PapySettingsDivider()
+                PapySettingsRow(title: String(localized: "settings_language"), value: label(state.language)) {
                     showLanguageSheet = true
                 }
             }
 
             // 알림·보안(26): 알림 종류별 설정, 앱 잠금(기기에 잠금 수단이 있을 때만)
-            ElsaSettingsSection(title: String(localized: "settings_section_security")) {
-                ElsaSettingsRow(title: String(localized: "settings_notifications")) {
+            PapySettingsSection(title: String(localized: "settings_section_security")) {
+                PapySettingsRow(title: String(localized: "settings_notifications")) {
                     onNotificationSettingsTap()
                 }
                 if DeviceAuth.isAvailable {
-                    ElsaSettingsDivider()
-                    ElsaSettingsToggleRow(
+                    PapySettingsDivider()
+                    PapySettingsToggleRow(
                         title: String(localized: "settings_app_lock"),
                         description: String(localized: "settings_app_lock_description"),
                         isOn: Binding(get: { state.appLockEnabled }, set: { enabled in setAppLock(enabled) })
@@ -87,47 +87,47 @@ struct SettingsScreen: View {
                 }
             }
 
-            ElsaSettingsSection(title: String(localized: "settings_section_info")) {
-                ElsaSettingsRow(title: String(localized: "settings_version"), value: appVersion)
-                ElsaSettingsDivider()
-                ElsaSettingsRow(title: String(localized: "settings_rate_app")) {
+            PapySettingsSection(title: String(localized: "settings_section_info")) {
+                PapySettingsRow(title: String(localized: "settings_version"), value: appVersion)
+                PapySettingsDivider()
+                PapySettingsRow(title: String(localized: "settings_rate_app")) {
                     model.viewModel.rateApp()
                 }
-                ElsaSettingsDivider()
+                PapySettingsDivider()
                 // 앱 안의 연락 수단(App Store 1.2, 25-3)
-                ElsaSettingsRow(title: String(localized: "settings_inquiry")) {
+                PapySettingsRow(title: String(localized: "settings_inquiry")) {
                     onInquiryTap()
                 }
                 if let environment = state.environment {
-                    ElsaSettingsDivider()
-                    ElsaSettingsRow(title: String(localized: "settings_environment"), value: environment)
+                    PapySettingsDivider()
+                    PapySettingsRow(title: String(localized: "settings_environment"), value: environment)
                 }
                 if let url = state.termsUrl.flatMap(URL.init(string:)) {
-                    ElsaSettingsDivider()
-                    ElsaSettingsRow(title: String(localized: "settings_terms")) {
+                    PapySettingsDivider()
+                    PapySettingsRow(title: String(localized: "settings_terms")) {
                         onOpenWeb(url, String(localized: "settings_terms"))
                     }
                 }
                 if let url = state.privacyUrl.flatMap(URL.init(string:)) {
-                    ElsaSettingsDivider()
-                    ElsaSettingsRow(title: String(localized: "settings_privacy")) {
+                    PapySettingsDivider()
+                    PapySettingsRow(title: String(localized: "settings_privacy")) {
                         onOpenWeb(url, String(localized: "settings_privacy"))
                     }
                 }
             }
 
-            ElsaSettingsSection(title: String(localized: "settings_section_account")) {
+            PapySettingsSection(title: String(localized: "settings_section_account")) {
                 // 받아 둔 파일(30-1)
-                ElsaSettingsRow(title: String(localized: "settings_downloads")) {
+                PapySettingsRow(title: String(localized: "settings_downloads")) {
                     onDownloadsTap()
                 }
-                ElsaSettingsDivider()
+                PapySettingsDivider()
                 // 커뮤니티 차단 해제(App Store 1.2) — 커뮤니티 모듈을 빼면 이 줄도 뺀다
-                ElsaSettingsRow(title: String(localized: "settings_blocked_users")) { onBlockedUsersTap() }
-                ElsaSettingsDivider()
-                ElsaSettingsRow(title: String(localized: "settings_logout"), destructive: true) {
+                PapySettingsRow(title: String(localized: "settings_blocked_users")) { onBlockedUsersTap() }
+                PapySettingsDivider()
+                PapySettingsRow(title: String(localized: "settings_logout"), destructive: true) {
                     guard !state.isLoggingOut else { return }
-                    alert = ElsaAlert(
+                    alert = PapyAlert(
                         title: String(localized: "settings_logout_confirm"),
                         confirmText: String(localized: "settings_logout"),
                         dismissText: String(localized: "common_cancel"),
@@ -135,14 +135,14 @@ struct SettingsScreen: View {
                         onConfirm: { model.viewModel.logout() }
                     )
                 }
-                ElsaSettingsDivider()
-                ElsaSettingsRow(title: String(localized: "settings_withdraw")) {
+                PapySettingsDivider()
+                PapySettingsRow(title: String(localized: "settings_withdraw")) {
                     onWithdrawTap()
                 }
             }
         }
         .toolbar(.hidden, for: .navigationBar)
-        .elsaOptionSheet(
+        .papyOptionSheet(
             isPresented: $showThemeSheet,
             title: String(localized: "settings_theme"),
             options: [ThemeMode.system, .light, .dark],
@@ -150,7 +150,7 @@ struct SettingsScreen: View {
             label: label,
             onSelect: { model.viewModel.selectTheme(mode: $0) }
         )
-        .elsaOptionSheet(
+        .papyOptionSheet(
             isPresented: $showLanguageSheet,
             title: String(localized: "settings_language"),
             options: [AppLanguage.system, .korean, .english],
@@ -158,7 +158,7 @@ struct SettingsScreen: View {
             label: label,
             onSelect: { model.viewModel.selectLanguage(language: $0) }
         )
-        .elsaAlert($alert)
+        .papyAlert($alert)
         .task {
             await observeEvents()
         }
@@ -194,7 +194,7 @@ private extension SettingsScreen {
             case .languageChanged(let changed):
                 // iOS 는 실행 중 언어를 바꿀 수 없다 → 다음 실행부터 적용(AppleLanguages), 안내만 한다
                 AppLanguageSetting.apply(changed.language)
-                alert = ElsaAlert(title: String(localized: "settings_language_restart"))
+                alert = PapyAlert(title: String(localized: "settings_language_restart"))
             }
         }
     }

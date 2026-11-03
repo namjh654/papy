@@ -1,4 +1,4 @@
 // 홈
 plugins {
-    id("elsa.kmp.feature")
+    id("papy.kmp.feature")
 }

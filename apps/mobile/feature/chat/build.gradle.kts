@@ -1,8 +1,8 @@
 // 메시지 (newFeature 로 생성, 19-1)
 plugins {
-    id("elsa.kmp.feature")
+    id("papy.kmp.feature")
     // 로컬 DB(DEC-130): ChatDatabase — src/commonMain/sqldelight/…/Chat.sq
-    id("elsa.kmp.database")
+    id("papy.kmp.database")
 }
 
 kotlin {

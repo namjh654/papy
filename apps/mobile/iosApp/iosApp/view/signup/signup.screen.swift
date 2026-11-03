@@ -22,17 +22,17 @@ struct SignupScreen: View {
     private var state: SignupUiState { model.state }
 
     var body: some View {
-        ElsaFormScrollView {
-            ElsaScreenHeader(title: String(localized: "signup_headline"))
+        PapyFormScrollView {
+            PapyScreenHeader(title: String(localized: "signup_headline"))
 
-            ElsaTextField(
+            PapyTextField(
                 String(localized: "field_username"),
                 text: binding(\.username, viewModel.usernameChanged),
                 placeholder: String(localized: "field_username_placeholder"),
                 textContentType: .username
             )
 
-            ElsaTextField(
+            PapyTextField(
                 String(localized: "field_password"),
                 text: binding(\.password, viewModel.passwordChanged),
                 placeholder: String(localized: "field_new_password_placeholder"),
@@ -40,7 +40,7 @@ struct SignupScreen: View {
                 textContentType: .newPassword
             )
 
-            ElsaTextField(
+            PapyTextField(
                 String(localized: "field_password_confirm"),
                 text: binding(\.passwordConfirmation, viewModel.passwordConfirmationChanged),
                 placeholder: String(localized: "field_password_confirm_placeholder"),
@@ -51,10 +51,10 @@ struct SignupScreen: View {
             )
 
             if let error = state.error {
-                ElsaInlineMessage(message: error.localizedMessage, type: .error)
+                PapyInlineMessage(message: error.localizedMessage, type: .error)
             }
         } bottomBar: {
-            ElsaButton(
+            PapyButton(
                 String(localized: "signup_button"),
                 enabled: state.isSignupEnabled || state.isLoading,
                 isLoading: state.isLoading
@@ -62,7 +62,7 @@ struct SignupScreen: View {
                 viewModel.signup()
             }
         }
-        .elsaScreenBackground()
+        .papyScreenBackground()
         .navigationBarTitleDisplayMode(.inline)
         .task {
             await observeEvents()

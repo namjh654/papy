@@ -6,22 +6,22 @@
 
 | 모듈 | 경로 | 패키지 | 들어가는 것 |
 |---|---|---|---|
-| `:core:common` | `core/common` | `cloud.elsa.app.core.common` | `error/`(AppError·ErrorCode·UiError), `viewmodel/`(BaseViewModel·StatefulViewModel·UiState·UiEvent) |
-| `:core:data` | `core/data` | `cloud.elsa.app.core.data` | `network/` `storage/` `serialization/` `session/` `di/` — 여러 feature 가 공유하는 데이터 |
-| `:feature:<name>` | `feature/<name>` | `cloud.elsa.app.feature.<name>` | 화면별 `UiState`·`Event`·`ViewModel`·`Repository`·`Api`, `di/<Name>Module.kt` |
-| `:shared` | `shared` | `cloud.elsa.app.di` | Koin 진입점(`initKoin`), iOS framework `Core`(모든 모듈 export), `IOSAppGraph` |
-| `androidApp` | `androidApp` | `cloud.elsa.app` | Compose 화면·Navigation·디자인 시스템 |
+| `:core:common` | `core/common` | `io.github.namjh654.papy.core.common` | `error/`(AppError·ErrorCode·UiError), `viewmodel/`(BaseViewModel·StatefulViewModel·UiState·UiEvent) |
+| `:core:data` | `core/data` | `io.github.namjh654.papy.core.data` | `network/` `storage/` `serialization/` `session/` `di/` — 여러 feature 가 공유하는 데이터 |
+| `:feature:<name>` | `feature/<name>` | `io.github.namjh654.papy.feature.<name>` | 화면별 `UiState`·`Event`·`ViewModel`·`Repository`·`Api`, `di/<Name>Module.kt` |
+| `:shared` | `shared` | `io.github.namjh654.papy.di` | Koin 진입점(`initKoin`), iOS framework `Core`(모든 모듈 export), `IOSAppGraph` |
+| `androidApp` | `androidApp` | `io.github.namjh654.papy` | Compose 화면·Navigation·디자인 시스템 |
 | `iosApp` | `iosApp` | — | SwiftUI 화면·Navigation·디자인 시스템 |
 
 의존 방향: `feature:* → core:data → core:common`, `shared → 전부`, `androidApp → shared`.
 - feature 끼리 의존하지 않는다. 둘 이상이 쓰면 `core:data`(데이터) 또는 `core:common`(계약)으로 올린다.
 - `commonMain` 은 UI 프레임워크를 모른다(허용: `androidx.lifecycle` ViewModel).
-- 모듈 `build.gradle.kts` 는 convention plugin 한 줄로 시작한다: KMP 라이브러리는 `id("elsa.kmp.library")`, feature 는 `id("elsa.kmp.feature")`(core:common·core:data·Koin 포함). namespace 는 경로에서 자동(`:feature:home` → `cloud.elsa.app.feature.home`).
+- 모듈 `build.gradle.kts` 는 convention plugin 한 줄로 시작한다: KMP 라이브러리는 `id("papy.kmp.library")`, feature 는 `id("papy.kmp.feature")`(core:common·core:data·Koin 포함). namespace 는 경로에서 자동(`:feature:home` → `io.github.namjh654.papy.feature.home`).
 
 ## 2. feature 모듈 안 (KMP)
 
 ```text
-feature/<name>/src/commonMain/kotlin/cloud/elsa/app/feature/<name>/
+feature/<name>/src/commonMain/kotlin/io/github/namjh654/papy/feature/<name>/
 ├── <screen>/                 화면 하나당 폴더 하나 (예: login/, signup/)
 │   ├── <Screen>UiState.kt    data class <Screen>UiState(...) : UiState   (상태 없으면 data object)
 │   ├── <Screen>Event.kt      sealed interface <Screen>Event : UiEvent
@@ -51,10 +51,10 @@ UseCase 는 기본으로 두지 않는다(ViewModel → Repository 직접). 여�
 | Koin 모듈 | `<name>Module` (feature), `dataModule(apiConfig)` | `authModule`, `homeModule` |
 | 저장 키 | `<도메인>.<의미>` 소문자 점 표기, `internal object XStorageKey` | `login.auto.login` |
 | Android 파일 | `PascalCase.kt`, 화면은 `<Screen>Screen.kt` | `LoginScreen.kt` |
-| Android 패키지 | `screen/<screen>/`(화면), `navigation/`(경로·탭·딥링크), `designsystem/`(Elsa*), `component/`(화면 공통 헬퍼), `app/`(Application·Activity·로케일), `push/`, `monitoring/`(Crashlytics·Analytics), `review/`, `update/` | `screen/login/LoginScreen.kt` |
+| Android 패키지 | `screen/<screen>/`(화면), `navigation/`(경로·탭·딥링크), `designsystem/`(Papy*), `component/`(화면 공통 헬퍼), `app/`(Application·Activity·로케일), `push/`, `monitoring/`(Crashlytics·Analytics), `review/`, `update/` | `screen/login/LoginScreen.kt` |
 | iOS 파일 | 소문자 점 표기 `<screen>.screen.swift` | `login.screen.swift` |
 | iOS 폴더 | `view/<screen>/`(화면), `navigation/`, `designsystem/`, `component/`(SharedViewModel·FlowState 등), `app/`(App·AppDelegate·PlatformSetup), `push/`, `monitoring/`, `review/`, `update/` | `view/login/login.screen.swift` |
-| 디자인 컴포넌트 | 양 플랫폼 같은 이름 `Elsa*` (DEC-007) | `ElsaButton`, `ElsaTextField` |
+| 디자인 컴포넌트 | 양 플랫폼 같은 이름 `Papy*` (DEC-007) | `PapyButton`, `PapyTextField` |
 | 문자열 키 | `<화면 또는 영역>_<의미>` snake_case, Android·iOS 같은 키 (DEC-018/021) | `login_title`, `error_network` |
 
 `./gradlew templateCheck`(= orca check·CI)가 배치 규칙을 검사한다 — KMP package 는 디렉터리와 같고, Android 파일은 PascalCase·화면은
@@ -72,7 +72,7 @@ UseCase 는 기본으로 두지 않는다(ViewModel → Repository 직접). 여�
 ```
 
 생성물은 **목록 패턴**이다: KMP `Paginator`(core:common, 라이브러리 없는 페이징) → `UiState.list: ListState<T>` →
-Android/iOS `ElsaPagedList`(당겨서 새로고침·끝에서 다음 페이지·첫 로딩·전체 오류·빈 화면·다음 페이지 실패).
+Android/iOS `PapyPagedList`(당겨서 새로고침·끝에서 다음 페이지·첫 로딩·전체 오류·빈 화면·다음 페이지 실패).
 목록이 아닌 화면은 생성 후 UiState 에서 `list` 를 빼고 화면을 바꾼다. 기준 예시는 `:feature:example`(스크립트 생성물 + 예시 탭). 스크립트 없이 손으로 할 때·기존 feature 에 화면을 더할 때의 목록:
 
 1. `feature/<name>/` 모듈(위 2번 구조) + `settings.gradle.kts` 에 `include(":feature:<name>")`
@@ -82,10 +82,10 @@ Android/iOS `ElsaPagedList`(당겨서 새로고침·끝에서 다음 페이지·
 5. iOS: `navigation/app.route.swift` + `app.navigation.swift` + `view/<screen>/<screen>.screen.swift` (`SharedViewModel`, `onEnum(of:)`)
 5-1. 딥링크: Android `navigation/DeepLinkRouter.kt`, iOS `navigation/deeplink.router.swift` 에 같은 path 추가 (푸시 `screen`/`link` 로 열림, [push.md](push.md))
 6. 문자열: `androidApp/src/main/res/values{,-en}/strings.xml` + `iosApp/iosApp/Localizable.xcstrings` 같은 키 → `./gradlew checkStrings`
-7. 설정 항목: 값은 `core:data` `AppSettingsRepository`(+ `SettingStorage` 키), 표시는 `SettingsUiState` 필드, 화면은 `ElsaSettingsRow` 한 줄 (Android `screen/settings/SettingsScreen.kt`, iOS `view/settings/settings.screen.swift`)
+7. 설정 항목: 값은 `core:data` `AppSettingsRepository`(+ `SettingStorage` 키), 표시는 `SettingsUiState` 필드, 화면은 `PapySettingsRow` 한 줄 (Android `screen/settings/SettingsScreen.kt`, iOS `view/settings/settings.screen.swift`)
 8. 웹 페이지(약관·공지): URL 은 env(`url.*`) → `AppConfig`, 화면은 Android `navigateToWeb(url, title)` / iOS `open(.web(url:title:))`
 9. 화면은 토스 기반 스타일(큰 제목, 넓은 여백, 채움형 입력칸, 무테 카드, 하단 고정 CTA, 바텀시트), 다크 모드·다국어 처음부터 (DEC-025)
-10. **미리보기 먼저 (DEC-122)**: 화면은 ViewModel 을 받는 바깥 함수(`XScreen`)와 상태·콜백만 받는 `XContent` 로 나누고 `XContent` 에 미리보기를 둔다 — Android `@Preview`(라이트·다크 두 개), iOS `#Preview`. 디자인 시스템 컴포넌트도 같다. 예: `TermsContent`, `ElsaSocialLoginSection`. 다듬는 동안은 미리보기로 보고, 에뮬레이터·시뮬레이터는 Phase 끝 `scripts/orca.sh uitest all` 한 번으로 확인한다(DEC-120)
+10. **미리보기 먼저 (DEC-122)**: 화면은 ViewModel 을 받는 바깥 함수(`XScreen`)와 상태·콜백만 받는 `XContent` 로 나누고 `XContent` 에 미리보기를 둔다 — Android `@Preview`(라이트·다크 두 개), iOS `#Preview`. 디자인 시스템 컴포넌트도 같다. 예: `TermsContent`, `PapySocialLoginSection`. 다듬는 동안은 미리보기로 보고, 에뮬레이터·시뮬레이터는 Phase 끝 `scripts/orca.sh uitest all` 한 번으로 확인한다(DEC-120)
 
 ### 상세 화면 (인자가 있는 화면)
 
@@ -93,7 +93,7 @@ Android/iOS `ElsaPagedList`(당겨서 새로고침·끝에서 다음 페이지·
 
 - 인자는 **id 만** 넘긴다. KMP: `factory { (id: String) -> XDetailViewModel(id, get()) }`.
   Android: `AndroidRoute.XDetail(id)` → `koinViewModel { parametersOf(id) }`. iOS: `MainRoute.xDetail(id:)` → `IOSAppGraph.shared.xDetailViewModel(id:)`(`init(id:)` 에서 `_model = StateObject(wrappedValue: …)`).
-- 상태는 `item / isLoading / error`. 화면은 `ElsaContentState` 로 전환한다(양 플랫폼 같은 이름).
+- 상태는 `item / isLoading / error`. 화면은 `PapyContentState` 로 전환한다(양 플랫폼 같은 이름).
 - 불러오기 실패는 `onError` → 전체 오류 화면. 수정 실패는 내용을 그대로 두고 이벤트 → 토스트.
 - 수정 결과를 목록에 알릴 때는 Repository 의 `changes: SharedFlow<Item>` 를 목록 ViewModel 이 구독해 `paginator.update { … }` 로 그 항목만 바꾼다.
 - 딥링크 `<path>/<id>`: Android `DeepLinkRouter.kt`, iOS `deeplink.router.swift` 의 "상세 화면 path" 자리에 한 줄씩.
@@ -106,7 +106,7 @@ Android/iOS `ElsaPagedList`(당겨서 새로고침·끝에서 다음 페이지·
 - 수정 폼(기준 `feature/settings/profile`): `isDirty` 일 때만 저장 버튼을 켜고, 나갈 때 확인 다이얼로그를 띄운다(같은 방법으로 뒤로가기를 가로챈다).
   파일은 화면이 바이트로 넘긴다(Android `contentResolver`, iOS `IOSAppGraph.shared.bytes(data:)`). 업로드는 `baseApi.upload(...)`.
 - 이전 화면에 결과를 알릴 때는 같은 feature 의 작은 저장소에 남기고 받는 ViewModel 이 읽는다(기준 `LoginNoticeStore`).
-- 되돌릴 수 없는 작업은 확인 체크 + 확인 다이얼로그(`ElsaAlert(isDestructive)`)를 거친다(기준 `feature/settings/withdraw`).
+- 되돌릴 수 없는 작업은 확인 체크 + 확인 다이얼로그(`PapyAlert(isDestructive)`)를 거친다(기준 `feature/settings/withdraw`).
 - 인증 상태를 바꾸는 호출(`SessionRepository.logout()`) 뒤에는 코드를 두지 않는다 — 화면이 넘어가며 코루틴이 취소될 수 있다.
 - Kotlin 프로퍼티 이름이 Swift 예약어(`required`, `default`, `description` 등)면 Swift 용 다른 이름을 하나 더 둔다(`isRequired`).
 
@@ -124,7 +124,7 @@ Android/iOS `ElsaPagedList`(당겨서 새로고침·끝에서 다음 페이지·
 **모달**
 - 다이얼로그·시트의 상태는 그 화면의 `remember`(Android) / `@State`(iOS). 화면이 스택에서 가려지거나 로그인으로 넘어가면 같이 사라진다.
 - 한 화면에 다이얼로그는 하나(`alert` 하나). 시트 위에 확인이 필요하면 시트를 닫고 다이얼로그를 띄운다(겹쳐 쌓지 않는다).
-- 확인 버튼은 다이얼로그를 닫은 뒤 동작을 부른다(`ElsaAlertDialog`·`.elsaAlert` 가 그렇게 한다).
+- 확인 버튼은 다이얼로그를 닫은 뒤 동작을 부른다(`PapyAlertDialog`·`.papyAlert` 가 그렇게 한다).
 - 앱 전체 안내(강제 업데이트·오프라인)는 루트에 한 번만 둔다.
 - 중복 실행: 요청은 ViewModel 이 `isLoading`/`isSaving` 으로 막고, 화면 이동은 `launchSingleTop`.
 
@@ -137,10 +137,10 @@ Android/iOS `ElsaPagedList`(당겨서 새로고침·끝에서 다음 페이지·
 탭은 양 플랫폼에 같은 순서로 둔다. 목록은 Android `navigation/MainTab.kt`(enum), iOS `navigation/main.tab.swift`(enum).
 새 feature 를 탭으로 붙이려면 `newFeature <name> --tab` 이 아래를 모두 한다. 기존 화면을 탭으로 올릴 때는 손으로:
 
-1. Android `MainTab` 에 `Name(AndroidRoute.Name, R.string.tab_name, R.drawable.elsa_ic_tab_name)` — 탭 루트 화면은 `onBack` 없이 `AndroidNavHost` 에 등록
-2. iOS `MainTab` 에 `case name` + `title`(`"tab_name"`) + `icon`(생성 에셋 `elsa_ic_tab_<name>` — design/icons, DEC-118), `AppNavigation.root(for:)` 에 루트 화면
+1. Android `MainTab` 에 `Name(AndroidRoute.Name, R.string.tab_name, R.drawable.papy_ic_tab_name)` — 탭 루트 화면은 `onBack` 없이 `AndroidNavHost` 에 등록
+2. iOS `MainTab` 에 `case name` + `title`(`"tab_name"`) + `icon`(생성 에셋 `papy_ic_tab_<name>` — design/icons, DEC-118), `AppNavigation.root(for:)` 에 루트 화면
 3. 문자열 `tab_<name>` (Android strings.xml ko/en, iOS Localizable.xcstrings)
-4. 아이콘: `design/icons/tab_<name>.svg`(Lucide 24×24 선 아이콘)를 넣고 `./gradlew generateDesignTokens` → Android `R.drawable.elsa_ic_tab_<name>`, iOS 에셋 `"elsa_ic_tab_<name>"` (DEC-118, 그전까지는 `elsa_ic_tab_default`)
+4. 아이콘: `design/icons/tab_<name>.svg`(Lucide 24×24 선 아이콘)를 넣고 `./gradlew generateDesignTokens` → Android `R.drawable.papy_ic_tab_<name>`, iOS 에셋 `"papy_ic_tab_<name>"` (DEC-118, 그전까지는 `papy_ic_tab_default`)
 5. 딥링크로 탭을 열려면 Android `DeepLinkRouter` 에 `navigateToTab(MainTab.Name)`, iOS `deeplink.router.swift` 에 `.tab(.name)`
 
 - 탭마다 스택을 따로 유지한다(Android `navigateToTab` 의 saveState/restoreState, iOS 탭별 `NavigationStack(path:)`).

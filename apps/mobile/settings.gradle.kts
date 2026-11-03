@@ -15,7 +15,7 @@ include(":feature:search")
 include(":feature:chat")
 include(":feature:community")
 
-rootProject.name = "elsaapp"
+rootProject.name = "papykmp"
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
 pluginManagement {

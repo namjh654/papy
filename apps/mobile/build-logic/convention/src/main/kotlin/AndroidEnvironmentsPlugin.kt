@@ -9,7 +9,7 @@ import template.tooling.EnvConfig
 import template.tooling.Repo
 
 /**
- * `elsa.android.environments` — androidApp 의 환경 flavor(dev / staging / prod) (DEC-058, docs/environments.md).
+ * `papy.android.environments` — androidApp 의 환경 flavor(dev / staging / prod) (DEC-058, docs/environments.md).
  *
  * - 버전: env 의 app.versionName·app.versionCode (한 곳에서 관리, docs/release.md). dev·staging 은 versionName 에 -<env>
  * - applicationId 접미사(env 의 app.idSuffix: .dev, .staging)와 앱 이름(app.name + app.nameSuffix)

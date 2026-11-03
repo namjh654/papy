@@ -19,11 +19,11 @@
 
 | 단계 | Android | iOS |
 |---|---|---|
-| 제공자 선택 | `ElsaApplication`: `FcmPushProvider.createOrNoOp(this)` → `initAndroidKoin(pushProvider = …)` | `iOSApp.init`: `PushSetup.makeProvider()` → `IOSAppKoin.initialize(appEnv:pushProvider:)` |
+| 제공자 선택 | `PapyApplication`: `FcmPushProvider.createOrNoOp(this)` → `initAndroidKoin(pushProvider = …)` | `iOSApp.init`: `PushSetup.makeProvider()` → `IOSAppKoin.initialize(appEnv:pushProvider:)` |
 | 켜짐 조건 | `androidApp/src/<env>/google-services.json`(또는 공통 `androidApp/google-services.json`)이 있으면 google-services 플러그인 적용 → Firebase 초기화. 파일이 없는 flavor 는 경고만 | Firebase SDK(SPM `FirebaseMessaging`) 링크 + `iosApp/Configuration/Firebase/<env>/GoogleService-Info.plist` 를 빌드 단계가 번들에 복사 |
-| 토큰 | `FirebaseMessaging.token` + `ElsaMessagingService.onNewToken` → `PushManager.onNewToken` | `MessagingDelegate.didReceiveRegistrationToken` → `onNewToken` |
+| 토큰 | `FirebaseMessaging.token` + `PapyMessagingService.onNewToken` → `PushManager.onNewToken` | `MessagingDelegate.didReceiveRegistrationToken` → `onNewToken` |
 | 권한 | 로그인 후 `PushEffects` 가 `POST_NOTIFICATIONS` 요청(13+) | 메인 진입 시 `PushObserver.requestPermissionIfNeeded()` → `registerForRemoteNotifications` |
-| 표시 | 채널 `default`(`NotificationChannels`). foreground·data-only 는 `ElsaMessagingService` 가 직접 표시 | `AppDelegate.willPresent` → 배너·목록·소리 |
+| 표시 | 채널 `default`(`NotificationChannels`). foreground·data-only 는 `PapyMessagingService` 가 직접 표시 | `AppDelegate.willPresent` → 배너·목록·소리 |
 | 탭 | `MainActivity`(singleTop) extras → `onNotificationOpened` | `AppDelegate.didReceive` → `onNotificationOpened` |
 | 이동 | `PushEffects` 가 메인 화면에 들어온 뒤 `navController.navigate(deepLink)` | `AppNavigation.openPendingDeepLink()` |
 
@@ -44,12 +44,12 @@ DELETE /api/push/tokens/{token}
 
 | 키 | 의미 | 예 |
 |---|---|---|
-| `link` | 딥링크 URI (가장 우선) | `elsa://example?id=1`, `https://app.acme.com/example?id=1` |
+| `link` | 딥링크 URI (가장 우선) | `papy://example?id=1`, `https://app.acme.com/example?id=1` |
 | `screen` | 화면 path, 나머지 키는 params | `{"screen": "example", "id": "1"}` |
 | `title`, `body` | data-only 메시지의 표시 문구 | |
 
 path 는 양 플랫폼 `DeepLinkRouter` 표에 있어야 이동한다: `home`, `settings`, `example`(탭 전환), `gallery`, 그리고 `newFeature` 로 만든 feature 이름.
-상세 화면은 `<path>/<id>`: `notice/{id}`, `example/{id}`, `chat/{id}`(대화방 — 이름은 앱이 불러온다), `community/{id}`(글 상세) — 예) `elsa://chat/c1`, `{"link": "elsa://community/p3"}` (21-3)
+상세 화면은 `<path>/<id>`: `notice/{id}`, `example/{id}`, `chat/{id}`(대화방 — 이름은 앱이 불러온다), `community/{id}`(글 상세) — 예) `papy://chat/c1`, `{"link": "papy://community/p3"}` (21-3)
 
 ### 서버가 정해지면 바꿀 위치
 
@@ -79,8 +79,8 @@ KMP 쪽(토큰 등록·세션 연동·DeepLink)은 그대로다.
 
 **Android**
 1. `androidApp/build.gradle.kts` 에서 `firebase-bom`·`firebase-messaging`·`firebase-crashlytics`·`firebase-analytics` 의존성과 google-services·crashlytics 조건부 적용 블록 삭제, 루트 `build.gradle.kts`·`gradle/libs.versions.toml` 의 firebase·google-services·crashlytics 항목 삭제
-2. `push/FcmPushProvider.kt`·`push/ElsaMessagingService.kt`·`monitoring/FirebaseMonitoring.kt` 삭제, `AndroidManifest.xml` 의 `ElsaMessagingService`·`com.google.firebase.messaging.*` meta-data 삭제
-3. `ElsaApplication` 의 `PlatformServices(…)` 에서 pushProvider·crashReporter·analytics 를 빼고(기본 NoOp) `inAppReview` 만 남긴다
+2. `push/FcmPushProvider.kt`·`push/PapyMessagingService.kt`·`monitoring/FirebaseMonitoring.kt` 삭제, `AndroidManifest.xml` 의 `PapyMessagingService`·`com.google.firebase.messaging.*` meta-data 삭제
+3. `PapyApplication` 의 `PlatformServices(…)` 에서 pushProvider·crashReporter·analytics 를 빼고(기본 NoOp) `inAppReview` 만 남긴다
 4. `scripts/orca.sh check`
 
 KMP(`core:data` push 패키지)는 그대로 둔다 — 제공자가 없으면 토큰 등록을 하지 않는다.

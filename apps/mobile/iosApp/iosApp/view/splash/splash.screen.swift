@@ -13,9 +13,9 @@ struct SplashScreen: View {
     )
 
     var body: some View {
-        ElsaLoadingIndicator()
+        PapyLoadingIndicator()
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .elsaScreenBackground()
+            .papyScreenBackground()
             .task {
                 await observeEvents()
             }

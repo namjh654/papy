@@ -90,7 +90,7 @@ compose-material3 = { module = "androidx.compose.material3:material3" }
 
 # Android Design System (이미지 로딩: 선택한 사진 미리보기 등)
 coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }
-# 원격 이미지(URL) 불러오기 — ElsaRemoteImage·ElsaAvatar
+# 원격 이미지(URL) 불러오기 — PapyRemoteImage·PapyAvatar
 coil-network-okhttp = { module = "io.coil-kt.coil3:coil-network-okhttp", version.ref = "coil" }
 
 # Push (FCM) — google-services.json 이 있을 때만 켜진다 (docs/push.md)

@@ -481,9 +481,9 @@ cmd_uitest() {
   # 3) UI 테스트 (TEST_RUNNER_ 접두어 환경 변수는 테스트 프로세스에 그대로 전달된다)
   rm -rf "$out/result.xcresult"
   run env TEST_RUNNER_APP_BUNDLE_ID="$bundle" TEST_RUNNER_MOCK_URL="http://127.0.0.1:$port" TEST_RUNNER_CAPTURE="${capture:-0}" \
-    xcodebuild -quiet test -project iosApp/UITests/ElsaUITests.xcodeproj -scheme ElsaUITests \
+    xcodebuild -quiet test -project iosApp/UITests/PapyUITests.xcodeproj -scheme PapyUITests \
       -destination "id=$udid" -derivedDataPath "$out/DerivedData-tests" -resultBundlePath "$out/result.xcresult" \
-      ${only:+-only-testing:ElsaUITests/AppFlowTests/$only} CODE_SIGN_IDENTITY=-
+      ${only:+-only-testing:PapyUITests/AppFlowTests/$only} CODE_SIGN_IDENTITY=-
   info "uitest 통과 — 결과: build/uitest/result.xcresult (open 으로 열면 화면 캡처)"
 }
 
@@ -574,7 +574,7 @@ cmd_uitest_android() {
   # 3) dev 앱 + 테스트 설치·실행 (끝나면 Gradle 이 둘 다 지운다)
   run ./gradlew :androidUiTest:connectedDebugAndroidTest \
     "-Pandroid.testInstrumentationRunnerArguments.mockUrl=http://127.0.0.1:$dport" \
-    ${only:+"-Pandroid.testInstrumentationRunnerArguments.class=cloud.elsa.app.uitest.AppFlowTest#$only"} \
+    ${only:+"-Pandroid.testInstrumentationRunnerArguments.class=io.github.namjh654.papy.uitest.AppFlowTest#$only"} \
     ${capture:+"-Pandroid.testInstrumentationRunnerArguments.capture=true"}
   info "uitest android 통과 — 결과: androidUiTest/build/reports/androidTests/connected/debug/index.html (실패 화면 글자: adb logcat -s AppFlowTest)"
 }
@@ -641,7 +641,7 @@ cmd_capture() {
     [ -n "$density" ] && "$adb" shell wm density "$density"
     [ "$bold" = null ] || "$adb" shell settings put secure font_weight_adjustment "${bold:-0}"
     [ $status = 0 ] || die "Android 캡처 실패"
-    run "$adb" pull /data/local/tmp/elsa-capture/. "$out/android"
+    run "$adb" pull /data/local/tmp/papy-capture/. "$out/android"
   else
     info "주의: Android 기기·에뮬레이터가 없어 Android 캡처를 건너뜁니다"
   fi
