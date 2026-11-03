@@ -1,4 +1,4 @@
-//! 엔진 외부 구성요소(PDFium 라이브러리, 서드파티 고지)를 `resources/` 에 모은다.
+//! 엔진 외부 구성요소(PDFium 라이브러리, 한글 글꼴, 서드파티 고지)를 `resources/` 에 모은다.
 //! tauri.conf.json 의 `bundle.resources` 가 이 폴더를 앱에 넣는다. 원본은 `pnpm engine:vendor` 로 받는다.
 
 use std::path::{Path, PathBuf};
@@ -43,6 +43,15 @@ fn stage_resources() {
     copy_dir(
         &pdfium.join("licenses"),
         &out.join("licenses/pdfium/licenses"),
+    );
+    let fonts = rhwp.join("ttfs/opensource");
+    copy(
+        &fonts.join("NotoSansKR-Regular.ttf"),
+        &out.join("fonts/NotoSansKR-Regular.ttf"),
+    );
+    copy(
+        &fonts.join("NotoSansKR-OFL.txt"),
+        &out.join("licenses/noto-sans-kr/OFL.txt"),
     );
     copy(&rhwp.join("LICENSE"), &out.join("licenses/rhwp/LICENSE"));
     copy(

@@ -10,7 +10,10 @@ use std::path::Path;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use papy_model::{DocumentFormat, DocumentInfo, Error, ErrorCode, OutlineItem, PageSize, Result};
+use papy_model::{
+    Annotation, CaretMotion, CharFormat, DocumentFormat, DocumentInfo, EditOutcome, Error,
+    ErrorCode, OutlineItem, PageOp, PageRect, PageSize, ParaFormat, Result, SaveFormat, TextPos,
+};
 
 /// 렌더링 결과. RGBA 8비트, 알파는 premultiplied 가 아님, 행 사이 여백 없음(`stride == width * 4`).
 #[derive(Clone, PartialEq, Eq)]
@@ -152,6 +155,125 @@ pub trait Document: Send {
     fn outline(&mut self) -> Result<Vec<OutlineItem>> {
         Ok(Vec::new())
     }
+
+    /// 지금 상태를 `format` 으로 직렬화한다. 지원 형식은 `info().capabilities.save_formats`.
+    fn save(&mut self, _format: SaveFormat) -> Result<Vec<u8>> {
+        Err(not_supported("saving"))
+    }
+
+    // ---- 본문 편집. `info().capabilities.edit` 가 참일 때만 부른다. 좌표는 pt(쪽 왼쪽 위 기준). ----
+
+    /// 쪽 위 점에 가장 가까운 본문 위치.
+    fn hit_test(&mut self, _page: u32, _x: f32, _y: f32) -> Result<TextPos> {
+        Err(not_supported("editing"))
+    }
+
+    /// 위치의 커서 사각형(너비 0).
+    fn caret_rect(&mut self, _pos: TextPos) -> Result<PageRect> {
+        Err(not_supported("editing"))
+    }
+
+    /// 한 줄 위(`lines` < 0)나 아래로 옮긴 위치. `preferred_x` 는 줄을 옮겨도 유지할 가로 위치(pt).
+    fn move_vertical(&mut self, _pos: TextPos, _lines: i32, _preferred_x: f32) -> Result<TextPos> {
+        Err(not_supported("editing"))
+    }
+
+    /// 커서를 옮긴 위치.
+    fn move_caret(&mut self, _pos: TextPos, _motion: CaretMotion) -> Result<TextPos> {
+        Err(not_supported("editing"))
+    }
+
+    /// 선택 영역(`start` ≤ `end`)을 줄마다 덮는 사각형.
+    fn selection_rects(&mut self, _start: TextPos, _end: TextPos) -> Result<Vec<PageRect>> {
+        Err(not_supported("editing"))
+    }
+
+    /// 선택 영역의 텍스트(문단 사이는 `\n`).
+    fn text_in_range(&mut self, _start: TextPos, _end: TextPos) -> Result<String> {
+        Err(not_supported("editing"))
+    }
+
+    /// 글자를 넣는다. `\n` 은 문단 나누기.
+    fn insert_text(&mut self, _pos: TextPos, _text: &str) -> Result<EditOutcome> {
+        Err(not_supported("editing"))
+    }
+
+    /// 범위(`start` ≤ `end`)를 지운다. 문단 경계를 넘으면 문단을 합친다.
+    fn delete_range(&mut self, _start: TextPos, _end: TextPos) -> Result<EditOutcome> {
+        Err(not_supported("editing"))
+    }
+
+    /// 커서 앞 글자를 지운다(문단 처음이면 앞 문단과 합친다).
+    fn delete_backward(&mut self, _pos: TextPos) -> Result<EditOutcome> {
+        Err(not_supported("editing"))
+    }
+
+    /// 커서 뒤 글자를 지운다(문단 끝이면 뒤 문단을 합친다).
+    fn delete_forward(&mut self, _pos: TextPos) -> Result<EditOutcome> {
+        Err(not_supported("editing"))
+    }
+
+    /// 위치의 글자 서식.
+    fn char_format(&mut self, _pos: TextPos) -> Result<CharFormat> {
+        Err(not_supported("editing"))
+    }
+
+    /// 범위에 글자 서식을 적용한다(`Some` 인 값만).
+    fn apply_char_format(
+        &mut self,
+        _start: TextPos,
+        _end: TextPos,
+        _format: &CharFormat,
+    ) -> Result<()> {
+        Err(not_supported("editing"))
+    }
+
+    /// 위치가 속한 문단의 서식.
+    fn para_format(&mut self, _pos: TextPos) -> Result<ParaFormat> {
+        Err(not_supported("editing"))
+    }
+
+    /// 범위에 걸친 문단들에 문단 서식을 적용한다.
+    fn apply_para_format(
+        &mut self,
+        _start: TextPos,
+        _end: TextPos,
+        _format: &ParaFormat,
+    ) -> Result<()> {
+        Err(not_supported("editing"))
+    }
+
+    /// 주석을 더한다(`capabilities.annotate`).
+    fn annotate(&mut self, _annotation: &Annotation) -> Result<()> {
+        Err(not_supported("annotations"))
+    }
+
+    /// 영역 안 글줄의 사각형(형광펜 미리 보기용).
+    fn text_rects(&mut self, _page: u32, _area: PageRect) -> Result<Vec<PageRect>> {
+        Err(not_supported("annotations"))
+    }
+
+    /// 쪽을 회전·삭제·이동한다(`capabilities.page_edit`).
+    fn edit_pages(&mut self, _op: PageOp) -> Result<()> {
+        Err(not_supported("page editing"))
+    }
+
+    /// 마지막 편집을 되돌린다. 되돌릴 것이 없으면 `None`.
+    fn undo(&mut self) -> Result<Option<EditOutcome>> {
+        Err(not_supported("editing"))
+    }
+
+    /// 되돌린 편집을 다시 한다. 없으면 `None`.
+    fn redo(&mut self) -> Result<Option<EditOutcome>> {
+        Err(not_supported("editing"))
+    }
+}
+
+fn not_supported(what: &str) -> Error {
+    Error::new(
+        ErrorCode::NotImplemented,
+        format!("{what} is not supported for this format"),
+    )
 }
 
 #[cfg(test)]

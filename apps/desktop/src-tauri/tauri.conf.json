@@ -71,6 +71,7 @@
     },
     "resources": {
       "resources/pdfium/": "pdfium/",
+      "resources/fonts/": "fonts/",
       "resources/licenses/": "licenses/"
     }
   }

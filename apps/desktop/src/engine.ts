@@ -17,8 +17,127 @@ export interface OpenedDocument {
   title: string | null;
   canExtractText: boolean;
   hasOutline: boolean;
+  canEdit: boolean;
+  /** PDF: 주석(형광펜·펜·텍스트 상자·메모) */
+  canAnnotate: boolean;
+  /** PDF: 쪽 회전·삭제·이동 */
+  canEditPages: boolean;
+  /** 저장·변환 가능한 형식의 확장자(pdf, hwpx, hwp, txt) */
+  saveFormats: string[];
   pages: PageSize[];
 }
+
+// ---- 편집 ----
+
+/** 본문 위치: 구역·문단(0부터)·문단 안 글자 위치 */
+export interface TextPos {
+  section: number;
+  paragraph: number;
+  offset: number;
+}
+
+/** 쪽 위 사각형(pt) */
+export interface PageRect {
+  page: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface CharFormat {
+  fontFamily?: string | null;
+  fontSize?: number | null;
+  bold?: boolean | null;
+  italic?: boolean | null;
+  underline?: boolean | null;
+  strikethrough?: boolean | null;
+  color?: string | null;
+}
+
+export type Alignment = "left" | "center" | "right" | "justify";
+
+export interface ParaFormat {
+  alignment?: Alignment | null;
+  lineSpacing?: number | null;
+}
+
+export type CaretMotion = "left" | "right" | "lineStart" | "lineEnd" | "documentStart" | "documentEnd";
+
+export type EditOp =
+  | { kind: "hitTest"; page: number; x: number; y: number }
+  | { kind: "caretRect"; pos: TextPos }
+  | { kind: "moveVertical"; pos: TextPos; lines: number; preferredX: number }
+  | { kind: "moveCaret"; pos: TextPos; motion: CaretMotion }
+  | { kind: "selectionRects"; start: TextPos; end: TextPos }
+  | { kind: "textInRange"; start: TextPos; end: TextPos }
+  | { kind: "insertText"; pos: TextPos; text: string }
+  | { kind: "deleteRange"; start: TextPos; end: TextPos }
+  | { kind: "deleteBackward"; pos: TextPos }
+  | { kind: "deleteForward"; pos: TextPos }
+  | { kind: "charFormat"; pos: TextPos }
+  | { kind: "applyCharFormat"; start: TextPos; end: TextPos; format: CharFormat }
+  | { kind: "paraFormat"; pos: TextPos }
+  | { kind: "applyParaFormat"; start: TextPos; end: TextPos; format: ParaFormat }
+  | { kind: "undo" }
+  | { kind: "redo" }
+  | { kind: "textRects"; page: number; area: Area }
+  | { kind: "annotate"; annotation: Annotation }
+  | { kind: "editPages"; op: PageOp };
+
+/** 쪽 위 영역(pt, 화면에 보이는 쪽의 왼쪽 위 기준) */
+export interface Area {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export type MarkupKind = "highlight" | "underline" | "strikeOut";
+
+export type Annotation =
+  | { type: "textBox"; page: number; x: number; y: number; text: string; fontSize: number; color: string }
+  | { type: "markup"; page: number; kind: MarkupKind; area: Area; color: string }
+  | { type: "ink"; page: number; points: [number, number][]; color: string; width: number }
+  | { type: "note"; page: number; x: number; y: number; text: string };
+
+export type PageOp =
+  | { type: "rotate"; page: number; quarterTurns: number }
+  | { type: "delete"; page: number }
+  | { type: "move"; from: number; to: number };
+
+/** 위치 + 커서 사각형 */
+export interface Located {
+  pos: TextPos;
+  rect: PageRect;
+}
+
+/** 문서를 바꾸는 작업의 응답 */
+export interface Changed {
+  changed: boolean;
+  caret?: TextPos;
+  caretRect?: PageRect | null;
+  pageCount?: number;
+}
+
+export function edit<T>(id: number, op: EditOp): Promise<T> {
+  return call("edit", { id, op });
+}
+
+export function pageLayout(id: number): Promise<PageSize[]> {
+  return call("page_layout", { id });
+}
+
+/** 확장자로 형식을 정해 저장한다(임시 파일에 쓴 뒤 바꿔치기). */
+export function saveDocument(id: number, path: string): Promise<void> {
+  return call("save_document", { id, path });
+}
+
+export function comparePos(a: TextPos, b: TextPos): number {
+  return a.section - b.section || a.paragraph - b.paragraph || a.offset - b.offset;
+}
+
+export const samePos = (a: TextPos, b: TextPos) => comparePos(a, b) === 0;
 
 export interface OutlineItem {
   title: string;
@@ -108,6 +227,8 @@ export function describeError(error: unknown): string {
       return "문서가 손상됐거나 형식이 올바르지 않아 열 수 없습니다.";
     case ErrorCode.PasswordRequired:
       return "암호가 필요하거나 암호가 맞지 않습니다.";
+    case ErrorCode.NotImplemented:
+      return "이 문서에서는 아직 지원하지 않는 기능입니다.";
     case ErrorCode.LimitExceeded:
       return "문서가 너무 커서 열 수 없습니다(파일 크기·쪽 수 제한).";
     default:

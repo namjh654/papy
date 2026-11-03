@@ -57,7 +57,7 @@ pub struct DocumentInfo {
 }
 
 /// 포맷 어댑터가 지원하는 기능. 앱은 이 값으로 메뉴를 켜고 끈다.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Capabilities {
     /// 페이지 렌더링.
     pub render: bool,
@@ -67,6 +67,226 @@ pub struct Capabilities {
     pub outline: bool,
     /// 저장.
     pub save: bool,
+    /// 본문 편집(커서·입력·서식·되돌리기).
+    pub edit: bool,
+    /// 주석 달기(텍스트 상자·형광펜·펜·메모).
+    pub annotate: bool,
+    /// 쪽 편집(회전·삭제·순서 바꾸기).
+    pub page_edit: bool,
+    /// 저장·변환할 수 있는 형식.
+    pub save_formats: Vec<SaveFormat>,
+}
+
+/// 저장·변환 형식.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum SaveFormat {
+    /// PDF.
+    Pdf,
+    /// HWPX.
+    Hwpx,
+    /// HWP 5.x.
+    Hwp,
+    /// 일반 텍스트(UTF-8). 서식은 버린다.
+    Text,
+}
+
+impl SaveFormat {
+    /// 기본 확장자(점 없이).
+    pub fn extension(self) -> &'static str {
+        match self {
+            Self::Pdf => "pdf",
+            Self::Hwpx => "hwpx",
+            Self::Hwp => "hwp",
+            Self::Text => "txt",
+        }
+    }
+
+    /// 확장자로 찾는다(대소문자 무시).
+    pub fn from_extension(extension: &str) -> Option<Self> {
+        [Self::Pdf, Self::Hwpx, Self::Hwp, Self::Text]
+            .into_iter()
+            .find(|format| format.extension().eq_ignore_ascii_case(extension))
+    }
+}
+
+/// 본문 안의 위치. 구역·문단은 0부터, `offset` 은 문단 안 글자(유니코드 스칼라) 위치.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+pub struct TextPos {
+    /// 구역.
+    pub section: u32,
+    /// 문단.
+    pub paragraph: u32,
+    /// 문단 안 글자 위치.
+    pub offset: u32,
+}
+
+/// 쪽 위 사각형(pt, 쪽 왼쪽 위 기준).
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct PageRect {
+    /// 쪽(0부터).
+    pub page: u32,
+    /// 왼쪽.
+    pub x: f32,
+    /// 위.
+    pub y: f32,
+    /// 너비.
+    pub width: f32,
+    /// 높이.
+    pub height: f32,
+}
+
+/// 문단 정렬.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Alignment {
+    /// 왼쪽.
+    Left,
+    /// 가운데.
+    Center,
+    /// 오른쪽.
+    Right,
+    /// 양쪽.
+    Justify,
+}
+
+/// 글자 서식. 읽을 때는 모든 값이 채워지고, 적용할 때는 `Some` 인 값만 바꾼다.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct CharFormat {
+    /// 글꼴 이름.
+    pub font_family: Option<String>,
+    /// 글자 크기(pt).
+    pub font_size: Option<f32>,
+    /// 굵게.
+    pub bold: Option<bool>,
+    /// 기울임.
+    pub italic: Option<bool>,
+    /// 밑줄.
+    pub underline: Option<bool>,
+    /// 취소선.
+    pub strikethrough: Option<bool>,
+    /// 글자 색(`#rrggbb`).
+    pub color: Option<String>,
+}
+
+/// 문단 서식. 읽을 때는 모든 값이 채워지고, 적용할 때는 `Some` 인 값만 바꾼다.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct ParaFormat {
+    /// 정렬.
+    pub alignment: Option<Alignment>,
+    /// 줄 간격(%).
+    pub line_spacing: Option<f32>,
+}
+
+/// 글줄에 긋는 표시.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MarkupKind {
+    /// 형광펜.
+    Highlight,
+    /// 밑줄.
+    Underline,
+    /// 취소선.
+    StrikeOut,
+}
+
+/// 쪽에 더하는 주석. 좌표는 pt, 화면에 보이는 쪽(회전 반영)의 왼쪽 위 기준. 색은 `#rrggbb`.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Annotation {
+    /// 텍스트 상자(쪽 내용으로 들어간다). `x`,`y` 는 첫 줄의 왼쪽 위.
+    TextBox {
+        /// 쪽.
+        page: u32,
+        /// 왼쪽.
+        x: f32,
+        /// 위.
+        y: f32,
+        /// 글자(`\n` 으로 줄 나눔).
+        text: String,
+        /// 글자 크기(pt).
+        font_size: f32,
+        /// 글자 색.
+        color: String,
+    },
+    /// 영역 안의 글줄에 형광펜·밑줄·취소선.
+    Markup {
+        /// 쪽.
+        page: u32,
+        /// 종류.
+        kind: MarkupKind,
+        /// 사용자가 끈 영역. 그 안의 글줄을 찾아 표시한다.
+        area: PageRect,
+        /// 색.
+        color: String,
+    },
+    /// 펜으로 그린 선 하나.
+    Ink {
+        /// 쪽.
+        page: u32,
+        /// 지나간 점들.
+        points: Vec<(f32, f32)>,
+        /// 색.
+        color: String,
+        /// 굵기(pt).
+        width: f32,
+    },
+    /// 메모(아이콘 + 내용).
+    Note {
+        /// 쪽.
+        page: u32,
+        /// 아이콘 왼쪽.
+        x: f32,
+        /// 아이콘 위.
+        y: f32,
+        /// 내용.
+        text: String,
+    },
+}
+
+/// 쪽 편집.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PageOp {
+    /// 시계 방향으로 90도 × `quarter_turns`(음수면 반시계).
+    Rotate {
+        /// 쪽.
+        page: u32,
+        /// 90도 단위 횟수.
+        quarter_turns: i32,
+    },
+    /// 지운다(마지막 한 쪽은 지울 수 없다).
+    Delete {
+        /// 쪽.
+        page: u32,
+    },
+    /// `from` 쪽을 `to` 자리로 옮긴다.
+    Move {
+        /// 옮길 쪽.
+        from: u32,
+        /// 갈 자리(옮긴 뒤의 번호).
+        to: u32,
+    },
+}
+
+/// 커서 이동 방향.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CaretMotion {
+    /// 한 글자 앞(문단 처음이면 앞 문단 끝).
+    Left,
+    /// 한 글자 뒤(문단 끝이면 다음 문단 처음).
+    Right,
+    /// 지금 줄의 처음.
+    LineStart,
+    /// 지금 줄의 끝.
+    LineEnd,
+    /// 문서 처음.
+    DocumentStart,
+    /// 문서 끝.
+    DocumentEnd,
+}
+
+/// 편집 결과: 커서가 갈 위치.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EditOutcome {
+    /// 편집 뒤 커서 위치.
+    pub caret: TextPos,
 }
 
 /// 목차 항목.

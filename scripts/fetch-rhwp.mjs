@@ -28,6 +28,9 @@ const PATHS = [
   "/crates/",
   // 빈 문서 템플릿(include_bytes!)
   "/saved/blank2010.hwp",
+  // 한글 글꼴(OFL-1.1): PDF 텍스트 상자에 넣고, 한글 글꼴이 없는 PC 에서 HWP 대체 글꼴로 쓴다.
+  "/ttfs/opensource/NotoSansKR-Regular.ttf",
+  "/ttfs/opensource/NotoSansKR-OFL.txt",
 ];
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");

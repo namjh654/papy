@@ -1,7 +1,9 @@
 //! 테스트 문서는 rhwp 로 직접 만든다 — 저작권 문제가 없고 내용이 정확히 알려져 있다.
 
 use super::*;
-use papy_render::CancelToken;
+use papy_model::{Alignment, CharFormat, PageSize, ParaFormat, TextPos};
+use papy_render::{CancelToken, RenderRequest};
+use rhwp::document_core::DocumentCore;
 
 /// 쪽마다 "Papy 쪽 N" 한 줄을 가진 문서. `hwpx` 면 HWPX, 아니면 HWP 5.x 바이트.
 pub(crate) fn sample(pages: usize, hwpx: bool, password: Option<&str>) -> Vec<u8> {
@@ -214,4 +216,209 @@ fn page_info_parsing() {
     );
     assert_eq!(parse_page_size(r#"{"width":0,"height":10}"#), None);
     assert_eq!(parse_page_size("not json"), None);
+}
+
+// ---- 편집 ----
+
+fn editable(text_pages: usize) -> Box<dyn Document> {
+    open(
+        HwpBackend::hwpx(),
+        sample(text_pages, true, None),
+        &options(),
+    )
+    .unwrap()
+}
+
+fn pos(paragraph: u32, offset: u32) -> TextPos {
+    TextPos {
+        section: 0,
+        paragraph,
+        offset,
+    }
+}
+
+fn all_text(doc: &mut Box<dyn Document>) -> String {
+    let pages = doc.info().page_count;
+    (0..pages)
+        .map(|page| doc.extract_text(page).unwrap())
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+#[test]
+fn edit_insert_delete_undo_redo() {
+    let mut doc = editable(1);
+    assert!(doc.info().capabilities.edit);
+    // "Papy 쪽 1" → 앞에 "새 " 를 넣는다.
+    let caret = doc.insert_text(pos(0, 0), "새 ").unwrap().caret;
+    assert_eq!(caret, pos(0, 2));
+    assert!(all_text(&mut doc).starts_with("새 Papy"));
+
+    // 줄바꿈은 문단 나누기
+    let caret = doc.insert_text(caret, "첫줄\n둘째").unwrap().caret;
+    assert_eq!(caret, pos(1, 2));
+    assert_eq!(
+        doc.text_in_range(pos(0, 0), pos(1, 2)).unwrap(),
+        "새 첫줄\n둘째"
+    );
+
+    // 문단 처음에서 지우면 앞 문단과 합친다.
+    let caret = doc.delete_backward(pos(1, 0)).unwrap().caret;
+    assert_eq!(caret, pos(0, 4)); // "새 첫줄" 끝
+    assert!(all_text(&mut doc).starts_with("새 첫줄둘째"));
+    let caret = doc.delete_forward(pos(0, 0)).unwrap().caret;
+    assert_eq!(caret, pos(0, 0));
+    assert!(all_text(&mut doc).starts_with(" 첫줄둘째"));
+
+    // 되돌리기 3번: 지우기, 합치기, 입력 두 번(공백·줄바꿈이 있어 각각 한 단계)
+    assert!(doc.undo().unwrap().is_some());
+    assert!(all_text(&mut doc).starts_with("새 첫줄둘째"));
+    doc.undo().unwrap();
+    doc.undo().unwrap();
+    doc.undo().unwrap();
+    assert!(all_text(&mut doc).starts_with("Papy 쪽 1"));
+    assert!(doc.undo().unwrap().is_none());
+    doc.redo().unwrap();
+    assert!(all_text(&mut doc).starts_with("새 Papy"));
+}
+
+#[test]
+fn typing_is_one_undo_step() {
+    let mut doc = editable(1);
+    let mut caret = pos(0, 0);
+    for ch in ["가", "나", "다"] {
+        caret = doc.insert_text(caret, ch).unwrap().caret;
+    }
+    assert!(all_text(&mut doc).starts_with("가나다Papy"));
+    doc.undo().unwrap();
+    assert!(all_text(&mut doc).starts_with("Papy"));
+    assert!(doc.undo().unwrap().is_none());
+}
+
+#[test]
+fn caret_and_hit_test_agree() {
+    let mut doc = editable(1);
+    let rect = doc.caret_rect(pos(0, 3)).unwrap();
+    assert_eq!(rect.page, 0);
+    assert!(rect.height > 5.0 && rect.x > 50.0, "{rect:?}");
+    let hit = doc
+        .hit_test(0, rect.x + 0.5, rect.y + rect.height / 2.0)
+        .unwrap();
+    assert_eq!(hit, pos(0, 3));
+    let rects = doc.selection_rects(pos(0, 0), pos(0, 4)).unwrap();
+    assert_eq!(rects.len(), 1);
+    assert!(rects[0].width > 10.0);
+}
+
+#[test]
+fn formatting() {
+    let mut doc = editable(1);
+    let format = CharFormat {
+        bold: Some(true),
+        font_size: Some(20.0),
+        color: Some("#ff0000".into()),
+        ..CharFormat::default()
+    };
+    doc.apply_char_format(pos(0, 0), pos(0, 4), &format)
+        .unwrap();
+    let read = doc.char_format(pos(0, 2)).unwrap();
+    assert_eq!(read.bold, Some(true));
+    assert_eq!(read.font_size, Some(20.0));
+    assert_eq!(read.color.as_deref(), Some("#ff0000"));
+    assert_eq!(doc.char_format(pos(0, 6)).unwrap().bold, Some(false));
+
+    doc.apply_para_format(
+        pos(0, 0),
+        pos(0, 0),
+        &ParaFormat {
+            alignment: Some(Alignment::Center),
+            ..ParaFormat::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        doc.para_format(pos(0, 0)).unwrap().alignment,
+        Some(Alignment::Center)
+    );
+    doc.undo().unwrap();
+    assert_ne!(
+        doc.para_format(pos(0, 0)).unwrap().alignment,
+        Some(Alignment::Center)
+    );
+}
+
+#[test]
+fn page_count_follows_edits() {
+    let mut doc = editable(1);
+    let mut caret = pos(0, 0);
+    for _ in 0..80 {
+        caret = doc.insert_text(caret, "긴 문단 내용\n").unwrap().caret;
+    }
+    assert!(doc.info().page_count >= 2, "{}", doc.info().page_count);
+    let last = doc.info().page_count - 1;
+    assert!(doc.page_size(last).is_ok());
+    doc.render_page(last, &RenderRequest::with_scale(0.2))
+        .unwrap();
+}
+
+#[test]
+fn save_in_every_format() {
+    let mut doc = editable(1);
+    doc.insert_text(pos(0, 0), "저장됨 ").unwrap();
+    for format in [SaveFormat::Hwpx, SaveFormat::Hwp] {
+        let bytes = doc.save(format).unwrap();
+        let backend = if format == SaveFormat::Hwpx {
+            HwpBackend::hwpx()
+        } else {
+            HwpBackend::hwp()
+        };
+        let mut reopened = open(backend, bytes, &options()).unwrap();
+        assert!(
+            reopened.extract_text(0).unwrap().starts_with("저장됨 Papy"),
+            "{format:?}"
+        );
+    }
+    assert!(doc.save(SaveFormat::Pdf).unwrap().starts_with(b"%PDF-"));
+    let text = String::from_utf8(doc.save(SaveFormat::Text).unwrap()).unwrap();
+    assert!(text.starts_with("저장됨 Papy 쪽 1"));
+}
+
+#[test]
+fn encrypted_documents_stay_encrypted() {
+    let with_password = BackendOpenOptions {
+        password: Some("papy-pw".into()),
+        ..options()
+    };
+    let mut doc = open(
+        HwpBackend::hwpx(),
+        sample(1, true, Some("papy-pw")),
+        &with_password,
+    )
+    .unwrap();
+    doc.insert_text(pos(0, 0), "비밀 ").unwrap();
+    let saved = doc.save(SaveFormat::Hwpx).unwrap();
+    let error = open(HwpBackend::hwpx(), saved.clone(), &options())
+        .err()
+        .unwrap();
+    assert_eq!(error.code, ErrorCode::PasswordRequired);
+    let mut reopened = open(HwpBackend::hwpx(), saved, &with_password).unwrap();
+    assert!(reopened.extract_text(0).unwrap().starts_with("비밀 Papy"));
+}
+
+#[test]
+fn caret_motion() {
+    use papy_model::CaretMotion::*;
+    let mut doc = editable(1);
+    // 범위 밖 위치는 거절한다.
+    assert_eq!(
+        doc.insert_text(pos(0, 9), "x").unwrap_err().code,
+        ErrorCode::InvalidArgument
+    );
+    doc.insert_text(pos(0, 8), "\n둘째").unwrap();
+    assert_eq!(doc.move_caret(pos(1, 0), Left).unwrap(), pos(0, 8));
+    assert_eq!(doc.move_caret(pos(0, 8), Right).unwrap(), pos(1, 0));
+    assert_eq!(doc.move_caret(pos(0, 3), LineStart).unwrap(), pos(0, 0));
+    assert_eq!(doc.move_caret(pos(0, 3), LineEnd).unwrap(), pos(0, 8));
+    assert_eq!(doc.move_caret(pos(1, 1), DocumentStart).unwrap(), pos(0, 0));
+    assert_eq!(doc.move_caret(pos(0, 1), DocumentEnd).unwrap(), pos(1, 2));
 }

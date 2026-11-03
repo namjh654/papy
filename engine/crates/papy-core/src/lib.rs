@@ -22,7 +22,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 pub use papy_model::{
-    Capabilities, DocumentFormat, DocumentInfo, Error, ErrorCode, OutlineItem, PageSize, Result,
+    Alignment, Annotation, Capabilities, CaretMotion, CharFormat, DocumentFormat, DocumentInfo,
+    EditOutcome, Error, ErrorCode, MarkupKind, OutlineItem, PageOp, PageRect, PageSize, ParaFormat,
+    Result, SaveFormat, TextPos,
 };
 pub use papy_render::{
     BackendOpenOptions, Bitmap, CancelToken, Document, FormatBackend, RenderRequest, Source,
@@ -87,6 +89,15 @@ impl Default for Limits {
     }
 }
 
+/// 앱이 함께 배포하는 엔진용 파일.
+#[derive(Debug, Clone)]
+pub struct EngineResources {
+    /// PDFium 동적 라이브러리.
+    pub pdfium_library: PathBuf,
+    /// 한글 TrueType 글꼴(Noto Sans KR 등). PDF 텍스트 상자와, 시스템에 한글 글꼴이 없을 때 HWP 대체 글꼴로 쓴다.
+    pub korean_font: Option<PathBuf>,
+}
+
 /// 문서 원본.
 #[derive(Debug, Clone)]
 pub enum DocumentSource {
@@ -124,8 +135,18 @@ impl SessionId {
 }
 
 struct Session {
-    info: DocumentInfo,
+    /// 원본 크기. 편집해도 바뀌지 않는다(저장 결과 크기는 `save` 의 반환값).
+    byte_size: u64,
     document: Mutex<Box<dyn Document>>,
+}
+
+impl Session {
+    /// 편집으로 쪽 수가 바뀔 수 있어 매번 어댑터에서 읽는다.
+    fn info(&self, doc: &dyn Document) -> DocumentInfo {
+        let mut info = doc.info();
+        info.byte_size = self.byte_size;
+        info
+    }
 }
 
 /// 문서 엔진. 포맷 어댑터를 등록하고 열린 문서를 세션으로 관리한다.
@@ -162,8 +183,23 @@ impl Engine {
     /// PDF(PDFium)·HWPX·HWP 어댑터를 등록한 엔진. `pdfium_library` 는 PDFium 동적 라이브러리 파일 경로이며
     /// 첫 PDF 를 열 때 로드한다. 로드에 실패하면 PDF 열기만 `UnsupportedFormat` 으로 실패한다.
     pub fn with_pdfium(limits: Limits, pdfium_library: impl Into<PathBuf>) -> Self {
-        let mut backends: Vec<Box<dyn FormatBackend>> =
-            vec![Box::new(papy_pdf::PdfBackend::new(pdfium_library))];
+        Self::with_resources(
+            limits,
+            EngineResources {
+                pdfium_library: pdfium_library.into(),
+                korean_font: None,
+            },
+        )
+    }
+
+    /// 앱이 함께 배포하는 파일로 모든 어댑터를 등록한다.
+    pub fn with_resources(limits: Limits, resources: EngineResources) -> Self {
+        let mut pdf = papy_pdf::PdfBackend::new(resources.pdfium_library);
+        if let Some(font) = resources.korean_font {
+            papy_hwp::HwpBackend::set_fallback_font(&font);
+            pdf = pdf.with_text_font(font);
+        }
+        let mut backends: Vec<Box<dyn FormatBackend>> = vec![Box::new(pdf)];
         backends.extend(Self::hwp_backends());
         Self::with_backends(limits, backends)
     }
@@ -244,7 +280,7 @@ impl Engine {
         let id = SessionId::from_raw(self.next_id.fetch_add(1, Ordering::Relaxed))
             .ok_or_else(|| Error::new(ErrorCode::Internal, "session id overflow"))?;
         let session = Arc::new(Session {
-            info,
+            byte_size: info.byte_size,
             document: Mutex::new(document),
         });
         let mut sessions = self.sessions();
@@ -261,12 +297,14 @@ impl Engine {
 
     /// 문서 요약 정보.
     pub fn info(&self, id: SessionId) -> Result<DocumentInfo> {
-        Ok(self.session(id)?.info.clone())
+        let session = self.session(id)?;
+        let doc = lock(&session.document);
+        Ok(session.info(doc.as_ref()))
     }
 
     /// 페이지 수.
     pub fn page_count(&self, id: SessionId) -> Result<u32> {
-        Ok(self.session(id)?.info.page_count)
+        Ok(self.info(id)?.page_count)
     }
 
     /// 페이지 크기(pt).
@@ -316,6 +354,39 @@ impl Engine {
         doc.outline()
     }
 
+    /// 지금 상태를 `format` 으로 직렬화한다. 파일 쓰기는 호출자가 한다(임시 파일에 쓴 뒤 바꿔치기 권장).
+    pub fn save(&self, id: SessionId, format: SaveFormat) -> Result<Vec<u8>> {
+        let session = self.session(id)?;
+        let mut doc = lock(&session.document);
+        if !doc.info().capabilities.save_formats.contains(&format) {
+            return Err(Error::new(
+                ErrorCode::NotImplemented,
+                format!("cannot save this document as {}", format.extension()),
+            ));
+        }
+        doc.save(format)
+    }
+
+    /// 편집 작업(본문 편집·주석·쪽 편집)을 한 번에 실행한다. 어느 것도 지원하지 않으면 `NotImplemented`.
+    ///
+    /// 클로저는 세션 잠금 안에서 돈다 — 그동안 같은 문서의 렌더는 기다린다.
+    pub fn edit<T>(
+        &self,
+        id: SessionId,
+        f: impl FnOnce(&mut dyn Document) -> Result<T>,
+    ) -> Result<T> {
+        let session = self.session(id)?;
+        let mut doc = lock(&session.document);
+        let capabilities = doc.info().capabilities;
+        if !(capabilities.edit || capabilities.annotate || capabilities.page_edit) {
+            return Err(Error::new(
+                ErrorCode::NotImplemented,
+                "editing is not supported for this document",
+            ));
+        }
+        f(doc.as_mut())
+    }
+
     /// 문서를 닫는다. 진행 중인 작업이 있으면 그 작업이 끝난 뒤 해제된다.
     pub fn close(&self, id: SessionId) -> Result<()> {
         self.sessions()
@@ -347,13 +418,13 @@ impl Engine {
         f: impl FnOnce(&mut dyn Document) -> Result<T>,
     ) -> Result<T> {
         let session = self.session(id)?;
-        if page >= session.info.page_count {
+        let mut doc = lock(&session.document);
+        if page >= doc.info().page_count {
             return Err(Error::new(
                 ErrorCode::PageOutOfRange,
                 format!("page {page} is out of range"),
             ));
         }
-        let mut doc = lock(&session.document);
         f(doc.as_mut())
     }
 

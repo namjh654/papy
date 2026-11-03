@@ -250,3 +250,262 @@ fn documents_are_usable_from_many_threads() {
         handle.join().unwrap();
     }
 }
+
+// ---- 편집 ----
+
+use papy_model::{Annotation, MarkupKind, PageOp, PageRect, SaveFormat};
+
+fn korean_font() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../vendor/rhwp/ttfs/opensource/NotoSansKR-Regular.ttf")
+}
+
+fn open_editable(pages: usize) -> Box<dyn Document> {
+    let bytes: Arc<[u8]> = Arc::from(sample_pdf(pages));
+    let options = BackendOpenOptions {
+        max_pages: 1000,
+        ..BackendOpenOptions::default()
+    };
+    PdfBackend::new(library())
+        .with_text_font(korean_font())
+        .open(Source::Bytes(&bytes), &options)
+        .unwrap()
+}
+
+/// 영역 안에서 조건에 맞는 픽셀 수.
+fn count_pixels(
+    bitmap: &Bitmap,
+    area: (u32, u32, u32, u32),
+    test: impl Fn(&[u8]) -> bool,
+) -> usize {
+    let (x0, y0, x1, y1) = area;
+    (y0..y1)
+        .flat_map(|y| (x0..x1).map(move |x| (x, y)))
+        .filter(|&(x, y)| test(&bitmap.pixels[((y * bitmap.width + x) * 4) as usize..][..4]))
+        .count()
+}
+
+fn render(doc: &mut Box<dyn Document>, page: u32) -> Bitmap {
+    doc.render_page(page, &RenderRequest::with_scale(1.0))
+        .unwrap()
+}
+
+/// 샘플의 "Hello Papy N" 글줄: 기준선이 화면 y=100, 24pt.
+const TEXT_AREA: PageRect = PageRect {
+    page: 0,
+    x: 30.0,
+    y: 70.0,
+    width: 240.0,
+    height: 40.0,
+};
+
+#[test]
+fn capabilities_and_text_rects() {
+    let mut doc = open_editable(1);
+    let caps = doc.info().capabilities;
+    assert!(caps.annotate && caps.page_edit && !caps.edit);
+    assert_eq!(caps.save_formats, vec![SaveFormat::Pdf, SaveFormat::Text]);
+    let rects = doc.text_rects(0, TEXT_AREA).unwrap();
+    assert_eq!(rects.len(), 1, "{rects:?}");
+    assert!(
+        rects[0].y > 70.0 && rects[0].y + rects[0].height < 110.0,
+        "{rects:?}"
+    );
+    assert!(
+        doc.text_rects(
+            0,
+            PageRect {
+                page: 0,
+                x: 10.0,
+                y: 360.0,
+                width: 20.0,
+                height: 20.0
+            }
+        )
+        .unwrap()
+        .is_empty()
+    );
+}
+
+#[test]
+fn markup_note_ink_and_text_box_render() {
+    let mut doc = open_editable(1);
+    let before = render(&mut doc, 0);
+    doc.annotate(&Annotation::Markup {
+        page: 0,
+        kind: MarkupKind::Highlight,
+        area: TEXT_AREA,
+        color: "#ffeb3b".into(),
+    })
+    .unwrap();
+    let yellow = |p: &[u8]| p[0] > 200 && p[1] > 200 && p[2] < 120;
+    let after = render(&mut doc, 0);
+    assert!(
+        count_pixels(&after, (40, 75, 200, 105), yellow)
+            > count_pixels(&before, (40, 75, 200, 105), yellow) + 200
+    );
+
+    doc.annotate(&Annotation::Ink {
+        page: 0,
+        points: vec![(10.0, 150.0), (120.0, 150.0)],
+        color: "#ff0000".into(),
+        width: 3.0,
+    })
+    .unwrap();
+    doc.annotate(&Annotation::TextBox {
+        page: 0,
+        x: 20.0,
+        y: 200.0,
+        text: "ABC".into(),
+        font_size: 20.0,
+        color: "#000000".into(),
+    })
+    .unwrap();
+    doc.annotate(&Annotation::TextBox {
+        page: 0,
+        x: 20.0,
+        y: 240.0,
+        text: "한글 상자".into(),
+        font_size: 20.0,
+        color: "#0000ff".into(),
+    })
+    .unwrap();
+    doc.annotate(&Annotation::Note {
+        page: 0,
+        x: 250.0,
+        y: 10.0,
+        text: "메모".into(),
+    })
+    .unwrap();
+    let after = render(&mut doc, 0);
+    let red = |p: &[u8]| p[0] > 200 && p[1] < 80 && p[2] < 80;
+    let dark = |p: &[u8]| p[0] < 100 && p[1] < 100 && p[2] < 100;
+    let blue = |p: &[u8]| p[2] > 180 && p[0] < 80 && p[1] < 80;
+    assert!(count_pixels(&after, (15, 146, 115, 154), red) > 150, "ink");
+    assert!(
+        count_pixels(&after, (18, 200, 80, 225), dark) > 30,
+        "latin text box"
+    );
+    assert!(
+        count_pixels(&after, (18, 240, 120, 265), blue) > 30,
+        "korean text box"
+    );
+    assert!(
+        count_pixels(&after, (248, 8, 272, 32), |p| p != [255, 255, 255, 255]) > 30,
+        "note icon"
+    );
+
+    // 저장 후 다시 열어도 남아 있다.
+    let saved = doc.save(SaveFormat::Pdf).unwrap();
+    let mut reopened = open_bytes(saved).unwrap();
+    let again = render(&mut reopened, 0);
+    assert!(count_pixels(&again, (15, 146, 115, 154), red) > 150);
+    assert!(count_pixels(&again, (18, 240, 120, 265), blue) > 30);
+    // CID 글꼴의 공백은 줄바꿈 없는 공백(U+00A0)으로 읽힌다.
+    assert!(
+        reopened
+            .extract_text(0)
+            .unwrap()
+            .replace('\u{a0}', " ")
+            .contains("한글 상자")
+    );
+}
+
+#[test]
+fn invalid_annotations_are_rejected_without_undo_step() {
+    let mut doc = open_editable(1);
+    let bad_color = Annotation::Ink {
+        page: 0,
+        points: vec![(0.0, 0.0), (1.0, 1.0)],
+        color: "red".into(),
+        width: 1.0,
+    };
+    assert_eq!(
+        doc.annotate(&bad_color).unwrap_err().code,
+        ErrorCode::InvalidArgument
+    );
+    let empty_area = Annotation::Markup {
+        page: 0,
+        kind: MarkupKind::Underline,
+        area: PageRect {
+            page: 0,
+            x: 0.0,
+            y: 380.0,
+            width: 10.0,
+            height: 10.0,
+        },
+        color: "#000000".into(),
+    };
+    assert_eq!(
+        doc.annotate(&empty_area).unwrap_err().code,
+        ErrorCode::InvalidArgument
+    );
+    let out_of_range = Annotation::Note {
+        page: 5,
+        x: 0.0,
+        y: 0.0,
+        text: "x".into(),
+    };
+    assert_eq!(
+        doc.annotate(&out_of_range).unwrap_err().code,
+        ErrorCode::PageOutOfRange
+    );
+    assert!(doc.undo().unwrap().is_none());
+}
+
+#[test]
+fn page_operations_and_undo() {
+    let mut doc = open_editable(3);
+    let first_line = |doc: &mut Box<dyn Document>, page: u32| doc.extract_text(page).unwrap();
+
+    doc.edit_pages(PageOp::Rotate {
+        page: 0,
+        quarter_turns: 1,
+    })
+    .unwrap();
+    assert_eq!(
+        doc.page_size(0).unwrap(),
+        PageSize {
+            width: 400.0,
+            height: 300.0
+        }
+    );
+    // 회전한 쪽에서도 화면 좌표로 주석이 맞는 자리에 간다: 글줄은 이제 화면 오른쪽 세로줄.
+    let rects = doc
+        .text_rects(
+            0,
+            PageRect {
+                page: 0,
+                x: 280.0,
+                y: 20.0,
+                width: 50.0,
+                height: 260.0,
+            },
+        )
+        .unwrap();
+    assert_eq!(rects.len(), 1, "{rects:?}");
+
+    doc.edit_pages(PageOp::Move { from: 2, to: 0 }).unwrap();
+    assert!(first_line(&mut doc, 0).contains("Hello Papy 3"));
+    assert!(first_line(&mut doc, 1).contains("Hello Papy 1"));
+
+    doc.edit_pages(PageOp::Delete { page: 1 }).unwrap();
+    assert_eq!(doc.info().page_count, 2);
+    assert!(first_line(&mut doc, 1).contains("Hello Papy 2"));
+
+    doc.undo().unwrap();
+    assert_eq!(doc.info().page_count, 3);
+    doc.undo().unwrap();
+    assert!(first_line(&mut doc, 0).contains("Hello Papy 1"));
+    doc.redo().unwrap();
+    assert!(first_line(&mut doc, 0).contains("Hello Papy 3"));
+
+    let mut single = open_editable(1);
+    assert_eq!(
+        single
+            .edit_pages(PageOp::Delete { page: 0 })
+            .unwrap_err()
+            .code,
+        ErrorCode::InvalidArgument
+    );
+}

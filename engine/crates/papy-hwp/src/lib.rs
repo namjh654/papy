@@ -11,10 +11,18 @@
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::{Arc, OnceLock};
 
-use papy_model::{Capabilities, DocumentFormat, DocumentInfo, Error, ErrorCode, PageSize, Result};
-use papy_render::{BackendOpenOptions, Bitmap, Document, FormatBackend, RenderRequest, Source};
+use papy_model::{
+    Capabilities, DocumentFormat, DocumentInfo, Error, ErrorCode, Result, SaveFormat,
+};
+use papy_render::{BackendOpenOptions, Bitmap, Document, FormatBackend, Source};
 use resvg::{tiny_skia, usvg};
-use rhwp::document_core::DocumentCore;
+use rhwp::wasm_api::HwpDocument as Rhwp;
+
+mod document;
+
+use document::HwpDocument;
+#[cfg(test)]
+use document::parse_page_size;
 
 /// HWPX 의 `mimetype` 항목 내용.
 pub const HWPX_MIMETYPE: &[u8] = b"application/hwp+zip";
@@ -24,9 +32,6 @@ pub const CFB_SIGNATURE: &[u8] = &[0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE
 
 const ZIP_LOCAL_HEADER: &[u8] = b"PK\x03\x04";
 const ZIP_LOCAL_HEADER_LEN: usize = 30;
-
-/// rhwp 가 페이지 좌표에 쓰는 DPI(px). 1pt = 96/72 px.
-const RHWP_DPI: f32 = 96.0;
 
 /// 앞부분 바이트가 CFB 시그니처로 시작하는지 본다.
 pub fn has_cfb_signature(head: &[u8]) -> bool {
@@ -79,6 +84,11 @@ impl HwpBackend {
         }
     }
 
+    /// 시스템에 한글 글꼴이 없을 때 쓸 글꼴 파일. 첫 렌더 전에 한 번 부른다(그 뒤에는 무시된다).
+    pub fn set_fallback_font(path: impl Into<std::path::PathBuf>) {
+        let _ = FALLBACK_FONT.set(path.into());
+    }
+
     /// 글꼴 목록을 미리 읽어 둔다. 첫 렌더가 느려지지 않게 앱 시작 때 백그라운드에서 부르면 좋다.
     pub fn warm_up() {
         let _ = svg_options();
@@ -101,14 +111,14 @@ impl FormatBackend for HwpBackend {
             Source::Bytes(bytes) => bytes,
         };
         let password = options.password.as_deref();
-        let core = guard(|| match password {
-            Some(password) => DocumentCore::from_bytes_with_password(bytes, password.as_bytes()),
-            None => DocumentCore::from_bytes(bytes),
+        let doc = guard(|| match password {
+            Some(password) => Rhwp::from_bytes_with_password(bytes, password.as_bytes()),
+            None => Rhwp::from_bytes(bytes),
         })?
         .map_err(|error| map_open_error(&error.to_string()))?;
         options.cancel.check()?;
 
-        let page_count = core.page_count();
+        let page_count = doc.page_count();
         if page_count > options.max_pages {
             return Err(Error::new(ErrorCode::LimitExceeded, "too many pages"));
         }
@@ -120,15 +130,22 @@ impl FormatBackend for HwpBackend {
             capabilities: Capabilities {
                 render: true,
                 extract_text: true,
+                save: true,
+                edit: true,
+                save_formats: vec![
+                    SaveFormat::Hwpx,
+                    SaveFormat::Hwp,
+                    SaveFormat::Pdf,
+                    SaveFormat::Text,
+                ],
                 ..Capabilities::default()
             },
         };
-        Ok(Box::new(HwpDocument {
-            core,
+        Ok(Box::new(HwpDocument::new(
+            doc,
             info,
-            sizes: vec![None; page_count as usize],
-            broken: false,
-        }))
+            options.password.clone(),
+        )))
     }
 }
 
@@ -151,86 +168,18 @@ fn map_open_error(message: &str) -> Error {
 }
 
 /// rhwp 호출을 패닉으로부터 지킨다.
-fn guard<T>(f: impl FnOnce() -> T) -> Result<T> {
+pub(crate) fn guard<T>(f: impl FnOnce() -> T) -> Result<T> {
     catch_unwind(AssertUnwindSafe(f))
         .map_err(|_| Error::new(ErrorCode::Internal, "HWP engine failed on this document"))
 }
 
-struct HwpDocument {
-    core: DocumentCore,
-    info: DocumentInfo,
-    sizes: Vec<Option<PageSize>>,
-    /// rhwp 가 패닉한 뒤에는 내부 상태를 믿을 수 없으니 더 부르지 않는다.
-    broken: bool,
-}
-
-impl HwpDocument {
-    fn call<T>(
-        &mut self,
-        f: impl FnOnce(&DocumentCore) -> std::result::Result<T, rhwp::HwpError>,
-        what: &str,
-    ) -> Result<T> {
-        if self.broken {
-            return Err(Error::new(
-                ErrorCode::Internal,
-                "document is unusable after an engine failure",
-            ));
-        }
-        match guard(|| f(&self.core)) {
-            Ok(result) => result
-                .map_err(|_| Error::new(ErrorCode::InvalidDocument, format!("could not {what}"))),
-            Err(error) => {
-                self.broken = true;
-                Err(error)
-            }
-        }
-    }
-}
-
-impl Document for HwpDocument {
-    fn info(&self) -> DocumentInfo {
-        self.info.clone()
-    }
-
-    fn page_size(&mut self, page: u32) -> Result<PageSize> {
-        if let Some(size) = self.sizes[page as usize] {
-            return Ok(size);
-        }
-        let json = self.call(|core| core.get_page_info_native(page), "read page size")?;
-        let size = parse_page_size(&json).ok_or_else(|| {
-            Error::new(ErrorCode::Internal, "unexpected page info from HWP engine")
-        })?;
-        self.sizes[page as usize] = Some(size);
-        Ok(size)
-    }
-
-    fn render_page(&mut self, page: u32, request: &RenderRequest) -> Result<Bitmap> {
-        let (width, height) = request.pixel_size(self.page_size(page)?);
-        request.cancel.check()?;
-        let svg = self.call(|core| core.render_page_svg_native(page), "lay out page")?;
-        request.cancel.check()?;
-        guard(|| rasterize(&svg, width, height, request.white_background))?
-    }
-
-    fn extract_text(&mut self, page: u32) -> Result<String> {
-        self.call(|core| core.extract_page_text_native(page), "extract text")
-    }
-}
-
-/// `get_page_info_native` 의 JSON(px, 96 DPI)에서 페이지 크기를 pt 로 읽는다.
-fn parse_page_size(json: &str) -> Option<PageSize> {
-    let value: serde_json::Value = serde_json::from_str(json).ok()?;
-    let px = |key: &str| value.get(key)?.as_f64().map(|v| v as f32);
-    let (width, height) = (px("width")?, px("height")?);
-    let pt = |px: f32| px * 72.0 / RHWP_DPI;
-    (width > 0.0 && height > 0.0).then(|| PageSize {
-        width: pt(width),
-        height: pt(height),
-    })
-}
-
 /// SVG 를 정확히 `width`×`height` 비트맵으로 그린다.
-fn rasterize(svg: &str, width: u32, height: u32, white_background: bool) -> Result<Bitmap> {
+pub(crate) fn rasterize(
+    svg: &str,
+    width: u32,
+    height: u32,
+    white_background: bool,
+) -> Result<Bitmap> {
     let tree = usvg::Tree::from_str(svg, svg_options()).map_err(|_| {
         Error::new(
             ErrorCode::Internal,
@@ -264,6 +213,8 @@ fn rasterize(svg: &str, width: u32, height: u32, white_background: bool) -> Resu
     })
 }
 
+static FALLBACK_FONT: OnceLock<std::path::PathBuf> = OnceLock::new();
+
 const KOREAN_SANS: &[&str] = &[
     "Malgun Gothic",
     "Apple SD Gothic Neo",
@@ -292,6 +243,10 @@ fn svg_options() -> &'static usvg::Options<'static> {
     OPTIONS.get_or_init(|| {
         let mut fonts = usvg::fontdb::Database::new();
         fonts.load_system_fonts();
+        if let Some(path) = FALLBACK_FONT.get() {
+            // 읽지 못하면(파일 없음 등) 시스템 글꼴만 쓴다.
+            let _ = fonts.load_font_file(path);
+        }
         // 문서가 지정한 글꼴이 없으면 generic(serif 등)으로 떨어진다. fontdb 기본값(Times New Roman 등)이
         // 설치돼 있지 않으면 글자가 통째로 빠지므로, 한글 글꼴 → 흔한 라틴 글꼴 → 아무 글꼴 순으로 반드시 채운다.
         let has = |fonts: &usvg::fontdb::Database, name: &str| {

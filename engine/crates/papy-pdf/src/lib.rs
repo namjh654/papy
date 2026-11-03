@@ -11,10 +11,13 @@ use std::sync::OnceLock;
 use std::sync::mpsc::{self, Sender};
 
 use papy_model::{
-    Capabilities, DocumentFormat, DocumentInfo, Error, ErrorCode, OutlineItem, PageSize, Result,
+    Annotation, Capabilities, DocumentFormat, DocumentInfo, EditOutcome, Error, ErrorCode,
+    OutlineItem, PageOp, PageRect, PageSize, Result, SaveFormat,
 };
 use papy_render::{BackendOpenOptions, Bitmap, Document, FormatBackend, RenderRequest, Source};
 use pdfium_render::prelude::*;
+
+mod edit;
 
 /// PDF 파일 시그니처.
 pub const SIGNATURE: &[u8] = b"%PDF-";
@@ -37,6 +40,7 @@ pub fn library_file_name() -> PathBuf {
 #[derive(Debug, Clone)]
 pub struct PdfBackend {
     library: PathBuf,
+    text_font: Option<PathBuf>,
 }
 
 impl PdfBackend {
@@ -45,7 +49,14 @@ impl PdfBackend {
     pub fn new(library: impl Into<PathBuf>) -> Self {
         Self {
             library: library.into(),
+            text_font: None,
         }
+    }
+
+    /// 텍스트 상자에 쓸 TrueType 글꼴(한글 포함). 없으면 라틴 글자만 넣을 수 있다.
+    pub fn with_text_font(mut self, font: impl Into<PathBuf>) -> Self {
+        self.text_font = Some(font.into());
+        self
     }
 
     /// 라이브러리를 지금 로드해 본다(앱 시작 시 진단용).
@@ -68,9 +79,13 @@ impl FormatBackend for PdfBackend {
         let password = options.password.clone();
         let max_pages = options.max_pages;
         let cancel = options.cancel.clone();
+        let text_font = self.text_font.clone();
         let (id, info) = worker.call(move |state| {
             cancel.check()?;
-            state.open(input, password.as_deref(), max_pages)
+            if text_font.is_some() {
+                state.text_font = text_font;
+            }
+            state.open(input, password, max_pages)
         })?;
         Ok(Box::new(PdfDocument {
             id,
@@ -148,8 +163,17 @@ impl Document for PdfDocument {
     fn extract_text(&mut self, page: u32) -> Result<String> {
         let id = self.id;
         self.worker.call(move |state| {
-            let page = state.page(id, page)?;
-            Ok(page.text().map_err(map_error)?.all())
+            let mut page = state.page(id, page)?;
+            // PDFium 은 회전한 쪽의 글자 순서를 잘못 읽는다. 잠깐 회전을 풀고 읽은 뒤 되돌린다
+            // (워커 스레드 안이라 그 사이 다른 작업이 끼어들지 않는다).
+            let rotation = page.rotation().map_err(map_error)?;
+            if rotation == PdfPageRenderRotation::None {
+                return Ok(page.text().map_err(map_error)?.all());
+            }
+            page.set_rotation(PdfPageRenderRotation::None);
+            let text = page.text().map(|text| text.all()).map_err(map_error);
+            page.set_rotation(rotation);
+            text
         })
     }
 
@@ -160,6 +184,67 @@ impl Document for PdfDocument {
             let mut budget = MAX_OUTLINE_ITEMS;
             Ok(outline_level(doc.bookmarks().root(), 0, &mut budget))
         })
+    }
+
+    fn save(&mut self, format: SaveFormat) -> Result<Vec<u8>> {
+        let id = self.id;
+        match format {
+            SaveFormat::Pdf => self
+                .worker
+                .call(move |state| state.doc(id)?.save_to_bytes().map_err(map_error)),
+            SaveFormat::Text => {
+                let mut text = String::new();
+                for page in 0..self.info.page_count {
+                    text.push_str(self.extract_text(page)?.trim_end_matches('\n'));
+                    text.push('\n');
+                }
+                Ok(text.into_bytes())
+            }
+            _ => Err(Error::new(
+                ErrorCode::NotImplemented,
+                "unsupported save format",
+            )),
+        }
+    }
+
+    fn annotate(&mut self, annotation: &Annotation) -> Result<()> {
+        let id = self.id;
+        let annotation = annotation.clone();
+        self.worker
+            .call(move |state| state.annotate(id, &annotation))
+    }
+
+    fn text_rects(&mut self, page: u32, area: PageRect) -> Result<Vec<PageRect>> {
+        let id = self.id;
+        self.worker
+            .call(move |state| state.text_rects(id, page, area))
+    }
+
+    fn edit_pages(&mut self, op: PageOp) -> Result<()> {
+        let id = self.id;
+        self.info.page_count = self.worker.call(move |state| state.edit_pages(id, op))?;
+        Ok(())
+    }
+
+    fn undo(&mut self) -> Result<Option<EditOutcome>> {
+        self.history(false)
+    }
+
+    fn redo(&mut self) -> Result<Option<EditOutcome>> {
+        self.history(true)
+    }
+}
+
+impl PdfDocument {
+    fn history(&mut self, redo: bool) -> Result<Option<EditOutcome>> {
+        let id = self.id;
+        let pages = self.worker.call(move |state| state.history(id, redo))?;
+        Ok(pages.map(|count| {
+            self.info.page_count = count;
+            EditOutcome {
+                caret: papy_model::TextPos::default(),
+            }
+        }))
     }
 }
 
@@ -258,22 +343,36 @@ enum Input {
     Bytes(Vec<u8>),
 }
 
+/// 워커가 가진 열린 문서 하나.
+struct Entry {
+    doc: pdfium_render::prelude::PdfDocument<'static>,
+    /// 되돌리기 스냅샷을 다시 열 때 쓴다.
+    password: Option<String>,
+    undo: Vec<Vec<u8>>,
+    redo: Vec<Vec<u8>>,
+    /// 텍스트 상자용으로 넣은 글꼴(문서마다 한 번).
+    font: Option<PdfFontToken>,
+}
+
 struct State {
     pdfium: &'static Pdfium,
-    docs: HashMap<u64, pdfium_render::prelude::PdfDocument<'static>>,
+    docs: HashMap<u64, Entry>,
     next_id: u64,
+    text_font: Option<PathBuf>,
 }
 
 impl State {
     fn open(
         &mut self,
         input: Input,
-        password: Option<&str>,
+        password: Option<String>,
         max_pages: u32,
     ) -> Result<(u64, DocumentInfo)> {
         let doc = match input {
-            Input::Path(path) => self.pdfium.load_pdf_from_file(&path, password),
-            Input::Bytes(bytes) => self.pdfium.load_pdf_from_byte_vec(bytes, password),
+            Input::Path(path) => self.pdfium.load_pdf_from_file(&path, password.as_deref()),
+            Input::Bytes(bytes) => self
+                .pdfium
+                .load_pdf_from_byte_vec(bytes, password.as_deref()),
         }
         .map_err(map_error)?;
         let page_count = u32::try_from(doc.pages().len()).unwrap_or(0);
@@ -294,17 +393,31 @@ impl State {
                 render: true,
                 extract_text: true,
                 outline: true,
-                save: false,
+                save: true,
+                annotate: true,
+                page_edit: true,
+                save_formats: vec![SaveFormat::Pdf, SaveFormat::Text],
+                ..Capabilities::default()
             },
         };
         self.next_id += 1;
-        self.docs.insert(self.next_id, doc);
+        self.docs.insert(
+            self.next_id,
+            Entry {
+                doc,
+                password,
+                undo: Vec::new(),
+                redo: Vec::new(),
+                font: None,
+            },
+        );
         Ok((self.next_id, info))
     }
 
     fn doc(&self, id: u64) -> Result<&pdfium_render::prelude::PdfDocument<'static>> {
         self.docs
             .get(&id)
+            .map(|entry| &entry.doc)
             .ok_or_else(|| Error::new(ErrorCode::SessionNotFound, "pdf document is closed"))
     }
 
@@ -344,6 +457,7 @@ impl Worker {
                     pdfium,
                     docs: HashMap::new(),
                     next_id: 0,
+                    text_font: None,
                 };
                 for job in inbox {
                     // 작업 하나가 패닉해도 워커는 계속 돈다. 호출자는 응답 채널이 끊겨 Internal 오류를 받는다.

@@ -13,9 +13,11 @@ interface Props {
   current: number;
   queue: RenderQueue;
   onGoTo(page: number): void;
+  /** 편집될 때마다 올라가는 번호 */
+  revision: number;
 }
 
-export function Sidebar({ doc, current, queue, onGoTo }: Props) {
+export function Sidebar({ doc, current, queue, onGoTo, revision }: Props) {
   const [tab, setTab] = useState<Tab>("thumbs");
   const [items, setItems] = useState<OutlineItem[]>([]);
 
@@ -42,15 +44,15 @@ export function Sidebar({ doc, current, queue, onGoTo }: Props) {
           ))}
       </div>
       <div className="sidebar-body">
-        {tab === "thumbs" && <Thumbnails doc={doc} current={current} queue={queue} onGoTo={onGoTo} />}
+        {tab === "thumbs" && <Thumbnails doc={doc} current={current} queue={queue} onGoTo={onGoTo} revision={revision} />}
         {tab === "outline" && <OutlineTree items={items} current={current} onGoTo={onGoTo} />}
-        {tab === "text" && <PageText doc={doc} page={current} />}
+        {tab === "text" && <PageText doc={doc} page={current} revision={revision} />}
       </div>
     </aside>
   );
 }
 
-function Thumbnails({ doc, current, queue, onGoTo }: Props) {
+function Thumbnails({ doc, current, queue, onGoTo, revision }: Props) {
   const list = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState<Set<number>>(new Set([0, 1, 2, 3, 4]));
 
@@ -72,7 +74,7 @@ function Thumbnails({ doc, current, queue, onGoTo }: Props) {
     );
     root.querySelectorAll("[data-page]").forEach((element) => observer.observe(element));
     return () => observer.disconnect();
-  }, [doc]);
+  }, [doc.id, doc.pageCount]);
 
   // 현재 쪽 썸네일이 보이게 따라간다.
   useEffect(() => {
@@ -103,6 +105,7 @@ function Thumbnails({ doc, current, queue, onGoTo }: Props) {
                 queue={queue}
                 priority={1000 + Math.abs(page - current)}
                 kind="thumb"
+                revision={revision}
               />
             ) : (
               <div className="page-canvas pending" style={{ width: THUMB_WIDTH, height }} />
@@ -147,7 +150,7 @@ function OutlineNode({ item, current, onGoTo }: { item: OutlineItem; current: nu
   );
 }
 
-function PageText({ doc, page }: { doc: OpenedDocument; page: number }) {
+function PageText({ doc, page, revision }: { doc: OpenedDocument; page: number; revision: number }) {
   const [text, setText] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -166,7 +169,7 @@ function PageText({ doc, page }: { doc: OpenedDocument; page: number }) {
       alive = false;
       clearTimeout(timer);
     };
-  }, [doc, page]);
+  }, [doc, page, revision]);
 
   const copy = async () => {
     if (!text) return;

@@ -35,6 +35,7 @@
 | `pdfium-render` (crate) | =0.9.5 (feature `pdfium_8125`) | `engine/crates/papy-pdf/Cargo.toml` | crates.io |
 | rhwp ([edwardkim/rhwp](https://github.com/edwardkim/rhwp)) | v0.8.7 (`1a76570e833917d15817415a53c09ad61ab3203f`) | `scripts/fetch-rhwp.mjs` | `node scripts/fetch-rhwp.mjs` (sparse, 약 47MB) |
 | `resvg` (crate) | =0.45.1 | `engine/crates/papy-hwp/Cargo.toml` | crates.io |
+| Noto Sans KR Regular (OFL-1.1) | rhwp v0.8.7 저장소 사본 | `scripts/fetch-rhwp.mjs` | rhwp 받을 때 함께 |
 
 두 스크립트를 한 번에: `pnpm engine:vendor`. 결과는 `engine/vendor/`(gitignore)에 들어간다. 엔진·데스크톱 빌드 전에 필요하다.
 
