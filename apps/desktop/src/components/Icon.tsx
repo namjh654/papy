@@ -25,6 +25,17 @@ const paths = {
   edit: "M4 20h4L19 9l-4-4L4 16zM13 7l4 4",
   eye: "M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z",
   export: "M12 3v12M7 8l5-5 5 5M5 14v6h14v-6",
+  cursor: "M5 3l14 8-6 2-2 6z",
+  highlighter: "M9 15l-3 3H3v-3l3-3M7 13l8-8 4 4-8 8zM4 21h16",
+  underline: "M7 4v6a5 5 0 0 0 10 0V4M5 20h14",
+  strike: "M5 12h14M16 7a4 3 0 0 0-8 0c0 4 8 2 8 6a4 3 0 0 1-8 0",
+  pen: "M12 19l7-7 3 3-7 7zM18 13l-1.5-7.5L2 2l3.5 14.5L13 18zM2 2l7.6 7.6M11 11a2 2 0 1 0 0-4 2 2 0 0 0 0 4z",
+  textbox: "M4 4h16v16H4zM8 9h8M12 9v7",
+  note: "M5 4h14v11l-4 4H5zM15 19v-4h4",
+  "rotate-left": "M4 9a8 8 0 1 1 1 7M4 4v5h5",
+  "rotate-right": "M20 9a8 8 0 1 0-1 7M20 4v5h-5",
+  "move-up": "M12 19V5M6 11l6-6 6 6",
+  "move-down": "M12 5v14M6 13l6 6 6-6",
 } as const;
 
 export type IconName = keyof typeof paths;

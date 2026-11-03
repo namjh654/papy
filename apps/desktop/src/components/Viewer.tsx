@@ -1,9 +1,10 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
-import type { OpenedDocument, PageRect, PageSize } from "../engine";
+import type { Annotation, OpenedDocument, PageRect, PageSize } from "../engine";
 import type { Editor } from "../editor/useEditor";
 import type { RenderQueue } from "../renderQueue";
 import { EditInput } from "./EditInput";
 import { PageCanvas } from "./PageCanvas";
+import { PdfLayer, type PdfToolSettings } from "./PdfLayer";
 
 /** 1pt 를 100% 배율에서 몇 CSS px 로 보이나(실제 크기). */
 export const PX_PER_PT = 96 / 72;
@@ -34,6 +35,8 @@ interface Props {
   editor: Editor | null;
   /** 편집될 때마다 올라가는 번호 */
   revision: number;
+  /** PDF 편집 모드일 때만 */
+  pdf: { settings: PdfToolSettings; onAnnotate(annotation: Annotation): Promise<void> } | null;
 }
 
 /** 쪽 크기에 맞춰 엔진 배율을 정한다: 화면 배율 × 기기 픽셀 비, 메모리 상한 안에서. */
@@ -46,7 +49,7 @@ export function renderScale(size: PageSize, cssPerPt: number): number {
 }
 
 export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(
-  { doc, zoom, queue, onPageChange, editor, revision },
+  { doc, zoom, queue, onPageChange, editor, revision, pdf },
   ref,
 ) {
   const scroller = useRef<HTMLDivElement>(null);
@@ -234,6 +237,9 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(
           kind="page"
           revision={revision}
         />
+        {pdf && (
+          <PdfLayer docId={doc.id} page={page} scale={cssPerPt} settings={pdf.settings} onAnnotate={pdf.onAnnotate} />
+        )}
         {marks.map((rect, index) => (
           <div
             key={index}

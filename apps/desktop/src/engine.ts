@@ -18,6 +18,10 @@ export interface OpenedDocument {
   canExtractText: boolean;
   hasOutline: boolean;
   canEdit: boolean;
+  /** PDF: 주석(형광펜·펜·텍스트 상자·메모) */
+  canAnnotate: boolean;
+  /** PDF: 쪽 회전·삭제·이동 */
+  canEditPages: boolean;
   /** 저장·변환 가능한 형식의 확장자(pdf, hwpx, hwp, txt) */
   saveFormats: string[];
   pages: PageSize[];
@@ -76,7 +80,31 @@ export type EditOp =
   | { kind: "paraFormat"; pos: TextPos }
   | { kind: "applyParaFormat"; start: TextPos; end: TextPos; format: ParaFormat }
   | { kind: "undo" }
-  | { kind: "redo" };
+  | { kind: "redo" }
+  | { kind: "textRects"; page: number; area: Area }
+  | { kind: "annotate"; annotation: Annotation }
+  | { kind: "editPages"; op: PageOp };
+
+/** 쪽 위 영역(pt, 화면에 보이는 쪽의 왼쪽 위 기준) */
+export interface Area {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export type MarkupKind = "highlight" | "underline" | "strikeOut";
+
+export type Annotation =
+  | { type: "textBox"; page: number; x: number; y: number; text: string; fontSize: number; color: string }
+  | { type: "markup"; page: number; kind: MarkupKind; area: Area; color: string }
+  | { type: "ink"; page: number; points: [number, number][]; color: string; width: number }
+  | { type: "note"; page: number; x: number; y: number; text: string };
+
+export type PageOp =
+  | { type: "rotate"; page: number; quarterTurns: number }
+  | { type: "delete"; page: number }
+  | { type: "move"; from: number; to: number };
 
 /** 위치 + 커서 사각형 */
 export interface Located {

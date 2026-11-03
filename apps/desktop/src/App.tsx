@@ -5,13 +5,19 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
   closeDocument,
   describeError,
+  edit,
   EngineError,
   ErrorCode,
   openDocument,
   pageLayout,
   saveDocument,
+  type Annotation,
+  type Changed,
+  type EditOp,
   type OpenedDocument,
 } from "./engine";
+import { PdfToolBar } from "./components/PdfToolBar";
+import type { PdfToolSettings } from "./components/PdfLayer";
 import { useEditor } from "./editor/useEditor";
 import { FormatBar } from "./components/FormatBar";
 import { clearRecent, forgetRecent, loadRecent, rememberRecent, type RecentFile } from "./recent";
@@ -33,8 +39,10 @@ type PasswordPrompt = { path: string; fileName: string; retry: boolean; attempt:
 const fileNameOf = (path: string) => path.split(/[\\/]/).pop() ?? path;
 const extensionOf = (path: string) => (/\.([^.\\/]+)$/.exec(path)?.[1] ?? "").toLowerCase();
 const stemOf = (name: string) => name.replace(/\.[^.]+$/, "");
-/** 편집한 내용을 그대로 다시 열 수 있는 형식(저장하면 이 파일이 작업 파일이 된다) */
-const EDITABLE = ["hwpx", "hwp"];
+/** 편집한 내용을 그대로 다시 열 수 있는 형식(저장하면 이 파일이 작업 파일이 된다). 나머지는 내보내기. */
+const workFormats = (doc: OpenedDocument) =>
+  doc.format === "PDF" ? ["pdf"] : doc.saveFormats.filter((ext) => ext === "hwpx" || ext === "hwp");
+const canModify = (doc: OpenedDocument | null) => !!doc && (doc.canEdit || doc.canAnnotate || doc.canEditPages);
 const FORMAT_NAMES: Record<string, string> = { hwpx: "HWPX 문서", hwp: "HWP 문서", pdf: "PDF", txt: "텍스트" };
 const clampZoom = (zoom: number) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoom));
 
@@ -53,6 +61,12 @@ export function App() {
   const [dirty, setDirty] = useState(false);
   const [revision, setRevision] = useState(0);
   const [notice, setNotice] = useState<string | null>(null);
+  const [pdfSettings, setPdfSettings] = useState<PdfToolSettings>({
+    tool: "highlight",
+    color: "#facc15",
+    penWidth: 2,
+    fontSize: 14,
+  });
 
   const viewer = useRef<ViewerHandle>(null);
   const main = useRef<HTMLDivElement>(null);
@@ -80,6 +94,36 @@ export function App() {
     onError: (caught) => setError(describeError(caught)),
   });
 
+  // ---- PDF 편집(주석·쪽) ----
+
+  /** 바뀐 뒤: 다시 그리기, 쪽 크기 다시 받기(회전·삭제·이동으로 바뀐다). */
+  const refreshAfterPdfChange = useCallback(() => {
+    setDirty(true);
+    setRevision((value) => value + 1);
+    const current = docRef.current;
+    if (!current) return;
+    void pageLayout(current.id).then((pages) =>
+      setDoc((old) => (old && old.id === current.id ? { ...old, pages, pageCount: pages.length } : old)),
+    );
+  }, []);
+
+  const pdfEdit = useCallback(
+    async (op: EditOp) => {
+      const current = docRef.current;
+      if (!current) return;
+      try {
+        const reply = await edit<Changed>(current.id, op);
+        if (reply.changed) refreshAfterPdfChange();
+      } catch (caught) {
+        setError(describeError(caught));
+      }
+    },
+    [refreshAfterPdfChange],
+  );
+
+  const annotate = useCallback((annotation: Annotation) => pdfEdit({ kind: "annotate", annotation }), [pdfEdit]);
+  const pdfMode = mode === "edit" && !!doc && !doc.canEdit && (doc.canAnnotate || doc.canEditPages);
+
   // ---- 저장 ----
 
   /** 작업 파일로 저장(HWP/HWPX). 성공하면 true. */
@@ -103,7 +147,7 @@ export function App() {
   const saveAs = useCallback(async () => {
     const current = docRef.current;
     if (!current) return false;
-    const formats = current.saveFormats.filter((ext) => EDITABLE.includes(ext));
+    const formats = workFormats(current);
     if (formats.length === 0) return false;
     const preferred = formats.includes(extensionOf(current.path)) ? extensionOf(current.path) : formats[0]!;
     const chosen = await saveDialog({
@@ -114,7 +158,7 @@ export function App() {
       })),
     });
     if (!chosen) return false;
-    const path = EDITABLE.includes(extensionOf(chosen)) ? chosen : `${chosen}.${preferred}`;
+    const path = formats.includes(extensionOf(chosen)) ? chosen : `${chosen}.${preferred}`;
     return saveTo(path);
   }, [saveTo]);
 
@@ -122,7 +166,7 @@ export function App() {
     const current = docRef.current;
     if (!current) return false;
     // 원래 형식으로 다시 쓸 수 있으면 덮어쓴다. 아니면(PDF 등) 다른 이름으로 저장한다.
-    if (current.saveFormats.includes(extensionOf(current.path)) && EDITABLE.includes(extensionOf(current.path))) {
+    if (workFormats(current).includes(extensionOf(current.path))) {
       return saveTo(current.path);
     }
     return saveAs();
@@ -235,7 +279,7 @@ export function App() {
   }, [queue, confirmDiscard]);
 
   const toggleMode = useCallback(() => {
-    setMode((value) => (value === "view" && docRef.current?.canEdit ? "edit" : "view"));
+    setMode((value) => (value === "view" && canModify(docRef.current) ? "edit" : "view"));
   }, []);
 
   // ---- 배율 ----
@@ -316,6 +360,11 @@ export function App() {
       } else if (mod && key === "e") {
         event.preventDefault();
         toggleMode();
+      } else if (pdfMode && mod && (key === "z" || (key === "y" && !event.metaKey))) {
+        event.preventDefault();
+        void pdfEdit({ kind: key === "z" && !event.shiftKey ? "undo" : "redo" });
+      } else if (pdfMode && event.key === "Escape") {
+        setPdfSettings((settings) => ({ ...settings, tool: "select" }));
       } else if (mod && (event.key === "=" || event.key === "+")) {
         event.preventDefault();
         zoomStep(1);
@@ -338,7 +387,7 @@ export function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [chooseFile, zoomStep, goTo, current, password, save, saveAs, toggleMode]);
+  }, [chooseFile, zoomStep, goTo, current, password, save, saveAs, toggleMode, pdfMode, pdfEdit]);
 
   // 오류 안내는 잠시 뒤 사라진다.
   useEffect(() => {
@@ -373,12 +422,28 @@ export function App() {
         onZoomStep={zoomStep}
         mode={mode}
         dirty={dirty}
-        onMode={(next) => setMode(next === "edit" && doc?.canEdit ? "edit" : "view")}
+        onMode={(next) => setMode(next === "edit" && canModify(doc) ? "edit" : "view")}
         onSave={() => void save()}
         onSaveAs={() => void saveAs()}
         onExport={(ext) => void exportAs(ext)}
       />
-      {doc && mode === "edit" && <FormatBar editor={editor} refocus={() => viewer.current?.focusInput()} />}
+      {doc && mode === "edit" && doc.canEdit && <FormatBar editor={editor} refocus={() => viewer.current?.focusInput()} />}
+      {doc && pdfMode && (
+        <PdfToolBar
+          doc={doc}
+          current={current}
+          settings={pdfSettings}
+          onSettings={setPdfSettings}
+          onUndo={() => void pdfEdit({ kind: "undo" })}
+          onRedo={() => void pdfEdit({ kind: "redo" })}
+          onPages={(op) =>
+            void pdfEdit({ kind: "editPages", op }).then(() => {
+              // 옮긴 쪽을 계속 보여 준다(쪽 크기 목록이 갱신된 뒤).
+              if (op.type === "move") setTimeout(() => goTo(op.to), 150);
+            })
+          }
+        />
+      )}
       <div className="workspace">
         {doc && sidebarOpen && <Sidebar doc={doc} current={current} queue={queue} onGoTo={goTo} revision={revision} />}
         <main className="main" ref={main}>
@@ -390,8 +455,9 @@ export function App() {
               zoom={zoom}
               queue={queue}
               onPageChange={setCurrent}
-              editor={mode === "edit" ? editor : null}
+              editor={mode === "edit" && doc.canEdit ? editor : null}
               revision={revision}
+              pdf={pdfMode ? { settings: pdfSettings, onAnnotate: annotate } : null}
             />
           ) : (
             <Welcome

@@ -5,18 +5,18 @@ Source-available cross-platform document viewer and editor (PolyForm Noncommerci
 PDF 와 한국어 문서(HWP/HWPX)를 우선 지원하는 **비상업 용도 무료·오프라인 우선** 통합 문서 앱입니다.
 회원가입·광고·서버 업로드 없이, 사용자가 선택한 파일만 로컬에서 엽니다.
 
-> **상태: 초기 개발 단계.** 데스크톱 앱에서 PDF·HWP·HWPX 를 열어 볼 수 있지만 아직 배포하지 않았습니다(안정화 중).
+> **상태: 초기 개발 단계.** 데스크톱 앱에서 PDF·HWP·HWPX 를 열어 보고 편집·저장할 수 있지만 아직 배포하지 않았습니다(안정화 중).
 > 지원 포맷·기능은 실제 테스트 문서와 회귀 테스트로 검증된 범위만 이 README 에 표시합니다.
 
 ## 현재 구현 상태
 
 | 영역 | 상태 |
 |---|---|
-| Rust 엔진 (`engine/`) | 세션·상한·취소·오류 코드, 포맷 판별. PDF = PDFium(`papy-pdf`), HWP/HWPX = rhwp(`papy-hwp`): 열기·렌더·텍스트, PDF 목차, 암호 문서 |
-| 데스크톱 (`apps/desktop/`) | Tauri 2 뷰어: 열기(대화상자·끌어다 놓기), 연속 스크롤, 쪽 이동, 확대/축소·맞춤, 썸네일·목차·텍스트 사이드바, 암호 입력, 최근 문서, 라이트/다크. macOS·Windows·Linux 패키징을 CI 에서 빌드 |
+| Rust 엔진 (`engine/`) | 세션·상한·취소·오류 코드, 포맷 판별. PDF = PDFium(`papy-pdf`), HWP/HWPX = rhwp(`papy-hwp`): 열기·렌더·텍스트, PDF 목차, 암호 문서. 편집: HWP/HWPX 본문(입력·서식·되돌리기), PDF 주석·쪽 편집. 저장·변환: HWPX·HWP·PDF·텍스트 |
+| 데스크톱 (`apps/desktop/`) | Tauri 2. 보기 모드: 열기(대화상자·끌어다 놓기), 연속 스크롤, 확대/축소, 썸네일·목차·텍스트 사이드바, 암호, 최근 문서. 편집 모드(⌘E): HWP/HWPX 글자 입력·한글 입력기·서식·정렬, PDF 형광펜·밑줄·취소선·펜·텍스트 상자·메모·쪽 회전/삭제/이동. 저장(⌘S)·다른 이름으로 저장·다른 형식으로 내보내기. macOS·Windows·Linux 패키징을 CI 에서 빌드 |
 | 웹 (`apps/web/`) | Vite + React 골격. 문서 기능 없음 |
 | 모바일 (`apps/mobile/`) | 기존 KMP 템플릿([namjh654/kmp](https://github.com/namjh654/kmp)) 편입. 아직 Papy 기능·엔진 연결 없음 |
-| Office (DOCX 등) | 미구현 |
+| Office (DOCX 등) | 미구현 — 다음 단계: DOCX 읽기·쓰기 변환기 + rhwp 엔진 재사용(결정 2026-11-03) |
 
 ## 디렉터리
 

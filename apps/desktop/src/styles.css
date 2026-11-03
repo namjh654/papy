@@ -273,3 +273,28 @@ button:disabled { cursor: default; opacity: 0.4; }
   background: #fff; color: #111827; border-bottom: 2px solid var(--brand); white-space: pre; pointer-events: none;
   line-height: 1;
 }
+
+/* ---- PDF 편집 ---- */
+.pdf-layer { position: absolute; inset: 0; z-index: 1; touch-action: none; }
+.pdf-layer.tool-select { pointer-events: none; }
+.pdf-layer.tool-highlight, .pdf-layer.tool-underline, .pdf-layer.tool-strikeOut { cursor: text; }
+.pdf-layer.tool-pen { cursor: crosshair; }
+.pdf-layer.tool-text, .pdf-layer.tool-note { cursor: copy; }
+.pdf-drag { position: absolute; border: 1px dashed var(--brand); background: rgb(37 99 235 / 0.08); pointer-events: none; }
+.pdf-preview { position: absolute; pointer-events: none; }
+.pdf-preview.highlight { background: color-mix(in srgb, var(--mark) 45%, transparent); mix-blend-mode: multiply; }
+.pdf-preview.underline { border-bottom: 2px solid var(--mark); }
+.pdf-preview.strikeOut { background: linear-gradient(transparent 45%, var(--mark) 45%, var(--mark) 58%, transparent 58%); }
+.pdf-stroke { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+.pdf-draft { position: absolute; z-index: 3; display: flex; flex-direction: column; gap: 4px; }
+.pdf-draft textarea {
+  min-width: 120px; resize: none; overflow: hidden; padding: 2px 4px; margin: -3px 0 0 -5px;
+  font-family: "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  border: 1.5px dashed var(--brand); border-radius: 4px; background: rgb(255 255 255 / 0.92); outline: none;
+}
+.pdf-draft.note textarea { width: 220px; font-size: 13px; color: #111827; background: #fef9c3; border: 1px solid #eab308; }
+.pdf-draft-hint { font-size: 11px; color: var(--muted); background: var(--bg); padding: 1px 6px; border-radius: 4px; width: max-content; }
+.bar-label { font-size: 12px; color: var(--muted); margin: 0 4px; }
+.inline-field { display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; font-size: 12px; color: var(--muted); }
+.inline-field select { padding: 3px 4px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg-soft); color: var(--fg); }
+.icon.danger:hover:not(:disabled) { color: var(--danger); }

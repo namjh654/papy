@@ -73,9 +73,13 @@ export function Toolbar(props: Props) {
             <button
               role="radio"
               aria-checked={props.mode === "edit"}
-              disabled={!doc.canEdit}
+              disabled={!(doc.canEdit || doc.canAnnotate || doc.canEditPages)}
               onClick={() => props.onMode("edit")}
-              title={doc.canEdit ? `편집 모드 (${mod}E)` : "이 형식은 아직 편집할 수 없습니다"}
+              title={
+                doc.canEdit || doc.canAnnotate || doc.canEditPages
+                  ? `편집 모드 (${mod}E)`
+                  : "이 형식은 아직 편집할 수 없습니다"
+              }
             >
               <Icon name="edit" size={15} /> 편집
             </button>

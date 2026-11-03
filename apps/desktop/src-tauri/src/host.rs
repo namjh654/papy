@@ -4,8 +4,9 @@
 use std::path::PathBuf;
 
 use papy_core::{
-    Alignment, CaretMotion, CharFormat, Document, DocumentSource, Engine, Error, ErrorCode,
-    OpenOptions, OutlineItem, PageRect, ParaFormat, RenderRequest, SaveFormat, SessionId, TextPos,
+    Alignment, Annotation, CaretMotion, CharFormat, Document, DocumentSource, Engine, Error,
+    ErrorCode, MarkupKind, OpenOptions, OutlineItem, PageOp, PageRect, ParaFormat, RenderRequest,
+    SaveFormat, SessionId, TextPos,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -34,6 +35,8 @@ pub struct OpenedDocument {
     can_extract_text: bool,
     has_outline: bool,
     can_edit: bool,
+    can_annotate: bool,
+    can_edit_pages: bool,
     /// 저장·변환 가능한 형식의 확장자.
     save_formats: Vec<&'static str>,
     /// 쪽마다 크기(pt). 앱이 스크롤 영역을 미리 잡는 데 쓴다.
@@ -189,6 +192,142 @@ pub enum EditOp {
     },
     Undo,
     Redo,
+    /// 영역 안 글줄 사각형(형광펜 미리 보기).
+    TextRects {
+        page: u32,
+        area: RectDto,
+    },
+    Annotate {
+        annotation: AnnotationDto,
+    },
+    EditPages {
+        op: PageOpDto,
+    },
+}
+
+#[derive(Debug, Clone, Copy, Deserialize)]
+pub struct RectDto {
+    x: f32,
+    y: f32,
+    width: f32,
+    height: f32,
+}
+
+/// 주석 요청. 좌표는 pt(화면에 보이는 쪽의 왼쪽 위 기준), 색은 `#rrggbb`.
+#[derive(Debug, Deserialize)]
+#[serde(
+    tag = "type",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum AnnotationDto {
+    TextBox {
+        page: u32,
+        x: f32,
+        y: f32,
+        text: String,
+        font_size: f32,
+        color: String,
+    },
+    /// kind: highlight | underline | strikeOut
+    Markup {
+        page: u32,
+        kind: String,
+        area: RectDto,
+        color: String,
+    },
+    Ink {
+        page: u32,
+        points: Vec<(f32, f32)>,
+        color: String,
+        width: f32,
+    },
+    Note {
+        page: u32,
+        x: f32,
+        y: f32,
+        text: String,
+    },
+}
+
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(
+    tag = "type",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum PageOpDto {
+    Rotate { page: u32, quarter_turns: i32 },
+    Delete { page: u32 },
+    Move { from: u32, to: u32 },
+}
+
+fn page_rect(page: u32, rect: RectDto) -> PageRect {
+    PageRect {
+        page,
+        x: rect.x,
+        y: rect.y,
+        width: rect.width,
+        height: rect.height,
+    }
+}
+
+fn annotation(dto: AnnotationDto) -> papy_core::Result<Annotation> {
+    Ok(match dto {
+        AnnotationDto::TextBox {
+            page,
+            x,
+            y,
+            text,
+            font_size,
+            color,
+        } => Annotation::TextBox {
+            page,
+            x,
+            y,
+            text,
+            font_size,
+            color,
+        },
+        AnnotationDto::Markup {
+            page,
+            kind,
+            area,
+            color,
+        } => Annotation::Markup {
+            page,
+            kind: match kind.as_str() {
+                "highlight" => MarkupKind::Highlight,
+                "underline" => MarkupKind::Underline,
+                "strikeOut" => MarkupKind::StrikeOut,
+                _ => return Err(bad_argument("unknown markup kind")),
+            },
+            area: page_rect(page, area),
+            color,
+        },
+        AnnotationDto::Ink {
+            page,
+            points,
+            color,
+            width,
+        } => {
+            if points.len() > 10_000 {
+                return Err(bad_argument("too many points"));
+            }
+            Annotation::Ink {
+                page,
+                points,
+                color,
+                width,
+            }
+        }
+        AnnotationDto::Note { page, x, y, text } => Annotation::Note { page, x, y, text },
+    })
+}
+
+/// 주석·쪽 편집 뒤 응답. 커서가 없는 문서라 쪽 수만 알린다.
+fn pages_changed(doc: &mut dyn Document) -> Value {
+    json!({ "changed": true, "pageCount": doc.info().page_count })
 }
 
 fn bad_argument(message: &str) -> Error {
@@ -328,14 +467,41 @@ pub fn run_edit(doc: &mut dyn Document, op: EditOp) -> papy_core::Result<Value> 
             doc.apply_para_format(start.into(), end.into(), &format)?;
             changed(doc, end.into())?
         }
-        EditOp::Undo => match doc.undo()? {
-            Some(outcome) => changed(doc, outcome.caret)?,
-            None => json!({ "changed": false }),
-        },
-        EditOp::Redo => match doc.redo()? {
-            Some(outcome) => changed(doc, outcome.caret)?,
-            None => json!({ "changed": false }),
-        },
+        EditOp::Undo | EditOp::Redo => {
+            let outcome = if matches!(op, EditOp::Undo) {
+                doc.undo()?
+            } else {
+                doc.redo()?
+            };
+            match outcome {
+                // 본문 편집 문서는 커서를 돌려주고, PDF 처럼 커서가 없는 문서는 쪽 수만.
+                Some(outcome) if doc.info().capabilities.edit => changed(doc, outcome.caret)?,
+                Some(_) => pages_changed(doc),
+                None => json!({ "changed": false }),
+            }
+        }
+        EditOp::TextRects { page, area } => {
+            let rects = doc.text_rects(page, page_rect(page, area))?;
+            Value::Array(rects.into_iter().map(rect_json).collect())
+        }
+        EditOp::Annotate { annotation: dto } => {
+            doc.annotate(&annotation(dto)?)?;
+            pages_changed(doc)
+        }
+        EditOp::EditPages { op } => {
+            doc.edit_pages(match op {
+                PageOpDto::Rotate {
+                    page,
+                    quarter_turns,
+                } => PageOp::Rotate {
+                    page,
+                    quarter_turns,
+                },
+                PageOpDto::Delete { page } => PageOp::Delete { page },
+                PageOpDto::Move { from, to } => PageOp::Move { from, to },
+            })?;
+            pages_changed(doc)
+        }
     })
 }
 
@@ -370,6 +536,8 @@ pub fn open(
             can_extract_text: info.capabilities.extract_text,
             has_outline: info.capabilities.outline,
             can_edit: info.capabilities.edit,
+            can_annotate: info.capabilities.annotate,
+            can_edit_pages: info.capabilities.page_edit,
             save_formats: info
                 .capabilities
                 .save_formats

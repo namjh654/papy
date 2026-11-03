@@ -133,8 +133,10 @@ fn quad(rect: &PdfRect) -> PdfQuadPoints {
     )
 }
 
-/// 영역(사용자 좌표)과 겹치는 첫 글자부터 마지막 글자까지의 글줄 사각형(사용자 좌표).
-/// 글을 끌어서 고를 때처럼 흐름 순서로 잇는다.
+/// 영역(사용자 좌표)과 겹치는 글 조각을 줄마다 하나의 사각형으로 합친다(사용자 좌표).
+///
+/// PDF 안의 글자 순서는 읽는 순서와 다를 수 있어(글꼴별로 따로 적는 등) 글자 번호 범위가 아니라
+/// 위치로 고른다. 같은 줄의 조각은 합쳐서 낱말 사이 빈틈 없이 칠한다.
 fn line_rects(page: &PdfPage, area: PdfRect) -> Result<Vec<PdfRect>> {
     let text = page.text().map_err(map_error)?;
     let overlaps = |rect: &PdfRect| {
@@ -143,22 +145,34 @@ fn line_rects(page: &PdfPage, area: PdfRect) -> Result<Vec<PdfRect>> {
             && rect.bottom() < area.top()
             && rect.top() > area.bottom()
     };
-    let mut first: Option<PdfPageTextCharIndex> = None;
-    let mut last: Option<PdfPageTextCharIndex> = None;
-    for ch in text.chars().iter() {
-        if ch.tight_bounds().is_ok_and(|rect| overlaps(&rect)) {
-            first.get_or_insert(ch.index());
-            last = Some(ch.index());
+    let mut lines: Vec<PdfRect> = Vec::new();
+    for segment in text.segments().iter() {
+        let rect = segment.bounds();
+        if !overlaps(&rect) || rect.width().value <= 0.0 || rect.height().value <= 0.0 {
+            continue;
+        }
+        let center = (rect.top().value + rect.bottom().value) / 2.0;
+        let same_line = lines.iter_mut().find(|line| {
+            let half = (line.top().value - line.bottom().value)
+                .max(rect.top().value - rect.bottom().value)
+                / 2.0;
+            ((line.top().value + line.bottom().value) / 2.0 - center).abs() < half
+        });
+        match same_line {
+            Some(line) => {
+                *line = PdfRect::new_from_values(
+                    line.bottom().value.min(rect.bottom().value),
+                    line.left().value.min(rect.left().value),
+                    line.top().value.max(rect.top().value),
+                    line.right().value.max(rect.right().value),
+                );
+            }
+            None => lines.push(rect),
         }
     }
-    let (Some(first), Some(last)) = (first, last) else {
-        return Ok(Vec::new());
-    };
-    Ok(text
-        .segments_subset(first, last - first + 1)
-        .iter()
-        .map(|segment| segment.bounds())
-        .collect())
+    // 위에서 아래로(사용자 좌표는 y 가 위로 커진다).
+    lines.sort_by(|a, b| b.top().value.total_cmp(&a.top().value));
+    Ok(lines)
 }
 
 impl State {

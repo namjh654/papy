@@ -7,11 +7,11 @@
 
 pub mod host;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use host::{EditOp, OpenedDocument, OutlineDto, PageSizeDto};
-use papy_core::{Engine, Error, ErrorCode, Limits};
+use papy_core::{Engine, EngineResources, Error, ErrorCode, Limits};
 use serde::Serialize;
 use serde_json::Value;
 use tauri::{Manager, State, ipc::Response};
@@ -118,20 +118,16 @@ async fn save_document(state: State<'_, AppState>, id: u64, path: String) -> Com
     .await
 }
 
-/// 번들된 PDFium 위치. 개발 빌드에서 리소스 폴더에 없으면 engine/vendor 를 본다.
-fn pdfium_library(app: &tauri::App) -> PathBuf {
-    let name = papy_core::pdfium_library_file_name();
-    let bundled = app
-        .path()
-        .resource_dir()
-        .map(|dir| dir.join("pdfium").join(&name))
-        .ok();
+/// 번들된 리소스 파일 위치(`resources/` 아래 상대 경로). 개발 빌드에서 리소스 폴더에 없으면
+/// build.rs 가 모아 둔 src-tauri/resources 를 본다.
+fn resource(app: &tauri::App, relative: &Path) -> PathBuf {
+    let bundled = app.path().resource_dir().map(|dir| dir.join(relative)).ok();
     match bundled {
         Some(path) if path.exists() => path,
         _ if cfg!(debug_assertions) => PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("resources/pdfium")
-            .join(name),
-        _ => bundled.unwrap_or(name),
+            .join("resources")
+            .join(relative),
+        _ => bundled.unwrap_or_else(|| relative.to_path_buf()),
     }
 }
 
@@ -141,7 +137,15 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
-            let engine = Engine::with_pdfium(Limits::default(), pdfium_library(app));
+            let pdfium = Path::new("pdfium").join(papy_core::pdfium_library_file_name());
+            let font = resource(app, Path::new("fonts/NotoSansKR-Regular.ttf"));
+            let engine = Engine::with_resources(
+                Limits::default(),
+                EngineResources {
+                    pdfium_library: resource(app, &pdfium),
+                    korean_font: font.exists().then_some(font),
+                },
+            );
             app.manage(AppState {
                 engine: Arc::new(engine),
             });
