@@ -31,6 +31,15 @@ pub use papy_render::{
 /// 엔진 버전(crate 버전).
 pub const ENGINE_VERSION: &str = env!("CARGO_PKG_VERSION");
 
+/// 현재 플랫폼의 PDFium 라이브러리 파일 이름. 앱이 번들한 라이브러리 경로를 만들 때 쓴다.
+pub use papy_pdf::library_file_name as pdfium_library_file_name;
+
+/// 무거운 초기화(시스템 글꼴 목록 읽기 등)를 미리 해 둔다. 앱 시작 때 백그라운드 스레드에서 부르면
+/// 첫 문서 렌더가 빨라진다. 여러 번 불러도 된다.
+pub fn warm_up() {
+    papy_hwp::HwpBackend::warm_up();
+}
+
 /// 판별에 필요한 앞부분 바이트 수. 호출하는 쪽은 파일에서 이만큼만 읽어 넘기면 된다.
 pub const SNIFF_LEN: usize = 128;
 
