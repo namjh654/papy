@@ -11,7 +11,7 @@
 //! - **상한**: 파일 크기·세션 수·페이지 수·렌더 픽셀을 [`Limits`] 로 막는다(손상·악성 파일 방어).
 //! - **오류**: 모든 실패는 [`Error`] + 고정 번호 [`ErrorCode`]. 메시지에 경로·본문을 넣지 않는다.
 //!
-//! API 는 PDF·HWPX 어댑터를 붙이면서 다듬는다(docs/engine/api-draft.md).
+//! 포맷 어댑터: PDF = `papy-pdf`(PDFium), HWPX·HWP = `papy-hwp`(rhwp). API 초안은 docs/engine/api-draft.md.
 
 use std::collections::HashMap;
 use std::fs::File;
@@ -30,6 +30,15 @@ pub use papy_render::{
 
 /// 엔진 버전(crate 버전).
 pub const ENGINE_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+/// 현재 플랫폼의 PDFium 라이브러리 파일 이름. 앱이 번들한 라이브러리 경로를 만들 때 쓴다.
+pub use papy_pdf::library_file_name as pdfium_library_file_name;
+
+/// 무거운 초기화(시스템 글꼴 목록 읽기 등)를 미리 해 둔다. 앱 시작 때 백그라운드 스레드에서 부르면
+/// 첫 문서 렌더가 빨라진다. 여러 번 불러도 된다.
+pub fn warm_up() {
+    papy_hwp::HwpBackend::warm_up();
+}
 
 /// 판별에 필요한 앞부분 바이트 수. 호출하는 쪽은 파일에서 이만큼만 읽어 넘기면 된다.
 pub const SNIFF_LEN: usize = 128;
@@ -145,9 +154,25 @@ impl Default for Engine {
 }
 
 impl Engine {
-    /// 기본 어댑터를 등록한 엔진. 현재 실제 포맷 어댑터는 아직 없다(엔진 선정 후 추가).
+    /// HWPX·HWP 어댑터를 등록한 엔진. PDF 는 PDFium 라이브러리 위치가 필요하므로 [`Engine::with_pdfium`] 을 쓴다.
     pub fn new(limits: Limits) -> Self {
-        Self::with_backends(limits, Vec::new())
+        Self::with_backends(limits, Self::hwp_backends())
+    }
+
+    /// PDF(PDFium)·HWPX·HWP 어댑터를 등록한 엔진. `pdfium_library` 는 PDFium 동적 라이브러리 파일 경로이며
+    /// 첫 PDF 를 열 때 로드한다. 로드에 실패하면 PDF 열기만 `UnsupportedFormat` 으로 실패한다.
+    pub fn with_pdfium(limits: Limits, pdfium_library: impl Into<PathBuf>) -> Self {
+        let mut backends: Vec<Box<dyn FormatBackend>> =
+            vec![Box::new(papy_pdf::PdfBackend::new(pdfium_library))];
+        backends.extend(Self::hwp_backends());
+        Self::with_backends(limits, backends)
+    }
+
+    fn hwp_backends() -> Vec<Box<dyn FormatBackend>> {
+        vec![
+            Box::new(papy_hwp::HwpBackend::hwpx()),
+            Box::new(papy_hwp::HwpBackend::hwp()),
+        ]
     }
 
     /// 어댑터를 직접 지정한다. 같은 포맷이 여럿이면 앞의 것을 쓴다.

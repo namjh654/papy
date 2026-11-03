@@ -19,12 +19,24 @@
 | `tauri` (crate) | 2.12.5 | 2.x stable 최신. crates.io 최신 태그는 3.0.0-alpha → **사용 안 함** |
 | `tauri-build` (crate) | 2.7.4 | |
 | `@tauri-apps/cli`, `@tauri-apps/api` | 2.12.4 | npm `latest`. `next` 태그(3.0.0-alpha) 사용 안 함 |
+| `tauri-plugin-dialog` (crate), `@tauri-apps/plugin-dialog` | 2.8.4 | 파일 열기 대화상자. Apache-2.0 OR MIT |
 | `react`, `react-dom` | 19.3.1 | |
 | `vite` | 8.3.5 | |
 | `@vitejs/plugin-react` | 6.2.1 | |
 | `typescript` | 7.0.2 | |
 
 모든 JS 의존성은 정확한 버전으로 고정(`.npmrc` `save-exact`)하고 `pnpm-lock.yaml`, Cargo 의존성은 `=` 고정과 `Cargo.lock` 으로 재현한다.
+
+## 엔진 외부 구성요소
+
+| 구성요소 | 버전 | 고정 위치 | 받는 방법 |
+|---|---|---|---|
+| PDFium 사전 빌드 ([bblanchon/pdfium-binaries](https://github.com/bblanchon/pdfium-binaries)) | chromium/8125 | `scripts/fetch-pdfium.mjs` (타깃별 SHA-256) | `node scripts/fetch-pdfium.mjs [rust-target]` |
+| `pdfium-render` (crate) | =0.9.5 (feature `pdfium_8125`) | `engine/crates/papy-pdf/Cargo.toml` | crates.io |
+| rhwp ([edwardkim/rhwp](https://github.com/edwardkim/rhwp)) | v0.8.7 (`1a76570e833917d15817415a53c09ad61ab3203f`) | `scripts/fetch-rhwp.mjs` | `node scripts/fetch-rhwp.mjs` (sparse, 약 47MB) |
+| `resvg` (crate) | =0.45.1 | `engine/crates/papy-hwp/Cargo.toml` | crates.io |
+
+두 스크립트를 한 번에: `pnpm engine:vendor`. 결과는 `engine/vendor/`(gitignore)에 들어간다. 엔진·데스크톱 빌드 전에 필요하다.
 
 ## 모바일 (템플릿 그대로)
 

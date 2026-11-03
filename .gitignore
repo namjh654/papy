@@ -39,3 +39,9 @@ tests/private/
 
 # Vercel CLI (vercel link 가 만드는 연결 정보·OIDC 토큰 .env.local 은 위 .env.* 규칙으로 제외)
 .vercel/
+
+# 외부 엔진: PDFium 사전 빌드·rhwp 소스 (scripts/fetch-pdfium.mjs, scripts/fetch-rhwp.mjs 로 받음)
+engine/vendor/
+
+# 데스크톱 번들 리소스 (apps/desktop/src-tauri/build.rs 가 engine/vendor 에서 모음)
+apps/desktop/src-tauri/resources/

@@ -3,9 +3,9 @@ name: desktop
 on:
   push:
     branches: [main]
-    paths: ["apps/desktop/**", "engine/**", "packages/**", "pnpm-lock.yaml", "rust-toolchain.toml", ".github/workflows/desktop.yml"]
+    paths: ["apps/desktop/**", "engine/**", "scripts/fetch-*.mjs", "packages/**", "pnpm-lock.yaml", "rust-toolchain.toml", ".github/workflows/desktop.yml"]
   pull_request:
-    paths: ["apps/desktop/**", "engine/**", "packages/**", "pnpm-lock.yaml", "rust-toolchain.toml", ".github/workflows/desktop.yml"]
+    paths: ["apps/desktop/**", "engine/**", "scripts/fetch-*.mjs", "packages/**", "pnpm-lock.yaml", "rust-toolchain.toml", ".github/workflows/desktop.yml"]
 
 permissions:
   contents: read
@@ -40,6 +40,8 @@ jobs:
         with:
           workspaces: apps/desktop/src-tauri
       - run: pnpm install --frozen-lockfile
+      - run: node scripts/fetch-rhwp.mjs
+      - run: node scripts/fetch-pdfium.mjs
       - run: pnpm --filter @papy/desktop typecheck
       - name: clippy
         working-directory: apps/desktop/src-tauri

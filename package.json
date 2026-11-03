@@ -8,6 +8,7 @@
     "node": ">=24"
   },
   "scripts": {
+    "engine:vendor": "node scripts/fetch-rhwp.mjs && node scripts/fetch-pdfium.mjs",
     "typecheck": "pnpm -r --if-present typecheck",
     "build": "pnpm -r --if-present build",
     "web:dev": "pnpm --filter @papy/web dev",

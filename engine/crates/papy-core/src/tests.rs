@@ -189,7 +189,26 @@ fn unknown_and_unregistered_formats_are_rejected() {
     let error = engine.open(hwpx, OpenOptions::default()).unwrap_err();
     assert_eq!(error.code, ErrorCode::UnsupportedFormat);
     assert!(error.message.contains("HWPX"));
-    assert!(Engine::default().supported_formats().is_empty());
+    assert_eq!(
+        Engine::default().supported_formats(),
+        [DocumentFormat::Hwpx, DocumentFormat::CompoundFile]
+    );
+    assert_eq!(
+        Engine::with_pdfium(Limits::default(), "missing-pdfium").supported_formats(),
+        [
+            DocumentFormat::Pdf,
+            DocumentFormat::Hwpx,
+            DocumentFormat::CompoundFile
+        ]
+    );
+}
+
+#[test]
+fn missing_pdfium_fails_only_pdf() {
+    let engine = Engine::with_pdfium(Limits::default(), "/nonexistent/libpdfium");
+    let error = engine.open(pdf(1), OpenOptions::default()).unwrap_err();
+    assert_eq!(error.code, ErrorCode::UnsupportedFormat);
+    assert!(!error.message.contains("nonexistent"));
 }
 
 #[test]
