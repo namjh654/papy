@@ -294,7 +294,7 @@ impl State {
                 render: true,
                 extract_text: true,
                 outline: true,
-                save: false,
+                ..Capabilities::default()
             },
         };
         self.next_id += 1;

@@ -22,7 +22,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 pub use papy_model::{
-    Capabilities, DocumentFormat, DocumentInfo, Error, ErrorCode, OutlineItem, PageSize, Result,
+    Alignment, Capabilities, CharFormat, DocumentFormat, DocumentInfo, EditOutcome, Error,
+    ErrorCode, OutlineItem, PageRect, PageSize, ParaFormat, Result, SaveFormat, TextPos,
 };
 pub use papy_render::{
     BackendOpenOptions, Bitmap, CancelToken, Document, FormatBackend, RenderRequest, Source,
@@ -124,8 +125,18 @@ impl SessionId {
 }
 
 struct Session {
-    info: DocumentInfo,
+    /// 원본 크기. 편집해도 바뀌지 않는다(저장 결과 크기는 `save` 의 반환값).
+    byte_size: u64,
     document: Mutex<Box<dyn Document>>,
+}
+
+impl Session {
+    /// 편집으로 쪽 수가 바뀔 수 있어 매번 어댑터에서 읽는다.
+    fn info(&self, doc: &dyn Document) -> DocumentInfo {
+        let mut info = doc.info();
+        info.byte_size = self.byte_size;
+        info
+    }
 }
 
 /// 문서 엔진. 포맷 어댑터를 등록하고 열린 문서를 세션으로 관리한다.
@@ -244,7 +255,7 @@ impl Engine {
         let id = SessionId::from_raw(self.next_id.fetch_add(1, Ordering::Relaxed))
             .ok_or_else(|| Error::new(ErrorCode::Internal, "session id overflow"))?;
         let session = Arc::new(Session {
-            info,
+            byte_size: info.byte_size,
             document: Mutex::new(document),
         });
         let mut sessions = self.sessions();
@@ -261,12 +272,14 @@ impl Engine {
 
     /// 문서 요약 정보.
     pub fn info(&self, id: SessionId) -> Result<DocumentInfo> {
-        Ok(self.session(id)?.info.clone())
+        let session = self.session(id)?;
+        let doc = lock(&session.document);
+        Ok(session.info(doc.as_ref()))
     }
 
     /// 페이지 수.
     pub fn page_count(&self, id: SessionId) -> Result<u32> {
-        Ok(self.session(id)?.info.page_count)
+        Ok(self.info(id)?.page_count)
     }
 
     /// 페이지 크기(pt).
@@ -316,6 +329,38 @@ impl Engine {
         doc.outline()
     }
 
+    /// 지금 상태를 `format` 으로 직렬화한다. 파일 쓰기는 호출자가 한다(임시 파일에 쓴 뒤 바꿔치기 권장).
+    pub fn save(&self, id: SessionId, format: SaveFormat) -> Result<Vec<u8>> {
+        let session = self.session(id)?;
+        let mut doc = lock(&session.document);
+        if !doc.info().capabilities.save_formats.contains(&format) {
+            return Err(Error::new(
+                ErrorCode::NotImplemented,
+                format!("cannot save this document as {}", format.extension()),
+            ));
+        }
+        doc.save(format)
+    }
+
+    /// 편집 작업을 한 번에 실행한다. 문서가 편집을 지원하지 않으면 `NotImplemented`.
+    ///
+    /// 클로저는 세션 잠금 안에서 돈다 — 그동안 같은 문서의 렌더는 기다린다.
+    pub fn edit<T>(
+        &self,
+        id: SessionId,
+        f: impl FnOnce(&mut dyn Document) -> Result<T>,
+    ) -> Result<T> {
+        let session = self.session(id)?;
+        let mut doc = lock(&session.document);
+        if !doc.info().capabilities.edit {
+            return Err(Error::new(
+                ErrorCode::NotImplemented,
+                "editing is not supported for this document",
+            ));
+        }
+        f(doc.as_mut())
+    }
+
     /// 문서를 닫는다. 진행 중인 작업이 있으면 그 작업이 끝난 뒤 해제된다.
     pub fn close(&self, id: SessionId) -> Result<()> {
         self.sessions()
@@ -347,13 +392,13 @@ impl Engine {
         f: impl FnOnce(&mut dyn Document) -> Result<T>,
     ) -> Result<T> {
         let session = self.session(id)?;
-        if page >= session.info.page_count {
+        let mut doc = lock(&session.document);
+        if page >= doc.info().page_count {
             return Err(Error::new(
                 ErrorCode::PageOutOfRange,
                 format!("page {page} is out of range"),
             ));
         }
-        let mut doc = lock(&session.document);
         f(doc.as_mut())
     }
 
