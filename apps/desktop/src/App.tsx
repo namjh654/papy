@@ -1,19 +1,24 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import { message, open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
   closeDocument,
   describeError,
   EngineError,
   ErrorCode,
   openDocument,
+  pageLayout,
+  saveDocument,
   type OpenedDocument,
 } from "./engine";
+import { useEditor } from "./editor/useEditor";
+import { FormatBar } from "./components/FormatBar";
 import { clearRecent, forgetRecent, loadRecent, rememberRecent, type RecentFile } from "./recent";
 import { RenderQueue } from "./renderQueue";
 import { PasswordDialog } from "./components/PasswordDialog";
 import { Sidebar } from "./components/Sidebar";
-import { Toolbar, type ZoomMode } from "./components/Toolbar";
+import { Toolbar, type Mode, type ZoomMode } from "./components/Toolbar";
 import { PX_PER_PT, Viewer, type ViewerHandle } from "./components/Viewer";
 import { Welcome } from "./components/Welcome";
 
@@ -26,6 +31,11 @@ type Opened = OpenedDocument & { path: string };
 type PasswordPrompt = { path: string; fileName: string; retry: boolean; attempt: number };
 
 const fileNameOf = (path: string) => path.split(/[\\/]/).pop() ?? path;
+const extensionOf = (path: string) => (/\.([^.\\/]+)$/.exec(path)?.[1] ?? "").toLowerCase();
+const stemOf = (name: string) => name.replace(/\.[^.]+$/, "");
+/** 편집한 내용을 그대로 다시 열 수 있는 형식(저장하면 이 파일이 작업 파일이 된다) */
+const EDITABLE = ["hwpx", "hwp"];
+const FORMAT_NAMES: Record<string, string> = { hwpx: "HWPX 문서", hwp: "HWP 문서", pdf: "PDF", txt: "텍스트" };
 const clampZoom = (zoom: number) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoom));
 
 export function App() {
@@ -39,17 +49,137 @@ export function App() {
   const [password, setPassword] = useState<PasswordPrompt | null>(null);
   const [dragging, setDragging] = useState(false);
   const [viewport, setViewport] = useState({ width: 800, height: 600 });
+  const [mode, setMode] = useState<Mode>("view");
+  const [dirty, setDirty] = useState(false);
+  const [revision, setRevision] = useState(0);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const viewer = useRef<ViewerHandle>(null);
   const main = useRef<HTMLDivElement>(null);
   const queue = useMemo(() => new RenderQueue(), []);
   const docRef = useRef(doc);
   docRef.current = doc;
+  const dirtyRef = useRef(dirty);
+  dirtyRef.current = dirty;
+
+  // ---- 편집 ----
+
+  const editor = useEditor(doc?.id ?? 0, mode === "edit" && !!doc?.canEdit, {
+    onChanged(pageCount) {
+      setDirty(true);
+      setRevision((value) => value + 1);
+      const current = docRef.current;
+      // 쪽 수가 바뀌었을 때만 쪽 크기 목록을 다시 받는다.
+      if (current && pageCount !== undefined && pageCount !== current.pageCount) {
+        void pageLayout(current.id).then((pages) =>
+          setDoc((old) => (old && old.id === current.id ? { ...old, pages, pageCount: pages.length } : old)),
+        );
+      }
+    },
+    reveal: (rect) => viewer.current?.reveal(rect),
+    onError: (caught) => setError(describeError(caught)),
+  });
+
+  // ---- 저장 ----
+
+  /** 작업 파일로 저장(HWP/HWPX). 성공하면 true. */
+  const saveTo = useCallback(async (path: string) => {
+    const current = docRef.current;
+    if (!current) return false;
+    try {
+      await saveDocument(current.id, path);
+      const name = fileNameOf(path);
+      setDoc((old) => (old && old.id === current.id ? { ...old, path, fileName: name } : old));
+      setDirty(false);
+      setRecent(rememberRecent({ path, name, format: current.format }));
+      setNotice(`저장했습니다: ${name}`);
+      return true;
+    } catch (caught) {
+      setError(describeError(caught));
+      return false;
+    }
+  }, []);
+
+  const saveAs = useCallback(async () => {
+    const current = docRef.current;
+    if (!current) return false;
+    const formats = current.saveFormats.filter((ext) => EDITABLE.includes(ext));
+    if (formats.length === 0) return false;
+    const preferred = formats.includes(extensionOf(current.path)) ? extensionOf(current.path) : formats[0]!;
+    const chosen = await saveDialog({
+      defaultPath: `${stemOf(current.fileName)}.${preferred}`,
+      filters: [preferred, ...formats.filter((ext) => ext !== preferred)].map((ext) => ({
+        name: FORMAT_NAMES[ext] ?? ext,
+        extensions: [ext],
+      })),
+    });
+    if (!chosen) return false;
+    const path = EDITABLE.includes(extensionOf(chosen)) ? chosen : `${chosen}.${preferred}`;
+    return saveTo(path);
+  }, [saveTo]);
+
+  const save = useCallback(async () => {
+    const current = docRef.current;
+    if (!current) return false;
+    // 원래 형식으로 다시 쓸 수 있으면 덮어쓴다. 아니면(PDF 등) 다른 이름으로 저장한다.
+    if (current.saveFormats.includes(extensionOf(current.path)) && EDITABLE.includes(extensionOf(current.path))) {
+      return saveTo(current.path);
+    }
+    return saveAs();
+  }, [saveTo, saveAs]);
+
+  /** 다른 형식으로 내보내기. 작업 파일은 그대로 둔다. */
+  const exportAs = useCallback(async (ext: string) => {
+    const current = docRef.current;
+    if (!current) return;
+    const chosen = await saveDialog({
+      defaultPath: `${stemOf(current.fileName)}.${ext}`,
+      filters: [{ name: FORMAT_NAMES[ext] ?? ext, extensions: [ext] }],
+    });
+    if (!chosen) return;
+    const path = extensionOf(chosen) === ext ? chosen : `${chosen}.${ext}`;
+    try {
+      await saveDocument(current.id, path);
+      setNotice(`내보냈습니다: ${fileNameOf(path)}`);
+    } catch (caught) {
+      setError(describeError(caught));
+    }
+  }, []);
+
+  /** 저장하지 않은 변경이 있으면 묻는다. 계속해도 되면 true. */
+  const confirmDiscard = useCallback(async () => {
+    const current = docRef.current;
+    if (!current || !dirtyRef.current) return true;
+    const answer = await message(`"${current.fileName}"의 변경 내용을 저장할까요?\n저장하지 않으면 변경 내용이 사라집니다.`, {
+      title: "저장하지 않은 변경",
+      kind: "warning",
+      buttons: { yes: "저장", no: "저장 안 함", cancel: "취소" },
+    });
+    if (answer === "저장" || answer === "Yes") return save();
+    return answer === "저장 안 함" || answer === "No";
+  }, [save]);
+
+  // 창을 닫을 때도 확인한다.
+  useEffect(() => {
+    const window = getCurrentWindow();
+    const unlisten = window.onCloseRequested(async (event) => {
+      if (!dirtyRef.current) return;
+      event.preventDefault();
+      if (await confirmDiscard()) {
+        setDirty(false);
+        await window.destroy();
+      }
+    });
+    return () => {
+      void unlisten.then((stop) => stop());
+    };
+  }, [confirmDiscard]);
 
   // ---- 문서 열기/닫기 ----
 
   const openPath = useCallback(
     async (path: string, secret?: string) => {
+      if (secret === undefined && !(await confirmDiscard())) return;
       setBusy(true);
       setError(null);
       try {
@@ -58,6 +188,8 @@ export function App() {
         queue.clear();
         if (previous) void closeDocument(previous.id);
         setDoc({ ...opened, path });
+        setMode("view");
+        setDirty(false);
         setCurrent(0);
         setZoomMode({ kind: "fit-width" });
         setPassword(null);
@@ -80,7 +212,7 @@ export function App() {
         setBusy(false);
       }
     },
-    [queue],
+    [queue, confirmDiscard],
   );
 
   const chooseFile = useCallback(async () => {
@@ -92,13 +224,19 @@ export function App() {
     if (typeof selected === "string") void openPath(selected);
   }, [openPath]);
 
-  const closeCurrent = useCallback(() => {
+  const closeCurrent = useCallback(async () => {
     const previous = docRef.current;
-    if (!previous) return;
+    if (!previous || !(await confirmDiscard())) return;
     queue.clear();
     void closeDocument(previous.id);
     setDoc(null);
-  }, [queue]);
+    setDirty(false);
+    setMode("view");
+  }, [queue, confirmDiscard]);
+
+  const toggleMode = useCallback(() => {
+    setMode((value) => (value === "view" && docRef.current?.canEdit ? "edit" : "view"));
+  }, []);
 
   // ---- 배율 ----
 
@@ -166,11 +304,18 @@ export function App() {
     const onKey = (event: KeyboardEvent) => {
       const mod = event.metaKey || event.ctrlKey;
       const typing = (event.target as HTMLElement)?.closest("input, textarea");
-      if (mod && event.key.toLowerCase() === "o") {
+      const key = event.key.toLowerCase();
+      if (mod && key === "o") {
         event.preventDefault();
         void chooseFile();
       } else if (!docRef.current || password) {
         return;
+      } else if (mod && key === "s") {
+        event.preventDefault();
+        void (event.shiftKey ? saveAs() : save());
+      } else if (mod && key === "e") {
+        event.preventDefault();
+        toggleMode();
       } else if (mod && (event.key === "=" || event.key === "+")) {
         event.preventDefault();
         zoomStep(1);
@@ -180,7 +325,7 @@ export function App() {
       } else if (mod && event.key === "0") {
         event.preventDefault();
         setZoomMode({ kind: "fit-width" });
-      } else if (mod && event.key.toLowerCase() === "b") {
+      } else if (mod && event.key === "\\") {
         event.preventDefault();
         setSidebarOpen((open) => !open);
       } else if (!typing && !mod && (event.key === "ArrowRight" || event.key === "ArrowLeft")) {
@@ -193,7 +338,7 @@ export function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [chooseFile, zoomStep, goTo, current, password]);
+  }, [chooseFile, zoomStep, goTo, current, password, save, saveAs, toggleMode]);
 
   // 오류 안내는 잠시 뒤 사라진다.
   useEffect(() => {
@@ -203,8 +348,14 @@ export function App() {
   }, [error]);
 
   useEffect(() => {
-    document.title = doc ? `${doc.title || doc.fileName} — Papy` : "Papy";
-  }, [doc]);
+    if (!notice) return;
+    const timer = setTimeout(() => setNotice(null), 3500);
+    return () => clearTimeout(timer);
+  }, [notice]);
+
+  useEffect(() => {
+    document.title = doc ? `${dirty ? "• " : ""}${doc.title || doc.fileName} — Papy` : "Papy";
+  }, [doc, dirty]);
 
   return (
     <div className="app">
@@ -215,17 +366,33 @@ export function App() {
         zoomMode={zoomMode}
         sidebarOpen={sidebarOpen}
         onOpen={chooseFile}
-        onClose={closeCurrent}
+        onClose={() => void closeCurrent()}
         onToggleSidebar={() => setSidebarOpen((open) => !open)}
         onGoTo={goTo}
         onZoom={setZoomMode}
         onZoomStep={zoomStep}
+        mode={mode}
+        dirty={dirty}
+        onMode={(next) => setMode(next === "edit" && doc?.canEdit ? "edit" : "view")}
+        onSave={() => void save()}
+        onSaveAs={() => void saveAs()}
+        onExport={(ext) => void exportAs(ext)}
       />
+      {doc && mode === "edit" && <FormatBar editor={editor} refocus={() => viewer.current?.focusInput()} />}
       <div className="workspace">
-        {doc && sidebarOpen && <Sidebar doc={doc} current={current} queue={queue} onGoTo={goTo} />}
+        {doc && sidebarOpen && <Sidebar doc={doc} current={current} queue={queue} onGoTo={goTo} revision={revision} />}
         <main className="main" ref={main}>
           {doc ? (
-            <Viewer key={doc.id} ref={viewer} doc={doc} zoom={zoom} queue={queue} onPageChange={setCurrent} />
+            <Viewer
+              key={doc.id}
+              ref={viewer}
+              doc={doc}
+              zoom={zoom}
+              queue={queue}
+              onPageChange={setCurrent}
+              editor={mode === "edit" ? editor : null}
+              revision={revision}
+            />
           ) : (
             <Welcome
               recent={recent}
@@ -240,6 +407,11 @@ export function App() {
       {busy && (
         <div className="busy" role="status">
           <span className="spinner" /> 문서를 여는 중…
+        </div>
+      )}
+      {notice && !error && (
+        <div className="toast" role="status">
+          <span>{notice}</span>
         </div>
       )}
       {error && (

@@ -4,8 +4,8 @@
 //! 되돌리기는 rhwp 문서 스냅샷으로 한다. 이어 치는 글자는 한 단계로 묶는다.
 
 use papy_model::{
-    Alignment, CharFormat, DocumentInfo, EditOutcome, Error, ErrorCode, PageRect, PageSize,
-    ParaFormat, Result, SaveFormat, TextPos,
+    Alignment, CaretMotion, CharFormat, DocumentInfo, EditOutcome, Error, ErrorCode, PageRect,
+    PageSize, ParaFormat, Result, SaveFormat, TextPos,
 };
 use papy_render::{Bitmap, Document, RenderRequest};
 use rhwp::wasm_api::HwpDocument as Rhwp;
@@ -166,6 +166,22 @@ impl HwpDocument {
             doc.get_paragraph_count_native(section as usize)
         })
         .map(|count| count as u32)
+    }
+
+    /// 위치가 문서 안에 있는지 확인한다(rhwp 는 범위 밖 위치를 조용히 잘라 쓴다).
+    fn validate(&mut self, pos: TextPos) -> Result<()> {
+        let sections = self.read("read document", |doc| Ok(doc.get_section_count()))?;
+        let valid = pos.section < sections
+            && pos.paragraph < self.paragraph_count(pos.section)?
+            && pos.offset <= self.paragraph_len(pos.section, pos.paragraph)?;
+        if valid {
+            Ok(())
+        } else {
+            Err(Error::new(
+                ErrorCode::InvalidArgument,
+                "position is outside the document",
+            ))
+        }
     }
 
     fn same_section(start: TextPos, end: TextPos) -> Result<()> {
@@ -419,6 +435,66 @@ impl Document for HwpDocument {
         parse_pos(&json(&reply)?).ok_or_else(|| engine_error("move caret"))
     }
 
+    fn move_caret(&mut self, pos: TextPos, motion: CaretMotion) -> Result<TextPos> {
+        match motion {
+            CaretMotion::Left if pos.offset > 0 => Ok(TextPos {
+                offset: pos.offset - 1,
+                ..pos
+            }),
+            CaretMotion::Left if pos.paragraph > 0 => {
+                let paragraph = pos.paragraph - 1;
+                Ok(TextPos {
+                    paragraph,
+                    offset: self.paragraph_len(pos.section, paragraph)?,
+                    ..pos
+                })
+            }
+            CaretMotion::Left => Ok(pos),
+            CaretMotion::Right => {
+                if pos.offset < self.paragraph_len(pos.section, pos.paragraph)? {
+                    Ok(TextPos {
+                        offset: pos.offset + 1,
+                        ..pos
+                    })
+                } else if pos.paragraph + 1 < self.paragraph_count(pos.section)? {
+                    Ok(TextPos {
+                        paragraph: pos.paragraph + 1,
+                        offset: 0,
+                        ..pos
+                    })
+                } else {
+                    Ok(pos)
+                }
+            }
+            CaretMotion::LineStart | CaretMotion::LineEnd => {
+                // 줄 양 끝 바깥을 눌렀을 때의 위치 = 그 줄의 처음/끝(조판 결과 그대로).
+                let rect = self.caret_rect(pos)?;
+                let x = if motion == CaretMotion::LineStart {
+                    0.0
+                } else {
+                    self.page_size(rect.page)?.width
+                };
+                let hit = self.hit_test(rect.page, x, rect.y + rect.height / 2.0)?;
+                Ok(if hit.paragraph == pos.paragraph {
+                    hit
+                } else {
+                    pos
+                })
+            }
+            CaretMotion::DocumentStart => Ok(TextPos::default()),
+            CaretMotion::DocumentEnd => {
+                let sections = self.read("read document", |doc| Ok(doc.get_section_count()))?;
+                let section = sections.saturating_sub(1);
+                let paragraph = self.paragraph_count(section)?.saturating_sub(1);
+                Ok(TextPos {
+                    section,
+                    paragraph,
+                    offset: self.paragraph_len(section, paragraph)?,
+                })
+            }
+        }
+    }
+
     fn selection_rects(&mut self, start: TextPos, end: TextPos) -> Result<Vec<PageRect>> {
         Self::same_section(start, end)?;
         let reply = self.read_wrapper("measure selection", |doc| {
@@ -470,6 +546,7 @@ impl Document for HwpDocument {
     }
 
     fn insert_text(&mut self, pos: TextPos, text: &str) -> Result<EditOutcome> {
+        self.validate(pos)?;
         let added = text.chars().count() as u32;
         let plain_typing = !text.contains('\n') && !text.contains(' ');
         self.begin_step(pos, plain_typing.then_some((pos, added)));
@@ -484,6 +561,8 @@ impl Document for HwpDocument {
 
     fn delete_range(&mut self, start: TextPos, end: TextPos) -> Result<EditOutcome> {
         Self::same_section(start, end)?;
+        self.validate(start)?;
+        self.validate(end)?;
         self.begin_step(start, None);
         self.delete_plain(start, end)?;
         Ok(EditOutcome { caret: start })

@@ -173,6 +173,23 @@ pub struct ParaFormat {
     pub line_spacing: Option<f32>,
 }
 
+/// 커서 이동 방향.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CaretMotion {
+    /// 한 글자 앞(문단 처음이면 앞 문단 끝).
+    Left,
+    /// 한 글자 뒤(문단 끝이면 다음 문단 처음).
+    Right,
+    /// 지금 줄의 처음.
+    LineStart,
+    /// 지금 줄의 끝.
+    LineEnd,
+    /// 문서 처음.
+    DocumentStart,
+    /// 문서 끝.
+    DocumentEnd,
+}
+
 /// 편집 결과: 커서가 갈 위치.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct EditOutcome {

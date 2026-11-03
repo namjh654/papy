@@ -11,8 +11,8 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use papy_model::{
-    CharFormat, DocumentFormat, DocumentInfo, EditOutcome, Error, ErrorCode, OutlineItem, PageRect,
-    PageSize, ParaFormat, Result, SaveFormat, TextPos,
+    CaretMotion, CharFormat, DocumentFormat, DocumentInfo, EditOutcome, Error, ErrorCode,
+    OutlineItem, PageRect, PageSize, ParaFormat, Result, SaveFormat, TextPos,
 };
 
 /// 렌더링 결과. RGBA 8비트, 알파는 premultiplied 가 아님, 행 사이 여백 없음(`stride == width * 4`).
@@ -175,6 +175,11 @@ pub trait Document: Send {
 
     /// 한 줄 위(`lines` < 0)나 아래로 옮긴 위치. `preferred_x` 는 줄을 옮겨도 유지할 가로 위치(pt).
     fn move_vertical(&mut self, _pos: TextPos, _lines: i32, _preferred_x: f32) -> Result<TextPos> {
+        Err(not_supported("editing"))
+    }
+
+    /// 커서를 옮긴 위치.
+    fn move_caret(&mut self, _pos: TextPos, _motion: CaretMotion) -> Result<TextPos> {
         Err(not_supported("editing"))
     }
 

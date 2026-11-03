@@ -14,12 +14,14 @@ interface Props {
   priority: number;
   /** 큐 안에서 페이지·썸네일 요청을 구분 */
   kind: "page" | "thumb";
+  /** 문서가 편집될 때마다 올라가는 번호. 바뀌면 다시 그린다(그동안 이전 그림을 보여 준다). */
+  revision?: number;
 }
 
 /**
  * 한 페이지를 캔버스에 그린다. 배율이 바뀌면 다시 그리는 동안 이전 그림을 늘려 보여 준다.
  */
-export function PageCanvas({ docId, page, width, height, scale, queue, priority, kind }: Props) {
+export function PageCanvas({ docId, page, width, height, scale, queue, priority, kind, revision = 0 }: Props) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const [state, setState] = useState<"pending" | "ready" | "error">("pending");
   const key = `${kind}:${docId}:${page}`;
@@ -45,7 +47,7 @@ export function PageCanvas({ docId, page, width, height, scale, queue, priority,
       queue.cancel(key);
     };
     // priority 변화만으로 다시 그리지 않는다(스크롤마다 바뀐다).
-  }, [key, docId, page, scale, queue]);
+  }, [key, docId, page, scale, queue, revision]);
 
   return (
     <div className={`page-canvas ${state}`} style={{ width, height }}>

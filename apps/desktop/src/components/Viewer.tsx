@@ -1,6 +1,8 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
-import type { OpenedDocument, PageSize } from "../engine";
+import type { OpenedDocument, PageRect, PageSize } from "../engine";
+import type { Editor } from "../editor/useEditor";
 import type { RenderQueue } from "../renderQueue";
+import { EditInput } from "./EditInput";
 import { PageCanvas } from "./PageCanvas";
 
 /** 1pt 를 100% 배율에서 몇 CSS px 로 보이나(실제 크기). */
@@ -16,6 +18,10 @@ export interface ViewerHandle {
   goToPage(page: number): void;
   /** 뷰어 영역 크기(CSS px, 여백 제외) */
   viewport(): { width: number; height: number };
+  /** 쪽 위 사각형(pt)이 보이도록 스크롤한다. */
+  reveal(rect: PageRect): void;
+  /** 편집 입력란에 포커스. */
+  focusInput(): void;
 }
 
 interface Props {
@@ -24,6 +30,10 @@ interface Props {
   zoom: number;
   queue: RenderQueue;
   onPageChange(page: number): void;
+  /** 편집 모드일 때만 */
+  editor: Editor | null;
+  /** 편집될 때마다 올라가는 번호 */
+  revision: number;
 }
 
 /** 쪽 크기에 맞춰 엔진 배율을 정한다: 화면 배율 × 기기 픽셀 비, 메모리 상한 안에서. */
@@ -35,8 +45,12 @@ export function renderScale(size: PageSize, cssPerPt: number): number {
   return Math.max(0.05, Math.round(scale * 50) / 50);
 }
 
-export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer({ doc, zoom, queue, onPageChange }, ref) {
+export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer(
+  { doc, zoom, queue, onPageChange, editor, revision },
+  ref,
+) {
   const scroller = useRef<HTMLDivElement>(null);
+  const input = useRef<HTMLTextAreaElement>(null);
   const cssPerPt = PX_PER_PT * zoom;
 
   const layout = useMemo(() => {
@@ -137,9 +151,60 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer({ doc, zoo
           height: (element?.clientHeight ?? 600) - PAD * 2,
         };
       },
+      reveal(rect) {
+        const element = scroller.current;
+        const top = layout.tops[rect.page];
+        if (!element || top === undefined) return;
+        const y = top + rect.y * cssPerPt;
+        const bottom = y + rect.height * cssPerPt;
+        const margin = 40;
+        if (y < element.scrollTop + margin) element.scrollTop = y - margin;
+        else if (bottom > element.scrollTop + element.clientHeight - margin)
+          element.scrollTop = bottom - element.clientHeight + margin;
+      },
+      focusInput() {
+        input.current?.focus({ preventScroll: true });
+      },
     }),
-    [doc, layout],
+    [doc, layout, cssPerPt],
   );
+
+  const pageLeft = (width: number) => Math.max(PAD, (visibleWidth - width) / 2);
+
+  // ---- 편집: 마우스 ----
+  const dragging = useRef(false);
+  const busy = useRef(false);
+  const pointAt = (event: React.MouseEvent, page: number) => {
+    const box = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    return { page, x: (event.clientX - box.left) / cssPerPt, y: (event.clientY - box.top) / cssPerPt };
+  };
+  const onPageMouseDown = (event: React.MouseEvent, page: number) => {
+    if (!editor || event.button !== 0) return;
+    event.preventDefault();
+    const { x, y } = pointAt(event, page);
+    dragging.current = true;
+    void editor.clickAt(page, x, y, event.shiftKey);
+    input.current?.focus({ preventScroll: true });
+  };
+  const onPageMouseMove = (event: React.MouseEvent, page: number) => {
+    if (!editor || !dragging.current || busy.current || event.buttons !== 1) return;
+    const { x, y } = pointAt(event, page);
+    busy.current = true;
+    void editor.clickAt(page, x, y, true).finally(() => (busy.current = false));
+  };
+  useEffect(() => {
+    const stop = () => (dragging.current = false);
+    window.addEventListener("mouseup", stop);
+    return () => window.removeEventListener("mouseup", stop);
+  }, []);
+
+  // 편집 모드에 들어오면 바로 입력할 수 있게 한다.
+  useEffect(() => {
+    if (editor) input.current?.focus({ preventScroll: true });
+  }, [!!editor]);
+
+  const caret = editor?.state.caretRect;
+  const selection = editor?.state.selection ?? [];
 
   const first = Math.max(0, range.first - OVERSCAN);
   const last = Math.min(doc.pageCount - 1, range.last + OVERSCAN);
@@ -148,12 +213,15 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer({ doc, zoo
     const size = doc.pages[page]!;
     const width = size.width * cssPerPt;
     const height = size.height * cssPerPt;
+    const marks = selection.filter((rect) => rect.page === page);
     pages.push(
       <div
         key={page}
-        className="page"
-        style={{ top: layout.tops[page], width, height, left: Math.max(PAD, (visibleWidth - width) / 2) }}
+        className={`page ${editor ? "editing" : ""}`}
+        style={{ top: layout.tops[page], width, height, left: pageLeft(width) }}
         aria-label={`${page + 1}쪽`}
+        onMouseDown={(event) => onPageMouseDown(event, page)}
+        onMouseMove={(event) => onPageMouseMove(event, page)}
       >
         <PageCanvas
           docId={doc.id}
@@ -164,7 +232,28 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer({ doc, zoo
           queue={queue}
           priority={Math.abs(page - range.current)}
           kind="page"
+          revision={revision}
         />
+        {marks.map((rect, index) => (
+          <div
+            key={index}
+            className="selection-mark"
+            style={{
+              left: rect.x * cssPerPt,
+              top: rect.y * cssPerPt,
+              width: rect.width * cssPerPt,
+              height: rect.height * cssPerPt,
+            }}
+          />
+        ))}
+        {caret && caret.page === page && selection.length === 0 && (
+          <div
+            className="caret"
+            // key 를 바꿔 움직일 때마다 깜빡임을 처음부터 시작한다(움직이는 동안은 보이게).
+            key={`${caret.x}:${caret.y}`}
+            style={{ left: caret.x * cssPerPt, top: caret.y * cssPerPt, height: Math.max(8, caret.height * cssPerPt) }}
+          />
+        )}
       </div>,
     );
   }
@@ -173,6 +262,22 @@ export const Viewer = forwardRef<ViewerHandle, Props>(function Viewer({ doc, zoo
     <div className="viewer" ref={scroller} tabIndex={-1}>
       <div className="viewer-content" style={{ height: layout.height, minWidth: layout.width }}>
         {pages}
+        {editor && (
+          <EditInput
+            ref={input}
+            editor={editor}
+            // 입력란을 커서 자리에 둬서 한글 입력기 후보 창이 커서 옆에 뜨게 한다.
+            position={
+              caret && doc.pages[caret.page]
+                ? {
+                    left: pageLeft(doc.pages[caret.page]!.width * cssPerPt) + caret.x * cssPerPt,
+                    top: (layout.tops[caret.page] ?? 0) + caret.y * cssPerPt,
+                    height: caret.height * cssPerPt,
+                  }
+                : null
+            }
+          />
+        )}
       </div>
     </div>
   );

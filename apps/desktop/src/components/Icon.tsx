@@ -15,6 +15,16 @@ const paths = {
   file: "M6 3h8l4 4v14H6zM14 3v4h4",
   trash: "M5 7h14M10 11v6M14 11v6M7 7l1 13h8l1-13M9 7V4h6v3",
   chevron: "M9 6l6 6-6 6",
+  undo: "M9 14L4 9l5-5M4 9h10a6 6 0 0 1 0 12h-3",
+  redo: "M15 14l5-5-5-5M20 9H10a6 6 0 0 0 0 12h3",
+  "align-left": "M4 6h16M4 10h10M4 14h16M4 18h10",
+  "align-center": "M4 6h16M7 10h10M4 14h16M7 18h10",
+  "align-right": "M4 6h16M10 10h10M4 14h16M10 18h10",
+  "align-justify": "M4 6h16M4 10h16M4 14h16M4 18h16",
+  save: "M5 4h11l3 3v13H5zM8 4v5h7V4M8 20v-6h8v6",
+  edit: "M4 20h4L19 9l-4-4L4 16zM13 7l4 4",
+  eye: "M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z",
+  export: "M12 3v12M7 8l5-5 5 5M5 14v6h14v-6",
 } as const;
 
 export type IconName = keyof typeof paths;

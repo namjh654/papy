@@ -404,3 +404,21 @@ fn encrypted_documents_stay_encrypted() {
     let mut reopened = open(HwpBackend::hwpx(), saved, &with_password).unwrap();
     assert!(reopened.extract_text(0).unwrap().starts_with("비밀 Papy"));
 }
+
+#[test]
+fn caret_motion() {
+    use papy_model::CaretMotion::*;
+    let mut doc = editable(1);
+    // 범위 밖 위치는 거절한다.
+    assert_eq!(
+        doc.insert_text(pos(0, 9), "x").unwrap_err().code,
+        ErrorCode::InvalidArgument
+    );
+    doc.insert_text(pos(0, 8), "\n둘째").unwrap();
+    assert_eq!(doc.move_caret(pos(1, 0), Left).unwrap(), pos(0, 8));
+    assert_eq!(doc.move_caret(pos(0, 8), Right).unwrap(), pos(1, 0));
+    assert_eq!(doc.move_caret(pos(0, 3), LineStart).unwrap(), pos(0, 0));
+    assert_eq!(doc.move_caret(pos(0, 3), LineEnd).unwrap(), pos(0, 8));
+    assert_eq!(doc.move_caret(pos(1, 1), DocumentStart).unwrap(), pos(0, 0));
+    assert_eq!(doc.move_caret(pos(0, 1), DocumentEnd).unwrap(), pos(1, 2));
+}

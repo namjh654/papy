@@ -1,8 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { OpenedDocument } from "../engine";
 import { Icon } from "./Icon";
 
 export type ZoomMode = { kind: "fit-width" } | { kind: "fit-page" } | { kind: "custom"; value: number };
+export type Mode = "view" | "edit";
+
+const isMac = navigator.userAgent.includes("Mac");
+const mod = isMac ? "⌘" : "Ctrl+";
+const FORMAT_LABELS: Record<string, string> = { hwpx: "HWPX", hwp: "HWP", pdf: "PDF", txt: "텍스트(TXT)" };
 
 interface Props {
   doc: OpenedDocument | null;
@@ -16,6 +21,12 @@ interface Props {
   onGoTo(page: number): void;
   onZoom(mode: ZoomMode): void;
   onZoomStep(direction: 1 | -1): void;
+  mode: Mode;
+  dirty: boolean;
+  onMode(mode: Mode): void;
+  onSave(): void;
+  onSaveAs(): void;
+  onExport(extension: string): void;
 }
 
 export function Toolbar(props: Props) {
@@ -23,7 +34,7 @@ export function Toolbar(props: Props) {
   return (
     <header className="toolbar">
       <div className="toolbar-group">
-        <button className="icon" onClick={props.onToggleSidebar} disabled={!doc} aria-pressed={!!doc && sidebarOpen} title="사이드바 (Ctrl/⌘+B)">
+        <button className="icon" onClick={props.onToggleSidebar} disabled={!doc} aria-pressed={!!doc && sidebarOpen} title={"사이드바 (Ctrl/⌘+\\)"}>
           <Icon name="sidebar" />
         </button>
         <button className="icon" onClick={props.onOpen} title="열기 (Ctrl/⌘+O)">
@@ -33,6 +44,7 @@ export function Toolbar(props: Props) {
           <div className="doc-title" title={doc.fileName}>
             <span className="format-badge">{doc.format === "OLE compound file" ? "HWP" : doc.format}</span>
             <span className="name">{doc.title || doc.fileName}</span>
+            {props.dirty && <span className="dirty-dot" title="저장하지 않은 변경이 있습니다" aria-label="저장 안 됨" />}
             <button className="icon small" onClick={props.onClose} title="문서 닫기">
               <Icon name="close" size={14} />
             </button>
@@ -54,6 +66,22 @@ export function Toolbar(props: Props) {
 
       {doc && (
         <div className="toolbar-group end">
+          <div className="mode-switch" role="radiogroup" aria-label="모드">
+            <button role="radio" aria-checked={props.mode === "view"} onClick={() => props.onMode("view")} title={`보기 모드 (${mod}E)`}>
+              <Icon name="eye" size={15} /> 보기
+            </button>
+            <button
+              role="radio"
+              aria-checked={props.mode === "edit"}
+              disabled={!doc.canEdit}
+              onClick={() => props.onMode("edit")}
+              title={doc.canEdit ? `편집 모드 (${mod}E)` : "이 형식은 아직 편집할 수 없습니다"}
+            >
+              <Icon name="edit" size={15} /> 편집
+            </button>
+          </div>
+          <SaveMenu doc={doc} dirty={props.dirty} onSave={props.onSave} onSaveAs={props.onSaveAs} onExport={props.onExport} />
+          <span className="divider" />
           <button className="icon" onClick={() => props.onZoomStep(-1)} title="축소 (Ctrl/⌘ −)">
             <Icon name="zoomOut" />
           </button>
@@ -110,5 +138,61 @@ function PageInput({ current, count, onGoTo }: { current: number; count: number;
       />
       <span>/ {count}</span>
     </label>
+  );
+}
+
+function SaveMenu({
+  doc,
+  dirty,
+  onSave,
+  onSaveAs,
+  onExport,
+}: {
+  doc: OpenedDocument;
+  dirty: boolean;
+  onSave(): void;
+  onSaveAs(): void;
+  onExport(extension: string): void;
+}) {
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (event: MouseEvent) => {
+      if (!box.current?.contains(event.target as Node)) setOpen(false);
+    };
+    window.addEventListener("mousedown", close);
+    return () => window.removeEventListener("mousedown", close);
+  }, [open]);
+  if (doc.saveFormats.length === 0) return null;
+  const pick = (action: () => void) => () => {
+    setOpen(false);
+    action();
+  };
+  return (
+    <div className="save-menu" ref={box}>
+      <button className="icon" onClick={onSave} disabled={!dirty} title={`저장 (${mod}S)`}>
+        <Icon name="save" />
+      </button>
+      <button className="icon small-chevron" onClick={() => setOpen(!open)} aria-expanded={open} aria-haspopup="menu" title="저장·내보내기">
+        <Icon name="chevron" size={12} />
+      </button>
+      {open && (
+        <div className="menu" role="menu">
+          <button role="menuitem" onClick={pick(onSave)} disabled={!dirty}>
+            저장 <kbd>{mod}S</kbd>
+          </button>
+          <button role="menuitem" onClick={pick(onSaveAs)}>
+            다른 이름으로 저장… <kbd>{isMac ? "⇧⌘S" : "Ctrl+Shift+S"}</kbd>
+          </button>
+          <div className="menu-label">다른 형식으로 내보내기</div>
+          {doc.saveFormats.map((extension) => (
+            <button key={extension} role="menuitem" onClick={pick(() => onExport(extension))}>
+              <Icon name="export" size={14} /> {FORMAT_LABELS[extension] ?? extension.toUpperCase()}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
