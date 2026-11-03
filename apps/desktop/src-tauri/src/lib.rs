@@ -296,7 +296,10 @@ mod tests {
     #[test]
     fn percent_decode_round_trips_encode_uri_component() {
         // encodeURIComponent("보고서 1.hwp")
-        assert_eq!(percent_decode("%EB%B3%B4%EA%B3%A0%EC%84%9C%201.hwp").as_deref(), Some("보고서 1.hwp"));
+        assert_eq!(
+            percent_decode("%EB%B3%B4%EA%B3%A0%EC%84%9C%201.hwp").as_deref(),
+            Some("보고서 1.hwp")
+        );
         assert_eq!(percent_decode("plain.hwpx").as_deref(), Some("plain.hwpx"));
         assert_eq!(percent_decode("%E"), None);
         assert_eq!(percent_decode("%ZZ"), None);
