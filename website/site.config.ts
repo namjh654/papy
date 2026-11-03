@@ -28,7 +28,7 @@ export const PAGES: Page[] = [
     path: "/",
     title: "Papy (페이피) — 무료·오프라인 PDF·HWPX 문서 뷰어",
     description:
-      "Papy(페이피)는 PDF와 한글(HWP/HWPX) 문서를 우선 지원하는 무료 오픈소스 문서 뷰어입니다. 회원가입·광고·서버 업로드 없이 내 컴퓨터에서 바로 엽니다. Windows·macOS·Linux 지원 예정.",
+      "Papy(페이피)는 PDF와 한글(HWP/HWPX) 문서를 우선 지원하는 소스 공개 문서 뷰어로, 개인·비상업 용도는 무료입니다. 회원가입·광고·서버 업로드 없이 내 컴퓨터에서 바로 엽니다. Windows·macOS·Linux 지원 예정.",
     nav: "소개",
   },
   {
@@ -51,6 +51,20 @@ export const PAGES: Page[] = [
     title: "사용법 — Papy (페이피)",
     description: "Papy 로 문서를 여는 방법, 화면 구성, 지원 포맷과 현재 개발 상태를 안내합니다.",
     nav: "사용법",
+  },
+  {
+    file: "developers/index.html",
+    path: "/developers/",
+    title: "개발자 — Papy (페이피) 기여하기",
+    description: "Papy 소스 코드에 기여하는 방법: GitHub 저장소, 이슈 등록, Fork·브랜치·Pull Request 절차, 개발 환경과 저장소 구조를 안내합니다.",
+    nav: "개발자",
+  },
+  {
+    file: "contact/index.html",
+    path: "/contact/",
+    title: "문의 — Papy (페이피)",
+    description: "Papy 개발자에게 버그 신고, 기능 제안, 사용·상업적 이용 문의를 바로 보낼 수 있습니다.",
+    nav: "문의",
   },
   {
     file: "privacy/index.html",

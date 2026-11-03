@@ -1,8 +1,8 @@
 # Papy (페이피)
 
-Open-source cross-platform document viewer and editor.
+Source-available cross-platform document viewer and editor (PolyForm Noncommercial 1.0.0).
 
-PDF 와 한국어 문서(HWP/HWPX)를 우선 지원하는 **무료·오프라인 우선** 통합 문서 앱입니다.
+PDF 와 한국어 문서(HWP/HWPX)를 우선 지원하는 **비상업 용도 무료·오프라인 우선** 통합 문서 앱입니다.
 회원가입·광고·서버 업로드 없이, 사용자가 선택한 파일만 로컬에서 엽니다.
 
 > **상태: 초기 개발 단계 (v0.0.0).** 저장소 구조와 빌드만 갖춘 상태이며, **아직 어떤 문서 포맷도 열 수 없습니다.**
@@ -83,5 +83,11 @@ cd apps/mobile && scripts/orca.sh check
 
 ## 라이선스
 
-저장소 생성 시 추가된 [LICENSE](LICENSE)(Apache-2.0)가 있습니다. 다만 PDF·HWP·Office 엔진 등 **외부 의존성의 라이선스 검토가 끝나지 않아
-프로젝트 최종 라이선스는 확정 전**입니다. 검토 결과에 따라 바뀔 수 있습니다 — [docs/development/licensing.md](docs/development/licensing.md).
+소스 코드와 배포 파일(설치 프로그램·바이너리) 모두 [PolyForm Noncommercial 1.0.0](LICENSE)
+(SPDX: `PolyForm-Noncommercial-1.0.0`)을 따릅니다.
+
+- 허용: 개인·학습·연구·취미·비영리 단체·공공기관 등 **비상업적 목적**의 사용, 수정, 재배포
+- 불허: 상업적 목적의 사용 — 별도 라이선스가 필요하면 [문의](https://papy-omega.vercel.app/contact/)
+- 재배포 시 `LICENSE` 전문(또는 URL)과 `Required Notice:` 줄을 함께 전달해야 합니다.
+- OSI 가 승인한 오픈소스 라이선스가 아니므로 Papy 는 "소스 공개(source-available)" 프로젝트입니다.
+- 포함된 서드파티 구성요소는 각자의 라이선스를 따릅니다 — [docs/development/licensing.md](docs/development/licensing.md).

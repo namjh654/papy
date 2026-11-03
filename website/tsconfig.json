@@ -5,10 +5,12 @@
       "vite/client",
       "node"
     ],
-    "allowImportingTsExtensions": true
+    "allowImportingTsExtensions": true,
+    "moduleDetection": "force"
   },
   "include": [
     "src",
+    "api",
     "vite.config.ts",
     "site.config.ts"
   ]

@@ -21,6 +21,11 @@ Papy 는 Issue → Branch → Pull Request → Review → Merge 흐름으로 개
 
 엔진 공개 API 를 바꾸면 그 API 를 쓰는 모든 앱(desktop, 이후 mobile·web)을 함께 검증합니다.
 
+## 라이선스
+
+Papy 는 [PolyForm Noncommercial 1.0.0](LICENSE) 을 따릅니다. PR 을 보내면 그 기여물을 같은 라이선스로 제공하는 데 동의한 것으로 봅니다.
+GPL·AGPL 등 상업적 사용 제한과 충돌하는 라이선스의 코드는 받을 수 없습니다.
+
 ## 규칙
 
 - 엔진(`engine/**`)은 UI 프레임워크(Tauri, React, Compose, SwiftUI) 타입에 의존하지 않습니다.

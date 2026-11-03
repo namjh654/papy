@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Papy desktop app (Tauri host)"
 edition = "2024"
 rust-version = "1.85"
-license = "Apache-2.0"
+license = "PolyForm-Noncommercial-1.0.0"
 publish = false
 
 # engine/ 워크스페이스와 분리된 독립 패키지. 엔진은 path 의존성으로만 가져온다(엔진 → 앱 방향).
