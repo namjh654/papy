@@ -46,3 +46,6 @@ engine/vendor/
 # 데스크톱 번들 리소스 (apps/desktop/src-tauri/build.rs 가 engine/vendor 에서 모음)
 apps/desktop/src-tauri/resources/
 apps/desktop/src-tauri/notices/
+
+# rhwp-studio 빌드 결과 (scripts/fetch-rhwp-studio.mjs)
+apps/desktop/public/studio/

@@ -1,6 +1,6 @@
 # 0005. HWP/HWPX 편집기: rhwp-studio(@rhwp/editor) 도입 검토
 
-- 상태: **제안 — PoC 실행 승인 대기**
+- 상태: **승인 (2026-11-03) — B 안 PoC 완료, HWP/HWPX "고급 편집"으로 도입**
 - 조사일: 2026-11-03 (rhwp v0.8.7 커밋 `1a76570e` 소스 정적 분석, npm 레지스트리)
 
 ## 배경
@@ -36,12 +36,26 @@ rhwp 저장소에는 같은 엔진으로 만든 완성형 웹 편집기 **rhwp-s
 **B 를 단계적으로.** 보기 모드·PDF·DOCX 와 간단한 글자 편집은 지금 Papy 화면을 유지하고,
 HWP/HWPX 에서 "고급 편집(표·개체 포함)" 으로 studio 를 연다. PoC 로 아래를 확인한 뒤 승인 여부를 정한다.
 
-## PoC 확인 항목 (실행 승인 필요)
+## PoC 결과 (2026-11-03, macOS 15 · Apple Silicon, 디버그 빌드)
 
-이 세션에서 studio 빌드(외부 코드 `npm ci`·`vite build` 실행)는 자동 모드 안전장치가 막았다. 저장소 소유자가 승인하면:
+구현: `scripts/fetch-rhwp-studio.mjs` 가 엔진과 같은 커밋의 studio 를 받아 오프라인으로 빌드해 `apps/desktop/public/studio/` 에 넣는다.
+SDK(`@rhwp/editor`)는 `apps/desktop/src/vendor/rhwp-editor/` 에 들여왔다. HWP/HWPX 편집 모드의 서식 막대에 **고급 편집** 버튼이 생기고,
+누르면 studio 가 창 전체에 뜬다. 엔진이 문서를 바이트로 내보내 `loadFile` 하고, **적용**하면 `exportHwp`/`exportHwpx` 결과를 엔진이 새 세션으로 연다(파일은 Papy 의 저장으로만 쓴다).
 
-1. `scripts/fetch-rhwp-studio.mjs`: rhwp-studio·assets 를 같은 커밋으로 sparse 받기 + `@rhwp/core@0.8.7` WASM(무결성 해시 고정) → `npm ci --ignore-scripts` → `RHWP_DISABLE_EXTERNAL_WEBFONTS=1 vite build --base=./`
-2. 빌드 결과 크기, 외부 네트워크 요청이 0 인지(CSP `connect-src 'self'` 로 강제)
-3. macOS(tauri://)·Windows(http://tauri.localhost)·Linux 에서 iframe 연결(패치 전후), 한글 입력기 입력
-4. `loadFile` → 편집 → `exportBytes` → 호스트 저장 → 네이티브 엔진 재열기 왕복
-5. 첫 표시 시간·메모리(WASM 초기화 포함)
+| 확인 항목 | 결과 |
+|---|---|
+| 빌드 | `npm ci --ignore-scripts` + vite build 약 15초(캐시 있을 때). 설치 스크립트 실행 없음. `@rhwp/core` WASM 은 npm 무결성(sha512) 확인 |
+| 크기 | **41MB** (WASM 11MB, CanvasKit WASM 7MB, 글꼴 약 21MB, JS·이미지). 예제 문서·서비스 워커·PWA 매니페스트 제외 |
+| 외부 요청 | 번들에 CDN 글꼴 주소가 데이터로 남아 있지만 `RHWP_DISABLE_EXTERNAL_WEBFONTS=1` 빌드에서는 오프라인 목록만 쓴다. 앱 CSP 가 `connect-src`·`font-src` 를 `'self'` 로 막아 이중으로 차단 |
+| 글꼴 라이선스 | OFL·GUST 글꼴만 넣는다. FONTS.md 에 "무료 배포"로만 적힌 Cafe24·행복고딕은 빼고(대체 글꼴로 표시) 고지 파일에 FONTS.md·OFL 을 싣는다 |
+| 연결(macOS `tauri://localhost`) | studio `isUsableParentOrigin` 한 줄 패치 + SDK 의 같은 출처 허용 패치로 **연결 성공**. 191개 명령(표·머리말·각주·그림·찾아 바꾸기 등) 노출 |
+| 왕복 | HWP(6쪽)·HWPX(10쪽) 모두 엔진 → studio → 엔진 쪽 수 같음, 변경 없을 때 첫 쪽 글 동일 |
+| 실제 입력 | iframe 의 입력란으로 글자 입력 → studio `dirty` → 내보내기 → 엔진 재열기에서 HWP 첫 쪽 글자 수 +4 확인 |
+| 시간 | studio 부팅 약 0.3초, 문서 넣기 0.4~0.65초, 편집 후 내보내기 0.8~0.9초 |
+| 암호 문서 | 엔진이 같은 암호로 다시 암호화해 넘기므로 studio 에서 암호를 다시 묻는다(개선 과제) |
+
+남은 확인
+- Windows(`http://tauri.localhost`)·Linux(WebKitGTK) 실제 창 연결 — 코드상 Windows 는 http 라 패치 없이도 되고 Linux 는 macOS 와 같은 `tauri:`
+- 한글 입력기 조합 입력(사람이 직접), 큰 문서의 메모리
+- IPC: 편집 결과가 JSON 숫자 배열로 올 수 있어 호스트가 둘 다 받는다. 큰 문서에서 느리면 임시 파일·채널로 바꾼다
+- 업스트림에 `tauri:` 허용을 제안해 패치를 없앤다
