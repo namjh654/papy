@@ -1,5 +1,5 @@
 /** 사이트 공통 값. 도메인을 바꾸면 VITE_SITE_URL 만 바꾼다(.env 또는 Vercel 환경 변수). */
-export const SITE_URL = (process.env.VITE_SITE_URL ?? "https://papy.vercel.app").replace(/\/$/, "");
+export const SITE_URL = (process.env.VITE_SITE_URL ?? "https://papy-omega.vercel.app").replace(/\/$/, "");
 
 export const REPO_URL = "https://github.com/namjh654/papy";
 

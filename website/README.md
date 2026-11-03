@@ -24,13 +24,13 @@ pnpm --filter @papy/website build    # → website/dist
 
 | 이름 | 용도 | 기본값 |
 |---|---|---|
-| `VITE_SITE_URL` | canonical·sitemap 의 도메인 | `https://papy.vercel.app` |
+| `VITE_SITE_URL` | canonical·sitemap 의 도메인 | `https://papy-omega.vercel.app` |
 | `VITE_GOOGLE_SITE_VERIFICATION` | Google Search Console HTML 태그 `content` 값 | 비어 있음 |
 | `VITE_NAVER_SITE_VERIFICATION` | 네이버 서치어드바이저 HTML 태그 `content` 값 | 비어 있음 |
 
 ## 배포 (Vercel)
 
-- Vercel 프로젝트 `papy`, Root Directory = `website`, Framework = Vite, Node 24.
+- Vercel 프로젝트 `papy` (https://papy-omega.vercel.app — `papy.vercel.app` 은 이미 다른 사람이 사용 중), Root Directory = `website`, Framework = Vite, Node 24.
 - Install: `pnpm install --frozen-lockfile --filter "@papy/website..."`, Build: `pnpm build`, Output: `dist`.
 - 저장소 루트 `.vercelignore` 로 앱·엔진 폴더는 올리지 않는다. 보안 헤더·CSP·캐시는 `vercel.json`.
 
