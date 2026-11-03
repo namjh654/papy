@@ -54,6 +54,16 @@ fn stage_resources() {
         &out.join("licenses/noto-sans-kr/OFL.txt"),
     );
     copy(&rhwp.join("LICENSE"), &out.join("licenses/rhwp/LICENSE"));
+    // 전체 고지는 `node scripts/third-party-notices.mjs` 로 만든다(배포 빌드는 CI 가 만든다).
+    let notices = manifest.join("notices/THIRD_PARTY_NOTICES.txt");
+    println!("cargo:rerun-if-changed={}", notices.display());
+    if notices.exists() {
+        copy(&notices, &out.join("licenses/THIRD_PARTY_NOTICES.txt"));
+    } else if env::var("PROFILE").as_deref() == Ok("release") {
+        println!(
+            "cargo:warning=THIRD_PARTY_NOTICES.txt 가 없습니다. `node scripts/third-party-notices.mjs` 를 먼저 실행하세요."
+        );
+    }
     copy(
         &rhwp.join("THIRD_PARTY_LICENSES.md"),
         &out.join("licenses/rhwp/THIRD_PARTY_LICENSES.md"),
