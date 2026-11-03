@@ -2,9 +2,22 @@
 
 ## 프로젝트 라이선스
 
-- 현재 루트 `LICENSE`: Apache-2.0 (GitHub 저장소 생성 시 추가됨).
-- **최종 확정 전.** PDF·HWP·Office 엔진 선택에 따라 배포 의무가 바뀔 수 있어(예: AGPL 엔진을 정적 링크하면 전체 소스 공개 의무),
-  외부 엔진 결정과 함께 확정한다.
+- **PolyForm Noncommercial 1.0.0** (SPDX `PolyForm-Noncommercial-1.0.0`) — 2026-11-03 저장소 소유자 결정.
+  원문: 공식 저장소 `polyformproject/polyform-licenses` 의 `PolyForm-Noncommercial-1.0.0.md` 를 그대로 사용(확인일 2026-11-03).
+- 적용 범위: 저장소의 모든 소스와 배포 파일(데스크톱 설치 파일, 이후 모바일 앱·웹 산출물). 서드파티 코드·폰트·바이너리는 각자 라이선스.
+- 이전 커밋(`cf10438`~`f2a21d0`)은 Apache-2.0 LICENSE 와 함께 공개됐다. 그 시점 사본을 받은 사람에게는 Apache-2.0 이 계속 유효할 수 있다.
+- 조건 요약: 비상업적 목적의 사용·수정·배포 허용, 배포 시 라이선스 전문(또는 URL)과 `Required Notice:` 줄 전달, 특허 소송 시 라이선스 종료,
+  위반 통지 후 32일 내 시정하지 않으면 종료.
+
+### 이 라이선스가 주는 제약
+
+| 항목 | 영향 |
+|---|---|
+| OSI 오픈소스 아님 | "오픈소스"가 아닌 "소스 공개"로 표기. 오픈소스 전용 프로그램·패키지 저장소(일부 배포판 공식 저장소, F-Droid 등)에 올리기 어렵다 |
+| 상업적 사용 불가 | 회사 업무용 사용도 상업적 목적에 해당할 수 있다. 기업 사용자에게는 별도 상용 라이선스가 필요 |
+| copyleft 서드파티와 결합 | GPL·AGPL 은 상업적 사용 제한을 추가하는 것을 허용하지 않으므로 **GPL/AGPL 구성요소는 함께 배포할 수 없다** (예: MuPDF AGPL 판). LGPL·MPL 은 파일·라이브러리 단위 조건을 지키면 가능 |
+| 허용형 서드파티 | MIT·BSD·Apache·Zlib·OFL 등은 고지만 지키면 함께 배포 가능 (PDFium, rhwp, Tauri 등) |
+| 외부 기여 | 기여물도 같은 라이선스로 받는다. 향후 상용 라이선스를 따로 팔려면 기여자에게 추가 권리(CLA 등)가 필요 — 결정 필요 |
 
 ## 외부 라이브러리 도입 체크리스트
 
@@ -26,7 +39,7 @@
 | 범위 | 내용 |
 |---|---|
 | 엔진 (`engine/`) | 외부 의존성 없음 |
-| 데스크톱 Rust (`src-tauri`) | 전이 포함 402 crate. 대부분 MIT/Apache-2.0 계열. 약한 copyleft: MPL-2.0 5개(`cssparser`, `cssparser-macros`, `dtoa-short`, `option-ext`, `selectors` — Tauri/wry 경유, 파일 단위 copyleft). GPL/AGPL 없음 |
+| 데스크톱 Rust (`src-tauri`) | 전이 포함 402 crate. GPL/AGPL 없음(PolyForm NC 와 결합 가능). 대부분 MIT/Apache-2.0 계열. 약한 copyleft: MPL-2.0 5개(`cssparser`, `cssparser-macros`, `dtoa-short`, `option-ext`, `selectors` — Tauri/wry 경유, 파일 단위 copyleft). |
 | JS 직접 의존성 | react·react-dom·vite·@vitejs/plugin-react·@types/react: MIT / typescript: Apache-2.0 / @tauri-apps/*: Apache-2.0 OR MIT |
 | 모바일 | 템플릿 의존성(Ktor, Koin, SKIE, Firebase, 소셜 로그인 SDK 등) 미검토 — 모바일 단계 시작 시 정리 |
 

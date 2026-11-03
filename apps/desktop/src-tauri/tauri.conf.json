@@ -31,13 +31,13 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "publisher": "Papy contributors",
-    "copyright": "© 2026 Papy contributors. Apache-2.0.",
+    "publisher": "Nam Jeong Hyeok",
+    "copyright": "© 2026 Nam Jeong Hyeok. PolyForm Noncommercial 1.0.0.",
     "category": "Productivity",
     "shortDescription": "Offline-first PDF/HWPX document viewer",
-    "longDescription": "Papy (페이피) is a free, offline-first, open-source document viewer focused on PDF and Korean HWP/HWPX documents.",
+    "longDescription": "Papy (페이피) is a free, offline-first, source-available document viewer focused on PDF and Korean HWP/HWPX documents.",
     "homepage": "https://github.com/namjh654/papy",
-    "license": "Apache-2.0",
+    "license": "PolyForm-Noncommercial-1.0.0",
     "macOS": {
       "minimumSystemVersion": "10.13"
     },

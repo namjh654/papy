@@ -40,6 +40,7 @@ function site(): Plugin {
         "{{url}}": url,
         "{{site}}": SITE_URL,
         "{{repo}}": REPO_URL,
+        "{{edit}}": `${REPO_URL}/edit/main/website/${page.file}`,
         "{{year}}": String(new Date().getFullYear()),
       };
       // partial 안의 변수까지 바뀌도록 두 번 치환한다.
