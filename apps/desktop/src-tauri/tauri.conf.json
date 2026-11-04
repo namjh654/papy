@@ -80,7 +80,7 @@
           "pdf"
         ],
         "name": "PDF",
-        "description": "PDF 문서",
+        "description": "PDF document",
         "role": "Viewer",
         "mimeType": "application/pdf"
       },
@@ -89,7 +89,7 @@
           "hwp"
         ],
         "name": "HWP",
-        "description": "한글 문서",
+        "description": "HWP document",
         "role": "Editor",
         "mimeType": "application/x-hwp"
       },
@@ -98,7 +98,7 @@
           "hwpx"
         ],
         "name": "HWPX",
-        "description": "한글 문서(HWPX)",
+        "description": "HWPX document",
         "role": "Editor",
         "mimeType": "application/hwp+zip"
       },
@@ -107,7 +107,7 @@
           "docx"
         ],
         "name": "DOCX",
-        "description": "Word 문서",
+        "description": "Word document",
         "role": "Editor",
         "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
       }
