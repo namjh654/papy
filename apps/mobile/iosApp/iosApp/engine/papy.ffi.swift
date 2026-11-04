@@ -607,14 +607,55 @@ fileprivate struct FfiConverterData: FfiConverterRustBuffer {
 public protocol PapyEngineProtocol: AnyObject, Sendable {
     
     /**
+     * 범위에 글자 모양을 적용한다(값이 있는 것만). 편집 뒤 되돌리기 단계 수를 돌려준다.
+     */
+    func applyTextStyle(sessionId: UInt64, range: EngineRange, style: EngineTextStyle) throws  -> UInt32
+    
+    /**
+     * 위치의 커서.
+     */
+    func caretAt(sessionId: UInt64, position: EnginePosition) throws  -> EngineCaret
+    
+    /**
+     * 쪽의 (x, y)(pt) 자리에 가장 가까운 커서.
+     */
+    func caretAtPoint(sessionId: UInt64, page: UInt32, x: Float, y: Float) throws  -> EngineCaret
+    
+    /**
      * 문서를 닫는다. 이미 닫혔으면 아무것도 하지 않는다.
      */
     func close(sessionId: UInt64) 
     
     /**
+     * 커서 앞 글자를 지운다(문단 처음이면 앞 문단과 합친다).
+     */
+    func deleteBackward(sessionId: UInt64, position: EnginePosition) throws  -> EngineEdit
+    
+    /**
+     * 범위를 지운다(문단을 넘으면 합친다). 같은 구역 안이어야 한다.
+     */
+    func deleteRange(sessionId: UInt64, range: EngineRange) throws  -> EngineEdit
+    
+    /**
+     * 다른 형식으로 내보낸 바이트. `extension`: "pdf" | "hwpx" | "hwp" | "docx" | "txt".
+     * 작업 문서는 그대로 둔다.
+     */
+    func export(sessionId: UInt64, `extension`: String) throws  -> Data
+    
+    /**
      * 쪽의 글자.
      */
     func extractText(sessionId: UInt64, page: UInt32) throws  -> String
+    
+    /**
+     * 커서 자리에 글자를 넣는다(`\n` 은 문단 나누기). 앞 글자의 모양을 따른다.
+     */
+    func insertText(sessionId: UInt64, position: EnginePosition, text: String) throws  -> EngineEdit
+    
+    /**
+     * 커서를 옮긴다. `preferred_x` 는 위·아래로 옮길 때 지킬 가로 위치(pt).
+     */
+    func moveCaret(sessionId: UInt64, position: EnginePosition, direction: CaretDirection, preferredX: Float) throws  -> EngineCaret
     
     /**
      * 바이트로 문서를 연다.
@@ -642,8 +683,8 @@ public protocol PapyEngineProtocol: AnyObject, Sendable {
     func renderPage(sessionId: UInt64, page: UInt32, scale: Float) throws  -> PageImage
     
     /**
-     * 문단 글자를 바꾼다(문단 서식은 그대로, `\n` 은 문단 나누기).
-     * 지우기·넣기로 하므로 되돌리기 단계 수(0~2)를 돌려준다 — 되돌릴 때 그만큼 [`Self::undo`] 를 부른다.
+     * 문단 글자를 바꾼다(`\n` 은 문단 나누기). 앞뒤로 같은 부분은 두고 바뀐 가운데만 지우고 넣어
+     * 바뀌지 않은 글자의 모양(굵게·색 등)을 지킨다. 편집 뒤 되돌리기 단계 수를 돌려준다.
      */
     func replaceParagraph(sessionId: UInt64, section: UInt32, paragraph: UInt32, text: String) throws  -> UInt32
     
@@ -653,9 +694,34 @@ public protocol PapyEngineProtocol: AnyObject, Sendable {
     func save(sessionId: UInt64) throws  -> Data
     
     /**
-     * 마지막 편집을 되돌린다. 되돌린 것이 있으면 true.
+     * 범위를 줄마다 덮는 사각형(선택 표시).
      */
-    func undo(sessionId: UInt64) throws  -> Bool
+    func selectionRegions(sessionId: UInt64, range: EngineRange) throws  -> [PageRegion]
+    
+    /**
+     * 범위의 글자(문단 사이는 `\n`).
+     */
+    func textInRange(sessionId: UInt64, range: EngineRange) throws  -> String
+    
+    /**
+     * 위치의 글자 모양(커서 앞 글자).
+     */
+    func textStyle(sessionId: UInt64, position: EnginePosition) throws  -> EngineTextStyle
+    
+    /**
+     * 마지막 편집 한 단계를 되돌린다.
+     */
+    func undo(sessionId: UInt64) throws  -> EngineUndo
+    
+    /**
+     * 지금 되돌릴 수 있는 단계 수.
+     */
+    func undoDepth(sessionId: UInt64) throws  -> UInt32
+    
+    /**
+     * 위치가 든 단어의 범위(두 번 눌러 고르기). 단어가 아니면 빈 범위.
+     */
+    func wordAt(sessionId: UInt64, position: EnginePosition) throws  -> EngineRange
     
 }
 /**
@@ -727,6 +793,51 @@ public convenience init(koreanFont: String?) {
 
     
     /**
+     * 범위에 글자 모양을 적용한다(값이 있는 것만). 편집 뒤 되돌리기 단계 수를 돌려준다.
+     */
+open func applyTextStyle(sessionId: UInt64, range: EngineRange, style: EngineTextStyle)throws  -> UInt32  {
+    return try  FfiConverterUInt32.lift(try rustCallWithError(FfiConverterTypePapyError_lift) {
+        uniffiCallStatus in
+    uniffi_papy_ffi_fn_method_papyengine_apply_text_style(
+            self.uniffiCloneHandle(),
+        FfiConverterUInt64.lower(sessionId),
+        FfiConverterTypeEngineRange_lower(range),
+        FfiConverterTypeEngineTextStyle_lower(style),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * 위치의 커서.
+     */
+open func caretAt(sessionId: UInt64, position: EnginePosition)throws  -> EngineCaret  {
+    return try  FfiConverterTypeEngineCaret_lift(try rustCallWithError(FfiConverterTypePapyError_lift) {
+        uniffiCallStatus in
+    uniffi_papy_ffi_fn_method_papyengine_caret_at(
+            self.uniffiCloneHandle(),
+        FfiConverterUInt64.lower(sessionId),
+        FfiConverterTypeEnginePosition_lower(position),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * 쪽의 (x, y)(pt) 자리에 가장 가까운 커서.
+     */
+open func caretAtPoint(sessionId: UInt64, page: UInt32, x: Float, y: Float)throws  -> EngineCaret  {
+    return try  FfiConverterTypeEngineCaret_lift(try rustCallWithError(FfiConverterTypePapyError_lift) {
+        uniffiCallStatus in
+    uniffi_papy_ffi_fn_method_papyengine_caret_at_point(
+            self.uniffiCloneHandle(),
+        FfiConverterUInt64.lower(sessionId),
+        FfiConverterUInt32.lower(page),
+        FfiConverterFloat.lower(x),
+        FfiConverterFloat.lower(y),uniffiCallStatus
+    )
+})
+}
+    
+    /**
      * 문서를 닫는다. 이미 닫혔으면 아무것도 하지 않는다.
      */
 open func close(sessionId: UInt64)  {try! rustCall() {
@@ -739,6 +850,49 @@ open func close(sessionId: UInt64)  {try! rustCall() {
 }
     
     /**
+     * 커서 앞 글자를 지운다(문단 처음이면 앞 문단과 합친다).
+     */
+open func deleteBackward(sessionId: UInt64, position: EnginePosition)throws  -> EngineEdit  {
+    return try  FfiConverterTypeEngineEdit_lift(try rustCallWithError(FfiConverterTypePapyError_lift) {
+        uniffiCallStatus in
+    uniffi_papy_ffi_fn_method_papyengine_delete_backward(
+            self.uniffiCloneHandle(),
+        FfiConverterUInt64.lower(sessionId),
+        FfiConverterTypeEnginePosition_lower(position),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * 범위를 지운다(문단을 넘으면 합친다). 같은 구역 안이어야 한다.
+     */
+open func deleteRange(sessionId: UInt64, range: EngineRange)throws  -> EngineEdit  {
+    return try  FfiConverterTypeEngineEdit_lift(try rustCallWithError(FfiConverterTypePapyError_lift) {
+        uniffiCallStatus in
+    uniffi_papy_ffi_fn_method_papyengine_delete_range(
+            self.uniffiCloneHandle(),
+        FfiConverterUInt64.lower(sessionId),
+        FfiConverterTypeEngineRange_lower(range),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * 다른 형식으로 내보낸 바이트. `extension`: "pdf" | "hwpx" | "hwp" | "docx" | "txt".
+     * 작업 문서는 그대로 둔다.
+     */
+open func export(sessionId: UInt64, `extension`: String)throws  -> Data  {
+    return try  FfiConverterData.lift(try rustCallWithError(FfiConverterTypePapyError_lift) {
+        uniffiCallStatus in
+    uniffi_papy_ffi_fn_method_papyengine_export(
+            self.uniffiCloneHandle(),
+        FfiConverterUInt64.lower(sessionId),
+        FfiConverterString.lower(`extension`),uniffiCallStatus
+    )
+})
+}
+    
+    /**
      * 쪽의 글자.
      */
 open func extractText(sessionId: UInt64, page: UInt32)throws  -> String  {
@@ -748,6 +902,37 @@ open func extractText(sessionId: UInt64, page: UInt32)throws  -> String  {
             self.uniffiCloneHandle(),
         FfiConverterUInt64.lower(sessionId),
         FfiConverterUInt32.lower(page),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * 커서 자리에 글자를 넣는다(`\n` 은 문단 나누기). 앞 글자의 모양을 따른다.
+     */
+open func insertText(sessionId: UInt64, position: EnginePosition, text: String)throws  -> EngineEdit  {
+    return try  FfiConverterTypeEngineEdit_lift(try rustCallWithError(FfiConverterTypePapyError_lift) {
+        uniffiCallStatus in
+    uniffi_papy_ffi_fn_method_papyengine_insert_text(
+            self.uniffiCloneHandle(),
+        FfiConverterUInt64.lower(sessionId),
+        FfiConverterTypeEnginePosition_lower(position),
+        FfiConverterString.lower(text),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * 커서를 옮긴다. `preferred_x` 는 위·아래로 옮길 때 지킬 가로 위치(pt).
+     */
+open func moveCaret(sessionId: UInt64, position: EnginePosition, direction: CaretDirection, preferredX: Float)throws  -> EngineCaret  {
+    return try  FfiConverterTypeEngineCaret_lift(try rustCallWithError(FfiConverterTypePapyError_lift) {
+        uniffiCallStatus in
+    uniffi_papy_ffi_fn_method_papyengine_move_caret(
+            self.uniffiCloneHandle(),
+        FfiConverterUInt64.lower(sessionId),
+        FfiConverterTypeEnginePosition_lower(position),
+        FfiConverterTypeCaretDirection_lower(direction),
+        FfiConverterFloat.lower(preferredX),uniffiCallStatus
     )
 })
 }
@@ -825,8 +1010,8 @@ open func renderPage(sessionId: UInt64, page: UInt32, scale: Float)throws  -> Pa
 }
     
     /**
-     * 문단 글자를 바꾼다(문단 서식은 그대로, `\n` 은 문단 나누기).
-     * 지우기·넣기로 하므로 되돌리기 단계 수(0~2)를 돌려준다 — 되돌릴 때 그만큼 [`Self::undo`] 를 부른다.
+     * 문단 글자를 바꾼다(`\n` 은 문단 나누기). 앞뒤로 같은 부분은 두고 바뀐 가운데만 지우고 넣어
+     * 바뀌지 않은 글자의 모양(굵게·색 등)을 지킨다. 편집 뒤 되돌리기 단계 수를 돌려준다.
      */
 open func replaceParagraph(sessionId: UInt64, section: UInt32, paragraph: UInt32, text: String)throws  -> UInt32  {
     return try  FfiConverterUInt32.lift(try rustCallWithError(FfiConverterTypePapyError_lift) {
@@ -855,14 +1040,83 @@ open func save(sessionId: UInt64)throws  -> Data  {
 }
     
     /**
-     * 마지막 편집을 되돌린다. 되돌린 것이 있으면 true.
+     * 범위를 줄마다 덮는 사각형(선택 표시).
      */
-open func undo(sessionId: UInt64)throws  -> Bool  {
-    return try  FfiConverterBool.lift(try rustCallWithError(FfiConverterTypePapyError_lift) {
+open func selectionRegions(sessionId: UInt64, range: EngineRange)throws  -> [PageRegion]  {
+    return try  FfiConverterSequenceTypePageRegion.lift(try rustCallWithError(FfiConverterTypePapyError_lift) {
+        uniffiCallStatus in
+    uniffi_papy_ffi_fn_method_papyengine_selection_regions(
+            self.uniffiCloneHandle(),
+        FfiConverterUInt64.lower(sessionId),
+        FfiConverterTypeEngineRange_lower(range),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * 범위의 글자(문단 사이는 `\n`).
+     */
+open func textInRange(sessionId: UInt64, range: EngineRange)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypePapyError_lift) {
+        uniffiCallStatus in
+    uniffi_papy_ffi_fn_method_papyengine_text_in_range(
+            self.uniffiCloneHandle(),
+        FfiConverterUInt64.lower(sessionId),
+        FfiConverterTypeEngineRange_lower(range),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * 위치의 글자 모양(커서 앞 글자).
+     */
+open func textStyle(sessionId: UInt64, position: EnginePosition)throws  -> EngineTextStyle  {
+    return try  FfiConverterTypeEngineTextStyle_lift(try rustCallWithError(FfiConverterTypePapyError_lift) {
+        uniffiCallStatus in
+    uniffi_papy_ffi_fn_method_papyengine_text_style(
+            self.uniffiCloneHandle(),
+        FfiConverterUInt64.lower(sessionId),
+        FfiConverterTypeEnginePosition_lower(position),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * 마지막 편집 한 단계를 되돌린다.
+     */
+open func undo(sessionId: UInt64)throws  -> EngineUndo  {
+    return try  FfiConverterTypeEngineUndo_lift(try rustCallWithError(FfiConverterTypePapyError_lift) {
         uniffiCallStatus in
     uniffi_papy_ffi_fn_method_papyengine_undo(
             self.uniffiCloneHandle(),
         FfiConverterUInt64.lower(sessionId),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * 지금 되돌릴 수 있는 단계 수.
+     */
+open func undoDepth(sessionId: UInt64)throws  -> UInt32  {
+    return try  FfiConverterUInt32.lift(try rustCallWithError(FfiConverterTypePapyError_lift) {
+        uniffiCallStatus in
+    uniffi_papy_ffi_fn_method_papyengine_undo_depth(
+            self.uniffiCloneHandle(),
+        FfiConverterUInt64.lower(sessionId),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * 위치가 든 단어의 범위(두 번 눌러 고르기). 단어가 아니면 빈 범위.
+     */
+open func wordAt(sessionId: UInt64, position: EnginePosition)throws  -> EngineRange  {
+    return try  FfiConverterTypeEngineRange_lift(try rustCallWithError(FfiConverterTypePapyError_lift) {
+        uniffiCallStatus in
+    uniffi_papy_ffi_fn_method_papyengine_word_at(
+            self.uniffiCloneHandle(),
+        FfiConverterUInt64.lower(sessionId),
+        FfiConverterTypeEnginePosition_lower(position),uniffiCallStatus
     )
 })
 }
@@ -1021,6 +1275,471 @@ public func FfiConverterTypeDocumentSummary_lift(_ buf: RustBuffer) throws -> Do
 #endif
 public func FfiConverterTypeDocumentSummary_lower(_ value: DocumentSummary) -> RustBuffer {
     return FfiConverterTypeDocumentSummary.lower(value)
+}
+
+
+/**
+ * 커서: 위치와 화면에 그릴 세로 막대(너비 0).
+ */
+public struct EngineCaret: Equatable, Hashable {
+    /**
+     * 위치
+     */
+    public var position: EnginePosition
+    /**
+     * 커서 사각형(pt)
+     */
+    public var rect: PageRegion
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * 위치
+         */position: EnginePosition, 
+        /**
+         * 커서 사각형(pt)
+         */rect: PageRegion) {
+        self.position = position
+        self.rect = rect
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension EngineCaret: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeEngineCaret: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> EngineCaret {
+        return
+            try EngineCaret(
+                position: FfiConverterTypeEnginePosition.read(from: &buf), 
+                rect: FfiConverterTypePageRegion.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: EngineCaret, into buf: inout [UInt8]) {
+        FfiConverterTypeEnginePosition.write(value.position, into: &buf)
+        FfiConverterTypePageRegion.write(value.rect, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeEngineCaret_lift(_ buf: RustBuffer) throws -> EngineCaret {
+    return try FfiConverterTypeEngineCaret.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeEngineCaret_lower(_ value: EngineCaret) -> RustBuffer {
+    return FfiConverterTypeEngineCaret.lower(value)
+}
+
+
+/**
+ * 편집 결과: 커서와 지금 되돌릴 수 있는 단계 수(이어 친 글자는 한 단계로 묶인다).
+ */
+public struct EngineEdit: Equatable, Hashable {
+    /**
+     * 편집 뒤 커서
+     */
+    public var caret: EngineCaret
+    /**
+     * 되돌리기 단계 수
+     */
+    public var undoDepth: UInt32
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * 편집 뒤 커서
+         */caret: EngineCaret, 
+        /**
+         * 되돌리기 단계 수
+         */undoDepth: UInt32) {
+        self.caret = caret
+        self.undoDepth = undoDepth
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension EngineEdit: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeEngineEdit: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> EngineEdit {
+        return
+            try EngineEdit(
+                caret: FfiConverterTypeEngineCaret.read(from: &buf), 
+                undoDepth: FfiConverterUInt32.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: EngineEdit, into buf: inout [UInt8]) {
+        FfiConverterTypeEngineCaret.write(value.caret, into: &buf)
+        FfiConverterUInt32.write(value.undoDepth, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeEngineEdit_lift(_ buf: RustBuffer) throws -> EngineEdit {
+    return try FfiConverterTypeEngineEdit.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeEngineEdit_lower(_ value: EngineEdit) -> RustBuffer {
+    return FfiConverterTypeEngineEdit.lower(value)
+}
+
+
+/**
+ * 본문 위치. 구역·문단은 0부터, `offset` 은 문단 안 글자(유니코드 스칼라) 위치.
+ * (Swift 에서 앱 쪽 이름과 겹치지 않게 Engine 을 붙인다.)
+ */
+public struct EnginePosition: Equatable, Hashable {
+    /**
+     * 구역
+     */
+    public var section: UInt32
+    /**
+     * 문단
+     */
+    public var paragraph: UInt32
+    /**
+     * 문단 안 글자 위치
+     */
+    public var offset: UInt32
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * 구역
+         */section: UInt32, 
+        /**
+         * 문단
+         */paragraph: UInt32, 
+        /**
+         * 문단 안 글자 위치
+         */offset: UInt32) {
+        self.section = section
+        self.paragraph = paragraph
+        self.offset = offset
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension EnginePosition: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeEnginePosition: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> EnginePosition {
+        return
+            try EnginePosition(
+                section: FfiConverterUInt32.read(from: &buf), 
+                paragraph: FfiConverterUInt32.read(from: &buf), 
+                offset: FfiConverterUInt32.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: EnginePosition, into buf: inout [UInt8]) {
+        FfiConverterUInt32.write(value.section, into: &buf)
+        FfiConverterUInt32.write(value.paragraph, into: &buf)
+        FfiConverterUInt32.write(value.offset, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeEnginePosition_lift(_ buf: RustBuffer) throws -> EnginePosition {
+    return try FfiConverterTypeEnginePosition.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeEnginePosition_lower(_ value: EnginePosition) -> RustBuffer {
+    return FfiConverterTypeEnginePosition.lower(value)
+}
+
+
+/**
+ * 범위(`start` ≤ `end`).
+ */
+public struct EngineRange: Equatable, Hashable {
+    /**
+     * 처음
+     */
+    public var start: EnginePosition
+    /**
+     * 끝
+     */
+    public var end: EnginePosition
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * 처음
+         */start: EnginePosition, 
+        /**
+         * 끝
+         */end: EnginePosition) {
+        self.start = start
+        self.end = end
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension EngineRange: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeEngineRange: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> EngineRange {
+        return
+            try EngineRange(
+                start: FfiConverterTypeEnginePosition.read(from: &buf), 
+                end: FfiConverterTypeEnginePosition.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: EngineRange, into buf: inout [UInt8]) {
+        FfiConverterTypeEnginePosition.write(value.start, into: &buf)
+        FfiConverterTypeEnginePosition.write(value.end, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeEngineRange_lift(_ buf: RustBuffer) throws -> EngineRange {
+    return try FfiConverterTypeEngineRange.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeEngineRange_lower(_ value: EngineRange) -> RustBuffer {
+    return FfiConverterTypeEngineRange.lower(value)
+}
+
+
+/**
+ * 글자 모양. 읽을 때는 다 채워지고, 적용할 때는 값이 있는 것만 바꾼다.
+ */
+public struct EngineTextStyle: Equatable, Hashable {
+    /**
+     * 크기(pt)
+     */
+    public var fontSize: Float?
+    /**
+     * 굵게
+     */
+    public var bold: Bool?
+    /**
+     * 기울임
+     */
+    public var italic: Bool?
+    /**
+     * 밑줄
+     */
+    public var underline: Bool?
+    /**
+     * 취소선
+     */
+    public var strikethrough: Bool?
+    /**
+     * 색(`#rrggbb`)
+     */
+    public var color: String?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * 크기(pt)
+         */fontSize: Float?, 
+        /**
+         * 굵게
+         */bold: Bool?, 
+        /**
+         * 기울임
+         */italic: Bool?, 
+        /**
+         * 밑줄
+         */underline: Bool?, 
+        /**
+         * 취소선
+         */strikethrough: Bool?, 
+        /**
+         * 색(`#rrggbb`)
+         */color: String?) {
+        self.fontSize = fontSize
+        self.bold = bold
+        self.italic = italic
+        self.underline = underline
+        self.strikethrough = strikethrough
+        self.color = color
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension EngineTextStyle: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeEngineTextStyle: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> EngineTextStyle {
+        return
+            try EngineTextStyle(
+                fontSize: FfiConverterOptionFloat.read(from: &buf), 
+                bold: FfiConverterOptionBool.read(from: &buf), 
+                italic: FfiConverterOptionBool.read(from: &buf), 
+                underline: FfiConverterOptionBool.read(from: &buf), 
+                strikethrough: FfiConverterOptionBool.read(from: &buf), 
+                color: FfiConverterOptionString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: EngineTextStyle, into buf: inout [UInt8]) {
+        FfiConverterOptionFloat.write(value.fontSize, into: &buf)
+        FfiConverterOptionBool.write(value.bold, into: &buf)
+        FfiConverterOptionBool.write(value.italic, into: &buf)
+        FfiConverterOptionBool.write(value.underline, into: &buf)
+        FfiConverterOptionBool.write(value.strikethrough, into: &buf)
+        FfiConverterOptionString.write(value.color, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeEngineTextStyle_lift(_ buf: RustBuffer) throws -> EngineTextStyle {
+    return try FfiConverterTypeEngineTextStyle.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeEngineTextStyle_lower(_ value: EngineTextStyle) -> RustBuffer {
+    return FfiConverterTypeEngineTextStyle.lower(value)
+}
+
+
+/**
+ * 되돌리기 결과.
+ */
+public struct EngineUndo: Equatable, Hashable {
+    /**
+     * 되돌린 자리의 커서(되돌린 것이 없거나 자리가 사라졌으면 없음)
+     */
+    public var caret: EngineCaret?
+    /**
+     * 남은 되돌리기 단계 수
+     */
+    public var undoDepth: UInt32
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * 되돌린 자리의 커서(되돌린 것이 없거나 자리가 사라졌으면 없음)
+         */caret: EngineCaret?, 
+        /**
+         * 남은 되돌리기 단계 수
+         */undoDepth: UInt32) {
+        self.caret = caret
+        self.undoDepth = undoDepth
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension EngineUndo: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeEngineUndo: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> EngineUndo {
+        return
+            try EngineUndo(
+                caret: FfiConverterOptionTypeEngineCaret.read(from: &buf), 
+                undoDepth: FfiConverterUInt32.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: EngineUndo, into buf: inout [UInt8]) {
+        FfiConverterOptionTypeEngineCaret.write(value.caret, into: &buf)
+        FfiConverterUInt32.write(value.undoDepth, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeEngineUndo_lift(_ buf: RustBuffer) throws -> EngineUndo {
+    return try FfiConverterTypeEngineUndo.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeEngineUndo_lower(_ value: EngineUndo) -> RustBuffer {
+    return FfiConverterTypeEngineUndo.lower(value)
 }
 
 
@@ -1361,6 +2080,121 @@ public func FfiConverterTypeParagraphAtPoint_lower(_ value: ParagraphAtPoint) ->
 
 
 /**
+ * 커서 이동 방향.
+ */
+
+public enum CaretDirection: Equatable, Hashable {
+    
+    /**
+     * 한 글자 앞
+     */
+    case left
+    /**
+     * 한 글자 뒤
+     */
+    case right
+    /**
+     * 한 줄 위
+     */
+    case up
+    /**
+     * 한 줄 아래
+     */
+    case down
+    /**
+     * 줄 처음
+     */
+    case lineStart
+    /**
+     * 줄 끝
+     */
+    case lineEnd
+
+
+
+
+
+}
+
+#if compiler(>=6)
+extension CaretDirection: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeCaretDirection: FfiConverterRustBuffer {
+    typealias SwiftType = CaretDirection
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> CaretDirection {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .left
+        
+        case 2: return .right
+        
+        case 3: return .up
+        
+        case 4: return .down
+        
+        case 5: return .lineStart
+        
+        case 6: return .lineEnd
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: CaretDirection, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .left:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .right:
+            writeInt(&buf, Int32(2))
+        
+        
+        case .up:
+            writeInt(&buf, Int32(3))
+        
+        
+        case .down:
+            writeInt(&buf, Int32(4))
+        
+        
+        case .lineStart:
+            writeInt(&buf, Int32(5))
+        
+        
+        case .lineEnd:
+            writeInt(&buf, Int32(6))
+        
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeCaretDirection_lift(_ buf: RustBuffer) throws -> CaretDirection {
+    return try FfiConverterTypeCaretDirection.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeCaretDirection_lower(_ value: CaretDirection) -> RustBuffer {
+    return FfiConverterTypeCaretDirection.lower(value)
+}
+
+
+
+/**
  * 엔진 오류. 메시지는 개발자용(영어)이며 화면 글자는 앱이 종류에 맞춰 고른다.
  */
 public 
@@ -1560,6 +2394,54 @@ public func FfiConverterTypePapyError_lower(_ value: PapyError) -> RustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterOptionFloat: FfiConverterRustBuffer {
+    typealias SwiftType = Float?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterFloat.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterFloat.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterOptionBool: FfiConverterRustBuffer {
+    typealias SwiftType = Bool?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterBool.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterBool.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterOptionString: FfiConverterRustBuffer {
     typealias SwiftType = String?
 
@@ -1576,6 +2458,30 @@ fileprivate struct FfiConverterOptionString: FfiConverterRustBuffer {
         switch try readInt(&buf) as Int8 {
         case 0: return nil
         case 1: return try FfiConverterString.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterOptionTypeEngineCaret: FfiConverterRustBuffer {
+    typealias SwiftType = EngineCaret?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeEngineCaret.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeEngineCaret.read(from: &buf)
         default: throw UniffiInternalError.unexpectedOptionalTag
         }
     }
@@ -1634,10 +2540,34 @@ private let initializationResult: InitializationResult = {
     if (uniffi_papy_ffi_checksum_func_engine_version() != 34981) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_papy_ffi_checksum_method_papyengine_apply_text_style() != 16748) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_papy_ffi_checksum_method_papyengine_caret_at() != 39839) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_papy_ffi_checksum_method_papyengine_caret_at_point() != 51899) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_papy_ffi_checksum_method_papyengine_close() != 47855) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_papy_ffi_checksum_method_papyengine_delete_backward() != 39482) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_papy_ffi_checksum_method_papyengine_delete_range() != 13120) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_papy_ffi_checksum_method_papyengine_export() != 34227) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_papy_ffi_checksum_method_papyengine_extract_text() != 8103) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_papy_ffi_checksum_method_papyengine_insert_text() != 12120) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_papy_ffi_checksum_method_papyengine_move_caret() != 14004) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_papy_ffi_checksum_method_papyengine_open() != 52631) {
@@ -1655,13 +2585,28 @@ private let initializationResult: InitializationResult = {
     if (uniffi_papy_ffi_checksum_method_papyengine_render_page() != 371) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_papy_ffi_checksum_method_papyengine_replace_paragraph() != 30685) {
+    if (uniffi_papy_ffi_checksum_method_papyengine_replace_paragraph() != 65330) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_papy_ffi_checksum_method_papyengine_save() != 57793) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_papy_ffi_checksum_method_papyengine_undo() != 56942) {
+    if (uniffi_papy_ffi_checksum_method_papyengine_selection_regions() != 18185) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_papy_ffi_checksum_method_papyengine_text_in_range() != 51091) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_papy_ffi_checksum_method_papyengine_text_style() != 17451) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_papy_ffi_checksum_method_papyengine_undo() != 9934) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_papy_ffi_checksum_method_papyengine_undo_depth() != 39136) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_papy_ffi_checksum_method_papyengine_word_at() != 36597) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_papy_ffi_checksum_constructor_papyengine_new() != 27607) {

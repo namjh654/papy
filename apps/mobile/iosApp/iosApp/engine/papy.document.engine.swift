@@ -13,7 +13,22 @@ final class PapyDocumentEngine: NSObject, DocumentEngine, @unchecked Sendable {
     /// 휴대폰 메모리를 생각한 문서 크기 상한
     private static let maxBytes = 256 * 1024 * 1024
 
-    private lazy var rust = PapyEngine(koreanFont: Bundle.main.path(forResource: "NotoSansKR-Regular", ofType: "ttf"))
+    private lazy var rust = PapyEngine(koreanFont: Self.koreanFont())
+
+    /// 앱에 넣은 한글 글꼴을 글꼴만 든 폴더로 복사한다. PDF 내보내기가 이 폴더의 글꼴을 읽는다
+    /// (앱 묶음 폴더를 통째로 뒤지지 않게).
+    private static func koreanFont() -> String? {
+        guard let bundled = Bundle.main.url(forResource: "NotoSansKR-Regular", withExtension: "ttf"),
+              let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
+        else { return nil }
+        let folder = caches.appendingPathComponent("EngineFonts", isDirectory: true)
+        let target = folder.appendingPathComponent("NotoSansKR-Regular.ttf")
+        if !FileManager.default.fileExists(atPath: target.path) {
+            try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            try? FileManager.default.copyItem(at: bundled, to: target)
+        }
+        return FileManager.default.fileExists(atPath: target.path) ? target.path : bundled.path
+    }
 
     private let lock = NSLock()
     private var pdfs: [Int64: PDFDocument] = [:]
@@ -144,16 +159,104 @@ final class PapyDocumentEngine: NSObject, DocumentEngine, @unchecked Sendable {
 
     func replaceParagraph(session: Int64, section: Int32, paragraph: Int32, text: String) -> Int32 {
         guard pdf(session) == nil, section >= 0, paragraph >= 0,
-              let steps = try? rust.replaceParagraph(
+              let depth = try? rust.replaceParagraph(
                 sessionId: UInt64(bitPattern: session), section: UInt32(section), paragraph: UInt32(paragraph), text: text
               )
         else { return -1 }
-        return Int32(clamping: steps)
+        return Int32(clamping: depth)
     }
 
-    func undo(session: Int64) -> Bool {
-        guard pdf(session) == nil else { return false }
-        return (try? rust.undo(sessionId: UInt64(bitPattern: session))) ?? false
+    /// Rust 문서만 편집한다. PDF 세션이거나 실패하면 nil
+    private func editing<T>(_ session: Int64, _ body: (UInt64) throws -> T) -> T? {
+        guard pdf(session) == nil else { return nil }
+        return try? body(UInt64(bitPattern: session))
+    }
+
+    func caretAt(session: Int64, page: Int32, x: Float, y: Float) -> Caret? {
+        guard page >= 0 else { return nil }
+        return editing(session) { try rust.caretAtPoint(sessionId: $0, page: UInt32(page), x: x, y: y).caret }
+    }
+
+    func caretAtPosition(session: Int64, position: TextPos) -> Caret? {
+        editing(session) { try rust.caretAt(sessionId: $0, position: position.engine).caret }
+    }
+
+    func moveCaret(session: Int64, position: TextPos, move: CaretMove, preferredX: Float) -> Caret? {
+        editing(session) {
+            try rust.moveCaret(sessionId: $0, position: position.engine, direction: move.engine, preferredX: preferredX).caret
+        }
+    }
+
+    func insertText(session: Int64, position: TextPos, text: String) -> EditResult? {
+        editing(session) { try rust.insertText(sessionId: $0, position: position.engine, text: text).result }
+    }
+
+    func deleteBackward(session: Int64, position: TextPos) -> EditResult? {
+        editing(session) { try rust.deleteBackward(sessionId: $0, position: position.engine).result }
+    }
+
+    func deleteRange(session: Int64, range: TextRange) -> EditResult? {
+        editing(session) { try rust.deleteRange(sessionId: $0, range: range.engine).result }
+    }
+
+    func selectionBoxes(session: Int64, range: TextRange) -> [PageBox] {
+        editing(session) { try rust.selectionRegions(sessionId: $0, range: range.engine).map(\.box) } ?? []
+    }
+
+    func wordAt(session: Int64, position: TextPos) -> TextRange? {
+        editing(session) {
+            let range = try rust.wordAt(sessionId: $0, position: position.engine)
+            return TextRange(start: range.start.pos, end: range.end.pos)
+        }
+    }
+
+    func textStyle(session: Int64, position: TextPos) -> TextStyle? {
+        editing(session) {
+            let style = try rust.textStyle(sessionId: $0, position: position.engine)
+            return TextStyle(
+                fontSize: style.fontSize.map { KotlinFloat(float: $0) },
+                bold: style.bold.map { KotlinBoolean(bool: $0) },
+                italic: style.italic.map { KotlinBoolean(bool: $0) },
+                underline: style.underline.map { KotlinBoolean(bool: $0) },
+                strikethrough: style.strikethrough.map { KotlinBoolean(bool: $0) },
+                color: style.color
+            )
+        }
+    }
+
+    func applyTextStyle(session: Int64, range: TextRange, style: TextStyle) -> Int32 {
+        let engineStyle = EngineTextStyle(
+            fontSize: style.fontSize?.floatValue,
+            bold: style.bold?.boolValue,
+            italic: style.italic?.boolValue,
+            underline: style.underline?.boolValue,
+            strikethrough: style.strikethrough?.boolValue,
+            color: style.color
+        )
+        return editing(session) {
+            Int32(clamping: try rust.applyTextStyle(sessionId: $0, range: range.engine, style: engineStyle))
+        } ?? -1
+    }
+
+    func undo(session: Int64) -> UndoResult? {
+        editing(session) {
+            let undo = try rust.undo(sessionId: $0)
+            return UndoResult(caret: undo.caret?.caret, undoDepth: Int32(clamping: undo.undoDepth))
+        }
+    }
+
+    /// PDF 로 바꿔 [target](파일 경로)에 쓴다. 화면이 이어서 공유·저장 창을 연다.
+    func exportPdf(session: Int64, target: String) -> DocumentError? {
+        guard pdf(session) == nil else { return .unsupported }
+        let data: Data
+        do {
+            data = try rust.export(sessionId: UInt64(bitPattern: session), extension: "pdf")
+        } catch let error as PapyError {
+            return error.documentError
+        } catch {
+            return .internal
+        }
+        return (try? data.write(to: URL(fileURLWithPath: target), options: .atomic)) == nil ? .readOnly : nil
     }
 
     func save(session: Int64, ref: String) -> DocumentError? {
@@ -234,6 +337,45 @@ final class PapyDocumentEngine: NSObject, DocumentEngine, @unchecked Sendable {
               )
         else { return nil }
         return UIImage(cgImage: cgImage)
+    }
+}
+
+private extension TextPos {
+    var engine: EnginePosition {
+        EnginePosition(section: UInt32(clamping: section), paragraph: UInt32(clamping: paragraph), offset: UInt32(clamping: offset))
+    }
+}
+
+private extension EnginePosition {
+    var pos: TextPos { TextPos(section: Int32(clamping: section), paragraph: Int32(clamping: paragraph), offset: Int32(clamping: offset)) }
+}
+
+private extension TextRange {
+    var engine: EngineRange { EngineRange(start: start.engine, end: end.engine) }
+}
+
+private extension PageRegion {
+    var box: PageBox { PageBox(page: Int32(clamping: page), x: x, y: y, width: width, height: height) }
+}
+
+private extension EngineCaret {
+    var caret: Caret { Caret(position: position.pos, box: rect.box) }
+}
+
+private extension EngineEdit {
+    var result: EditResult { EditResult(caret: caret.caret, undoDepth: Int32(clamping: undoDepth)) }
+}
+
+private extension CaretMove {
+    var engine: CaretDirection {
+        switch self {
+        case .left: .left
+        case .right: .right
+        case .up: .up
+        case .down: .down
+        case .lineStart: .lineStart
+        default: .lineEnd
+        }
     }
 }
 

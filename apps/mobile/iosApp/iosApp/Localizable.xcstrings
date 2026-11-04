@@ -885,6 +885,91 @@
         }
       }
     },
+    "viewer_caret_left" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move cursor left"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "커서 왼쪽으로"
+          }
+        }
+      }
+    },
+    "viewer_caret_right" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move cursor right"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "커서 오른쪽으로"
+          }
+        }
+      }
+    },
+    "viewer_color_black" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Black text"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "검정 글자"
+          }
+        }
+      }
+    },
+    "viewer_color_blue" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Blue text"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "파란 글자"
+          }
+        }
+      }
+    },
+    "viewer_color_red" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Red text"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "빨간 글자"
+          }
+        }
+      }
+    },
     "viewer_edit" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -959,13 +1044,30 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tap a paragraph to edit it"
+            "value" : "Tap for cursor · double-tap for a word · long-press to edit the paragraph"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "고칠 문단을 누르세요"
+            "value" : "누르면 커서 · 두 번 누르면 단어 · 길게 누르면 문단 고치기"
+          }
+        }
+      }
+    },
+    "viewer_edit_paragraph" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit paragraph"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "문단 고치기"
           }
         }
       }
@@ -1123,19 +1225,121 @@
         }
       }
     },
+    "viewer_export_failed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't convert to PDF. Please try again."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PDF로 바꾸지 못했습니다. 다시 시도해 주세요."
+          }
+        }
+      }
+    },
+    "viewer_export_pdf" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export as PDF"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PDF로 내보내기"
+          }
+        }
+      }
+    },
+    "viewer_exported" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saved as PDF"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PDF로 저장했습니다"
+          }
+        }
+      }
+    },
+    "viewer_exporting" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Converting to PDF…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PDF로 바꾸는 중…"
+          }
+        }
+      }
+    },
+    "viewer_font_larger" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Larger text"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "글자 크게"
+          }
+        }
+      }
+    },
+    "viewer_font_smaller" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Smaller text"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "글자 작게"
+          }
+        }
+      }
+    },
     "viewer_loss" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%1$lld element(s) in this document, such as shapes, can't be shown yet."
+            "value" : "%1$lld element(s) in this document, such as grouped shapes or charts, can't be shown yet."
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "이 문서의 요소 %1$lld개(도형 등)는 아직 옮기지 못해 보이지 않습니다."
+            "value" : "이 문서의 요소 %1$lld개(묶음 도형·차트 등)는 아직 옮기지 못해 보이지 않습니다."
           }
         }
       }
@@ -1323,6 +1527,108 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "저장했습니다"
+          }
+        }
+      }
+    },
+    "viewer_select_clear" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deselect"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "선택 해제"
+          }
+        }
+      }
+    },
+    "viewer_select_extend" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Extend selection"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "범위 선택"
+          }
+        }
+      }
+    },
+    "viewer_style_bold" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bold"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "굵게"
+          }
+        }
+      }
+    },
+    "viewer_style_italic" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Italic"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "기울임"
+          }
+        }
+      }
+    },
+    "viewer_style_strike" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Strikethrough"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "취소선"
+          }
+        }
+      }
+    },
+    "viewer_style_underline" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Underline"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "밑줄"
           }
         }
       }

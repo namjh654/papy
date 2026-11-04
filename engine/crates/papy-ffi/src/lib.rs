@@ -10,8 +10,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use papy_core::{
-    CaretMotion, Document, DocumentFormat, DocumentSource, Engine, EngineResources, ErrorCode,
-    Limits, OpenOptions, RenderRequest, SaveFormat, SessionId, TextPos,
+    CaretMotion, CharFormat, Document, DocumentFormat, DocumentSource, Engine, EngineResources,
+    ErrorCode, Limits, OpenOptions, PageRect, RenderRequest, SaveFormat, SessionId, TextPos,
 };
 
 uniffi::setup_scaffolding!();
@@ -149,6 +149,166 @@ pub struct PageImage {
     pub height: u32,
     /// 픽셀(RGBA)
     pub rgba: Vec<u8>,
+}
+
+/// 본문 위치. 구역·문단은 0부터, `offset` 은 문단 안 글자(유니코드 스칼라) 위치.
+/// (Swift 에서 앱 쪽 이름과 겹치지 않게 Engine 을 붙인다.)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Record)]
+pub struct EnginePosition {
+    /// 구역
+    pub section: u32,
+    /// 문단
+    pub paragraph: u32,
+    /// 문단 안 글자 위치
+    pub offset: u32,
+}
+
+impl From<TextPos> for EnginePosition {
+    fn from(pos: TextPos) -> Self {
+        Self {
+            section: pos.section,
+            paragraph: pos.paragraph,
+            offset: pos.offset,
+        }
+    }
+}
+
+impl From<EnginePosition> for TextPos {
+    fn from(pos: EnginePosition) -> Self {
+        Self {
+            section: pos.section,
+            paragraph: pos.paragraph,
+            offset: pos.offset,
+        }
+    }
+}
+
+impl From<PageRect> for PageRegion {
+    fn from(r: PageRect) -> Self {
+        Self {
+            page: r.page,
+            x: r.x,
+            y: r.y,
+            width: r.width,
+            height: r.height,
+        }
+    }
+}
+
+/// 커서: 위치와 화면에 그릴 세로 막대(너비 0).
+#[derive(Debug, Clone, Copy, uniffi::Record)]
+pub struct EngineCaret {
+    /// 위치
+    pub position: EnginePosition,
+    /// 커서 사각형(pt)
+    pub rect: PageRegion,
+}
+
+/// 편집 결과: 커서와 지금 되돌릴 수 있는 단계 수(이어 친 글자는 한 단계로 묶인다).
+#[derive(Debug, Clone, Copy, uniffi::Record)]
+pub struct EngineEdit {
+    /// 편집 뒤 커서
+    pub caret: EngineCaret,
+    /// 되돌리기 단계 수
+    pub undo_depth: u32,
+}
+
+/// 범위(`start` ≤ `end`).
+#[derive(Debug, Clone, Copy, uniffi::Record)]
+pub struct EngineRange {
+    /// 처음
+    pub start: EnginePosition,
+    /// 끝
+    pub end: EnginePosition,
+}
+
+/// 커서 이동 방향.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum CaretDirection {
+    /// 한 글자 앞
+    Left,
+    /// 한 글자 뒤
+    Right,
+    /// 한 줄 위
+    Up,
+    /// 한 줄 아래
+    Down,
+    /// 줄 처음
+    LineStart,
+    /// 줄 끝
+    LineEnd,
+}
+
+/// 글자 모양. 읽을 때는 다 채워지고, 적용할 때는 값이 있는 것만 바꾼다.
+#[derive(Debug, Clone, Default, PartialEq, uniffi::Record)]
+pub struct EngineTextStyle {
+    /// 크기(pt)
+    pub font_size: Option<f32>,
+    /// 굵게
+    pub bold: Option<bool>,
+    /// 기울임
+    pub italic: Option<bool>,
+    /// 밑줄
+    pub underline: Option<bool>,
+    /// 취소선
+    pub strikethrough: Option<bool>,
+    /// 색(`#rrggbb`)
+    pub color: Option<String>,
+}
+
+/// 되돌리기 결과.
+#[derive(Debug, Clone, Copy, uniffi::Record)]
+pub struct EngineUndo {
+    /// 되돌린 자리의 커서(되돌린 것이 없거나 자리가 사라졌으면 없음)
+    pub caret: Option<EngineCaret>,
+    /// 남은 되돌리기 단계 수
+    pub undo_depth: u32,
+}
+
+/// 한 번에 넣을 수 있는 글자 수 상한.
+const MAX_INSERT_CHARS: usize = 100_000;
+
+fn too_long() -> PapyError {
+    PapyError::LimitExceeded {
+        detail: "text is too long".into(),
+    }
+}
+
+fn caret(doc: &mut dyn Document, pos: TextPos) -> papy_core::Result<EngineCaret> {
+    Ok(EngineCaret {
+        position: pos.into(),
+        rect: doc.caret_rect(pos)?.into(),
+    })
+}
+
+fn depth(doc: &dyn Document) -> u32 {
+    u32::try_from(doc.undo_depth()).unwrap_or(u32::MAX)
+}
+
+fn edit_result(doc: &mut dyn Document, pos: TextPos) -> papy_core::Result<EngineEdit> {
+    Ok(EngineEdit {
+        caret: caret(doc, pos)?,
+        undo_depth: depth(doc),
+    })
+}
+
+/// 단어 글자인가(공백·문장 부호가 아니면 단어로 본다).
+fn is_word_char(c: char) -> bool {
+    c.is_alphanumeric() || c == '_'
+}
+
+/// 문단의 글자 위치 `prefix..old_len-suffix` 만 바꾸면 되는 공통 앞·뒤 길이.
+fn common_ends(old: &[char], new: &[char]) -> (usize, usize) {
+    let prefix = old.iter().zip(new).take_while(|(a, b)| a == b).count();
+    let room = old.len().min(new.len()) - prefix;
+    let suffix = old
+        .iter()
+        .rev()
+        .zip(new.iter().rev())
+        .take(room)
+        .take_while(|(a, b)| a == b)
+        .count();
+    (prefix, suffix)
 }
 
 /// 문서 엔진. 앱에 하나만 두고 여러 스레드에서 불러도 된다.
@@ -356,8 +516,8 @@ impl PapyEngine {
         })?)
     }
 
-    /// 문단 글자를 바꾼다(문단 서식은 그대로, `\n` 은 문단 나누기).
-    /// 지우기·넣기로 하므로 되돌리기 단계 수(0~2)를 돌려준다 — 되돌릴 때 그만큼 [`Self::undo`] 를 부른다.
+    /// 문단 글자를 바꾼다(`\n` 은 문단 나누기). 앞뒤로 같은 부분은 두고 바뀐 가운데만 지우고 넣어
+    /// 바뀌지 않은 글자의 모양(굵게·색 등)을 지킨다. 편집 뒤 되돌리기 단계 수를 돌려준다.
     pub fn replace_paragraph(
         &self,
         session_id: u64,
@@ -365,10 +525,8 @@ impl PapyEngine {
         paragraph: u32,
         text: String,
     ) -> Result<u32, PapyError> {
-        if text.chars().count() > 100_000 {
-            return Err(PapyError::LimitExceeded {
-                detail: "paragraph text is too long".into(),
-            });
+        if text.chars().count() > MAX_INSERT_CHARS {
+            return Err(too_long());
         }
         Ok(self.engine.edit(session(session_id)?, |doc| {
             let start = TextPos {
@@ -377,24 +535,255 @@ impl PapyEngine {
                 offset: 0,
             };
             let end = paragraph_end(doc, section, paragraph)?;
-            let mut steps = 0;
-            if end.offset > 0 {
-                doc.delete_range(start, end)?;
-                steps += 1;
+            let old: Vec<char> = doc.text_in_range(start, end)?.chars().collect();
+            let new: Vec<char> = text.chars().collect();
+            let at = |offset: usize| TextPos {
+                offset: offset as u32,
+                ..start
+            };
+            // 글자 수가 위치 수와 다르면(문단 안 개체 등) 겹치는 부분을 믿을 수 없으니 통째로 바꾼다.
+            let (prefix, suffix, delete_end) = if old.len() == end.offset as usize {
+                let (prefix, suffix) = common_ends(&old, &new);
+                (prefix, suffix, at(old.len() - suffix))
+            } else {
+                (0, 0, end)
+            };
+            if delete_end.offset as usize > prefix {
+                doc.delete_range(at(prefix), delete_end)?;
             }
-            if !text.is_empty() {
-                doc.insert_text(start, &text)?;
-                steps += 1;
+            let middle: String = new[prefix..new.len() - suffix].iter().collect();
+            if !middle.is_empty() {
+                doc.insert_text(at(prefix), &middle)?;
             }
-            Ok(steps)
+            Ok(depth(doc))
         })?)
     }
 
-    /// 마지막 편집을 되돌린다. 되돌린 것이 있으면 true.
-    pub fn undo(&self, session_id: u64) -> Result<bool, PapyError> {
+    /// 쪽의 (x, y)(pt) 자리에 가장 가까운 커서.
+    pub fn caret_at_point(
+        &self,
+        session_id: u64,
+        page: u32,
+        x: f32,
+        y: f32,
+    ) -> Result<EngineCaret, PapyError> {
+        Ok(self.engine.edit(session(session_id)?, |doc| {
+            let pos = doc.hit_test(page, x, y)?;
+            caret(doc, pos)
+        })?)
+    }
+
+    /// 위치의 커서.
+    pub fn caret_at(
+        &self,
+        session_id: u64,
+        position: EnginePosition,
+    ) -> Result<EngineCaret, PapyError> {
         Ok(self
             .engine
-            .edit(session(session_id)?, |doc| Ok(doc.undo()?.is_some()))?)
+            .edit(session(session_id)?, |doc| caret(doc, position.into()))?)
+    }
+
+    /// 커서를 옮긴다. `preferred_x` 는 위·아래로 옮길 때 지킬 가로 위치(pt).
+    pub fn move_caret(
+        &self,
+        session_id: u64,
+        position: EnginePosition,
+        direction: CaretDirection,
+        preferred_x: f32,
+    ) -> Result<EngineCaret, PapyError> {
+        Ok(self.engine.edit(session(session_id)?, |doc| {
+            let pos = TextPos::from(position);
+            let moved = match direction {
+                CaretDirection::Left => doc.move_caret(pos, CaretMotion::Left)?,
+                CaretDirection::Right => doc.move_caret(pos, CaretMotion::Right)?,
+                CaretDirection::LineStart => doc.move_caret(pos, CaretMotion::LineStart)?,
+                CaretDirection::LineEnd => doc.move_caret(pos, CaretMotion::LineEnd)?,
+                CaretDirection::Up => doc.move_vertical(pos, -1, preferred_x)?,
+                CaretDirection::Down => doc.move_vertical(pos, 1, preferred_x)?,
+            };
+            caret(doc, moved)
+        })?)
+    }
+
+    /// 커서 자리에 글자를 넣는다(`\n` 은 문단 나누기). 앞 글자의 모양을 따른다.
+    pub fn insert_text(
+        &self,
+        session_id: u64,
+        position: EnginePosition,
+        text: String,
+    ) -> Result<EngineEdit, PapyError> {
+        if text.chars().count() > MAX_INSERT_CHARS {
+            return Err(too_long());
+        }
+        Ok(self.engine.edit(session(session_id)?, |doc| {
+            let outcome = doc.insert_text(position.into(), &text)?;
+            edit_result(doc, outcome.caret)
+        })?)
+    }
+
+    /// 커서 앞 글자를 지운다(문단 처음이면 앞 문단과 합친다).
+    pub fn delete_backward(
+        &self,
+        session_id: u64,
+        position: EnginePosition,
+    ) -> Result<EngineEdit, PapyError> {
+        Ok(self.engine.edit(session(session_id)?, |doc| {
+            let outcome = doc.delete_backward(position.into())?;
+            edit_result(doc, outcome.caret)
+        })?)
+    }
+
+    /// 범위를 지운다(문단을 넘으면 합친다). 같은 구역 안이어야 한다.
+    pub fn delete_range(
+        &self,
+        session_id: u64,
+        range: EngineRange,
+    ) -> Result<EngineEdit, PapyError> {
+        Ok(self.engine.edit(session(session_id)?, |doc| {
+            let outcome = doc.delete_range(range.start.into(), range.end.into())?;
+            edit_result(doc, outcome.caret)
+        })?)
+    }
+
+    /// 범위를 줄마다 덮는 사각형(선택 표시).
+    pub fn selection_regions(
+        &self,
+        session_id: u64,
+        range: EngineRange,
+    ) -> Result<Vec<PageRegion>, PapyError> {
+        Ok(self.engine.edit(session(session_id)?, |doc| {
+            Ok(doc
+                .selection_rects(range.start.into(), range.end.into())?
+                .into_iter()
+                .map(PageRegion::from)
+                .collect())
+        })?)
+    }
+
+    /// 범위의 글자(문단 사이는 `\n`).
+    pub fn text_in_range(&self, session_id: u64, range: EngineRange) -> Result<String, PapyError> {
+        Ok(self.engine.edit(session(session_id)?, |doc| {
+            doc.text_in_range(range.start.into(), range.end.into())
+        })?)
+    }
+
+    /// 위치가 든 단어의 범위(두 번 눌러 고르기). 단어가 아니면 빈 범위.
+    pub fn word_at(
+        &self,
+        session_id: u64,
+        position: EnginePosition,
+    ) -> Result<EngineRange, PapyError> {
+        Ok(self.engine.edit(session(session_id)?, |doc| {
+            let pos = TextPos::from(position);
+            let start = TextPos { offset: 0, ..pos };
+            let end = paragraph_end(doc, pos.section, pos.paragraph)?;
+            let chars: Vec<char> = doc.text_in_range(start, end)?.chars().collect();
+            let at = (pos.offset as usize).min(chars.len());
+            let mut from = at;
+            while from > 0 && is_word_char(chars[from - 1]) {
+                from -= 1;
+            }
+            let mut to = at;
+            while to < chars.len() && is_word_char(chars[to]) {
+                to += 1;
+            }
+            let make = |offset: usize| EnginePosition {
+                offset: offset as u32,
+                ..position
+            };
+            Ok(EngineRange {
+                start: make(from),
+                end: make(to),
+            })
+        })?)
+    }
+
+    /// 위치의 글자 모양(커서 앞 글자).
+    pub fn text_style(
+        &self,
+        session_id: u64,
+        position: EnginePosition,
+    ) -> Result<EngineTextStyle, PapyError> {
+        Ok(self.engine.edit(session(session_id)?, |doc| {
+            let format = doc.char_format(position.into())?;
+            Ok(EngineTextStyle {
+                font_size: format.font_size,
+                bold: format.bold,
+                italic: format.italic,
+                underline: format.underline,
+                strikethrough: format.strikethrough,
+                color: format.color,
+            })
+        })?)
+    }
+
+    /// 범위에 글자 모양을 적용한다(값이 있는 것만). 편집 뒤 되돌리기 단계 수를 돌려준다.
+    pub fn apply_text_style(
+        &self,
+        session_id: u64,
+        range: EngineRange,
+        style: EngineTextStyle,
+    ) -> Result<u32, PapyError> {
+        if let Some(size) = style.font_size {
+            if !(1.0..=4096.0).contains(&size) {
+                return Err(PapyError::InvalidArgument {
+                    detail: "font size out of range".into(),
+                });
+            }
+        }
+        if let Some(color) = &style.color {
+            let hex = color.strip_prefix('#').unwrap_or("");
+            if hex.len() != 6 || !hex.chars().all(|c| c.is_ascii_hexdigit()) {
+                return Err(PapyError::InvalidArgument {
+                    detail: "color must be #rrggbb".into(),
+                });
+            }
+        }
+        Ok(self.engine.edit(session(session_id)?, |doc| {
+            let format = CharFormat {
+                font_family: None,
+                font_size: style.font_size,
+                bold: style.bold,
+                italic: style.italic,
+                underline: style.underline,
+                strikethrough: style.strikethrough,
+                color: style.color.clone(),
+            };
+            doc.apply_char_format(range.start.into(), range.end.into(), &format)?;
+            Ok(depth(doc))
+        })?)
+    }
+
+    /// 마지막 편집 한 단계를 되돌린다.
+    pub fn undo(&self, session_id: u64) -> Result<EngineUndo, PapyError> {
+        Ok(self.engine.edit(session(session_id)?, |doc| {
+            let caret = match doc.undo()? {
+                Some(outcome) => caret(doc, outcome.caret).ok(),
+                None => None,
+            };
+            Ok(EngineUndo {
+                caret,
+                undo_depth: depth(doc),
+            })
+        })?)
+    }
+
+    /// 지금 되돌릴 수 있는 단계 수.
+    pub fn undo_depth(&self, session_id: u64) -> Result<u32, PapyError> {
+        Ok(self
+            .engine
+            .edit(session(session_id)?, |doc| Ok(depth(doc)))?)
+    }
+
+    /// 다른 형식으로 내보낸 바이트. `extension`: "pdf" | "hwpx" | "hwp" | "docx" | "txt".
+    /// 작업 문서는 그대로 둔다.
+    pub fn export(&self, session_id: u64, extension: String) -> Result<Vec<u8>, PapyError> {
+        let format =
+            SaveFormat::from_extension(&extension).ok_or_else(|| PapyError::InvalidArgument {
+                detail: "unknown format".into(),
+            })?;
+        Ok(self.engine.save(session(session_id)?, format)?)
     }
 
     /// 원래 형식으로 저장한 바이트(암호 문서는 같은 암호로).

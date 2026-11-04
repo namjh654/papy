@@ -94,13 +94,13 @@
     <string name="viewer_text_unavailable">There\'s no readable text on this page. It may be a scanned image.</string>
     <string name="viewer_text_copy">Copy</string>
     <string name="viewer_text_copied">Copied</string>
-    <string name="viewer_loss">%1$d element(s) in this document, such as shapes, can\'t be shown yet.</string>
+    <string name="viewer_loss">%1$d element(s) in this document, such as grouped shapes or charts, can\'t be shown yet.</string>
     <string name="viewer_page_failed">This page couldn\'t be drawn</string>
     <string name="common_close">Close</string>
     <!-- 문서 편집(feature:documents) -->
     <string name="viewer_edit">Edit</string>
     <string name="viewer_edit_done">Done editing</string>
-    <string name="viewer_edit_hint">Tap a paragraph to edit it</string>
+    <string name="viewer_edit_hint">Tap for cursor · double-tap for a word · long-press to edit the paragraph</string>
     <string name="viewer_edit_title">Edit paragraph</string>
     <string name="viewer_edit_apply">Apply</string>
     <string name="viewer_undo">Undo</string>
@@ -112,4 +112,22 @@
     <string name="viewer_exit_title">Unsaved changes</string>
     <string name="viewer_exit_message">Save your changes? If you don\'t, they\'ll be lost.</string>
     <string name="viewer_exit_discard">Don\'t save</string>
+    <string name="viewer_export_pdf">Export as PDF</string>
+    <string name="viewer_exporting">Converting to PDF…</string>
+    <string name="viewer_exported">Saved as PDF</string>
+    <string name="viewer_export_failed">Couldn\'t convert to PDF. Please try again.</string>
+    <string name="viewer_style_bold">Bold</string>
+    <string name="viewer_style_italic">Italic</string>
+    <string name="viewer_style_underline">Underline</string>
+    <string name="viewer_style_strike">Strikethrough</string>
+    <string name="viewer_font_smaller">Smaller text</string>
+    <string name="viewer_font_larger">Larger text</string>
+    <string name="viewer_color_black">Black text</string>
+    <string name="viewer_color_red">Red text</string>
+    <string name="viewer_color_blue">Blue text</string>
+    <string name="viewer_select_extend">Extend selection</string>
+    <string name="viewer_select_clear">Deselect</string>
+    <string name="viewer_caret_left">Move cursor left</string>
+    <string name="viewer_caret_right">Move cursor right</string>
+    <string name="viewer_edit_paragraph">Edit paragraph</string>
 </resources>

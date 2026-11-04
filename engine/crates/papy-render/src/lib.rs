@@ -288,6 +288,12 @@ pub trait Document: Send {
     fn redo(&mut self) -> Result<Option<EditOutcome>> {
         Err(not_supported("editing"))
     }
+
+    /// 지금 되돌릴 수 있는 단계 수. 이어 친 글자는 한 단계로 묶이므로, 호스트가 "한 동작 = 몇 단계"를
+    /// 셀 때 편집 전후의 값을 비교한다.
+    fn undo_depth(&self) -> usize {
+        0
+    }
 }
 
 fn not_supported(what: &str) -> Error {

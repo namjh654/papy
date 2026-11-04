@@ -751,3 +751,110 @@ fn docx_headers_footers_and_footnotes() {
         assert!(header.contains("머리말 글"), "{format:?}: {header}");
     }
 }
+
+fn zip_parts(parts: &[(&str, &str)]) -> Vec<u8> {
+    use std::io::Write;
+    let mut buffer = std::io::Cursor::new(Vec::new());
+    let mut zip = zip::ZipWriter::new(&mut buffer);
+    for (name, xml) in parts {
+        zip.start_file(*name, zip::write::SimpleFileOptions::default())
+            .unwrap();
+        zip.write_all(xml.as_bytes()).unwrap();
+    }
+    zip.finish().unwrap();
+    buffer.into_inner()
+}
+
+fn zip_text(bytes: &[u8], name: &str) -> String {
+    let mut zip = zip::ZipArchive::new(std::io::Cursor::new(bytes)).unwrap();
+    let mut text = String::new();
+    std::io::Read::read_to_string(&mut zip.by_name(name).unwrap(), &mut text).unwrap();
+    text
+}
+
+/// 도형 4개: 빨간 사각형(쪽 기준 위치), 글상자(+ 같은 내용의 VML 대체본), 글자처럼 놓은 타원, 선.
+fn docx_with_shapes() -> Vec<u8> {
+    let wsp = |geometry: &str, fill: &str, extra: &str| {
+        format!(
+            r#"<a:graphic><a:graphicData><wps:wsp><wps:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="1270000" cy="635000"/></a:xfrm><a:prstGeom prst="{geometry}"/>{fill}<a:ln w="12700"><a:solidFill><a:srgbClr val="000000"/></a:solidFill></a:ln></wps:spPr>{extra}<wps:bodyPr/></wps:wsp></a:graphicData></a:graphic>"#
+        )
+    };
+    let red = wsp(
+        "rect",
+        r#"<a:solidFill><a:srgbClr val="FF0000"/></a:solidFill>"#,
+        "",
+    );
+    let textbox = wsp(
+        "rect",
+        r#"<a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill>"#,
+        r#"<wps:txbx><w:txbxContent><w:p><w:r><w:t>상자 첫 줄</w:t></w:r></w:p><w:p><w:r><w:t>상자 &amp; 둘째</w:t></w:r></w:p></w:txbxContent></wps:txbx>"#,
+    );
+    let ellipse = wsp("ellipse", "<a:noFill/>", "");
+    let line = wsp("line", "", "");
+    let anchor = |pos: &str, body: &str| {
+        format!(
+            r#"<w:r><w:drawing><wp:anchor behindDoc="0"><wp:positionH relativeFrom="page"><wp:posOffset>{pos}</wp:posOffset></wp:positionH><wp:positionV relativeFrom="paragraph"><wp:posOffset>0</wp:posOffset></wp:positionV><wp:extent cx="1270000" cy="635000"/><wp:wrapSquare/><wp:docPr id="1"/>{body}</wp:anchor></w:drawing></w:r>"#
+        )
+    };
+    let document = format!(
+        r#"<w:document xmlns:w="w" xmlns:wp="wp" xmlns:a="a" xmlns:wps="wps" xmlns:mc="mc" xmlns:v="v"><w:body><w:p><w:r><w:t>본문 앞</w:t></w:r>{red}<w:r><mc:AlternateContent><mc:Choice Requires="wps"><w:drawing><wp:anchor><wp:positionH relativeFrom="margin"><wp:posOffset>2540000</wp:posOffset></wp:positionH><wp:positionV relativeFrom="paragraph"><wp:posOffset>0</wp:posOffset></wp:positionV><wp:extent cx="1905000" cy="952500"/><wp:wrapNone/><wp:docPr id="2"/>{textbox}</wp:anchor></w:drawing></mc:Choice><mc:Fallback><w:pict><v:rect><v:textbox><w:txbxContent><w:p><w:r><w:t>상자 첫 줄</w:t></w:r></w:p></w:txbxContent></v:textbox></v:rect></w:pict></mc:Fallback></mc:AlternateContent></w:r><w:r><w:t xml:space="preserve"> 본문 뒤</w:t></w:r></w:p><w:p><w:r><w:drawing><wp:inline><wp:extent cx="635000" cy="635000"/><wp:docPr id="3"/>{ellipse}</wp:inline></w:drawing></w:r>{line}</w:p><w:p><w:r><w:t>끝</w:t></w:r></w:p></w:body></w:document>"#,
+        red = anchor("381000", &red),
+        line = anchor("3810000", &line),
+    );
+    zip_parts(&[
+        ("[Content_Types].xml", "<Types/>"),
+        ("word/document.xml", &document),
+    ])
+}
+
+#[test]
+fn docx_shapes_are_kept_and_saved() {
+    let mut doc = open(HwpBackend::docx(), docx_with_shapes(), &options()).unwrap();
+    assert_eq!(doc.info().dropped_objects, 0);
+    let text = doc.extract_text(0).unwrap();
+    // 도형 앞뒤 글자가 한 문단에 그대로 있고, VML 대체본의 글자가 두 번 나오지 않는다.
+    assert!(text.contains("본문 앞 본문 뒤"), "{text:?}");
+    assert!(!text.contains(papy_office::SHAPE_MARK), "{text:?}");
+    assert!(text.matches("상자 첫 줄").count() <= 1, "{text:?}");
+    // 빨간 사각형이 그려진다.
+    let page = doc.render_page(0, &RenderRequest::with_scale(1.0)).unwrap();
+    let red = page
+        .pixels
+        .chunks_exact(4)
+        .filter(|p| p[0] > 200 && p[1] < 60 && p[2] < 60 && p[3] > 200)
+        .count();
+    assert!(red > 2_000, "red pixels {red}");
+
+    // DOCX 로 저장하면 도형 4개와 글상자 글자가 남는다.
+    let docx = doc.save(SaveFormat::Docx).unwrap();
+    let body = zip_text(&docx, "word/document.xml");
+    assert_eq!(body.matches("<wps:wsp>").count(), 4, "{body}");
+    assert!(body.contains(r#"prst="ellipse""#) && body.contains(r#"prst="line""#));
+    assert!(body.contains(r#"<a:srgbClr val="FF0000"/>"#), "{body}");
+    assert!(
+        body.contains("상자 첫 줄") && body.contains("상자 &amp; 둘째"),
+        "{body}"
+    );
+    assert!(body.contains("<wp:inline"), "{body}");
+    // 다시 열어도 도형이 그대로다.
+    let mut again = open(HwpBackend::docx(), docx, &options()).unwrap();
+    assert_eq!(again.info().dropped_objects, 0);
+    let body = zip_text(&again.save(SaveFormat::Docx).unwrap(), "word/document.xml");
+    assert_eq!(body.matches("<wps:wsp>").count(), 4, "{body}");
+    // HWPX 로도 저장된다.
+    assert!(again.save(SaveFormat::Hwpx).is_ok());
+}
+
+#[test]
+fn docx_unsupported_drawings_are_counted() {
+    // 묶음 도형과 표 안 글상자: 묶음은 빠진 것으로 세고, 표 안 글상자는 글자만 남긴다.
+    let document = r#"<w:document xmlns:w="w" xmlns:wp="wp" xmlns:a="a" xmlns:wps="wps" xmlns:wpg="wpg"><w:body><w:p><w:r><w:drawing><wp:inline><wp:extent cx="100000" cy="100000"/><a:graphic><a:graphicData><wpg:wgp><wps:wsp/></wpg:wgp></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p><w:tbl><w:tr><w:tc><w:p><w:r><w:drawing><wp:inline><wp:extent cx="100000" cy="100000"/><a:graphic><a:graphicData><wps:wsp><wps:txbx><w:txbxContent><w:p><w:r><w:t>칸 안 상자</w:t></w:r></w:p></w:txbxContent></wps:txbx></wps:wsp></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p></w:tc></w:tr></w:tbl><w:p/></w:body></w:document>"#;
+    let bytes = zip_parts(&[
+        ("[Content_Types].xml", "<Types/>"),
+        ("word/document.xml", document),
+    ]);
+    let mut doc = open(HwpBackend::docx(), bytes, &options()).unwrap();
+    assert_eq!(doc.info().dropped_objects, 2);
+    let text = doc.extract_text(0).unwrap();
+    assert!(text.contains("칸 안 상자"), "{text:?}");
+}

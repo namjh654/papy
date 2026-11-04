@@ -94,13 +94,13 @@
     <string name="viewer_text_unavailable">이 쪽에서 읽을 수 있는 글자가 없습니다. 스캔한 이미지일 수 있습니다.</string>
     <string name="viewer_text_copy">복사</string>
     <string name="viewer_text_copied">복사했습니다</string>
-    <string name="viewer_loss">이 문서의 요소 %1$d개(도형 등)는 아직 옮기지 못해 보이지 않습니다.</string>
+    <string name="viewer_loss">이 문서의 요소 %1$d개(묶음 도형·차트 등)는 아직 옮기지 못해 보이지 않습니다.</string>
     <string name="viewer_page_failed">이 쪽을 그리지 못했습니다</string>
     <string name="common_close">닫기</string>
     <!-- 문서 편집(feature:documents) -->
     <string name="viewer_edit">편집</string>
     <string name="viewer_edit_done">편집 끝내기</string>
-    <string name="viewer_edit_hint">고칠 문단을 누르세요</string>
+    <string name="viewer_edit_hint">누르면 커서 · 두 번 누르면 단어 · 길게 누르면 문단 고치기</string>
     <string name="viewer_edit_title">문단 고치기</string>
     <string name="viewer_edit_apply">적용</string>
     <string name="viewer_undo">되돌리기</string>
@@ -112,4 +112,22 @@
     <string name="viewer_exit_title">저장하지 않은 변경</string>
     <string name="viewer_exit_message">변경 내용을 저장할까요? 저장하지 않으면 사라집니다.</string>
     <string name="viewer_exit_discard">저장 안 함</string>
+    <string name="viewer_export_pdf">PDF로 내보내기</string>
+    <string name="viewer_exporting">PDF로 바꾸는 중…</string>
+    <string name="viewer_exported">PDF로 저장했습니다</string>
+    <string name="viewer_export_failed">PDF로 바꾸지 못했습니다. 다시 시도해 주세요.</string>
+    <string name="viewer_style_bold">굵게</string>
+    <string name="viewer_style_italic">기울임</string>
+    <string name="viewer_style_underline">밑줄</string>
+    <string name="viewer_style_strike">취소선</string>
+    <string name="viewer_font_smaller">글자 작게</string>
+    <string name="viewer_font_larger">글자 크게</string>
+    <string name="viewer_color_black">검정 글자</string>
+    <string name="viewer_color_red">빨간 글자</string>
+    <string name="viewer_color_blue">파란 글자</string>
+    <string name="viewer_select_extend">범위 선택</string>
+    <string name="viewer_select_clear">선택 해제</string>
+    <string name="viewer_caret_left">커서 왼쪽으로</string>
+    <string name="viewer_caret_right">커서 오른쪽으로</string>
+    <string name="viewer_edit_paragraph">문단 고치기</string>
 </resources>
