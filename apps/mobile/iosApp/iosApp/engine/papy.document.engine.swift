@@ -238,6 +238,96 @@ final class PapyDocumentEngine: NSObject, DocumentEngine, @unchecked Sendable {
         } ?? -1
     }
 
+    // MARK: 표·그림
+
+    func pageObjects(session: Int64, page: Int32) -> [PageObject] {
+        guard page >= 0 else { return [] }
+        return editing(session) {
+            try rust.pageObjects(sessionId: $0, page: UInt32(page)).map { object in
+                PageObject(
+                    kind: object.kind == .table ? .table : .picture,
+                    target: object.object.ref,
+                    box: object.rect.box,
+                    rows: Int32(clamping: object.rows),
+                    cols: Int32(clamping: object.cols),
+                    cells: object.cells.map { cell in
+                        TableCell(
+                            cell: Int32(clamping: cell.cell), row: Int32(clamping: cell.row), col: Int32(clamping: cell.col),
+                            rowSpan: Int32(clamping: cell.rowSpan), colSpan: Int32(clamping: cell.colSpan), box: cell.rect.box
+                        )
+                    }
+                )
+            }
+        } ?? []
+    }
+
+    func insertTable(session: Int64, position: TextPos, rows: Int32, cols: Int32) -> Int32 {
+        guard rows > 0, cols > 0 else { return -1 }
+        return editing(session) {
+            Int32(clamping: try rust.insertTable(sessionId: $0, position: position.engine, rows: UInt32(rows), cols: UInt32(cols)))
+        } ?? -1
+    }
+
+    func editTable(
+        session: Int64, table: ObjectRef, action: TableAction, row: Int32, col: Int32, endRow: Int32, endCol: Int32
+    ) -> Int32 {
+        let r = UInt32(clamping: row)
+        let c = UInt32(clamping: col)
+        let op: EngineTableOp
+        switch action {
+        case .insertRowAbove: op = .insertRow(row: r, below: false)
+        case .insertRowBelow: op = .insertRow(row: r, below: true)
+        case .insertColumnLeft: op = .insertColumn(col: c, right: false)
+        case .insertColumnRight: op = .insertColumn(col: c, right: true)
+        case .deleteRow: op = .deleteRow(row: r)
+        case .deleteColumn: op = .deleteColumn(col: c)
+        default:
+            op = .merge(startRow: r, startCol: c, endRow: UInt32(clamping: endRow), endCol: UInt32(clamping: endCol))
+        }
+        return editing(session) { Int32(clamping: try rust.editTable(sessionId: $0, table: table.engine, op: op)) } ?? -1
+    }
+
+    /// [source]: 고른 그림 파일 경로. 엔진이 못 넣는 형식(HEIC 등)은 JPEG 로 바꾼다.
+    func insertPicture(session: Int64, position: TextPos, source: String, width: Float, height: Float) -> Int32 {
+        guard let bytes = Self.pictureBytes(path: source) else { return -1 }
+        return editing(session) {
+            Int32(clamping: try rust.insertPicture(sessionId: $0, position: position.engine, image: bytes, width: width, height: height))
+        } ?? -1
+    }
+
+    func resizePicture(session: Int64, picture: ObjectRef, width: Float, height: Float) -> Int32 {
+        editing(session) {
+            Int32(clamping: try rust.resizePicture(sessionId: $0, picture: picture.engine, width: width, height: height))
+        } ?? -1
+    }
+
+    func deleteObject(session: Int64, target: ObjectRef, kind: ObjectKind) -> Int32 {
+        editing(session) {
+            Int32(clamping: try rust.deleteObject(sessionId: $0, object: target.engine, kind: kind == .table ? .table : .picture))
+        } ?? -1
+    }
+
+    /// 그림 바이트(32MB 까지). PNG·JPEG·GIF·BMP 가 아니면 JPEG 로 바꾼다.
+    private static func pictureBytes(path: String) -> Data? {
+        let url = URL(fileURLWithPath: path)
+        guard let size = (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize, size <= maxPictureBytes,
+              let data = try? Data(contentsOf: url)
+        else { return nil }
+        if isEnginePicture(data) { return data }
+        guard let jpeg = UIImage(data: data)?.jpegData(compressionQuality: 0.9), jpeg.count <= maxPictureBytes else { return nil }
+        return jpeg
+    }
+
+    private static let maxPictureBytes = 32 * 1024 * 1024
+
+    private static func isEnginePicture(_ data: Data) -> Bool {
+        let head = [UInt8](data.prefix(8))
+        return head.starts(with: [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
+            || head.starts(with: [0xFF, 0xD8, 0xFF])
+            || head.starts(with: Array("GIF8".utf8))
+            || head.starts(with: Array("BM".utf8))
+    }
+
     func undo(session: Int64) -> UndoResult? {
         editing(session) {
             let undo = try rust.undo(sessionId: $0)
@@ -342,12 +432,34 @@ final class PapyDocumentEngine: NSObject, DocumentEngine, @unchecked Sendable {
 
 private extension TextPos {
     var engine: EnginePosition {
-        EnginePosition(section: UInt32(clamping: section), paragraph: UInt32(clamping: paragraph), offset: UInt32(clamping: offset))
+        EnginePosition(
+            section: UInt32(clamping: section), paragraph: UInt32(clamping: paragraph), offset: UInt32(clamping: offset),
+            cell: cell.map {
+                EngineCell(control: UInt32(clamping: $0.control), cell: UInt32(clamping: $0.cell), cellParagraph: UInt32(clamping: $0.cellParagraph))
+            }
+        )
     }
 }
 
 private extension EnginePosition {
-    var pos: TextPos { TextPos(section: Int32(clamping: section), paragraph: Int32(clamping: paragraph), offset: Int32(clamping: offset)) }
+    var pos: TextPos {
+        TextPos(
+            section: Int32(clamping: section), paragraph: Int32(clamping: paragraph), offset: Int32(clamping: offset),
+            cell: cell.map {
+                CellRef(control: Int32(clamping: $0.control), cell: Int32(clamping: $0.cell), cellParagraph: Int32(clamping: $0.cellParagraph))
+            }
+        )
+    }
+}
+
+private extension ObjectRef {
+    var engine: EngineObjectRef {
+        EngineObjectRef(section: UInt32(clamping: section), paragraph: UInt32(clamping: paragraph), control: UInt32(clamping: control))
+    }
+}
+
+private extension EngineObjectRef {
+    var ref: ObjectRef { ObjectRef(section: Int32(clamping: section), paragraph: Int32(clamping: paragraph), control: Int32(clamping: control)) }
 }
 
 private extension TextRange {

@@ -59,6 +59,29 @@ interface DocumentEngine {
     /** 범위에 글자 모양을 적용한다(null 이 아닌 값만). 편집 뒤 되돌리기 단계 수 */
     fun applyTextStyle(session: Long, range: TextRange, style: TextStyle): Int
 
+    // --- 표·그림(본문 것만) ---
+
+    /** 쪽에 그려진 표·그림 */
+    fun pageObjects(session: Long, page: Int): List<PageObject>
+
+    /** 본문 위치에 표를 넣는다. 편집 뒤 되돌리기 단계 수 */
+    fun insertTable(session: Long, position: TextPos, rows: Int, cols: Int): Int
+
+    /** 표를 고친다. [row]·[col] 은 기준 칸, 합치기는 [endRow]·[endCol] 까지(양 끝 포함). 편집 뒤 되돌리기 단계 수 */
+    fun editTable(session: Long, table: ObjectRef, action: TableAction, row: Int, col: Int, endRow: Int, endCol: Int): Int
+
+    /**
+     * 본문 위치에 그림을 글자처럼 넣는다. [source]: 플랫폼 그림 참조(Android content URI, iOS 파일 경로).
+     * PNG·JPEG·GIF·BMP 가 아니면 플랫폼이 JPEG 로 바꿔 넣는다. 크기는 pt. 편집 뒤 되돌리기 단계 수
+     */
+    fun insertPicture(session: Long, position: TextPos, source: String, width: Float, height: Float): Int
+
+    /** 그림 크기(pt). 편집 뒤 되돌리기 단계 수 */
+    fun resizePicture(session: Long, picture: ObjectRef, width: Float, height: Float): Int
+
+    /** 표·그림을 지운다. 편집 뒤 되돌리기 단계 수 */
+    fun deleteObject(session: Long, target: ObjectRef, kind: ObjectKind): Int
+
     /** 마지막 편집 한 단계를 되돌린다. 실패하면 null */
     fun undo(session: Long): UndoResult?
 
@@ -100,11 +123,42 @@ data class PageBox(val page: Int, val x: Float, val y: Float, val width: Float, 
 /** 누른 문단: 위치, 글자, 화면에 표시할 사각형 */
 data class ParagraphHit(val section: Int, val paragraph: Int, val text: String, val boxes: List<PageBox>)
 
-/** 본문 위치. [offset] 은 문단 안 글자(유니코드 스칼라) 위치 */
-data class TextPos(val section: Int, val paragraph: Int, val offset: Int) : Comparable<TextPos> {
+/**
+ * 본문 위치. [offset] 은 문단 안 글자(유니코드 스칼라) 위치.
+ * 표 칸·글상자 안이면 [cell] 이 있고, [paragraph] 는 표를 가진 본문 문단, [offset] 은 칸 문단 안 위치다.
+ */
+data class TextPos(val section: Int, val paragraph: Int, val offset: Int, val cell: CellRef? = null) : Comparable<TextPos> {
+    val inCell: Boolean get() = cell != null
+
     override fun compareTo(other: TextPos): Int =
-        compareValuesBy(this, other, TextPos::section, TextPos::paragraph, TextPos::offset)
+        compareValuesBy(this, other, TextPos::section, TextPos::paragraph, { it.cell?.cell ?: -1 }, { it.cell?.cellParagraph ?: -1 }, TextPos::offset)
 }
+
+/** 표 칸·글상자: 본문 문단 안 개체 번호, 칸 번호(글상자는 0), 칸 안 문단 */
+data class CellRef(val control: Int, val cell: Int, val cellParagraph: Int)
+
+/** 문서 안 개체(표·그림): 본문 문단과 그 안 개체 번호 */
+data class ObjectRef(val section: Int, val paragraph: Int, val control: Int)
+
+enum class ObjectKind { Table, Picture }
+
+/** 표 칸 자리 */
+data class TableCell(val cell: Int, val row: Int, val col: Int, val rowSpan: Int, val colSpan: Int, val box: PageBox)
+
+/** 쪽에 그려진 표·그림 */
+data class PageObject(
+    val kind: ObjectKind,
+    val target: ObjectRef,
+    val box: PageBox,
+    val rows: Int = 0,
+    val cols: Int = 0,
+    val cells: List<TableCell> = emptyList(),
+) {
+    fun contains(x: Float, y: Float) = x >= box.x && x <= box.x + box.width && y >= box.y && y <= box.y + box.height
+}
+
+/** 엔진의 표 고치기 */
+enum class TableAction { InsertRowAbove, InsertRowBelow, InsertColumnLeft, InsertColumnRight, DeleteRow, DeleteColumn, Merge }
 
 /** 범위([start] ≤ [end]) */
 data class TextRange(val start: TextPos, val end: TextPos) {

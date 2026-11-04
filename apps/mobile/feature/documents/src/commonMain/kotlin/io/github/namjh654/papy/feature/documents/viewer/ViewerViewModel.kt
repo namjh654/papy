@@ -3,9 +3,13 @@ package io.github.namjh654.papy.feature.documents.viewer
 import io.github.namjh654.papy.core.common.viewmodel.StatefulViewModel
 import io.github.namjh654.papy.feature.documents.Caret
 import io.github.namjh654.papy.feature.documents.CaretMove
+import io.github.namjh654.papy.feature.documents.CellRef
 import io.github.namjh654.papy.feature.documents.DocumentEngine
 import io.github.namjh654.papy.feature.documents.DocumentError
 import io.github.namjh654.papy.feature.documents.EditResult
+import io.github.namjh654.papy.feature.documents.ObjectKind
+import io.github.namjh654.papy.feature.documents.PageObject
+import io.github.namjh654.papy.feature.documents.TableAction
 import io.github.namjh654.papy.feature.documents.PageSizePt
 import io.github.namjh654.papy.feature.documents.RecentDocuments
 import io.github.namjh654.papy.feature.documents.TextPos
@@ -27,6 +31,11 @@ private val FALLBACK_SIZE = PageSizePt(595f, 842f)
 private const val FONT_STEP = 1f
 private const val MIN_FONT = 4f
 private const val MAX_FONT = 200f
+/** 새 그림의 너비 상한(쪽 너비에 대한 비율), 그림 크기 단추 한 번의 배율, 그림 크기 범위(pt) */
+private const val PICTURE_MAX_PAGE_FRACTION = 0.6f
+private const val PICTURE_STEP = 1.25f
+private const val MIN_PICTURE = 8f
+private const val MAX_PICTURE = 2000f
 
 /**
  * 문서 보기·편집: 열기 → (암호) → 쪽 크기 읽기. 편집 모드에서는 커서를 놓고 글자를 치거나 지우고,
@@ -55,6 +64,8 @@ class ViewerViewModel(
     /** 저장한 뒤 바뀐 것이 있다(되돌려서 저장한 상태로 돌아가도 바뀐 것으로 본다 — 안전한 쪽) */
     private var modified = false
     private val engineLock = Mutex()
+    /** 쪽마다 표·그림 자리(편집하면 비운다) */
+    private val objectCache = mutableMapOf<Int, List<PageObject>>()
 
     init {
         open(password = null)
@@ -99,16 +110,23 @@ class ViewerViewModel(
         setState {
             copy(
                 editing = !editing, caret = null, anchor = null, selectionBoxes = emptyList(),
-                style = null, extending = false, paragraph = null,
+                style = null, extending = false, paragraph = null, selected = null,
             )
         }
     }
 
     /** 쪽을 눌렀다(pt): 커서를 놓는다. 범위 선택 중이면 선택을 그 자리까지 늘린다 */
     fun tap(page: Int, x: Float, y: Float) = withEngine { id ->
+        val objects = objectsOn(id, page)
+        // 그림을 누르면 그림을 고른다(커서 없음)
+        objects.lastOrNull { it.kind == ObjectKind.Picture && it.contains(x, y) }?.let { picture ->
+            setState { copy(caret = null, anchor = null, selectionBoxes = emptyList(), style = null, selected = ObjectSelection(picture)) }
+            return@withEngine
+        }
         val caret = engine.caretAt(id, page, x, y) ?: return@withEngine
         val state = currentState
-        val anchor = if (state.extending) state.anchor ?: state.caret?.position else null
+        // 칸 안에서는 범위 선택을 아직 하지 않는다
+        val anchor = if (state.extending && !caret.position.inCell) state.anchor ?: state.caret?.position?.takeUnless { it.inCell } else null
         showCaret(id, caret, anchor)
     }
 
@@ -120,6 +138,123 @@ class ViewerViewModel(
         val end = engine.caretAtPosition(id, word.end) ?: return@withEngine
         showCaret(id, end, word.start)
     }
+
+    // --- 표·그림 ---
+
+    /** 커서 자리(본문)에 표를 넣는다 */
+    fun insertTable(rows: Int, cols: Int) = insertAtCaret { id, at ->
+        engine.insertTable(id, at, rows.coerceIn(1, 100), cols.coerceIn(1, 50))
+    }
+
+    /**
+     * 커서 자리(본문)에 그림을 넣는다. [source]: 플랫폼 그림 참조. 크기는 픽셀 크기로 정하되 쪽 너비의 60% 를 넘지 않게.
+     */
+    fun insertPicture(source: String, pixelWidth: Int, pixelHeight: Int) {
+        if (pixelWidth <= 0 || pixelHeight <= 0) return trySendEvent(ViewerEvent.PictureFailed)
+        insertAtCaret(failure = ViewerEvent.PictureFailed) { id, at ->
+            val pageWidth = currentState.pageSizes.getOrNull(currentState.caret?.box?.page ?: 0)?.width ?: 595f
+            val width = minOf(pixelWidth * 0.75f, pageWidth * PICTURE_MAX_PAGE_FRACTION).coerceAtLeast(MIN_PICTURE)
+            val height = (width * pixelHeight / pixelWidth).coerceIn(MIN_PICTURE, MAX_PICTURE)
+            engine.insertPicture(id, at, source, width, height)
+        }
+    }
+
+    /** 고른 표에 [command] 를 한다(행·열은 커서가 든 칸 기준) */
+    fun tableCommand(command: TableCommand) = withEngine { id ->
+        val selection = currentState.selected?.takeIf { it.isTable } ?: return@withEngine
+        val table = selection.target
+        val before = depth
+        val cell = selection.cell
+        if (command == TableCommand.DeleteTable) {
+            val newDepth = engine.deleteObject(id, table.target, ObjectKind.Table)
+            if (newDepth < 0) return@withEngine sendEvent(ViewerEvent.EditFailed)
+            recordEdit(before, newDepth)
+            refreshPages(id)
+            return@withEngine setState { copy(caret = null, selected = null) }
+        }
+        cell ?: return@withEngine
+        val (row, col) = cell.row to cell.col
+        val lastRow = row + cell.rowSpan - 1
+        val lastCol = col + cell.colSpan - 1
+        val newDepth = when (command) {
+            TableCommand.RowAbove -> engine.editTable(id, table.target, TableAction.InsertRowAbove, row, col, row, col)
+            TableCommand.RowBelow -> engine.editTable(id, table.target, TableAction.InsertRowBelow, lastRow, col, lastRow, col)
+            TableCommand.ColumnLeft -> engine.editTable(id, table.target, TableAction.InsertColumnLeft, row, col, row, col)
+            TableCommand.ColumnRight -> engine.editTable(id, table.target, TableAction.InsertColumnRight, row, lastCol, row, lastCol)
+            TableCommand.DeleteRow -> engine.editTable(id, table.target, TableAction.DeleteRow, row, col, row, col)
+            TableCommand.DeleteColumn -> engine.editTable(id, table.target, TableAction.DeleteColumn, row, col, row, col)
+            TableCommand.MergeRight -> if (lastCol + 1 >= table.cols) return@withEngine
+                else engine.editTable(id, table.target, TableAction.Merge, row, col, lastRow, lastCol + 1)
+            TableCommand.MergeDown -> if (lastRow + 1 >= table.rows) return@withEngine
+                else engine.editTable(id, table.target, TableAction.Merge, row, col, lastRow + 1, lastCol)
+            TableCommand.DeleteTable -> return@withEngine
+        }
+        if (newDepth < 0) return@withEngine sendEvent(ViewerEvent.EditFailed)
+        recordEdit(before, newDepth)
+        refreshPages(id)
+        // 같은 표를 다시 찾고, 기준 칸(지웠으면 가까운 칸)에 커서를 둔다
+        val updated = objectsOn(id, table.box.page).firstOrNull { it.target == table.target && it.kind == ObjectKind.Table }
+        val nextCell = updated?.cells?.let { cells ->
+            cells.firstOrNull { it.row == row && it.col == col }
+                ?: cells.minByOrNull { kotlin.math.abs(it.row - row) * 100 + kotlin.math.abs(it.col - col) }
+        }
+        if (updated == null || nextCell == null) return@withEngine setState { copy(caret = null, selected = null) }
+        val caret = engine.caretAtPosition(
+            id,
+            TextPos(
+                table.target.section, table.target.paragraph, 0,
+                CellRef(table.target.control, nextCell.cell, 0),
+            ),
+        )
+        setState { copy(caret = caret, anchor = null, selectionBoxes = emptyList(), style = null, selected = ObjectSelection(updated, nextCell)) }
+    }
+
+    /** 고른 그림을 [steps] 만큼 키우거나(+) 줄인다(-) */
+    fun resizePicture(steps: Int) = withEngine { id ->
+        val picture = currentState.selected?.takeIf { it.isPicture }?.target ?: return@withEngine
+        var factor = 1f
+        repeat(kotlin.math.abs(steps)) { factor *= if (steps > 0) PICTURE_STEP else 1f / PICTURE_STEP }
+        val width = (picture.box.width * factor).coerceIn(MIN_PICTURE, MAX_PICTURE)
+        val height = (picture.box.height * width / picture.box.width.coerceAtLeast(1f)).coerceIn(MIN_PICTURE, MAX_PICTURE)
+        val before = depth
+        val newDepth = engine.resizePicture(id, picture.target, width, height)
+        if (newDepth < 0) return@withEngine sendEvent(ViewerEvent.EditFailed)
+        recordEdit(before, newDepth)
+        refreshPages(id)
+        val updated = (0 until currentState.pageCount).asSequence()
+            .flatMap { objectsOn(id, it).asSequence() }
+            .firstOrNull { it.target == picture.target && it.kind == ObjectKind.Picture }
+        setState { copy(selected = updated?.let { ObjectSelection(it) }) }
+    }
+
+    /** 고른 그림을 지운다 */
+    fun deletePicture() = withEngine { id ->
+        val picture = currentState.selected?.takeIf { it.isPicture }?.target ?: return@withEngine
+        val before = depth
+        val newDepth = engine.deleteObject(id, picture.target, ObjectKind.Picture)
+        if (newDepth < 0) return@withEngine sendEvent(ViewerEvent.EditFailed)
+        recordEdit(before, newDepth)
+        refreshPages(id)
+        setState { copy(selected = null) }
+    }
+
+    fun clearObject() = setState { copy(selected = null) }
+
+    /** 커서 자리(본문)에 개체를 넣는 공통 동작 */
+    private fun insertAtCaret(failure: ViewerEvent = ViewerEvent.EditFailed, block: suspend (Long, TextPos) -> Int) =
+        withEngine { id ->
+            val at = currentState.caret?.position ?: return@withEngine
+            if (at.inCell) return@withEngine sendEvent(ViewerEvent.InsertNeedsBody)
+            val before = depth
+            val newDepth = block(id, at)
+            if (newDepth < 0) return@withEngine sendEvent(failure)
+            recordEdit(before, newDepth)
+            refreshPages(id)
+            setState { copy(caret = null, anchor = null, selectionBoxes = emptyList(), selected = null) }
+        }
+
+    private fun objectsOn(id: Long, page: Int): List<PageObject> =
+        objectCache.getOrPut(page) { engine.pageObjects(id, page) }
 
     /** 길게 눌렀다: 문단 고치기 창을 연다 */
     fun longPress(page: Int, x: Float, y: Float) = withEngine { id ->
@@ -230,7 +365,7 @@ class ViewerViewModel(
             modified = true
             refreshPages(id)
             if (caret != null && currentState.editing) showCaret(id, caret, null)
-            else setState { copy(caret = null, anchor = null, selectionBoxes = emptyList()) }
+            else setState { copy(caret = null, anchor = null, selectionBoxes = emptyList(), selected = null) }
         }
     }
 
@@ -316,17 +451,26 @@ class ViewerViewModel(
 
     /** 커서·선택을 보여 주고 그 자리의 글자 모양을 읽는다 */
     private fun showCaret(id: Long, caret: Caret, anchor: TextPos?) {
-        val range = anchor?.let { TextRange.of(it, caret.position) }?.takeUnless { it.isEmpty }
+        // 칸 안 커서: 그 표를 고른다(표 도구 막대)
+        val cellRef = caret.position.cell
+        val selected = cellRef?.let { ref ->
+            val table = objectsOn(id, caret.box.page).firstOrNull {
+                it.kind == ObjectKind.Table && it.target.paragraph == caret.position.paragraph && it.target.control == ref.control
+            }
+            table?.let { ObjectSelection(it, it.cells.firstOrNull { cell -> cell.cell == ref.cell }) }
+        }
+        val range = anchor?.let { TextRange.of(it, caret.position) }?.takeUnless { it.isEmpty || caret.position.inCell }
         val boxes = range?.let { engine.selectionBoxes(id, it) }.orEmpty()
         // 선택이 있으면 선택 첫 글자의 모양(커서 앞 글자를 읽으므로 한 글자 뒤 위치)
         val styleAt = range?.start?.let { it.copy(offset = it.offset + 1) } ?: caret.position
         val style = engine.textStyle(id, styleAt)
         setState {
-            copy(caret = caret, anchor = range?.let { anchor }, selectionBoxes = boxes, style = style)
+            copy(caret = caret, anchor = range?.let { anchor }, selectionBoxes = boxes, style = style, selected = selected)
         }
     }
 
     private fun refreshPages(id: Long) {
+        objectCache.clear()
         val count = engine.pageCount(id) ?: currentState.pageCount
         val sizes = (0 until count).map { engine.pageSize(id, it) ?: FALLBACK_SIZE }
         setState {

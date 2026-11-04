@@ -17,15 +17,27 @@ fun parseNotices(text: String): Notices {
     val parts = text.replace("\r\n", "\n").split("\n$RULE\n")
     val header = parts.first().trim()
     val items = mutableListOf<Notice>()
-    // parts: [머리말, 이름+License, 본문, 이름+License, 본문, …]
-    var index = 1
-    while (index < parts.size) {
-        val head = parts[index].lines()
-        val title = head.firstOrNull().orEmpty().trim()
-        val license = head.firstOrNull { it.startsWith("License: ") }?.removePrefix("License: ")?.trim().orEmpty()
-        val body = parts.getOrNull(index + 1).orEmpty().trim()
-        if (title.isNotEmpty()) items += Notice(title, license, body)
-        index += 2
+    // parts: [머리말, 이름+License, 본문, 이름+License, 본문, …]. 본문 안에도 같은 구분선이 있을 수 있어
+    // 이름 다음 줄이 `License: ` 인 조각만 새 항목으로 본다.
+    var title: String? = null
+    var license = ""
+    val body = StringBuilder()
+    fun flush() {
+        title?.let { items += Notice(it, license, body.toString().trim()) }
+        body.clear()
     }
+    for (part in parts.drop(1)) {
+        val lines = part.lines()
+        val head = lines.getOrNull(1)?.startsWith("License: ") == true && lines.size <= 3
+        if (head) {
+            flush()
+            title = lines.first().trim()
+            license = lines[1].removePrefix("License: ").trim()
+        } else if (title != null) {
+            if (body.isNotEmpty()) body.append("\n").append(RULE).append("\n")
+            body.append(part)
+        }
+    }
+    flush()
     return Notices(header, items)
 }

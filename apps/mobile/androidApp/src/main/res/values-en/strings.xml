@@ -134,4 +134,25 @@
     <string name="licenses_intro">Papy is distributed under PolyForm Noncommercial 1.0.0 (non-commercial use). These are the %1$d other components in the app and their licenses.</string>
     <string name="licenses_missing">The license notice file is missing. In development builds, create it with node scripts/third-party-notices.mjs mobile.</string>
     <string name="licenses_search">Find a component</string>
+    <string name="viewer_insert_table">Insert table</string>
+    <string name="viewer_insert_picture">Insert picture</string>
+    <string name="viewer_table_size">%1$d rows × %2$d columns</string>
+    <string name="viewer_table_rows">Rows</string>
+    <string name="viewer_table_cols">Columns</string>
+    <string name="viewer_insert">Insert</string>
+    <string name="viewer_table_row_above">Insert row above</string>
+    <string name="viewer_table_row_below">Insert row below</string>
+    <string name="viewer_table_col_left">Insert column left</string>
+    <string name="viewer_table_col_right">Insert column right</string>
+    <string name="viewer_table_delete_row">Delete row</string>
+    <string name="viewer_table_delete_col">Delete column</string>
+    <string name="viewer_table_merge_right">Merge with right cell</string>
+    <string name="viewer_table_merge_down">Merge with cell below</string>
+    <string name="viewer_table_delete">Delete table</string>
+    <string name="viewer_picture_smaller">Smaller</string>
+    <string name="viewer_picture_larger">Larger</string>
+    <string name="viewer_picture_delete">Delete picture</string>
+    <string name="viewer_picture_done">Done</string>
+    <string name="viewer_insert_in_cell">Place the cursor outside the table to insert</string>
+    <string name="viewer_picture_failed">Couldn\'t insert the picture. Please choose another one.</string>
 </resources>

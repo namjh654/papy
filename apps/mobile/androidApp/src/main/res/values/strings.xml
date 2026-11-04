@@ -134,4 +134,25 @@
     <string name="licenses_intro">Papy 는 PolyForm Noncommercial 1.0.0 라이선스로 배포됩니다(비상업적 사용). 앱에 들어 있는 다른 구성요소 %1$d개와 그 라이선스입니다.</string>
     <string name="licenses_missing">라이선스 고지 파일이 없습니다. 개발 빌드에서는 node scripts/third-party-notices.mjs mobile 로 만듭니다.</string>
     <string name="licenses_search">구성요소 찾기</string>
+    <string name="viewer_insert_table">표 넣기</string>
+    <string name="viewer_insert_picture">그림 넣기</string>
+    <string name="viewer_table_size">%1$d행 × %2$d열</string>
+    <string name="viewer_table_rows">행</string>
+    <string name="viewer_table_cols">열</string>
+    <string name="viewer_insert">넣기</string>
+    <string name="viewer_table_row_above">위에 행 넣기</string>
+    <string name="viewer_table_row_below">아래에 행 넣기</string>
+    <string name="viewer_table_col_left">왼쪽에 열 넣기</string>
+    <string name="viewer_table_col_right">오른쪽에 열 넣기</string>
+    <string name="viewer_table_delete_row">행 지우기</string>
+    <string name="viewer_table_delete_col">열 지우기</string>
+    <string name="viewer_table_merge_right">오른쪽 칸과 합치기</string>
+    <string name="viewer_table_merge_down">아래 칸과 합치기</string>
+    <string name="viewer_table_delete">표 지우기</string>
+    <string name="viewer_picture_smaller">그림 작게</string>
+    <string name="viewer_picture_larger">그림 크게</string>
+    <string name="viewer_picture_delete">그림 지우기</string>
+    <string name="viewer_picture_done">완료</string>
+    <string name="viewer_insert_in_cell">표 칸 밖(본문)에 커서를 두고 넣어 주세요</string>
+    <string name="viewer_picture_failed">그림을 넣지 못했습니다. 다른 그림을 골라 주세요.</string>
 </resources>

@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import PhotosUI
 import Core
 
 /// 문서 보기: 쪽을 세로로 이어 보이고, 두 손가락으로 확대한다. (Android `ViewerScreen`)
@@ -18,6 +19,11 @@ struct ViewerScreen: View {
     @State private var flushToken = 0
     /// 공유·저장 창으로 넘길 PDF
     @State private var sharedPdf: URL?
+    /// 그림 넣기: 사진 고르기(고른 사진만 읽는다)
+    @State private var pickingPicture = false
+    @State private var pickedPicture: PhotosPickerItem?
+    /// 표 넣기 창
+    @State private var tableDialog = false
     @Environment(\.dismiss) private var dismiss
 
     init(ref: String, name: String) {
@@ -51,6 +57,7 @@ struct ViewerScreen: View {
                         revision: Int(state.revision),
                         highlight: state.selectionBoxes + (state.paragraph?.boxes ?? []),
                         caret: state.editing ? state.caret?.box : nil,
+                        selected: state.editing ? state.selected : nil,
                         composing: composing,
                         gestures: state.editing ? PageGestures(
                             tap: { page, x, y in flush(); model.viewModel.tap(page: Int32(page), x: x, y: y) },
@@ -82,7 +89,7 @@ struct ViewerScreen: View {
                 .frame(width: 1, height: 1)
                 .opacity(0.01)
             }
-            if state.phase == .ready && state.editing && state.caret == nil && state.paragraph == nil {
+            if state.phase == .ready && state.editing && state.caret == nil && state.paragraph == nil && state.selected == nil {
                 Text(String(localized: "viewer_edit_hint"))
                     .papyFont(PapyFont.bodySmall)
                     .foregroundStyle(PapyColor.onPrimary)
@@ -107,9 +114,35 @@ struct ViewerScreen: View {
             }
         }
         .safeAreaInset(edge: .bottom) {
-            if state.phase == .ready && state.editing && state.caret != nil {
-                FormatBar(state: state, viewModel: model.viewModel, flush: flush)
+            if state.phase == .ready && state.editing {
+                if state.selected?.isPicture == true {
+                    PictureBar(viewModel: model.viewModel)
+                } else if state.caret != nil {
+                    VStack(spacing: 0) {
+                        if state.selected?.isTable == true {
+                            TableBar(viewModel: model.viewModel, flush: flush)
+                        }
+                        FormatBar(
+                            state: state, viewModel: model.viewModel, flush: flush,
+                            onInsertTable: { flush(); tableDialog = true },
+                            onInsertPicture: { flush(); pickingPicture = true }
+                        )
+                    }
+                }
             }
+        }
+        .photosPicker(isPresented: $pickingPicture, selection: $pickedPicture, matching: .images)
+        .onChange(of: pickedPicture) { _, item in
+            guard let item else { return }
+            pickedPicture = nil
+            Task { await insertPicture(item) }
+        }
+        .sheet(isPresented: $tableDialog) {
+            TableDialog { rows, cols in
+                tableDialog = false
+                model.viewModel.insertTable(rows: Int32(rows), cols: Int32(cols))
+            }
+            .presentationDetents([.height(320)])
         }
         .papyScreenBackground(grouped: true)
         .navigationTitle(name)
@@ -193,6 +226,44 @@ struct ViewerScreen: View {
                 exportPdf()
             }
         }
+        // 개발 확인용: `-papyTableSmoke` 이면 표 넣기 → 칸에 치기 → 행 넣기 → 그림 넣기 → 크게 → 저장
+        .task(id: state.phase) {
+            guard ProcessInfo.processInfo.arguments.contains("-papyTableSmoke"), state.phase == .ready, state.canEdit else { return }
+            model.viewModel.toggleEditing()
+            model.viewModel.tap(page: 0, x: 90, y: 75)
+            for _ in 0..<50 where model.state.caret == nil { try? await Task.sleep(for: .milliseconds(100)) }
+            guard let line = model.state.caret?.box else { return }
+            model.viewModel.insertTable(rows: 2, cols: 3)
+            for _ in 0..<50 where !model.state.dirty { try? await Task.sleep(for: .milliseconds(100)) }
+            try? await Task.sleep(for: .seconds(1))
+            // 표 첫 칸(넣은 줄 아래)
+            let objects = PapyDocumentEngine.shared.pageObjects(session: model.state.document?.session ?? 0, page: 0)
+            if let cell = objects.first(where: { $0.kind == .table })?.cells.first {
+                model.viewModel.tap(page: 0, x: cell.box.x + 4, y: cell.box.y + cell.box.height / 2)
+                try? await Task.sleep(for: .seconds(1))
+                model.viewModel.type(text: "IOS")
+                try? await Task.sleep(for: .milliseconds(500))
+                model.viewModel.tableCommand(command: .rowBelow)
+                try? await Task.sleep(for: .seconds(1))
+            }
+            // 줄 처음에 그림(빨강·파랑 반반 120×60)
+            model.viewModel.tap(page: 0, x: line.x, y: line.y + line.height / 2)
+            try? await Task.sleep(for: .seconds(1))
+            let picture = UIGraphicsImageRenderer(size: CGSize(width: 120, height: 60)).pngData { context in
+                UIColor.red.setFill(); context.fill(CGRect(x: 0, y: 0, width: 60, height: 60))
+                UIColor.blue.setFill(); context.fill(CGRect(x: 60, y: 0, width: 60, height: 60))
+            }
+            insertPicture(data: picture)
+            try? await Task.sleep(for: .seconds(1))
+            let placed = PapyDocumentEngine.shared.pageObjects(session: model.state.document?.session ?? 0, page: 0)
+            if let shown = placed.first(where: { $0.kind == .picture }) {
+                model.viewModel.tap(page: 0, x: shown.box.x + shown.box.width / 2, y: shown.box.y + shown.box.height / 2)
+                try? await Task.sleep(for: .seconds(1))
+                model.viewModel.resizePicture(steps: 1)
+                try? await Task.sleep(for: .seconds(1))
+            }
+            model.viewModel.save()
+        }
         #endif
         .sheet(isPresented: Binding(get: { state.text != nil }, set: { if !$0 { model.viewModel.hideText() } })) {
             textSheet
@@ -211,6 +282,10 @@ struct ViewerScreen: View {
                 )
             case .editFailed:
                 toast = PapyToast(message: String(localized: "viewer_edit_failed"), type: .error)
+            case .insertNeedsBody:
+                toast = PapyToast(message: String(localized: "viewer_insert_in_cell"), type: .error)
+            case .pictureFailed:
+                toast = PapyToast(message: String(localized: "viewer_picture_failed"), type: .error)
             case .exported(let exported):
                 sharedPdf = URL(fileURLWithPath: exported.target)
             case .exportFailed:
@@ -219,6 +294,33 @@ struct ViewerScreen: View {
                 dismiss()
             }
         }
+    }
+
+    /// 고른 사진을 임시 파일로 쓰고 픽셀 크기와 함께 넣는다(HEIC 등은 엔진 쪽에서 JPEG 로 바꾼다)
+    private func insertPicture(_ item: PhotosPickerItem) async {
+        guard let data = try? await item.loadTransferable(type: Data.self) else {
+            toast = PapyToast(message: String(localized: "viewer_picture_failed"), type: .error)
+            return
+        }
+        insertPicture(data: data)
+    }
+
+    private func insertPicture(data: Data) {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("Pictures", isDirectory: true)
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let file = folder.appendingPathComponent(UUID().uuidString)
+        guard (try? data.write(to: file, options: .atomic)) != nil else {
+            toast = PapyToast(message: String(localized: "viewer_picture_failed"), type: .error)
+            return
+        }
+        // 픽셀 크기만 읽는다(전체를 풀지 않는다)
+        var width = 0, height = 0
+        if let source = CGImageSourceCreateWithURL(file as CFURL, nil),
+           let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any] {
+            width = properties[kCGImagePropertyPixelWidth] as? Int ?? 0
+            height = properties[kCGImagePropertyPixelHeight] as? Int ?? 0
+        }
+        model.viewModel.insertPicture(source: file.path, pixelWidth: Int32(width), pixelHeight: Int32(height))
     }
 
     /// 입력칸이 조합 중이던 글자를 마저 넣게 한다
@@ -338,6 +440,7 @@ private struct PagesView: View {
     let revision: Int
     let highlight: [PageBox]
     let caret: PageBox?
+    let selected: ObjectSelection?
     let composing: String
     /// 편집 모드에서 쪽을 누르는 동작(쪽, x pt, y pt)
     let gestures: PageGestures?
@@ -362,6 +465,7 @@ private struct PagesView: View {
                             session: session, index: index, size: size, renderWidth: Self.width(renderWidth, size),
                             revision: revision, highlight: highlight.filter { Int($0.page) == index },
                             caret: caret.flatMap { Int($0.page) == index ? $0 : nil },
+                            selected: selected.flatMap { Int($0.target.box.page) == index ? $0 : nil },
                             composing: composing,
                             gestures: gestures,
                             pageGestureIndex: index
@@ -393,6 +497,7 @@ private struct PageView: View {
     let revision: Int
     let highlight: [PageBox]
     let caret: PageBox?
+    let selected: ObjectSelection?
     let composing: String
     let gestures: PageGestures?
     let pageGestureIndex: Int
@@ -419,6 +524,26 @@ private struct PageView: View {
                 ForEach(Array(highlight.enumerated()), id: \.offset) { _, box in
                     Rectangle()
                         .fill(Color.blue.opacity(0.3))
+                        .frame(width: CGFloat(box.width) * scale, height: CGFloat(box.height) * scale)
+                        .position(
+                            x: (CGFloat(box.x) + CGFloat(box.width) / 2) * scale,
+                            y: (CGFloat(box.y) + CGFloat(box.height) / 2) * scale
+                        )
+                }
+                if let selected {
+                    // 고른 표·그림 테두리, 커서가 든 칸
+                    if let cell = selected.cell?.box {
+                        Rectangle()
+                            .fill(Color.blue.opacity(0.18))
+                            .frame(width: CGFloat(cell.width) * scale, height: CGFloat(cell.height) * scale)
+                            .position(
+                                x: (CGFloat(cell.x) + CGFloat(cell.width) / 2) * scale,
+                                y: (CGFloat(cell.y) + CGFloat(cell.height) / 2) * scale
+                            )
+                    }
+                    let box = selected.target.box
+                    Rectangle()
+                        .stroke(Color.accentColor, lineWidth: 2)
                         .frame(width: CGFloat(box.width) * scale, height: CGFloat(box.height) * scale)
                         .position(
                             x: (CGFloat(box.x) + CGFloat(box.width) / 2) * scale,
@@ -496,6 +621,8 @@ private struct FormatBar: View {
     let state: ViewerUiState
     let viewModel: ViewerViewModel
     let flush: () -> Void
+    let onInsertTable: () -> Void
+    let onInsertPicture: () -> Void
 
     private static let colors: [(String, Color, String)] = [
         ("#000000", .black, "viewer_color_black"),
@@ -534,6 +661,8 @@ private struct FormatBar: View {
                         viewModel.longPress(page: box.page, x: box.x, y: box.y + box.height / 2)
                     }
                 }
+                tool("tablecells", "viewer_insert_table", action: onInsertTable)
+                tool("photo", "viewer_insert_picture", action: onInsertPicture)
             }
             .padding(.horizontal, PapySpacing.sm)
             .padding(.vertical, PapySpacing.xs)
@@ -549,6 +678,99 @@ private struct FormatBar: View {
                 .background(on ? Color.accentColor.opacity(0.15) : .clear, in: RoundedRectangle(cornerRadius: 8))
         }
         .accessibilityLabel(String(localized: String.LocalizationValue(label)))
+    }
+}
+
+/// 표 도구 막대: 커서가 든 칸 기준으로 행·열 넣기·지우기, 칸 합치기, 표 지우기
+private struct TableBar: View {
+    let viewModel: ViewerViewModel
+    let flush: () -> Void
+
+    private static let commands: [(TableCommand, String)] = [
+        (.rowAbove, "viewer_table_row_above"),
+        (.rowBelow, "viewer_table_row_below"),
+        (.columnLeft, "viewer_table_col_left"),
+        (.columnRight, "viewer_table_col_right"),
+        (.mergeRight, "viewer_table_merge_right"),
+        (.mergeDown, "viewer_table_merge_down"),
+        (.deleteRow, "viewer_table_delete_row"),
+        (.deleteColumn, "viewer_table_delete_col"),
+        (.deleteTable, "viewer_table_delete"),
+    ]
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: PapySpacing.xs) {
+                ForEach(Self.commands, id: \.1) { command, label in
+                    Button(String(localized: String.LocalizationValue(label))) { flush(); viewModel.tableCommand(command: command) }
+                        .papyFont(PapyFont.bodySmall)
+                        .foregroundStyle(PapyColor.onSurface)
+                        .padding(.horizontal, PapySpacing.sm)
+                        .frame(height: 36)
+                }
+            }
+            .padding(.horizontal, PapySpacing.sm)
+        }
+        .background(PapyColor.surfaceVariant)
+    }
+}
+
+/// 그림 도구 막대: 크기, 지우기, 끝
+private struct PictureBar: View {
+    let viewModel: ViewerViewModel
+
+    var body: some View {
+        HStack(spacing: PapySpacing.md) {
+            button("minus.magnifyingglass", "viewer_picture_smaller") { viewModel.resizePicture(steps: -1) }
+            button("plus.magnifyingglass", "viewer_picture_larger") { viewModel.resizePicture(steps: 1) }
+            button("trash", "viewer_picture_delete") { viewModel.deletePicture() }
+            Spacer()
+            Button(String(localized: "viewer_picture_done")) { viewModel.clearObject() }
+                .papyFont(PapyFont.body)
+        }
+        .padding(.horizontal, PapySpacing.md)
+        .padding(.vertical, PapySpacing.xs)
+        .background(PapyColor.surface)
+    }
+
+    private func button(_ symbol: String, _ label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol).frame(width: 40, height: 40).foregroundStyle(PapyColor.onSurface)
+        }
+        .accessibilityLabel(String(localized: String.LocalizationValue(label)))
+    }
+}
+
+/// 표 넣기: 행·열 수 고르기
+private struct TableDialog: View {
+    let onInsert: (Int, Int) -> Void
+    @State private var rows = 3
+    @State private var cols = 3
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Text(String(format: String(localized: "viewer_table_size"), rows, cols))
+                    .papyFont(PapyFont.body)
+                Stepper(value: $rows, in: 1...20) {
+                    Text("\(String(localized: "viewer_table_rows")) \(rows)")
+                }
+                Stepper(value: $cols, in: 1...20) {
+                    Text("\(String(localized: "viewer_table_cols")) \(cols)")
+                }
+            }
+            .navigationTitle(String(localized: "viewer_insert_table"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button(String(localized: "common_cancel")) { dismiss() }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(String(localized: "viewer_insert")) { onInsert(rows, cols) }.bold()
+                }
+            }
+        }
     }
 }
 

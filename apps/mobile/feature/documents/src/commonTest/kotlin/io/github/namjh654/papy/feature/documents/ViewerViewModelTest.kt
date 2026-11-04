@@ -4,6 +4,7 @@ import io.github.namjh654.papy.core.data.storage.LocalStorage
 import app.cash.turbine.test
 import io.github.namjh654.papy.feature.documents.viewer.PageText
 import io.github.namjh654.papy.feature.documents.viewer.StyleToggle
+import io.github.namjh654.papy.feature.documents.viewer.TableCommand
 import io.github.namjh654.papy.feature.documents.viewer.ViewerEvent
 import io.github.namjh654.papy.feature.documents.viewer.ViewerPhase
 import io.github.namjh654.papy.feature.documents.viewer.ViewerViewModel
@@ -74,11 +75,17 @@ class FakeEngine(
         return depth
     }
     override fun caretAt(session: Long, page: Int, x: Float, y: Float): Caret? {
+        if (hasTable && x < 100f && y < tableRows * 20f) {
+            val row = (y / 20f).toInt()
+            val col = (x / 50f).toInt()
+            return Caret(TextPos(0, 0, 0, CellRef(0, row * 2 + col, 0)), cellBox(row, col))
+        }
         val paragraph = (y.toInt() / 100).coerceIn(0, paragraphs.lastIndex)
         val offset = (x.toInt() / 10).coerceIn(0, paragraphs[paragraph].length)
         return caret(TextPos(0, paragraph, offset))
     }
-    override fun caretAtPosition(session: Long, position: TextPos) = caret(position)
+    override fun caretAtPosition(session: Long, position: TextPos) =
+        position.cell?.let { Caret(position, cellBox(it.cell / 2, it.cell % 2)) } ?: caret(position)
     override fun moveCaret(session: Long, position: TextPos, move: CaretMove, preferredX: Float): Caret {
         val text = paragraphs[position.paragraph]
         return caret(
@@ -130,6 +137,44 @@ class FakeEngine(
         step()
         return depth
     }
+    // --- 표·그림: 0쪽 (0,0)~(100,40) 에 2×2 표, 그 아래 (0,300)~(60,330) 에 그림 ---
+    var hasTable = false
+    var hasPicture = false
+    var tableRows = 2
+    val tableEdits = mutableListOf<Triple<TableAction, Int, Int>>()
+    val pictureSizes = mutableListOf<Pair<Float, Float>>()
+    val inserted = mutableListOf<String>()
+    private val tableRef = ObjectRef(0, 0, 0)
+    private val pictureRef = ObjectRef(0, 1, 0)
+    private fun cellBox(row: Int, col: Int) = PageBox(0, col * 50f, row * 20f, 50f, 20f)
+    override fun pageObjects(session: Long, page: Int): List<PageObject> = buildList {
+        if (page != 0) return@buildList
+        if (hasTable) {
+            val cells = (0 until tableRows).flatMap { r -> (0 until 2).map { c -> TableCell(r * 2 + c, r, c, 1, 1, cellBox(r, c)) } }
+            add(PageObject(ObjectKind.Table, tableRef, PageBox(0, 0f, 0f, 100f, tableRows * 20f), tableRows, 2, cells))
+        }
+        if (hasPicture) add(PageObject(ObjectKind.Picture, pictureRef, PageBox(0, 0f, 300f, pictureSizes.lastOrNull()?.first ?: 60f, 30f)))
+    }
+    override fun insertTable(session: Long, position: TextPos, rows: Int, cols: Int): Int {
+        hasTable = true; tableRows = rows; step(); return depth
+    }
+    override fun editTable(session: Long, table: ObjectRef, action: TableAction, row: Int, col: Int, endRow: Int, endCol: Int): Int {
+        tableEdits += Triple(action, row, col)
+        if (action == TableAction.InsertRowBelow || action == TableAction.InsertRowAbove) tableRows++
+        step(); return depth
+    }
+    override fun insertPicture(session: Long, position: TextPos, source: String, width: Float, height: Float): Int {
+        if (source == "bad") return -1
+        inserted += source; hasPicture = true; pictureSizes += width to height; step(); return depth
+    }
+    override fun resizePicture(session: Long, picture: ObjectRef, width: Float, height: Float): Int {
+        pictureSizes += width to height; step(); return depth
+    }
+    override fun deleteObject(session: Long, target: ObjectRef, kind: ObjectKind): Int {
+        if (kind == ObjectKind.Table) hasTable = false else hasPicture = false
+        step(); return depth
+    }
+
     override fun undo(session: Long): UndoResult? {
         if (depth == 0) return UndoResult(null, 0)
         depth--
@@ -349,5 +394,65 @@ class ViewerViewModelTest {
         }
         assertEquals(listOf("target"), engine.exported)
         assertFalse(vm.uiState.value.exporting)
+    }
+
+    @Test
+    fun tablesAndPictures() = runTest(dispatcher) {
+        val engine = FakeEngine()
+        val vm = ViewerViewModel("ref", "a.hwp", engine, recents(), io = dispatcher)
+        vm.toggleEditing()
+        // 표·그림은 커서 자리(본문)에 넣는다
+        vm.tap(0, 30f, 105f)
+        vm.insertTable(2, 2)
+        assertTrue(engine.hasTable)
+        assertNull(vm.uiState.value.caret)
+        // 칸을 누르면 칸 안 커서 + 표 고르기
+        vm.tap(0, 60f, 25f)
+        val state = vm.uiState.value
+        assertTrue(state.caret!!.position.inCell)
+        assertEquals(3, state.selected?.cell?.cell)
+        assertTrue(state.selected!!.isTable)
+        // 칸 안에서는 표·그림을 넣지 못한다
+        vm.events.test {
+            vm.insertTable(1, 1)
+            assertEquals(ViewerEvent.InsertNeedsBody, awaitItem())
+        }
+        // 아래에 행 넣기: 기준 칸(1,1) 의 아래, 커서는 같은 칸에 남는다
+        vm.tableCommand(TableCommand.RowBelow)
+        assertEquals(Triple(TableAction.InsertRowBelow, 1, 1), engine.tableEdits.last())
+        assertEquals(3, vm.uiState.value.selected?.target?.rows)
+        assertEquals(3, vm.uiState.value.caret?.position?.cell?.cell)
+        // 오른쪽 칸과 합치기: 마지막 열이면 하지 않는다
+        val edits = engine.tableEdits.size
+        vm.tableCommand(TableCommand.MergeRight)
+        assertEquals(edits, engine.tableEdits.size)
+        vm.tap(0, 10f, 5f)
+        vm.tableCommand(TableCommand.MergeRight)
+        assertEquals(TableAction.Merge, engine.tableEdits.last().first)
+        // 표 지우기
+        vm.tableCommand(TableCommand.DeleteTable)
+        assertFalse(engine.hasTable)
+        assertNull(vm.uiState.value.selected)
+        // 그림: 픽셀 크기 × 0.75pt, 쪽 너비 60% 이하(쪽 0 너비 100pt → 60pt)
+        vm.tap(0, 30f, 105f)
+        vm.insertPicture("photo", 400, 200)
+        engine.pictureSizes.last().let { (w, h) -> assertEquals(60f, w, 0.01f); assertEquals(30f, h, 0.01f) }
+        // 그림을 누르면 고르고, 키우고, 지운다
+        vm.tap(0, 10f, 310f)
+        assertTrue(vm.uiState.value.selected!!.isPicture)
+        assertNull(vm.uiState.value.caret)
+        vm.resizePicture(1)
+        assertEquals(75f, engine.pictureSizes.last().first, 0.01f)
+        vm.deletePicture()
+        assertFalse(engine.hasPicture)
+        assertNull(vm.uiState.value.selected)
+        // 넣지 못한 그림은 알린다
+        vm.tap(0, 30f, 105f)
+        vm.events.test {
+            vm.insertPicture("bad", 10, 10)
+            assertEquals(ViewerEvent.PictureFailed, awaitItem())
+        }
+        // 되돌리기로 한 동작씩 되돌린다
+        assertTrue(vm.uiState.value.canUndo)
     }
 }

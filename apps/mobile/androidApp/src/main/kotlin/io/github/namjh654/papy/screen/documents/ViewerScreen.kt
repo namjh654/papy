@@ -100,6 +100,9 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import io.github.namjh654.papy.feature.documents.CaretMove
 import io.github.namjh654.papy.feature.documents.viewer.StyleToggle
+import io.github.namjh654.papy.feature.documents.viewer.TableCommand
+import io.github.namjh654.papy.feature.documents.viewer.ObjectSelection
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
 import androidx.compose.ui.draw.drawWithContent
@@ -144,6 +147,17 @@ fun ViewerScreen(ref: String, name: String, onBack: () -> Unit) {
     val editFailed = stringResource(R.string.viewer_edit_failed)
     val exported = stringResource(R.string.viewer_exported)
     val exportFailed = stringResource(R.string.viewer_export_failed)
+    val insertInCell = stringResource(R.string.viewer_insert_in_cell)
+    val pictureFailed = stringResource(R.string.viewer_picture_failed)
+    val context = androidx.compose.ui.platform.LocalContext.current
+    // 그림 넣기: 사진 고르기(권한 없이 고른 사진만 읽는다). 픽셀 크기를 읽어 넣을 크기를 정한다
+    val picturePicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        runCatching { context.contentResolver.openInputStream(uri)?.use { android.graphics.BitmapFactory.decodeStream(it, null, bounds) } }
+        viewModel.insertPicture(uri.toString(), bounds.outWidth, bounds.outHeight)
+    }
+    var tableDialog by remember { mutableStateOf(false) }
     // PDF 내보내기: 사용자가 저장할 곳을 고른다(Storage Access Framework)
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { uri ->
         if (uri != null) viewModel.exportPdf(uri.toString())
@@ -159,6 +173,8 @@ fun ViewerScreen(ref: String, name: String, onBack: () -> Unit) {
             ViewerEvent.EditFailed -> scope.launch { toast.show(editFailed, PapyMessageType.Error) }
             is ViewerEvent.Exported -> scope.launch { toast.show(exported, PapyMessageType.Success) }
             is ViewerEvent.ExportFailed -> scope.launch { toast.show(exportFailed, PapyMessageType.Error) }
+            ViewerEvent.InsertNeedsBody -> scope.launch { toast.show(insertInCell, PapyMessageType.Error) }
+            ViewerEvent.PictureFailed -> scope.launch { toast.show(pictureFailed, PapyMessageType.Error) }
             ViewerEvent.Exit -> onBack()
         }
     }
@@ -274,9 +290,22 @@ fun ViewerScreen(ref: String, name: String, onBack: () -> Unit) {
                     onMove = { move -> flush(); viewModel.moveCaret(move) },
                     modifier = Modifier.align(Alignment.TopStart),
                 )
-                FormatBar(state, viewModel, flush, Modifier.align(Alignment.BottomCenter))
+                Column(Modifier.align(Alignment.BottomCenter)) {
+                    if (state.selected?.isTable == true) TableBar(viewModel, flush)
+                    FormatBar(
+                        state, viewModel, flush, Modifier,
+                        onInsertTable = { flush(); tableDialog = true },
+                        onInsertPicture = {
+                            flush()
+                            picturePicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                        },
+                    )
+                }
             }
-            if (state.phase == ViewerPhase.Ready && state.editing && state.caret == null && state.paragraph == null) {
+            if (state.phase == ViewerPhase.Ready && state.editing && state.selected?.isPicture == true) {
+                PictureBar(viewModel, Modifier.align(Alignment.BottomCenter))
+            }
+            if (state.phase == ViewerPhase.Ready && state.editing && state.caret == null && state.paragraph == null && state.selected == null) {
                 Text(
                     stringResource(R.string.viewer_edit_hint),
                     style = PapyTheme.typography.bodySmall,
@@ -325,6 +354,10 @@ fun ViewerScreen(ref: String, name: String, onBack: () -> Unit) {
                 )
             }
         }
+    }
+
+    if (tableDialog) {
+        TableDialog(onDismiss = { tableDialog = false }, onInsert = { rows, cols -> tableDialog = false; viewModel.insertTable(rows, cols) })
     }
 
     if (state.confirmExit) {
@@ -469,6 +502,7 @@ private fun Pages(state: ViewerUiState, composing: String?, onPageVisible: (Int)
                     renderWidth = renderWidth,
                     revision = state.revision,
                     highlight = (state.selectionBoxes + state.paragraph?.boxes.orEmpty()).filter { it.page == index },
+                    selected = state.selected?.takeIf { state.editing && it.target.box.page == index },
                     caret = state.caret?.box?.takeIf { it.page == index && state.editing },
                     composing = composing,
                     gestures = if (state.editing) gestures else null,
@@ -499,6 +533,7 @@ private fun Page(
     renderWidth: Int,
     revision: Int,
     highlight: List<PageBox>,
+    selected: ObjectSelection?,
     caret: PageBox?,
     composing: String?,
     gestures: PageGestures?,
@@ -537,6 +572,24 @@ private fun Page(
                         color = HIGHLIGHT,
                         topLeft = Offset(box.x * scale, box.y * scale),
                         size = androidx.compose.ui.geometry.Size(box.width * scale, box.height * scale),
+                    )
+                }
+                // 고른 표·그림 테두리, 커서가 든 칸
+                selected?.let { selection ->
+                    val box = selection.target.box
+                    val stroke = 2.dp.toPx()
+                    selection.cell?.let { cell ->
+                        drawRect(
+                            color = HIGHLIGHT.copy(alpha = 0.18f),
+                            topLeft = Offset(cell.box.x * scale, cell.box.y * scale),
+                            size = androidx.compose.ui.geometry.Size(cell.box.width * scale, cell.box.height * scale),
+                        )
+                    }
+                    drawRect(
+                        color = CARET,
+                        topLeft = Offset(box.x * scale, box.y * scale),
+                        size = androidx.compose.ui.geometry.Size(box.width * scale, box.height * scale),
+                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = stroke),
                     )
                 }
                 caret?.let { box ->
@@ -616,7 +669,14 @@ private fun EditInput(
 
 /** 편집 도구 막대: 글자 모양·크기·색, 범위 선택, 커서 이동 */
 @Composable
-private fun FormatBar(state: ViewerUiState, viewModel: ViewerViewModel, flush: () -> Unit, modifier: Modifier) {
+private fun FormatBar(
+    state: ViewerUiState,
+    viewModel: ViewerViewModel,
+    flush: () -> Unit,
+    modifier: Modifier,
+    onInsertTable: () -> Unit,
+    onInsertPicture: () -> Unit,
+) {
     val style = state.style
     Row(
         modifier = modifier
@@ -672,7 +732,92 @@ private fun FormatBar(state: ViewerUiState, viewModel: ViewerViewModel, flush: (
         Tool("¶", R.string.viewer_edit_paragraph) {
             state.caret?.box?.let { viewModel.longPress(it.page, it.x, it.y + it.height / 2) }
         }
+        Tool("▦", R.string.viewer_insert_table, action = onInsertTable)
+        Tool("🖼", R.string.viewer_insert_picture, action = onInsertPicture)
     }
+}
+
+/** 도구 막대 단추(글자) */
+@Composable
+private fun BarButton(label: String, description: Int, action: () -> Unit) {
+    TextButton(onClick = action) {
+        Text(label, style = PapyTheme.typography.bodySmall, color = PapyTheme.colors.onSurface, maxLines = 1, softWrap = false, modifier = Modifier.described(description))
+    }
+}
+
+/** 표 도구 막대: 커서가 든 칸 기준으로 행·열 넣기·지우기, 칸 합치기, 표 지우기 */
+@Composable
+private fun TableBar(viewModel: ViewerViewModel, flush: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(PapyTheme.colors.surfaceVariant)
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = PapySpacing.sm),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        listOf(
+            TableCommand.RowAbove to R.string.viewer_table_row_above,
+            TableCommand.RowBelow to R.string.viewer_table_row_below,
+            TableCommand.ColumnLeft to R.string.viewer_table_col_left,
+            TableCommand.ColumnRight to R.string.viewer_table_col_right,
+            TableCommand.MergeRight to R.string.viewer_table_merge_right,
+            TableCommand.MergeDown to R.string.viewer_table_merge_down,
+            TableCommand.DeleteRow to R.string.viewer_table_delete_row,
+            TableCommand.DeleteColumn to R.string.viewer_table_delete_col,
+            TableCommand.DeleteTable to R.string.viewer_table_delete,
+        ).forEach { (command, label) ->
+            BarButton(stringResource(label), label) { flush(); viewModel.tableCommand(command) }
+        }
+    }
+}
+
+/** 그림 도구 막대: 크기, 지우기 */
+@Composable
+private fun PictureBar(viewModel: ViewerViewModel, modifier: Modifier) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(PapyTheme.colors.surface)
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = PapySpacing.sm, vertical = PapySpacing.xs),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(PapySpacing.xs),
+    ) {
+        BarButton(stringResource(R.string.viewer_picture_smaller), R.string.viewer_picture_smaller) { viewModel.resizePicture(-1) }
+        BarButton(stringResource(R.string.viewer_picture_larger), R.string.viewer_picture_larger) { viewModel.resizePicture(1) }
+        BarButton(stringResource(R.string.viewer_picture_delete), R.string.viewer_picture_delete) { viewModel.deletePicture() }
+        BarButton(stringResource(R.string.viewer_picture_done), R.string.viewer_picture_done) { viewModel.clearObject() }
+    }
+}
+
+/** 표 넣기: 행·열 수 고르기 */
+@Composable
+private fun TableDialog(onDismiss: () -> Unit, onInsert: (Int, Int) -> Unit) {
+    var rows by remember { mutableStateOf(3) }
+    var cols by remember { mutableStateOf(3) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.viewer_insert_table)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(PapySpacing.sm)) {
+                Text(stringResource(R.string.viewer_table_size, rows, cols), style = PapyTheme.typography.body)
+                @Composable
+                fun Stepper(label: Int, value: Int, onChange: (Int) -> Unit) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(stringResource(label), style = PapyTheme.typography.body, modifier = Modifier.weight(1f))
+                        TextButton(onClick = { onChange((value - 1).coerceAtLeast(1)) }) { Text("−") }
+                        Text("$value", style = PapyTheme.typography.subtitle)
+                        TextButton(onClick = { onChange((value + 1).coerceAtMost(20)) }) { Text("+") }
+                    }
+                }
+                Stepper(R.string.viewer_table_rows, rows) { rows = it }
+                Stepper(R.string.viewer_table_cols, cols) { cols = it }
+            }
+        },
+        confirmButton = { TextButton(onClick = { onInsert(rows, cols) }) { Text(stringResource(R.string.viewer_insert)) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
+    )
 }
 
 /** 화면 낭독기용 이름 */

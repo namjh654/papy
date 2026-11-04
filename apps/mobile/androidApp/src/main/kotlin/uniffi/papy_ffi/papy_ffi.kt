@@ -687,11 +687,19 @@ internal object IntegrityCheckingUniffiLib {
     ): Int
     external fun uniffi_papy_ffi_checksum_method_papyengine_delete_backward(
     ): Int
+    external fun uniffi_papy_ffi_checksum_method_papyengine_delete_object(
+    ): Int
     external fun uniffi_papy_ffi_checksum_method_papyengine_delete_range(
+    ): Int
+    external fun uniffi_papy_ffi_checksum_method_papyengine_edit_table(
     ): Int
     external fun uniffi_papy_ffi_checksum_method_papyengine_export(
     ): Int
     external fun uniffi_papy_ffi_checksum_method_papyengine_extract_text(
+    ): Int
+    external fun uniffi_papy_ffi_checksum_method_papyengine_insert_picture(
+    ): Int
+    external fun uniffi_papy_ffi_checksum_method_papyengine_insert_table(
     ): Int
     external fun uniffi_papy_ffi_checksum_method_papyengine_insert_text(
     ): Int
@@ -701,6 +709,8 @@ internal object IntegrityCheckingUniffiLib {
     ): Int
     external fun uniffi_papy_ffi_checksum_method_papyengine_page_count(
     ): Int
+    external fun uniffi_papy_ffi_checksum_method_papyengine_page_objects(
+    ): Int
     external fun uniffi_papy_ffi_checksum_method_papyengine_page_size(
     ): Int
     external fun uniffi_papy_ffi_checksum_method_papyengine_paragraph_at(
@@ -708,6 +718,8 @@ internal object IntegrityCheckingUniffiLib {
     external fun uniffi_papy_ffi_checksum_method_papyengine_render_page(
     ): Int
     external fun uniffi_papy_ffi_checksum_method_papyengine_replace_paragraph(
+    ): Int
+    external fun uniffi_papy_ffi_checksum_method_papyengine_resize_picture(
     ): Int
     external fun uniffi_papy_ffi_checksum_method_papyengine_save(
     ): Int
@@ -761,12 +773,20 @@ internal object UniffiLib {
     ): Unit
     external fun uniffi_papy_ffi_fn_method_papyengine_delete_backward(`ptr`: Long,`sessionId`: Long,`position`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
+    external fun uniffi_papy_ffi_fn_method_papyengine_delete_object(`ptr`: Long,`sessionId`: Long,`object`: RustBuffer.ByValue,`kind`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): Int
     external fun uniffi_papy_ffi_fn_method_papyengine_delete_range(`ptr`: Long,`sessionId`: Long,`range`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
+    external fun uniffi_papy_ffi_fn_method_papyengine_edit_table(`ptr`: Long,`sessionId`: Long,`table`: RustBuffer.ByValue,`op`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): Int
     external fun uniffi_papy_ffi_fn_method_papyengine_export(`ptr`: Long,`sessionId`: Long,`extension`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     external fun uniffi_papy_ffi_fn_method_papyengine_extract_text(`ptr`: Long,`sessionId`: Long,`page`: Int,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
+    external fun uniffi_papy_ffi_fn_method_papyengine_insert_picture(`ptr`: Long,`sessionId`: Long,`position`: RustBuffer.ByValue,`image`: RustBuffer.ByValue,`width`: Float,`height`: Float,uniffi_out_err: UniffiRustCallStatus, 
+    ): Int
+    external fun uniffi_papy_ffi_fn_method_papyengine_insert_table(`ptr`: Long,`sessionId`: Long,`position`: RustBuffer.ByValue,`rows`: Int,`cols`: Int,uniffi_out_err: UniffiRustCallStatus, 
+    ): Int
     external fun uniffi_papy_ffi_fn_method_papyengine_insert_text(`ptr`: Long,`sessionId`: Long,`position`: RustBuffer.ByValue,`text`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     external fun uniffi_papy_ffi_fn_method_papyengine_move_caret(`ptr`: Long,`sessionId`: Long,`position`: RustBuffer.ByValue,`direction`: RustBuffer.ByValue,`preferredX`: Float,uniffi_out_err: UniffiRustCallStatus, 
@@ -775,6 +795,8 @@ internal object UniffiLib {
     ): RustBuffer.ByValue
     external fun uniffi_papy_ffi_fn_method_papyengine_page_count(`ptr`: Long,`sessionId`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Int
+    external fun uniffi_papy_ffi_fn_method_papyengine_page_objects(`ptr`: Long,`sessionId`: Long,`page`: Int,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
     external fun uniffi_papy_ffi_fn_method_papyengine_page_size(`ptr`: Long,`sessionId`: Long,`page`: Int,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     external fun uniffi_papy_ffi_fn_method_papyengine_paragraph_at(`ptr`: Long,`sessionId`: Long,`page`: Int,`x`: Float,`y`: Float,uniffi_out_err: UniffiRustCallStatus, 
@@ -782,6 +804,8 @@ internal object UniffiLib {
     external fun uniffi_papy_ffi_fn_method_papyengine_render_page(`ptr`: Long,`sessionId`: Long,`page`: Int,`scale`: Float,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     external fun uniffi_papy_ffi_fn_method_papyengine_replace_paragraph(`ptr`: Long,`sessionId`: Long,`section`: Int,`paragraph`: Int,`text`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): Int
+    external fun uniffi_papy_ffi_fn_method_papyengine_resize_picture(`ptr`: Long,`sessionId`: Long,`picture`: RustBuffer.ByValue,`width`: Float,`height`: Float,uniffi_out_err: UniffiRustCallStatus, 
     ): Int
     external fun uniffi_papy_ffi_fn_method_papyengine_save(`ptr`: Long,`sessionId`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
@@ -936,13 +960,25 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if ((lib.uniffi_papy_ffi_checksum_method_papyengine_delete_backward() and 0xFFFF) != 39482) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if ((lib.uniffi_papy_ffi_checksum_method_papyengine_delete_object() and 0xFFFF) != 8895) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if ((lib.uniffi_papy_ffi_checksum_method_papyengine_delete_range() and 0xFFFF) != 13120) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if ((lib.uniffi_papy_ffi_checksum_method_papyengine_edit_table() and 0xFFFF) != 25921) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_papy_ffi_checksum_method_papyengine_export() and 0xFFFF) != 34227) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_papy_ffi_checksum_method_papyengine_extract_text() and 0xFFFF) != 8103) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if ((lib.uniffi_papy_ffi_checksum_method_papyengine_insert_picture() and 0xFFFF) != 14461) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if ((lib.uniffi_papy_ffi_checksum_method_papyengine_insert_table() and 0xFFFF) != 31361) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_papy_ffi_checksum_method_papyengine_insert_text() and 0xFFFF) != 12120) {
@@ -957,6 +993,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if ((lib.uniffi_papy_ffi_checksum_method_papyengine_page_count() and 0xFFFF) != 12156) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if ((lib.uniffi_papy_ffi_checksum_method_papyengine_page_objects() and 0xFFFF) != 22059) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if ((lib.uniffi_papy_ffi_checksum_method_papyengine_page_size() and 0xFFFF) != 63992) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -967,6 +1006,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_papy_ffi_checksum_method_papyengine_replace_paragraph() and 0xFFFF) != 65330) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if ((lib.uniffi_papy_ffi_checksum_method_papyengine_resize_picture() and 0xFFFF) != 61970) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_papy_ffi_checksum_method_papyengine_save() and 0xFFFF) != 57793) {
@@ -1445,9 +1487,19 @@ public interface PapyEngineInterface {
     fun `deleteBackward`(`sessionId`: kotlin.ULong, `position`: EnginePosition): EngineEdit
     
     /**
+     * 표·그림을 지운다.
+     */
+    fun `deleteObject`(`sessionId`: kotlin.ULong, `object`: EngineObjectRef, `kind`: EngineObjectKind): kotlin.UInt
+    
+    /**
      * 범위를 지운다(문단을 넘으면 합친다). 같은 구역 안이어야 한다.
      */
     fun `deleteRange`(`sessionId`: kotlin.ULong, `range`: EngineRange): EngineEdit
+    
+    /**
+     * 표를 고친다(행·열 넣기·지우기, 칸 합치기). 편집 뒤 되돌리기 단계 수.
+     */
+    fun `editTable`(`sessionId`: kotlin.ULong, `table`: EngineObjectRef, `op`: EngineTableOp): kotlin.UInt
     
     /**
      * 다른 형식으로 내보낸 바이트. `extension`: "pdf" | "hwpx" | "hwp" | "docx" | "txt".
@@ -1459,6 +1511,16 @@ public interface PapyEngineInterface {
      * 쪽의 글자.
      */
     fun `extractText`(`sessionId`: kotlin.ULong, `page`: kotlin.UInt): kotlin.String
+    
+    /**
+     * 본문 위치에 그림(PNG·JPEG·GIF·BMP)을 글자처럼 넣는다. 크기는 pt.
+     */
+    fun `insertPicture`(`sessionId`: kotlin.ULong, `position`: EnginePosition, `image`: kotlin.ByteArray, `width`: kotlin.Float, `height`: kotlin.Float): kotlin.UInt
+    
+    /**
+     * 본문 위치에 표를 넣는다. 편집 뒤 되돌리기 단계 수.
+     */
+    fun `insertTable`(`sessionId`: kotlin.ULong, `position`: EnginePosition, `rows`: kotlin.UInt, `cols`: kotlin.UInt): kotlin.UInt
     
     /**
      * 커서 자리에 글자를 넣는다(`\n` 은 문단 나누기). 앞 글자의 모양을 따른다.
@@ -1481,6 +1543,11 @@ public interface PapyEngineInterface {
     fun `pageCount`(`sessionId`: kotlin.ULong): kotlin.UInt
     
     /**
+     * 쪽에 그려진 표·그림(본문 것만).
+     */
+    fun `pageObjects`(`sessionId`: kotlin.ULong, `page`: kotlin.UInt): List<EngineObject>
+    
+    /**
      * 쪽 크기(pt).
      */
     fun `pageSize`(`sessionId`: kotlin.ULong, `page`: kotlin.UInt): PageDimensions
@@ -1500,6 +1567,11 @@ public interface PapyEngineInterface {
      * 바뀌지 않은 글자의 모양(굵게·색 등)을 지킨다. 편집 뒤 되돌리기 단계 수를 돌려준다.
      */
     fun `replaceParagraph`(`sessionId`: kotlin.ULong, `section`: kotlin.UInt, `paragraph`: kotlin.UInt, `text`: kotlin.String): kotlin.UInt
+    
+    /**
+     * 그림 크기를 바꾼다(pt).
+     */
+    fun `resizePicture`(`sessionId`: kotlin.ULong, `picture`: EngineObjectRef, `width`: kotlin.Float, `height`: kotlin.Float): kotlin.UInt
     
     /**
      * 원래 형식으로 저장한 바이트(암호 문서는 같은 암호로).
@@ -1752,6 +1824,26 @@ open class PapyEngine: Disposable, AutoCloseable, PapyEngineInterface
 
     
     /**
+     * 표·그림을 지운다.
+     */
+    @Throws(PapyException::class)override fun `deleteObject`(`sessionId`: kotlin.ULong, `object`: EngineObjectRef, `kind`: EngineObjectKind): kotlin.UInt {
+            return FfiConverterUInt.lift(
+    callWithHandle {
+    uniffiRustCallWithError(PapyException) { _status ->
+    UniffiLib.uniffi_papy_ffi_fn_method_papyengine_delete_object(
+        it,
+        
+        FfiConverterULong.lower(`sessionId`),
+        FfiConverterTypeEngineObjectRef.lower(`object`),
+        FfiConverterTypeEngineObjectKind.lower(`kind`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    /**
      * 범위를 지운다(문단을 넘으면 합친다). 같은 구역 안이어야 한다.
      */
     @Throws(PapyException::class)override fun `deleteRange`(`sessionId`: kotlin.ULong, `range`: EngineRange): EngineEdit {
@@ -1763,6 +1855,26 @@ open class PapyEngine: Disposable, AutoCloseable, PapyEngineInterface
         
         FfiConverterULong.lower(`sessionId`),
         FfiConverterTypeEngineRange.lower(`range`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    /**
+     * 표를 고친다(행·열 넣기·지우기, 칸 합치기). 편집 뒤 되돌리기 단계 수.
+     */
+    @Throws(PapyException::class)override fun `editTable`(`sessionId`: kotlin.ULong, `table`: EngineObjectRef, `op`: EngineTableOp): kotlin.UInt {
+            return FfiConverterUInt.lift(
+    callWithHandle {
+    uniffiRustCallWithError(PapyException) { _status ->
+    UniffiLib.uniffi_papy_ffi_fn_method_papyengine_edit_table(
+        it,
+        
+        FfiConverterULong.lower(`sessionId`),
+        FfiConverterTypeEngineObjectRef.lower(`table`),
+        FfiConverterTypeEngineTableOp.lower(`op`),_status)
 }
     }
     )
@@ -1802,6 +1914,49 @@ open class PapyEngine: Disposable, AutoCloseable, PapyEngineInterface
         
         FfiConverterULong.lower(`sessionId`),
         FfiConverterUInt.lower(`page`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    /**
+     * 본문 위치에 그림(PNG·JPEG·GIF·BMP)을 글자처럼 넣는다. 크기는 pt.
+     */
+    @Throws(PapyException::class)override fun `insertPicture`(`sessionId`: kotlin.ULong, `position`: EnginePosition, `image`: kotlin.ByteArray, `width`: kotlin.Float, `height`: kotlin.Float): kotlin.UInt {
+            return FfiConverterUInt.lift(
+    callWithHandle {
+    uniffiRustCallWithError(PapyException) { _status ->
+    UniffiLib.uniffi_papy_ffi_fn_method_papyengine_insert_picture(
+        it,
+        
+        FfiConverterULong.lower(`sessionId`),
+        FfiConverterTypeEnginePosition.lower(`position`),
+        FfiConverterByteArray.lower(`image`),
+        FfiConverterFloat.lower(`width`),
+        FfiConverterFloat.lower(`height`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    /**
+     * 본문 위치에 표를 넣는다. 편집 뒤 되돌리기 단계 수.
+     */
+    @Throws(PapyException::class)override fun `insertTable`(`sessionId`: kotlin.ULong, `position`: EnginePosition, `rows`: kotlin.UInt, `cols`: kotlin.UInt): kotlin.UInt {
+            return FfiConverterUInt.lift(
+    callWithHandle {
+    uniffiRustCallWithError(PapyException) { _status ->
+    UniffiLib.uniffi_papy_ffi_fn_method_papyengine_insert_table(
+        it,
+        
+        FfiConverterULong.lower(`sessionId`),
+        FfiConverterTypeEnginePosition.lower(`position`),
+        FfiConverterUInt.lower(`rows`),
+        FfiConverterUInt.lower(`cols`),_status)
 }
     }
     )
@@ -1888,6 +2043,25 @@ open class PapyEngine: Disposable, AutoCloseable, PapyEngineInterface
 
     
     /**
+     * 쪽에 그려진 표·그림(본문 것만).
+     */
+    @Throws(PapyException::class)override fun `pageObjects`(`sessionId`: kotlin.ULong, `page`: kotlin.UInt): List<EngineObject> {
+            return FfiConverterSequenceTypeEngineObject.lift(
+    callWithHandle {
+    uniffiRustCallWithError(PapyException) { _status ->
+    UniffiLib.uniffi_papy_ffi_fn_method_papyengine_page_objects(
+        it,
+        
+        FfiConverterULong.lower(`sessionId`),
+        FfiConverterUInt.lower(`page`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    /**
      * 쪽 크기(pt).
      */
     @Throws(PapyException::class)override fun `pageSize`(`sessionId`: kotlin.ULong, `page`: kotlin.UInt): PageDimensions {
@@ -1962,6 +2136,27 @@ open class PapyEngine: Disposable, AutoCloseable, PapyEngineInterface
         FfiConverterUInt.lower(`section`),
         FfiConverterUInt.lower(`paragraph`),
         FfiConverterString.lower(`text`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    /**
+     * 그림 크기를 바꾼다(pt).
+     */
+    @Throws(PapyException::class)override fun `resizePicture`(`sessionId`: kotlin.ULong, `picture`: EngineObjectRef, `width`: kotlin.Float, `height`: kotlin.Float): kotlin.UInt {
+            return FfiConverterUInt.lift(
+    callWithHandle {
+    uniffiRustCallWithError(PapyException) { _status ->
+    UniffiLib.uniffi_papy_ffi_fn_method_papyengine_resize_picture(
+        it,
+        
+        FfiConverterULong.lower(`sessionId`),
+        FfiConverterTypeEngineObjectRef.lower(`picture`),
+        FfiConverterFloat.lower(`width`),
+        FfiConverterFloat.lower(`height`),_status)
 }
     }
     )
@@ -2265,6 +2460,61 @@ public object FfiConverterTypeEngineCaret: FfiConverterRustBuffer<EngineCaret> {
 
 
 /**
+ * 표 칸·글상자: 본문 문단 안 개체 번호, 칸 번호, 칸 안 문단.
+ */
+data class EngineCell (
+    /**
+     * 문단 안 개체(표·글상자) 번호
+     */
+    var `control`: kotlin.UInt
+    , 
+    /**
+     * 칸 번호(글상자는 0)
+     */
+    var `cell`: kotlin.UInt
+    , 
+    /**
+     * 칸 안 문단
+     */
+    var `cellParagraph`: kotlin.UInt
+    
+){
+    
+
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeEngineCell: FfiConverterRustBuffer<EngineCell> {
+    override fun read(buf: ByteBuffer): EngineCell {
+        return EngineCell(
+            FfiConverterUInt.read(buf),
+            FfiConverterUInt.read(buf),
+            FfiConverterUInt.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: EngineCell) = (
+            FfiConverterUInt.allocationSize(value.`control`) +
+            FfiConverterUInt.allocationSize(value.`cell`) +
+            FfiConverterUInt.allocationSize(value.`cellParagraph`)
+    )
+
+    override fun write(value: EngineCell, buf: ByteBuffer) {
+            FfiConverterUInt.write(value.`control`, buf)
+            FfiConverterUInt.write(value.`cell`, buf)
+            FfiConverterUInt.write(value.`cellParagraph`, buf)
+    }
+}
+
+
+
+/**
  * 편집 결과: 커서와 지금 되돌릴 수 있는 단계 수(이어 친 글자는 한 단계로 묶인다).
  */
 data class EngineEdit (
@@ -2312,6 +2562,140 @@ public object FfiConverterTypeEngineEdit: FfiConverterRustBuffer<EngineEdit> {
 
 
 /**
+ * 쪽에 그려진 표·그림.
+ */
+data class EngineObject (
+    /**
+     * 종류
+     */
+    var `kind`: EngineObjectKind
+    , 
+    /**
+     * 가리키는 개체
+     */
+    var `object`: EngineObjectRef
+    , 
+    /**
+     * 쪽 위 사각형(pt)
+     */
+    var `rect`: PageRegion
+    , 
+    /**
+     * 표 행 수(그림은 0)
+     */
+    var `rows`: kotlin.UInt
+    , 
+    /**
+     * 표 열 수
+     */
+    var `cols`: kotlin.UInt
+    , 
+    /**
+     * 표 칸
+     */
+    var `cells`: List<EngineTableCell>
+    
+){
+    
+
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeEngineObject: FfiConverterRustBuffer<EngineObject> {
+    override fun read(buf: ByteBuffer): EngineObject {
+        return EngineObject(
+            FfiConverterTypeEngineObjectKind.read(buf),
+            FfiConverterTypeEngineObjectRef.read(buf),
+            FfiConverterTypePageRegion.read(buf),
+            FfiConverterUInt.read(buf),
+            FfiConverterUInt.read(buf),
+            FfiConverterSequenceTypeEngineTableCell.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: EngineObject) = (
+            FfiConverterTypeEngineObjectKind.allocationSize(value.`kind`) +
+            FfiConverterTypeEngineObjectRef.allocationSize(value.`object`) +
+            FfiConverterTypePageRegion.allocationSize(value.`rect`) +
+            FfiConverterUInt.allocationSize(value.`rows`) +
+            FfiConverterUInt.allocationSize(value.`cols`) +
+            FfiConverterSequenceTypeEngineTableCell.allocationSize(value.`cells`)
+    )
+
+    override fun write(value: EngineObject, buf: ByteBuffer) {
+            FfiConverterTypeEngineObjectKind.write(value.`kind`, buf)
+            FfiConverterTypeEngineObjectRef.write(value.`object`, buf)
+            FfiConverterTypePageRegion.write(value.`rect`, buf)
+            FfiConverterUInt.write(value.`rows`, buf)
+            FfiConverterUInt.write(value.`cols`, buf)
+            FfiConverterSequenceTypeEngineTableCell.write(value.`cells`, buf)
+    }
+}
+
+
+
+/**
+ * 문서 안 개체(본문 문단과 그 안 개체 번호).
+ */
+data class EngineObjectRef (
+    /**
+     * 구역
+     */
+    var `section`: kotlin.UInt
+    , 
+    /**
+     * 개체를 가진 본문 문단
+     */
+    var `paragraph`: kotlin.UInt
+    , 
+    /**
+     * 문단 안 개체 번호
+     */
+    var `control`: kotlin.UInt
+    
+){
+    
+
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeEngineObjectRef: FfiConverterRustBuffer<EngineObjectRef> {
+    override fun read(buf: ByteBuffer): EngineObjectRef {
+        return EngineObjectRef(
+            FfiConverterUInt.read(buf),
+            FfiConverterUInt.read(buf),
+            FfiConverterUInt.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: EngineObjectRef) = (
+            FfiConverterUInt.allocationSize(value.`section`) +
+            FfiConverterUInt.allocationSize(value.`paragraph`) +
+            FfiConverterUInt.allocationSize(value.`control`)
+    )
+
+    override fun write(value: EngineObjectRef, buf: ByteBuffer) {
+            FfiConverterUInt.write(value.`section`, buf)
+            FfiConverterUInt.write(value.`paragraph`, buf)
+            FfiConverterUInt.write(value.`control`, buf)
+    }
+}
+
+
+
+/**
  * 본문 위치. 구역·문단은 0부터, `offset` 은 문단 안 글자(유니코드 스칼라) 위치.
  * (Swift 에서 앱 쪽 이름과 겹치지 않게 Engine 을 붙인다.)
  */
@@ -2327,9 +2711,14 @@ data class EnginePosition (
     var `paragraph`: kotlin.UInt
     , 
     /**
-     * 문단 안 글자 위치
+     * 문단 안 글자 위치(칸 안이면 칸 문단 안 위치)
      */
     var `offset`: kotlin.UInt
+    , 
+    /**
+     * 표 칸·글상자 안이면 그 칸(`paragraph` 는 표를 가진 본문 문단)
+     */
+    var `cell`: EngineCell?
     
 ){
     
@@ -2349,19 +2738,22 @@ public object FfiConverterTypeEnginePosition: FfiConverterRustBuffer<EnginePosit
             FfiConverterUInt.read(buf),
             FfiConverterUInt.read(buf),
             FfiConverterUInt.read(buf),
+            FfiConverterOptionalTypeEngineCell.read(buf),
         )
     }
 
     override fun allocationSize(value: EnginePosition) = (
             FfiConverterUInt.allocationSize(value.`section`) +
             FfiConverterUInt.allocationSize(value.`paragraph`) +
-            FfiConverterUInt.allocationSize(value.`offset`)
+            FfiConverterUInt.allocationSize(value.`offset`) +
+            FfiConverterOptionalTypeEngineCell.allocationSize(value.`cell`)
     )
 
     override fun write(value: EnginePosition, buf: ByteBuffer) {
             FfiConverterUInt.write(value.`section`, buf)
             FfiConverterUInt.write(value.`paragraph`, buf)
             FfiConverterUInt.write(value.`offset`, buf)
+            FfiConverterOptionalTypeEngineCell.write(value.`cell`, buf)
     }
 }
 
@@ -2409,6 +2801,85 @@ public object FfiConverterTypeEngineRange: FfiConverterRustBuffer<EngineRange> {
     override fun write(value: EngineRange, buf: ByteBuffer) {
             FfiConverterTypeEnginePosition.write(value.`start`, buf)
             FfiConverterTypeEnginePosition.write(value.`end`, buf)
+    }
+}
+
+
+
+/**
+ * 표 칸 자리.
+ */
+data class EngineTableCell (
+    /**
+     * 칸 번호
+     */
+    var `cell`: kotlin.UInt
+    , 
+    /**
+     * 행
+     */
+    var `row`: kotlin.UInt
+    , 
+    /**
+     * 열
+     */
+    var `col`: kotlin.UInt
+    , 
+    /**
+     * 합친 행 수
+     */
+    var `rowSpan`: kotlin.UInt
+    , 
+    /**
+     * 합친 열 수
+     */
+    var `colSpan`: kotlin.UInt
+    , 
+    /**
+     * 칸 사각형(pt)
+     */
+    var `rect`: PageRegion
+    
+){
+    
+
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeEngineTableCell: FfiConverterRustBuffer<EngineTableCell> {
+    override fun read(buf: ByteBuffer): EngineTableCell {
+        return EngineTableCell(
+            FfiConverterUInt.read(buf),
+            FfiConverterUInt.read(buf),
+            FfiConverterUInt.read(buf),
+            FfiConverterUInt.read(buf),
+            FfiConverterUInt.read(buf),
+            FfiConverterTypePageRegion.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: EngineTableCell) = (
+            FfiConverterUInt.allocationSize(value.`cell`) +
+            FfiConverterUInt.allocationSize(value.`row`) +
+            FfiConverterUInt.allocationSize(value.`col`) +
+            FfiConverterUInt.allocationSize(value.`rowSpan`) +
+            FfiConverterUInt.allocationSize(value.`colSpan`) +
+            FfiConverterTypePageRegion.allocationSize(value.`rect`)
+    )
+
+    override fun write(value: EngineTableCell, buf: ByteBuffer) {
+            FfiConverterUInt.write(value.`cell`, buf)
+            FfiConverterUInt.write(value.`row`, buf)
+            FfiConverterUInt.write(value.`col`, buf)
+            FfiConverterUInt.write(value.`rowSpan`, buf)
+            FfiConverterUInt.write(value.`colSpan`, buf)
+            FfiConverterTypePageRegion.write(value.`rect`, buf)
     }
 }
 
@@ -2835,6 +3306,272 @@ public object FfiConverterTypeCaretDirection: FfiConverterRustBuffer<CaretDirect
 
 
 
+/**
+ * 쪽 위 개체 종류.
+ */
+
+enum class EngineObjectKind {
+    
+    /**
+     * 표
+     */
+    TABLE,
+    /**
+     * 그림
+     */
+    PICTURE;
+
+    
+
+
+    companion object
+}
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeEngineObjectKind: FfiConverterRustBuffer<EngineObjectKind> {
+    override fun read(buf: ByteBuffer) = try {
+        EngineObjectKind.values()[buf.getInt() - 1]
+    } catch (e: IndexOutOfBoundsException) {
+        throw RuntimeException("invalid enum value, something is very wrong!!", e)
+    }
+
+    override fun allocationSize(value: EngineObjectKind) = 4UL
+
+    override fun write(value: EngineObjectKind, buf: ByteBuffer) {
+        buf.putInt(value.ordinal + 1)
+    }
+}
+
+
+
+
+
+/**
+ * 표 고치기.
+ */
+sealed class EngineTableOp {
+    
+    /**
+     * 행 넣기
+     */
+    data class InsertRow(
+        /**
+         * 기준 행
+         */
+        val `row`: kotlin.UInt, 
+        /**
+         * 아래에
+         */
+        val `below`: kotlin.Boolean) : EngineTableOp()
+        
+    {
+        
+
+        companion object
+    }
+    
+    /**
+     * 열 넣기
+     */
+    data class InsertColumn(
+        /**
+         * 기준 열
+         */
+        val `col`: kotlin.UInt, 
+        /**
+         * 오른쪽에
+         */
+        val `right`: kotlin.Boolean) : EngineTableOp()
+        
+    {
+        
+
+        companion object
+    }
+    
+    /**
+     * 행 지우기
+     */
+    data class DeleteRow(
+        /**
+         * 행
+         */
+        val `row`: kotlin.UInt) : EngineTableOp()
+        
+    {
+        
+
+        companion object
+    }
+    
+    /**
+     * 열 지우기
+     */
+    data class DeleteColumn(
+        /**
+         * 열
+         */
+        val `col`: kotlin.UInt) : EngineTableOp()
+        
+    {
+        
+
+        companion object
+    }
+    
+    /**
+     * 칸 합치기(양 끝 포함)
+     */
+    data class Merge(
+        /**
+         * 처음 행
+         */
+        val `startRow`: kotlin.UInt, 
+        /**
+         * 처음 열
+         */
+        val `startCol`: kotlin.UInt, 
+        /**
+         * 끝 행
+         */
+        val `endRow`: kotlin.UInt, 
+        /**
+         * 끝 열
+         */
+        val `endCol`: kotlin.UInt) : EngineTableOp()
+        
+    {
+        
+
+        companion object
+    }
+    
+
+    
+
+    
+    
+
+
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeEngineTableOp : FfiConverterRustBuffer<EngineTableOp>{
+    override fun read(buf: ByteBuffer): EngineTableOp {
+        return when(buf.getInt()) {
+            1 -> EngineTableOp.InsertRow(
+                FfiConverterUInt.read(buf),
+                FfiConverterBoolean.read(buf),
+                )
+            2 -> EngineTableOp.InsertColumn(
+                FfiConverterUInt.read(buf),
+                FfiConverterBoolean.read(buf),
+                )
+            3 -> EngineTableOp.DeleteRow(
+                FfiConverterUInt.read(buf),
+                )
+            4 -> EngineTableOp.DeleteColumn(
+                FfiConverterUInt.read(buf),
+                )
+            5 -> EngineTableOp.Merge(
+                FfiConverterUInt.read(buf),
+                FfiConverterUInt.read(buf),
+                FfiConverterUInt.read(buf),
+                FfiConverterUInt.read(buf),
+                )
+            else -> throw RuntimeException("invalid enum value, something is very wrong!!")
+        }
+    }
+
+    override fun allocationSize(value: EngineTableOp): ULong = when(value) {
+        is EngineTableOp.InsertRow -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterUInt.allocationSize(value.`row`)
+                + FfiConverterBoolean.allocationSize(value.`below`)
+            )
+        }
+        is EngineTableOp.InsertColumn -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterUInt.allocationSize(value.`col`)
+                + FfiConverterBoolean.allocationSize(value.`right`)
+            )
+        }
+        is EngineTableOp.DeleteRow -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterUInt.allocationSize(value.`row`)
+            )
+        }
+        is EngineTableOp.DeleteColumn -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterUInt.allocationSize(value.`col`)
+            )
+        }
+        is EngineTableOp.Merge -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterUInt.allocationSize(value.`startRow`)
+                + FfiConverterUInt.allocationSize(value.`startCol`)
+                + FfiConverterUInt.allocationSize(value.`endRow`)
+                + FfiConverterUInt.allocationSize(value.`endCol`)
+            )
+        }
+    }
+
+    override fun write(value: EngineTableOp, buf: ByteBuffer) {
+        when(value) {
+            is EngineTableOp.InsertRow -> {
+                buf.putInt(1)
+                FfiConverterUInt.write(value.`row`, buf)
+                FfiConverterBoolean.write(value.`below`, buf)
+                Unit
+            }
+            is EngineTableOp.InsertColumn -> {
+                buf.putInt(2)
+                FfiConverterUInt.write(value.`col`, buf)
+                FfiConverterBoolean.write(value.`right`, buf)
+                Unit
+            }
+            is EngineTableOp.DeleteRow -> {
+                buf.putInt(3)
+                FfiConverterUInt.write(value.`row`, buf)
+                Unit
+            }
+            is EngineTableOp.DeleteColumn -> {
+                buf.putInt(4)
+                FfiConverterUInt.write(value.`col`, buf)
+                Unit
+            }
+            is EngineTableOp.Merge -> {
+                buf.putInt(5)
+                FfiConverterUInt.write(value.`startRow`, buf)
+                FfiConverterUInt.write(value.`startCol`, buf)
+                FfiConverterUInt.write(value.`endRow`, buf)
+                FfiConverterUInt.write(value.`endCol`, buf)
+                Unit
+            }
+        }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }
+    }
+}
+
+
+
+
+
 
 
 /**
@@ -3241,6 +3978,94 @@ public object FfiConverterOptionalTypeEngineCaret: FfiConverterRustBuffer<Engine
         } else {
             buf.put(1)
             FfiConverterTypeEngineCaret.write(value, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterOptionalTypeEngineCell: FfiConverterRustBuffer<EngineCell?> {
+    override fun read(buf: ByteBuffer): EngineCell? {
+        if (buf.get().toInt() == 0) {
+            return null
+        }
+        return FfiConverterTypeEngineCell.read(buf)
+    }
+
+    override fun allocationSize(value: EngineCell?): ULong {
+        if (value == null) {
+            return 1UL
+        } else {
+            return 1UL + FfiConverterTypeEngineCell.allocationSize(value)
+        }
+    }
+
+    override fun write(value: EngineCell?, buf: ByteBuffer) {
+        if (value == null) {
+            buf.put(0)
+        } else {
+            buf.put(1)
+            FfiConverterTypeEngineCell.write(value, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterSequenceTypeEngineObject: FfiConverterRustBuffer<List<EngineObject>> {
+    override fun read(buf: ByteBuffer): List<EngineObject> {
+        val len = buf.getInt()
+        return List<EngineObject>(len) {
+            FfiConverterTypeEngineObject.read(buf)
+        }
+    }
+
+    override fun allocationSize(value: List<EngineObject>): ULong {
+        val sizeForLength = 4UL
+        val sizeForItems = value.map { FfiConverterTypeEngineObject.allocationSize(it) }.sum()
+        return sizeForLength + sizeForItems
+    }
+
+    override fun write(value: List<EngineObject>, buf: ByteBuffer) {
+        buf.putInt(value.size)
+        value.iterator().forEach {
+            FfiConverterTypeEngineObject.write(it, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterSequenceTypeEngineTableCell: FfiConverterRustBuffer<List<EngineTableCell>> {
+    override fun read(buf: ByteBuffer): List<EngineTableCell> {
+        val len = buf.getInt()
+        return List<EngineTableCell>(len) {
+            FfiConverterTypeEngineTableCell.read(buf)
+        }
+    }
+
+    override fun allocationSize(value: List<EngineTableCell>): ULong {
+        val sizeForLength = 4UL
+        val sizeForItems = value.map { FfiConverterTypeEngineTableCell.allocationSize(it) }.sum()
+        return sizeForLength + sizeForItems
+    }
+
+    override fun write(value: List<EngineTableCell>, buf: ByteBuffer) {
+        buf.putInt(value.size)
+        value.iterator().forEach {
+            FfiConverterTypeEngineTableCell.write(it, buf)
         }
     }
 }

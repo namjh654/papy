@@ -10,6 +10,12 @@ import android.os.Build
 import android.os.ParcelFileDescriptor
 import io.github.namjh654.papy.feature.documents.Caret
 import io.github.namjh654.papy.feature.documents.CaretMove
+import io.github.namjh654.papy.feature.documents.CellRef
+import io.github.namjh654.papy.feature.documents.ObjectKind
+import io.github.namjh654.papy.feature.documents.ObjectRef
+import io.github.namjh654.papy.feature.documents.PageObject
+import io.github.namjh654.papy.feature.documents.TableAction
+import io.github.namjh654.papy.feature.documents.TableCell
 import io.github.namjh654.papy.feature.documents.DocumentEngine
 import io.github.namjh654.papy.feature.documents.DocumentError
 import io.github.namjh654.papy.feature.documents.DocumentKind
@@ -29,6 +35,10 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 import uniffi.papy_ffi.CaretDirection
 import uniffi.papy_ffi.EngineCaret
+import uniffi.papy_ffi.EngineCell
+import uniffi.papy_ffi.EngineObjectKind
+import uniffi.papy_ffi.EngineObjectRef
+import uniffi.papy_ffi.EngineTableOp
 import uniffi.papy_ffi.EngineEdit
 import uniffi.papy_ffi.EnginePosition
 import uniffi.papy_ffi.EngineRange
@@ -259,6 +269,80 @@ class AndroidDocumentEngine(private val context: Context) : DocumentEngine {
     override fun undo(session: Long): UndoResult? =
         editing(session) { rust.undo(it).let { u -> UndoResult(u.caret?.toCaret(), u.undoDepth.toInt()) } }
 
+    override fun pageObjects(session: Long, page: Int): List<PageObject> =
+        if (page < 0) emptyList()
+        else editing(session) {
+            rust.pageObjects(it, page.toUInt()).map { o ->
+                PageObject(
+                    kind = if (o.kind == EngineObjectKind.TABLE) ObjectKind.Table else ObjectKind.Picture,
+                    target = ObjectRef(o.`object`.section.toInt(), o.`object`.paragraph.toInt(), o.`object`.control.toInt()),
+                    box = o.rect.toBox(),
+                    rows = o.rows.toInt(),
+                    cols = o.cols.toInt(),
+                    cells = o.cells.map { c ->
+                        TableCell(c.cell.toInt(), c.row.toInt(), c.col.toInt(), c.rowSpan.toInt(), c.colSpan.toInt(), c.rect.toBox())
+                    },
+                )
+            }
+        }.orEmpty()
+
+    override fun insertTable(session: Long, position: TextPos, rows: Int, cols: Int): Int =
+        editing(session) { rust.insertTable(it, position.toEngine(), rows.toUInt(), cols.toUInt()).toInt() } ?: -1
+
+    override fun editTable(session: Long, table: ObjectRef, action: TableAction, row: Int, col: Int, endRow: Int, endCol: Int): Int {
+        val r = row.toUInt()
+        val c = col.toUInt()
+        val op = when (action) {
+            TableAction.InsertRowAbove -> EngineTableOp.InsertRow(r, false)
+            TableAction.InsertRowBelow -> EngineTableOp.InsertRow(r, true)
+            TableAction.InsertColumnLeft -> EngineTableOp.InsertColumn(c, false)
+            TableAction.InsertColumnRight -> EngineTableOp.InsertColumn(c, true)
+            TableAction.DeleteRow -> EngineTableOp.DeleteRow(r)
+            TableAction.DeleteColumn -> EngineTableOp.DeleteColumn(c)
+            TableAction.Merge -> EngineTableOp.Merge(r, c, endRow.toUInt(), endCol.toUInt())
+        }
+        return editing(session) { rust.editTable(it, table.toEngine(), op).toInt() } ?: -1
+    }
+
+    override fun insertPicture(session: Long, position: TextPos, source: String, width: Float, height: Float): Int {
+        val bytes = pictureBytes(source) ?: return -1
+        return editing(session) { rust.insertPicture(it, position.toEngine(), bytes, width, height).toInt() } ?: -1
+    }
+
+    override fun resizePicture(session: Long, picture: ObjectRef, width: Float, height: Float): Int =
+        editing(session) { rust.resizePicture(it, picture.toEngine(), width, height).toInt() } ?: -1
+
+    override fun deleteObject(session: Long, target: ObjectRef, kind: ObjectKind): Int =
+        editing(session) {
+            rust.deleteObject(it, target.toEngine(), if (kind == ObjectKind.Table) EngineObjectKind.TABLE else EngineObjectKind.PICTURE).toInt()
+        } ?: -1
+
+    /** 고른 그림의 바이트. 엔진이 못 넣는 형식(HEIC·WebP 등)은 JPEG 로 바꾼다. 너무 크면 null */
+    private fun pictureBytes(source: String): ByteArray? = try {
+        val uri = Uri.parse(source)
+        val size = context.contentResolver.openAssetFileDescriptor(uri, "r")?.use { it.length } ?: -1L
+        if (size > MAX_PICTURE_BYTES) {
+            null
+        } else {
+            val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+            when {
+                bytes == null || bytes.size > MAX_PICTURE_BYTES -> null
+                isEnginePicture(bytes) -> bytes
+                else -> android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.let { bitmap ->
+                    java.io.ByteArrayOutputStream().use { out ->
+                        bitmap.compress(Bitmap.CompressFormat.JPEG, 90, out)
+                        bitmap.recycle()
+                        out.toByteArray()
+                    }
+                }
+            }
+        }
+    } catch (_: OutOfMemoryError) {
+        null
+    } catch (_: Exception) {
+        null
+    }
+
     override fun exportPdf(session: Long, target: String): DocumentError? {
         if (pdfs.containsKey(session)) return DocumentError.Unsupported
         val bytes = try {
@@ -323,8 +407,24 @@ class AndroidDocumentEngine(private val context: Context) : DocumentEngine {
     }
 }
 
-private fun TextPos.toEngine() = EnginePosition(section.toUInt(), paragraph.toUInt(), offset.toUInt())
-private fun EnginePosition.toPos() = TextPos(section.toInt(), paragraph.toInt(), offset.toInt())
+/** 넣을 그림 한 장의 최대 크기 */
+private const val MAX_PICTURE_BYTES = 32L * 1024 * 1024
+
+/** 엔진이 바로 넣을 수 있는 그림(PNG·JPEG·GIF·BMP) */
+private fun isEnginePicture(bytes: ByteArray): Boolean {
+    fun starts(vararg head: Int) = bytes.size >= head.size && head.indices.all { (bytes[it].toInt() and 0xFF) == head[it] }
+    return starts(0x89, 0x50, 0x4E, 0x47) || starts(0xFF, 0xD8, 0xFF) || starts(0x47, 0x49, 0x46, 0x38) || starts(0x42, 0x4D)
+}
+
+private fun TextPos.toEngine() = EnginePosition(
+    section.toUInt(), paragraph.toUInt(), offset.toUInt(),
+    cell?.let { EngineCell(it.control.toUInt(), it.cell.toUInt(), it.cellParagraph.toUInt()) },
+)
+private fun EnginePosition.toPos() = TextPos(
+    section.toInt(), paragraph.toInt(), offset.toInt(),
+    cell?.let { CellRef(it.control.toInt(), it.cell.toInt(), it.cellParagraph.toInt()) },
+)
+private fun ObjectRef.toEngine() = EngineObjectRef(section.toUInt(), paragraph.toUInt(), control.toUInt())
 private fun TextRange.toEngine() = EngineRange(start.toEngine(), end.toEngine())
 private fun PageRegion.toBox() = PageBox(page.toInt(), x, y, width, height)
 private fun EngineCaret.toCaret() = Caret(position.toPos(), rect.toBox())

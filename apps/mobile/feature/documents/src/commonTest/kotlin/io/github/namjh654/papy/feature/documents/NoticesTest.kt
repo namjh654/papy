@@ -22,6 +22,18 @@ class NoticesTest {
     }
 
     @Test
+    fun ruleInsideLicenseTextStaysInBody() {
+        // 어떤 라이선스 본문에는 같은 구분선이 들어 있다 — 항목이 밀리면 안 된다
+        val text = "Papy\n" +
+            "\n$rule\nfoo 1.0 (Rust crate)\nLicense: MIT\n$rule\nbefore\n$rule\nafter\n" +
+            "\n$rule\nbar 2.0 (Rust crate)\nLicense: Apache-2.0\n$rule\nbar text\n"
+        val notices = parseNotices(text)
+        assertEquals(listOf("foo 1.0 (Rust crate)", "bar 2.0 (Rust crate)"), notices.items.map { it.title })
+        assertTrue(notices.items[0].text.contains("before") && notices.items[0].text.contains("after"))
+        assertEquals("Apache-2.0", notices.items[1].license)
+    }
+
+    @Test
     fun emptyFileHasNoItems() {
         assertEquals(0, parseNotices("").items.size)
     }

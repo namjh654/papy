@@ -632,9 +632,19 @@ public protocol PapyEngineProtocol: AnyObject, Sendable {
     func deleteBackward(sessionId: UInt64, position: EnginePosition) throws  -> EngineEdit
     
     /**
+     * 표·그림을 지운다.
+     */
+    func deleteObject(sessionId: UInt64, object: EngineObjectRef, kind: EngineObjectKind) throws  -> UInt32
+    
+    /**
      * 범위를 지운다(문단을 넘으면 합친다). 같은 구역 안이어야 한다.
      */
     func deleteRange(sessionId: UInt64, range: EngineRange) throws  -> EngineEdit
+    
+    /**
+     * 표를 고친다(행·열 넣기·지우기, 칸 합치기). 편집 뒤 되돌리기 단계 수.
+     */
+    func editTable(sessionId: UInt64, table: EngineObjectRef, op: EngineTableOp) throws  -> UInt32
     
     /**
      * 다른 형식으로 내보낸 바이트. `extension`: "pdf" | "hwpx" | "hwp" | "docx" | "txt".
@@ -646,6 +656,16 @@ public protocol PapyEngineProtocol: AnyObject, Sendable {
      * 쪽의 글자.
      */
     func extractText(sessionId: UInt64, page: UInt32) throws  -> String
+    
+    /**
+     * 본문 위치에 그림(PNG·JPEG·GIF·BMP)을 글자처럼 넣는다. 크기는 pt.
+     */
+    func insertPicture(sessionId: UInt64, position: EnginePosition, image: Data, width: Float, height: Float) throws  -> UInt32
+    
+    /**
+     * 본문 위치에 표를 넣는다. 편집 뒤 되돌리기 단계 수.
+     */
+    func insertTable(sessionId: UInt64, position: EnginePosition, rows: UInt32, cols: UInt32) throws  -> UInt32
     
     /**
      * 커서 자리에 글자를 넣는다(`\n` 은 문단 나누기). 앞 글자의 모양을 따른다.
@@ -668,6 +688,11 @@ public protocol PapyEngineProtocol: AnyObject, Sendable {
     func pageCount(sessionId: UInt64) throws  -> UInt32
     
     /**
+     * 쪽에 그려진 표·그림(본문 것만).
+     */
+    func pageObjects(sessionId: UInt64, page: UInt32) throws  -> [EngineObject]
+    
+    /**
      * 쪽 크기(pt).
      */
     func pageSize(sessionId: UInt64, page: UInt32) throws  -> PageDimensions
@@ -687,6 +712,11 @@ public protocol PapyEngineProtocol: AnyObject, Sendable {
      * 바뀌지 않은 글자의 모양(굵게·색 등)을 지킨다. 편집 뒤 되돌리기 단계 수를 돌려준다.
      */
     func replaceParagraph(sessionId: UInt64, section: UInt32, paragraph: UInt32, text: String) throws  -> UInt32
+    
+    /**
+     * 그림 크기를 바꾼다(pt).
+     */
+    func resizePicture(sessionId: UInt64, picture: EngineObjectRef, width: Float, height: Float) throws  -> UInt32
     
     /**
      * 원래 형식으로 저장한 바이트(암호 문서는 같은 암호로).
@@ -864,6 +894,21 @@ open func deleteBackward(sessionId: UInt64, position: EnginePosition)throws  -> 
 }
     
     /**
+     * 표·그림을 지운다.
+     */
+open func deleteObject(sessionId: UInt64, object: EngineObjectRef, kind: EngineObjectKind)throws  -> UInt32  {
+    return try  FfiConverterUInt32.lift(try rustCallWithError(FfiConverterTypePapyError_lift) {
+        uniffiCallStatus in
+    uniffi_papy_ffi_fn_method_papyengine_delete_object(
+            self.uniffiCloneHandle(),
+        FfiConverterUInt64.lower(sessionId),
+        FfiConverterTypeEngineObjectRef_lower(object),
+        FfiConverterTypeEngineObjectKind_lower(kind),uniffiCallStatus
+    )
+})
+}
+    
+    /**
      * 범위를 지운다(문단을 넘으면 합친다). 같은 구역 안이어야 한다.
      */
 open func deleteRange(sessionId: UInt64, range: EngineRange)throws  -> EngineEdit  {
@@ -873,6 +918,21 @@ open func deleteRange(sessionId: UInt64, range: EngineRange)throws  -> EngineEdi
             self.uniffiCloneHandle(),
         FfiConverterUInt64.lower(sessionId),
         FfiConverterTypeEngineRange_lower(range),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * 표를 고친다(행·열 넣기·지우기, 칸 합치기). 편집 뒤 되돌리기 단계 수.
+     */
+open func editTable(sessionId: UInt64, table: EngineObjectRef, op: EngineTableOp)throws  -> UInt32  {
+    return try  FfiConverterUInt32.lift(try rustCallWithError(FfiConverterTypePapyError_lift) {
+        uniffiCallStatus in
+    uniffi_papy_ffi_fn_method_papyengine_edit_table(
+            self.uniffiCloneHandle(),
+        FfiConverterUInt64.lower(sessionId),
+        FfiConverterTypeEngineObjectRef_lower(table),
+        FfiConverterTypeEngineTableOp_lower(op),uniffiCallStatus
     )
 })
 }
@@ -902,6 +962,39 @@ open func extractText(sessionId: UInt64, page: UInt32)throws  -> String  {
             self.uniffiCloneHandle(),
         FfiConverterUInt64.lower(sessionId),
         FfiConverterUInt32.lower(page),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * 본문 위치에 그림(PNG·JPEG·GIF·BMP)을 글자처럼 넣는다. 크기는 pt.
+     */
+open func insertPicture(sessionId: UInt64, position: EnginePosition, image: Data, width: Float, height: Float)throws  -> UInt32  {
+    return try  FfiConverterUInt32.lift(try rustCallWithError(FfiConverterTypePapyError_lift) {
+        uniffiCallStatus in
+    uniffi_papy_ffi_fn_method_papyengine_insert_picture(
+            self.uniffiCloneHandle(),
+        FfiConverterUInt64.lower(sessionId),
+        FfiConverterTypeEnginePosition_lower(position),
+        FfiConverterData.lower(image),
+        FfiConverterFloat.lower(width),
+        FfiConverterFloat.lower(height),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * 본문 위치에 표를 넣는다. 편집 뒤 되돌리기 단계 수.
+     */
+open func insertTable(sessionId: UInt64, position: EnginePosition, rows: UInt32, cols: UInt32)throws  -> UInt32  {
+    return try  FfiConverterUInt32.lift(try rustCallWithError(FfiConverterTypePapyError_lift) {
+        uniffiCallStatus in
+    uniffi_papy_ffi_fn_method_papyengine_insert_table(
+            self.uniffiCloneHandle(),
+        FfiConverterUInt64.lower(sessionId),
+        FfiConverterTypeEnginePosition_lower(position),
+        FfiConverterUInt32.lower(rows),
+        FfiConverterUInt32.lower(cols),uniffiCallStatus
     )
 })
 }
@@ -965,6 +1058,20 @@ open func pageCount(sessionId: UInt64)throws  -> UInt32  {
 }
     
     /**
+     * 쪽에 그려진 표·그림(본문 것만).
+     */
+open func pageObjects(sessionId: UInt64, page: UInt32)throws  -> [EngineObject]  {
+    return try  FfiConverterSequenceTypeEngineObject.lift(try rustCallWithError(FfiConverterTypePapyError_lift) {
+        uniffiCallStatus in
+    uniffi_papy_ffi_fn_method_papyengine_page_objects(
+            self.uniffiCloneHandle(),
+        FfiConverterUInt64.lower(sessionId),
+        FfiConverterUInt32.lower(page),uniffiCallStatus
+    )
+})
+}
+    
+    /**
      * 쪽 크기(pt).
      */
 open func pageSize(sessionId: UInt64, page: UInt32)throws  -> PageDimensions  {
@@ -1022,6 +1129,22 @@ open func replaceParagraph(sessionId: UInt64, section: UInt32, paragraph: UInt32
         FfiConverterUInt32.lower(section),
         FfiConverterUInt32.lower(paragraph),
         FfiConverterString.lower(text),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * 그림 크기를 바꾼다(pt).
+     */
+open func resizePicture(sessionId: UInt64, picture: EngineObjectRef, width: Float, height: Float)throws  -> UInt32  {
+    return try  FfiConverterUInt32.lift(try rustCallWithError(FfiConverterTypePapyError_lift) {
+        uniffiCallStatus in
+    uniffi_papy_ffi_fn_method_papyengine_resize_picture(
+            self.uniffiCloneHandle(),
+        FfiConverterUInt64.lower(sessionId),
+        FfiConverterTypeEngineObjectRef_lower(picture),
+        FfiConverterFloat.lower(width),
+        FfiConverterFloat.lower(height),uniffiCallStatus
     )
 })
 }
@@ -1348,6 +1471,85 @@ public func FfiConverterTypeEngineCaret_lower(_ value: EngineCaret) -> RustBuffe
 
 
 /**
+ * 표 칸·글상자: 본문 문단 안 개체 번호, 칸 번호, 칸 안 문단.
+ */
+public struct EngineCell: Equatable, Hashable {
+    /**
+     * 문단 안 개체(표·글상자) 번호
+     */
+    public var control: UInt32
+    /**
+     * 칸 번호(글상자는 0)
+     */
+    public var cell: UInt32
+    /**
+     * 칸 안 문단
+     */
+    public var cellParagraph: UInt32
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * 문단 안 개체(표·글상자) 번호
+         */control: UInt32, 
+        /**
+         * 칸 번호(글상자는 0)
+         */cell: UInt32, 
+        /**
+         * 칸 안 문단
+         */cellParagraph: UInt32) {
+        self.control = control
+        self.cell = cell
+        self.cellParagraph = cellParagraph
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension EngineCell: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeEngineCell: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> EngineCell {
+        return
+            try EngineCell(
+                control: FfiConverterUInt32.read(from: &buf), 
+                cell: FfiConverterUInt32.read(from: &buf), 
+                cellParagraph: FfiConverterUInt32.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: EngineCell, into buf: inout [UInt8]) {
+        FfiConverterUInt32.write(value.control, into: &buf)
+        FfiConverterUInt32.write(value.cell, into: &buf)
+        FfiConverterUInt32.write(value.cellParagraph, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeEngineCell_lift(_ buf: RustBuffer) throws -> EngineCell {
+    return try FfiConverterTypeEngineCell.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeEngineCell_lower(_ value: EngineCell) -> RustBuffer {
+    return FfiConverterTypeEngineCell.lower(value)
+}
+
+
+/**
  * 편집 결과: 커서와 지금 되돌릴 수 있는 단계 수(이어 친 글자는 한 단계로 묶인다).
  */
 public struct EngineEdit: Equatable, Hashable {
@@ -1417,6 +1619,194 @@ public func FfiConverterTypeEngineEdit_lower(_ value: EngineEdit) -> RustBuffer 
 
 
 /**
+ * 쪽에 그려진 표·그림.
+ */
+public struct EngineObject: Equatable, Hashable {
+    /**
+     * 종류
+     */
+    public var kind: EngineObjectKind
+    /**
+     * 가리키는 개체
+     */
+    public var object: EngineObjectRef
+    /**
+     * 쪽 위 사각형(pt)
+     */
+    public var rect: PageRegion
+    /**
+     * 표 행 수(그림은 0)
+     */
+    public var rows: UInt32
+    /**
+     * 표 열 수
+     */
+    public var cols: UInt32
+    /**
+     * 표 칸
+     */
+    public var cells: [EngineTableCell]
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * 종류
+         */kind: EngineObjectKind, 
+        /**
+         * 가리키는 개체
+         */object: EngineObjectRef, 
+        /**
+         * 쪽 위 사각형(pt)
+         */rect: PageRegion, 
+        /**
+         * 표 행 수(그림은 0)
+         */rows: UInt32, 
+        /**
+         * 표 열 수
+         */cols: UInt32, 
+        /**
+         * 표 칸
+         */cells: [EngineTableCell]) {
+        self.kind = kind
+        self.object = object
+        self.rect = rect
+        self.rows = rows
+        self.cols = cols
+        self.cells = cells
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension EngineObject: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeEngineObject: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> EngineObject {
+        return
+            try EngineObject(
+                kind: FfiConverterTypeEngineObjectKind.read(from: &buf), 
+                object: FfiConverterTypeEngineObjectRef.read(from: &buf), 
+                rect: FfiConverterTypePageRegion.read(from: &buf), 
+                rows: FfiConverterUInt32.read(from: &buf), 
+                cols: FfiConverterUInt32.read(from: &buf), 
+                cells: FfiConverterSequenceTypeEngineTableCell.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: EngineObject, into buf: inout [UInt8]) {
+        FfiConverterTypeEngineObjectKind.write(value.kind, into: &buf)
+        FfiConverterTypeEngineObjectRef.write(value.object, into: &buf)
+        FfiConverterTypePageRegion.write(value.rect, into: &buf)
+        FfiConverterUInt32.write(value.rows, into: &buf)
+        FfiConverterUInt32.write(value.cols, into: &buf)
+        FfiConverterSequenceTypeEngineTableCell.write(value.cells, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeEngineObject_lift(_ buf: RustBuffer) throws -> EngineObject {
+    return try FfiConverterTypeEngineObject.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeEngineObject_lower(_ value: EngineObject) -> RustBuffer {
+    return FfiConverterTypeEngineObject.lower(value)
+}
+
+
+/**
+ * 문서 안 개체(본문 문단과 그 안 개체 번호).
+ */
+public struct EngineObjectRef: Equatable, Hashable {
+    /**
+     * 구역
+     */
+    public var section: UInt32
+    /**
+     * 개체를 가진 본문 문단
+     */
+    public var paragraph: UInt32
+    /**
+     * 문단 안 개체 번호
+     */
+    public var control: UInt32
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * 구역
+         */section: UInt32, 
+        /**
+         * 개체를 가진 본문 문단
+         */paragraph: UInt32, 
+        /**
+         * 문단 안 개체 번호
+         */control: UInt32) {
+        self.section = section
+        self.paragraph = paragraph
+        self.control = control
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension EngineObjectRef: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeEngineObjectRef: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> EngineObjectRef {
+        return
+            try EngineObjectRef(
+                section: FfiConverterUInt32.read(from: &buf), 
+                paragraph: FfiConverterUInt32.read(from: &buf), 
+                control: FfiConverterUInt32.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: EngineObjectRef, into buf: inout [UInt8]) {
+        FfiConverterUInt32.write(value.section, into: &buf)
+        FfiConverterUInt32.write(value.paragraph, into: &buf)
+        FfiConverterUInt32.write(value.control, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeEngineObjectRef_lift(_ buf: RustBuffer) throws -> EngineObjectRef {
+    return try FfiConverterTypeEngineObjectRef.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeEngineObjectRef_lower(_ value: EngineObjectRef) -> RustBuffer {
+    return FfiConverterTypeEngineObjectRef.lower(value)
+}
+
+
+/**
  * 본문 위치. 구역·문단은 0부터, `offset` 은 문단 안 글자(유니코드 스칼라) 위치.
  * (Swift 에서 앱 쪽 이름과 겹치지 않게 Engine 을 붙인다.)
  */
@@ -1430,9 +1820,13 @@ public struct EnginePosition: Equatable, Hashable {
      */
     public var paragraph: UInt32
     /**
-     * 문단 안 글자 위치
+     * 문단 안 글자 위치(칸 안이면 칸 문단 안 위치)
      */
     public var offset: UInt32
+    /**
+     * 표 칸·글상자 안이면 그 칸(`paragraph` 는 표를 가진 본문 문단)
+     */
+    public var cell: EngineCell?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -1444,11 +1838,15 @@ public struct EnginePosition: Equatable, Hashable {
          * 문단
          */paragraph: UInt32, 
         /**
-         * 문단 안 글자 위치
-         */offset: UInt32) {
+         * 문단 안 글자 위치(칸 안이면 칸 문단 안 위치)
+         */offset: UInt32, 
+        /**
+         * 표 칸·글상자 안이면 그 칸(`paragraph` 는 표를 가진 본문 문단)
+         */cell: EngineCell?) {
         self.section = section
         self.paragraph = paragraph
         self.offset = offset
+        self.cell = cell
     }
 
     
@@ -1469,7 +1867,8 @@ public struct FfiConverterTypeEnginePosition: FfiConverterRustBuffer {
             try EnginePosition(
                 section: FfiConverterUInt32.read(from: &buf), 
                 paragraph: FfiConverterUInt32.read(from: &buf), 
-                offset: FfiConverterUInt32.read(from: &buf)
+                offset: FfiConverterUInt32.read(from: &buf), 
+                cell: FfiConverterOptionTypeEngineCell.read(from: &buf)
         )
     }
 
@@ -1477,6 +1876,7 @@ public struct FfiConverterTypeEnginePosition: FfiConverterRustBuffer {
         FfiConverterUInt32.write(value.section, into: &buf)
         FfiConverterUInt32.write(value.paragraph, into: &buf)
         FfiConverterUInt32.write(value.offset, into: &buf)
+        FfiConverterOptionTypeEngineCell.write(value.cell, into: &buf)
     }
 }
 
@@ -1562,6 +1962,115 @@ public func FfiConverterTypeEngineRange_lift(_ buf: RustBuffer) throws -> Engine
 #endif
 public func FfiConverterTypeEngineRange_lower(_ value: EngineRange) -> RustBuffer {
     return FfiConverterTypeEngineRange.lower(value)
+}
+
+
+/**
+ * 표 칸 자리.
+ */
+public struct EngineTableCell: Equatable, Hashable {
+    /**
+     * 칸 번호
+     */
+    public var cell: UInt32
+    /**
+     * 행
+     */
+    public var row: UInt32
+    /**
+     * 열
+     */
+    public var col: UInt32
+    /**
+     * 합친 행 수
+     */
+    public var rowSpan: UInt32
+    /**
+     * 합친 열 수
+     */
+    public var colSpan: UInt32
+    /**
+     * 칸 사각형(pt)
+     */
+    public var rect: PageRegion
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * 칸 번호
+         */cell: UInt32, 
+        /**
+         * 행
+         */row: UInt32, 
+        /**
+         * 열
+         */col: UInt32, 
+        /**
+         * 합친 행 수
+         */rowSpan: UInt32, 
+        /**
+         * 합친 열 수
+         */colSpan: UInt32, 
+        /**
+         * 칸 사각형(pt)
+         */rect: PageRegion) {
+        self.cell = cell
+        self.row = row
+        self.col = col
+        self.rowSpan = rowSpan
+        self.colSpan = colSpan
+        self.rect = rect
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension EngineTableCell: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeEngineTableCell: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> EngineTableCell {
+        return
+            try EngineTableCell(
+                cell: FfiConverterUInt32.read(from: &buf), 
+                row: FfiConverterUInt32.read(from: &buf), 
+                col: FfiConverterUInt32.read(from: &buf), 
+                rowSpan: FfiConverterUInt32.read(from: &buf), 
+                colSpan: FfiConverterUInt32.read(from: &buf), 
+                rect: FfiConverterTypePageRegion.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: EngineTableCell, into buf: inout [UInt8]) {
+        FfiConverterUInt32.write(value.cell, into: &buf)
+        FfiConverterUInt32.write(value.row, into: &buf)
+        FfiConverterUInt32.write(value.col, into: &buf)
+        FfiConverterUInt32.write(value.rowSpan, into: &buf)
+        FfiConverterUInt32.write(value.colSpan, into: &buf)
+        FfiConverterTypePageRegion.write(value.rect, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeEngineTableCell_lift(_ buf: RustBuffer) throws -> EngineTableCell {
+    return try FfiConverterTypeEngineTableCell.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeEngineTableCell_lower(_ value: EngineTableCell) -> RustBuffer {
+    return FfiConverterTypeEngineTableCell.lower(value)
 }
 
 
@@ -2195,6 +2704,236 @@ public func FfiConverterTypeCaretDirection_lower(_ value: CaretDirection) -> Rus
 
 
 /**
+ * 쪽 위 개체 종류.
+ */
+
+public enum EngineObjectKind: Equatable, Hashable {
+    
+    /**
+     * 표
+     */
+    case table
+    /**
+     * 그림
+     */
+    case picture
+
+
+
+
+
+}
+
+#if compiler(>=6)
+extension EngineObjectKind: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeEngineObjectKind: FfiConverterRustBuffer {
+    typealias SwiftType = EngineObjectKind
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> EngineObjectKind {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .table
+        
+        case 2: return .picture
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: EngineObjectKind, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .table:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .picture:
+            writeInt(&buf, Int32(2))
+        
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeEngineObjectKind_lift(_ buf: RustBuffer) throws -> EngineObjectKind {
+    return try FfiConverterTypeEngineObjectKind.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeEngineObjectKind_lower(_ value: EngineObjectKind) -> RustBuffer {
+    return FfiConverterTypeEngineObjectKind.lower(value)
+}
+
+
+
+/**
+ * 표 고치기.
+ */
+
+public enum EngineTableOp: Equatable, Hashable {
+    
+    /**
+     * 행 넣기
+     */
+    case insertRow(
+        /**
+         * 기준 행
+         */row: UInt32, 
+        /**
+         * 아래에
+         */below: Bool
+    )
+    /**
+     * 열 넣기
+     */
+    case insertColumn(
+        /**
+         * 기준 열
+         */col: UInt32, 
+        /**
+         * 오른쪽에
+         */right: Bool
+    )
+    /**
+     * 행 지우기
+     */
+    case deleteRow(
+        /**
+         * 행
+         */row: UInt32
+    )
+    /**
+     * 열 지우기
+     */
+    case deleteColumn(
+        /**
+         * 열
+         */col: UInt32
+    )
+    /**
+     * 칸 합치기(양 끝 포함)
+     */
+    case merge(
+        /**
+         * 처음 행
+         */startRow: UInt32, 
+        /**
+         * 처음 열
+         */startCol: UInt32, 
+        /**
+         * 끝 행
+         */endRow: UInt32, 
+        /**
+         * 끝 열
+         */endCol: UInt32
+    )
+
+
+
+
+
+}
+
+#if compiler(>=6)
+extension EngineTableOp: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeEngineTableOp: FfiConverterRustBuffer {
+    typealias SwiftType = EngineTableOp
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> EngineTableOp {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .insertRow(row: try FfiConverterUInt32.read(from: &buf), below: try FfiConverterBool.read(from: &buf)
+        )
+        
+        case 2: return .insertColumn(col: try FfiConverterUInt32.read(from: &buf), right: try FfiConverterBool.read(from: &buf)
+        )
+        
+        case 3: return .deleteRow(row: try FfiConverterUInt32.read(from: &buf)
+        )
+        
+        case 4: return .deleteColumn(col: try FfiConverterUInt32.read(from: &buf)
+        )
+        
+        case 5: return .merge(startRow: try FfiConverterUInt32.read(from: &buf), startCol: try FfiConverterUInt32.read(from: &buf), endRow: try FfiConverterUInt32.read(from: &buf), endCol: try FfiConverterUInt32.read(from: &buf)
+        )
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: EngineTableOp, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case let .insertRow(row,below):
+            writeInt(&buf, Int32(1))
+            FfiConverterUInt32.write(row, into: &buf)
+            FfiConverterBool.write(below, into: &buf)
+            
+        
+        case let .insertColumn(col,right):
+            writeInt(&buf, Int32(2))
+            FfiConverterUInt32.write(col, into: &buf)
+            FfiConverterBool.write(right, into: &buf)
+            
+        
+        case let .deleteRow(row):
+            writeInt(&buf, Int32(3))
+            FfiConverterUInt32.write(row, into: &buf)
+            
+        
+        case let .deleteColumn(col):
+            writeInt(&buf, Int32(4))
+            FfiConverterUInt32.write(col, into: &buf)
+            
+        
+        case let .merge(startRow,startCol,endRow,endCol):
+            writeInt(&buf, Int32(5))
+            FfiConverterUInt32.write(startRow, into: &buf)
+            FfiConverterUInt32.write(startCol, into: &buf)
+            FfiConverterUInt32.write(endRow, into: &buf)
+            FfiConverterUInt32.write(endCol, into: &buf)
+            
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeEngineTableOp_lift(_ buf: RustBuffer) throws -> EngineTableOp {
+    return try FfiConverterTypeEngineTableOp.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeEngineTableOp_lower(_ value: EngineTableOp) -> RustBuffer {
+    return FfiConverterTypeEngineTableOp.lower(value)
+}
+
+
+
+/**
  * 엔진 오류. 메시지는 개발자용(영어)이며 화면 글자는 앱이 종류에 맞춰 고른다.
  */
 public 
@@ -2490,6 +3229,80 @@ fileprivate struct FfiConverterOptionTypeEngineCaret: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterOptionTypeEngineCell: FfiConverterRustBuffer {
+    typealias SwiftType = EngineCell?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeEngineCell.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeEngineCell.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeEngineObject: FfiConverterRustBuffer {
+    typealias SwiftType = [EngineObject]
+
+    public static func write(_ value: [EngineObject], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeEngineObject.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [EngineObject] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [EngineObject]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeEngineObject.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeEngineTableCell: FfiConverterRustBuffer {
+    typealias SwiftType = [EngineTableCell]
+
+    public static func write(_ value: [EngineTableCell], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeEngineTableCell.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [EngineTableCell] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [EngineTableCell]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeEngineTableCell.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterSequenceTypePageRegion: FfiConverterRustBuffer {
     typealias SwiftType = [PageRegion]
 
@@ -2555,13 +3368,25 @@ private let initializationResult: InitializationResult = {
     if (uniffi_papy_ffi_checksum_method_papyengine_delete_backward() != 39482) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_papy_ffi_checksum_method_papyengine_delete_object() != 8895) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_papy_ffi_checksum_method_papyengine_delete_range() != 13120) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_papy_ffi_checksum_method_papyengine_edit_table() != 25921) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_papy_ffi_checksum_method_papyengine_export() != 34227) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_papy_ffi_checksum_method_papyengine_extract_text() != 8103) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_papy_ffi_checksum_method_papyengine_insert_picture() != 14461) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_papy_ffi_checksum_method_papyengine_insert_table() != 31361) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_papy_ffi_checksum_method_papyengine_insert_text() != 12120) {
@@ -2576,6 +3401,9 @@ private let initializationResult: InitializationResult = {
     if (uniffi_papy_ffi_checksum_method_papyengine_page_count() != 12156) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_papy_ffi_checksum_method_papyengine_page_objects() != 22059) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_papy_ffi_checksum_method_papyengine_page_size() != 63992) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -2586,6 +3414,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_papy_ffi_checksum_method_papyengine_replace_paragraph() != 65330) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_papy_ffi_checksum_method_papyengine_resize_picture() != 61970) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_papy_ffi_checksum_method_papyengine_save() != 57793) {

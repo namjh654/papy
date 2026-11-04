@@ -22,7 +22,7 @@
 | 2 | 엔진 빌드: `node scripts/fetch-rhwp.mjs` → `node scripts/build-mobile-engine.mjs android` | 빌드 | release 는 LTO 로 ABI 당 약 6분 |
 | 3 | App Bundle 빌드: `./gradlew -Papp.env=prod :androidApp:bundleProdRelease` | 빌드 | Play 가 ABI·화면 밀도별로 나눠 내려준다(기기당 엔진 1개만) |
 | 4 | 템플릿 모듈 정리 | 완료 | 2026-11-04. APK 42.9→40.2MB, AAB 29.9→24.8MB, dex 6.8→3.4MB |
-| 5 | 앱 안 오픈소스 라이선스 화면(UniFFI·JNA·rhwp·Noto Sans KR 등) | 개발 | MIT·Apache·OFL 고지 의무 |
+| 5 | 앱 안 오픈소스 라이선스 화면(UniFFI·JNA·rhwp·Noto Sans KR 등) | 완료 | 2026-11-04. 엔진 빌드(`build-mobile-engine.mjs`)가 고지 파일을 만든다(475개, GPL 없음). 릴리스 빌드 전에 엔진 빌드를 꼭 한다 |
 | 6 | 개인정보처리방침 URL | 완료 | env `url.privacy` 를 `https://papy-omega.vercel.app/privacy/` 로 바꿨다. 스토어 등록에도 이 주소를 쓴다 |
 | 7 | 앱 아이콘·이름 확인(지금 템플릿 아이콘일 수 있음) | 사용자 확인 | `res/mipmap-*` |
 | 8 | Play Console: 앱 만들기, 데이터 보안(수집 없음), 콘텐츠 등급, 스토어 등록 정보·스크린샷 | 사용자 | 문서는 기기 밖으로 나가지 않는다 |

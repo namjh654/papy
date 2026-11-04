@@ -4,6 +4,9 @@ import io.github.namjh654.papy.core.common.viewmodel.UiEvent
 import io.github.namjh654.papy.core.common.viewmodel.UiState
 import io.github.namjh654.papy.feature.documents.Caret
 import io.github.namjh654.papy.feature.documents.DocumentError
+import io.github.namjh654.papy.feature.documents.ObjectKind
+import io.github.namjh654.papy.feature.documents.PageObject
+import io.github.namjh654.papy.feature.documents.TableCell
 import io.github.namjh654.papy.feature.documents.OpenedDocument
 import io.github.namjh654.papy.feature.documents.PageBox
 import io.github.namjh654.papy.feature.documents.PageSizePt
@@ -39,6 +42,8 @@ data class ViewerUiState(
     val style: TextStyle? = null,
     /** 누르면 선택을 그 자리까지 늘린다 */
     val extending: Boolean = false,
+    /** 고른 표(칸 안에 커서가 있을 때)나 그림 */
+    val selected: ObjectSelection? = null,
     /** 문단 고치기 창(길게 눌러 고른 문단) */
     val paragraph: ParagraphHit? = null,
     /** 편집 뒤 쪽을 다시 그리라는 표시. 바뀔 때마다 플랫폼이 쪽을 다시 그린다 */
@@ -69,6 +74,15 @@ data class ViewerUiState(
         }
 }
 
+/** 고른 개체: 표면 커서가 든 칸([cell]), 그림이면 칸 없음 */
+data class ObjectSelection(val target: PageObject, val cell: TableCell? = null) {
+    val isTable: Boolean get() = target.kind == ObjectKind.Table
+    val isPicture: Boolean get() = target.kind == ObjectKind.Picture
+}
+
+/** 표 도구 막대 */
+enum class TableCommand { RowAbove, RowBelow, ColumnLeft, ColumnRight, DeleteRow, DeleteColumn, MergeRight, MergeDown, DeleteTable }
+
 /** 글자 보기 창 내용. [text] 가 null 이면 읽는 중, [unavailable] 이면 이 쪽 글자를 읽을 수 없음 */
 data class PageText(val page: Int, val text: String? = null, val unavailable: Boolean = false)
 
@@ -82,6 +96,10 @@ sealed interface ViewerEvent : UiEvent {
     data class SaveFailed(val error: DocumentError) : ViewerEvent
     /** 편집이 적용되지 않았다(문단을 찾지 못함 등) */
     data object EditFailed : ViewerEvent
+    /** 표·그림은 본문에만 넣을 수 있다(커서가 표 칸 안이다) */
+    data object InsertNeedsBody : ViewerEvent
+    /** 그림을 넣지 못했다(읽을 수 없거나 지원하지 않는 형식) */
+    data object PictureFailed : ViewerEvent
     /** PDF 를 [target] 에 썼다(iOS 는 이어서 공유·저장 창을 연다) */
     data class Exported(val target: String) : ViewerEvent
     data class ExportFailed(val error: DocumentError) : ViewerEvent
