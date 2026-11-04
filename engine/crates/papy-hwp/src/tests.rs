@@ -985,7 +985,9 @@ fn tables_cells_rows_and_merge() {
 #[test]
 fn pictures_insert_resize_delete() {
     let mut doc = editable(1);
-    doc.insert_picture(pos(0, 0), RED_PNG, 120.0, 60.0).unwrap();
+    // 첫 문단 가운데에 넣으면 그 글줄에 글자처럼 놓인다(쪽 왼쪽 위에 떠 있지 않다)
+    let line = doc.caret_rect(pos(0, 3)).unwrap();
+    doc.insert_picture(pos(0, 3), RED_PNG, 120.0, 60.0).unwrap();
     let picture = doc
         .page_objects(0)
         .unwrap()
@@ -997,6 +999,12 @@ fn pictures_insert_resize_delete() {
         "{:?}",
         picture.rect
     );
+    assert!(
+        picture.rect.x > line.x - 2.0 && picture.rect.y + picture.rect.height > line.y,
+        "{:?} vs line {line:?}",
+        picture.rect
+    );
+    assert_eq!(picture.object.paragraph, 0, "{:?}", picture.object);
     // 빨간 그림이 그려진다
     let page = doc.render_page(0, &RenderRequest::with_scale(1.0)).unwrap();
     let red = page
@@ -1017,6 +1025,26 @@ fn pictures_insert_resize_delete() {
         "{:?}",
         resized.rect
     );
+    // 크게 하면 글줄도 따라 커진다(글자가 그림 아래쪽 줄에 놓인다)
+    let before = doc.extract_text(0).unwrap();
+    let depth = doc.undo_depth();
+    doc.resize_picture(picture.object, 240.0, 120.0).unwrap();
+    // 글줄을 다시 재려고 넣고 지운 글자는 남지 않고, 되돌리기는 한 단계다
+    assert_eq!(doc.extract_text(0).unwrap(), before);
+    assert_eq!(doc.undo_depth(), depth + 1);
+    let big = doc
+        .page_objects(0)
+        .unwrap()
+        .into_iter()
+        .find(|o| o.kind == papy_model::ObjectKind::Picture)
+        .unwrap();
+    let text = doc.caret_rect(pos(0, 0)).unwrap();
+    assert!(
+        text.y + text.height > big.rect.y + big.rect.height * 0.7,
+        "text {text:?} vs picture {:?}",
+        big.rect
+    );
+    doc.resize_picture(picture.object, 60.0, 30.0).unwrap();
     // 저장 → 다시 열어도 그림이 있다
     let hwpx = doc.save(SaveFormat::Hwpx).unwrap();
     let mut again = open(HwpBackend::hwpx(), hwpx, &options()).unwrap();
@@ -1039,5 +1067,134 @@ fn pictures_insert_resize_delete() {
     assert!(
         doc.insert_picture(pos(0, 0), b"not an image", 10.0, 10.0)
             .is_err()
+    );
+}
+
+#[test]
+fn table_after_inline_picture_at_line_end() {
+    // 그림을 넣은 줄 끝을 누른 자리는 문단 안이고, 거기에 표를 넣을 수 있다
+    let mut doc = editable(1);
+    doc.insert_picture(pos(0, 3), RED_PNG, 120.0, 60.0).unwrap();
+    let picture = doc
+        .page_objects(0)
+        .unwrap()
+        .into_iter()
+        .find(|o| o.kind == papy_model::ObjectKind::Picture)
+        .unwrap()
+        .rect;
+    let hit = doc
+        .hit_test_target(
+            0,
+            picture.x + picture.width + 200.0,
+            picture.y + picture.height - 3.0,
+        )
+        .unwrap();
+    let papy_model::HitTarget::Body(end) = hit else {
+        panic!("{hit:?}")
+    };
+    assert_eq!(end.paragraph, 0);
+    doc.insert_table(end, 2, 2).unwrap();
+    // 표는 줄 끝에 들어간다(그림 때문에 한 글자 앞에서 나뉘지 않는다)
+    let text = doc.extract_text(0).unwrap();
+    assert!(text.lines().next().unwrap().ends_with("쪽 1"), "{text:?}");
+    assert!(
+        doc.page_objects(0)
+            .unwrap()
+            .iter()
+            .any(|o| o.kind == papy_model::ObjectKind::Table)
+    );
+}
+
+#[test]
+fn caret_positions_around_inline_picture() {
+    // "Papy 쪽 1" 의 3 자리(p 와 y 사이)에 그림. 글자 자리 3 은 그림 앞, 4 는 y 뒤다.
+    let mut doc = editable(1);
+    doc.insert_picture(pos(0, 3), RED_PNG, 120.0, 60.0).unwrap();
+    let picture = doc
+        .page_objects(0)
+        .unwrap()
+        .into_iter()
+        .find(|o| o.kind == papy_model::ObjectKind::Picture)
+        .unwrap()
+        .rect;
+    let before = doc.caret_rect(pos(0, 3)).unwrap();
+    let after_y = doc.caret_rect(pos(0, 4)).unwrap();
+    assert!((before.x - picture.x).abs() < 1.0, "{before:?} {picture:?}");
+    assert!(
+        after_y.x > picture.x + picture.width,
+        "{after_y:?} {picture:?}"
+    );
+    // 줄 끝을 누르면 문단 끝(글자 8개)
+    let end = doc
+        .hit_test(
+            0,
+            picture.x + picture.width + 200.0,
+            picture.y + picture.height - 3.0,
+        )
+        .unwrap();
+    assert_eq!(end.offset, 8);
+    // 아래로 옮겨도 글자 자리다(그림 뒤 줄 끝 → 다음 줄)
+    let x = doc.caret_rect(end).unwrap().x;
+    let down = doc.move_vertical(end, 1, x).unwrap();
+    assert!(down.paragraph > 0 || down.offset <= 8, "{down:?}");
+    let back = doc.move_vertical(down, -1, x).unwrap();
+    assert_eq!(back.paragraph, 0, "{back:?}");
+    assert!(back.offset <= 8, "{back:?}");
+    // 그 자리에 친 글자는 문단 끝에 붙는다
+    doc.insert_text(end, "Z").unwrap();
+    assert!(
+        doc.extract_text(0)
+            .unwrap()
+            .lines()
+            .next()
+            .unwrap()
+            .ends_with("1Z")
+    );
+}
+
+#[test]
+fn docx_round_trip_keeps_inline_picture_place_and_table_borders() {
+    let mut doc = editable(1);
+    doc.insert_picture(pos(0, 3), RED_PNG, 60.0, 30.0).unwrap();
+    doc.insert_table(pos(0, 8), 2, 2).unwrap();
+    let docx = doc.save(SaveFormat::Docx).unwrap();
+    let mut again = open(HwpBackend::docx(), docx, &options()).unwrap();
+    let objects = again.page_objects(0).unwrap();
+    let picture = objects
+        .iter()
+        .find(|o| o.kind == papy_model::ObjectKind::Picture)
+        .expect("picture");
+    // 그림은 글자 사이(p 와 y 사이)에 남는다: 문단 끝 글자보다 앞
+    let end = again.caret_rect(pos(0, 8)).unwrap();
+    assert!(
+        picture.rect.x + picture.rect.width < end.x,
+        "{:?} vs end {end:?}",
+        picture.rect
+    );
+    // 표 테두리가 그려진다(위 테두리 줄에 어두운 점이 표 너비만큼)
+    let table = objects
+        .iter()
+        .find(|o| o.kind == papy_model::ObjectKind::Table)
+        .expect("table");
+    let page = again
+        .render_page(0, &RenderRequest::with_scale(1.0))
+        .unwrap();
+    let k = page.width as f32 / again.page_size(0).unwrap().width;
+    let dark = |y: i64| {
+        ((table.rect.x * k) as i64..((table.rect.x + table.rect.width) * k) as i64)
+            .filter(|&x| {
+                let i = ((y * page.width as i64 + x) * 4) as usize;
+                page.pixels
+                    .get(i..i + 3)
+                    .is_some_and(|p| p.iter().all(|&c| c < 200))
+            })
+            .count()
+    };
+    let top = (table.rect.y * k).round() as i64;
+    let best = (top - 3..=top + 3).map(dark).max().unwrap();
+    assert!(
+        best as f32 > table.rect.width * k * 0.8,
+        "dark {best} of {}",
+        table.rect.width
     );
 }

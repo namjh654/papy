@@ -345,6 +345,23 @@ fn write_footnote(
     Ok(())
 }
 
+/// 문단 안 자리에 놓이는 개체: 각주 참조, 그림, 도형.
+fn write_inline(
+    out: &mut String,
+    info: &DocInfo,
+    media: &mut Media,
+    control: &Control,
+    depth: usize,
+) -> Result<()> {
+    match control {
+        Control::Footnote(footnote) => write_footnote(out, info, media, footnote, depth)?,
+        Control::Picture(picture) => write_picture(out, media, picture),
+        Control::Shape(shape) if depth < MAX_DEPTH => write_shape(out, info, media, shape, depth)?,
+        _ => {}
+    }
+    Ok(())
+}
+
 /// 문단 하나와 그 안의 표.
 fn write_paragraph(
     out: &mut String,
@@ -369,22 +386,25 @@ fn write_paragraph_with(
     out.push_str(&para_props(info, paragraph));
     out.push_str(prefix);
     let chars: Vec<char> = paragraph.text.chars().collect();
-    // 각주 자리(글자 위치) — 그 앞에서 런을 끊고 각주 참조를 넣는다.
-    let mut notes: Vec<(usize, &Footnote)> = paragraph
+    // 각주·그림·도형 자리(글자 위치) — 그 앞에서 런을 끊고 그 자리에 넣는다(표는 문단 뒤).
+    let mut notes: Vec<(usize, &Control)> = paragraph
         .control_text_positions()
         .into_iter()
         .zip(&paragraph.controls)
-        .filter_map(|(position, control)| match control {
-            Control::Footnote(footnote) => Some((position, footnote.as_ref())),
-            _ => None,
+        .filter(|(_, control)| {
+            matches!(
+                control,
+                Control::Footnote(_) | Control::Picture(_) | Control::Shape(_)
+            )
         })
         .collect();
+    // 같은 자리면 문서 순서를 지킨다(안정 정렬).
     notes.sort_by_key(|(position, _)| *position);
     let mut notes = notes.into_iter().peekable();
     let mut start = 0;
     while start < chars.len() {
-        while let Some((_, footnote)) = notes.next_if(|(position, _)| *position <= start) {
-            write_footnote(out, info, media, footnote, depth)?;
+        while let Some((_, control)) = notes.next_if(|(position, _)| *position <= start) {
+            write_inline(out, info, media, control, depth)?;
         }
         let next_note = notes.peek().map_or(usize::MAX, |(position, _)| *position);
         let shape_of = |index: usize| {
@@ -436,18 +456,8 @@ fn write_paragraph_with(
         out.push_str("</w:r>");
         start = end;
     }
-    for (_, footnote) in notes {
-        write_footnote(out, info, media, footnote, depth)?;
-    }
-    // 그림은 문단 끝에 글자처럼 놓는다(rhwp 의 그림 문단은 대개 그림 하나뿐이다).
-    for control in &paragraph.controls {
-        match control {
-            Control::Picture(picture) => write_picture(out, media, picture),
-            Control::Shape(shape) if depth < MAX_DEPTH => {
-                write_shape(out, info, media, shape, depth)?
-            }
-            _ => {}
-        }
+    for (_, control) in notes {
+        write_inline(out, info, media, control, depth)?;
     }
     out.push_str("</w:p>");
     for control in &paragraph.controls {

@@ -328,6 +328,46 @@ impl HwpDocument {
     }
 
     /// 표·그림 고치기 공통: 편집 단계를 열고 쓰기 호출을 한다.
+    /// rhwp 가 준 커서 자리(누른 자리·위아래 옮기기) → 글자 자리.
+    ///
+    /// rhwp 의 `charOffset` 은 대개 논리 자리지만 줄 끝에서는 글자 자리(문단 글자 수)로 잘려 온다.
+    /// 함께 온 `cursorRect` 는 늘 맞으므로, 그 사각형을 그리는 논리 자리를 찾아 글자 자리로 바꾼다.
+    fn resolve_hit(&self, pos: TextPos, reply: &Value) -> TextPos {
+        let (section, paragraph) = (pos.section as usize, pos.paragraph as usize);
+        let raw = pos.offset as usize;
+        let inline = inline_controls(&self.doc, section, paragraph);
+        let target = reply
+            .get("cursorRect")
+            .and_then(|r| Some((r.get("x")?.as_f64()?, r.get("pageIndex")?.as_u64()?)));
+        let mut logical = raw;
+        if let (true, Some((x, page))) = (inline > 0, target) {
+            let found = (raw..=raw + inline).find(|&candidate| {
+                guard(|| {
+                    self.doc
+                        .get_cursor_rect_native(section, paragraph, candidate)
+                        .ok()
+                })
+                .ok()
+                .flatten()
+                .and_then(|reply| serde_json::from_str::<Value>(&reply).ok())
+                .is_some_and(|rect| {
+                    rect.get("pageIndex").and_then(Value::as_u64) == Some(page)
+                        && rect
+                            .get("x")
+                            .and_then(Value::as_f64)
+                            .is_some_and(|cx| (cx - x).abs() < 0.5)
+                })
+            });
+            if let Some(found) = found {
+                logical = found;
+            }
+        }
+        TextPos {
+            offset: text_offset(&self.doc, section, paragraph, logical) as u32,
+            ..pos
+        }
+    }
+
     fn object_step<T>(
         &mut self,
         at: ObjectRef,
@@ -344,6 +384,83 @@ impl HwpDocument {
         );
         self.write(what, f)
     }
+}
+
+/// 문단 글줄을 다시 잰다. rhwp 는 그림을 넣거나 크기를 바꿀 때 글줄 높이·글자 자리를 다시 재지 않아
+/// (그림이 줄 밖으로 삐져나오고, 누른 자리가 문단 길이를 넘는다) 글자 편집 경로를 태운다:
+/// 한 글자 넣고 지운다. 부르는 쪽의 되돌리기 단계 안에서 부른다.
+fn reflow_paragraph(
+    doc: &mut Rhwp,
+    section: usize,
+    paragraph: usize,
+) -> std::result::Result<String, rhwp::HwpError> {
+    doc.insert_text_native(section, paragraph, 0, " ")?;
+    doc.delete_text_native(section, paragraph, 0, 1)
+}
+
+/// rhwp 는 자리를 두 가지로 센다. 글자 편집(넣기·지우기·모양)은 글자 자리, 커서(누른 자리·커서
+/// 사각형·위아래 옮기기)와 표 넣기는 글자처럼 놓인 개체도 한 칸으로 세는 논리 자리다.
+/// Papy 의 자리는 글자 자리이고, rhwp 커서 호출 앞뒤에서 바꾼다.
+/// 같은 글자 자리에 개체가 있으면 글자가 개체 앞이다(rhwp 가 그 자리에 친 글자를 개체 앞에 넣는다).
+///
+/// 글자 자리 → 논리 자리
+fn logical_offset(doc: &Rhwp, section: usize, paragraph: usize, offset: usize) -> usize {
+    let Some(para) = doc
+        .document()
+        .sections
+        .get(section)
+        .and_then(|s| s.paragraphs.get(paragraph))
+    else {
+        return offset;
+    };
+    let positions = para.control_text_positions();
+    let before = para
+        .controls
+        .iter()
+        .enumerate()
+        .filter(|(index, control)| {
+            control.is_logical_inline() && positions.get(*index).is_some_and(|&at| at < offset)
+        })
+        .count();
+    offset + before
+}
+
+/// 문단 안 글자처럼 놓인 개체 수
+fn inline_controls(doc: &Rhwp, section: usize, paragraph: usize) -> usize {
+    doc.document()
+        .sections
+        .get(section)
+        .and_then(|s| s.paragraphs.get(paragraph))
+        .map_or(0, |para| {
+            para.controls
+                .iter()
+                .filter(|control| control.is_logical_inline())
+                .count()
+        })
+}
+
+/// 논리 자리 → 글자 자리. 개체 바로 뒤 자리는 그 개체 앞 글자 자리가 된다.
+fn text_offset(doc: &Rhwp, section: usize, paragraph: usize, logical: usize) -> usize {
+    let Some(para) = doc
+        .document()
+        .sections
+        .get(section)
+        .and_then(|s| s.paragraphs.get(paragraph))
+    else {
+        return logical;
+    };
+    let positions = para.logical_control_positions();
+    let before = para
+        .controls
+        .iter()
+        .enumerate()
+        .filter(|(index, control)| {
+            control.is_logical_inline() && positions.get(*index).is_some_and(|&at| at < logical)
+        })
+        .count();
+    logical
+        .saturating_sub(before)
+        .min(para.text.chars().count())
 }
 
 /// 그림 형식(확장자). rhwp 가 넣을 수 있는 것만.
@@ -613,26 +730,32 @@ impl Document for HwpDocument {
         let reply = self.read("hit test", |doc| {
             doc.hit_test_native(page, (x / PT_PER_PX) as f64, (y / PT_PER_PX) as f64)
         })?;
-        parse_pos(&json(&reply)?).ok_or_else(|| engine_error("hit test"))
+        let value = json(&reply)?;
+        let pos = parse_pos(&value).ok_or_else(|| engine_error("hit test"))?;
+        Ok(self.resolve_hit(pos, &value))
     }
 
     fn caret_rect(&mut self, pos: TextPos) -> Result<PageRect> {
         let reply = self.read("locate caret", |doc| {
-            doc.get_cursor_rect_native(
-                pos.section as usize,
-                pos.paragraph as usize,
-                pos.offset as usize,
-            )
+            let (section, paragraph) = (pos.section as usize, pos.paragraph as usize);
+            let offset = logical_offset(doc, section, paragraph, pos.offset as usize);
+            doc.get_cursor_rect_native(section, paragraph, offset)
         })?;
         parse_rect(&json(&reply)?).ok_or_else(|| engine_error("locate caret"))
     }
 
     fn move_vertical(&mut self, pos: TextPos, lines: i32, preferred_x: f32) -> Result<TextPos> {
+        let logical = logical_offset(
+            &self.doc,
+            pos.section as usize,
+            pos.paragraph as usize,
+            pos.offset as usize,
+        ) as u32;
         let reply = self.read_wrapper("move caret", |doc| {
             doc.move_vertical(
                 pos.section,
                 pos.paragraph,
-                pos.offset,
+                logical,
                 lines,
                 (preferred_x / PT_PER_PX) as f64,
                 u32::MAX,
@@ -641,7 +764,9 @@ impl Document for HwpDocument {
                 0,
             )
         })?;
-        parse_pos(&json(&reply)?).ok_or_else(|| engine_error("move caret"))
+        let value = json(&reply)?;
+        let pos = parse_pos(&value).ok_or_else(|| engine_error("move caret"))?;
+        Ok(self.resolve_hit(pos, &value))
     }
 
     fn move_caret(&mut self, pos: TextPos, motion: CaretMotion) -> Result<TextPos> {
@@ -964,9 +1089,8 @@ impl Document for HwpDocument {
         if let Some(cell) = parse_cell(&value) {
             return Ok(HitTarget::Cell(cell));
         }
-        parse_pos(&value)
-            .map(HitTarget::Body)
-            .ok_or_else(|| engine_error("hit test"))
+        let pos = parse_pos(&value).ok_or_else(|| engine_error("hit test"))?;
+        Ok(HitTarget::Body(self.resolve_hit(pos, &value)))
     }
 
     fn cell_caret_rect(&mut self, pos: CellPos) -> Result<PageRect> {
@@ -1126,13 +1250,9 @@ impl Document for HwpDocument {
         self.validate(pos)?;
         self.begin_step(pos, None);
         self.write("insert table", |doc| {
-            doc.create_table_native(
-                pos.section as usize,
-                pos.paragraph as usize,
-                pos.offset as usize,
-                rows as u16,
-                cols as u16,
-            )
+            let (section, paragraph) = (pos.section as usize, pos.paragraph as usize);
+            let offset = logical_offset(doc, section, paragraph, pos.offset as usize);
+            doc.create_table_native(section, paragraph, offset, rows as u16, cols as u16)
         })?;
         Ok(())
     }
@@ -1194,7 +1314,7 @@ impl Document for HwpDocument {
         self.begin_step(pos, None);
         // 원래 픽셀 크기를 모르면 보이는 크기(96 DPI)로 둔다.
         let (px_w, px_h) = ((width / PT_PER_PX) as u32, (height / PT_PER_PX) as u32);
-        self.write("insert picture", |doc| {
+        let reply = self.write("insert picture", |doc| {
             doc.insert_picture_native(
                 pos.section as usize,
                 pos.paragraph as usize,
@@ -1211,6 +1331,23 @@ impl Document for HwpDocument {
                 None,
             )
         })?;
+        // rhwp 는 본문 그림을 쪽 기준 떠 있는 개체로 넣는다 → 커서 자리에 글자처럼 놓는다.
+        let reply = json(&reply)?;
+        let (Some(paragraph), Some(control)) =
+            (uint(&reply, "paraIdx"), uint(&reply, "controlIdx"))
+        else {
+            return Err(engine_error("insert picture"));
+        };
+        let props = serde_json::json!({ "treatAsChar": true }).to_string();
+        self.write("place picture", |doc| {
+            doc.set_picture_properties_native(
+                pos.section as usize,
+                paragraph as usize,
+                control as usize,
+                &props,
+            )?;
+            reflow_paragraph(doc, pos.section as usize, paragraph as usize)
+        })?;
         Ok(())
     }
 
@@ -1223,13 +1360,10 @@ impl Document for HwpDocument {
         }
         let props =
             serde_json::json!({ "width": hwpunit(width), "height": hwpunit(height) }).to_string();
+        let (s, p) = (picture.section as usize, picture.paragraph as usize);
         self.object_step(picture, "resize picture", |doc| {
-            doc.set_picture_properties_native(
-                picture.section as usize,
-                picture.paragraph as usize,
-                picture.control as usize,
-                &props,
-            )
+            doc.set_picture_properties_native(s, p, picture.control as usize, &props)?;
+            reflow_paragraph(doc, s, p)
         })?;
         Ok(())
     }

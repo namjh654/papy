@@ -348,6 +348,8 @@ fn escape(text: &str) -> String {
 /// 표 하나: 행마다 (열 너비 칸 수, 세로 병합 상태, 내용 HTML).
 struct TableBuild {
     rows: Vec<Vec<CellBuild>>,
+    /// 표 테두리(`w:tblBorders` 의 선, 또는 Word 기본 "표 구분선" 스타일)
+    bordered: bool,
 }
 
 struct CellBuild {
@@ -396,6 +398,10 @@ impl TableBuild {
                     }
                 }
                 html.push_str("<td");
+                if self.bordered {
+                    // rhwp 붙여넣기는 칸 CSS 로만 테두리를 읽는다(Word 기본 0.5pt 검정).
+                    html.push_str(" style=\"border:0.5pt solid #000000\"");
+                }
                 if cell.span > 1 {
                     html.push_str(&format!(" colspan=\"{}\"", cell.span));
                 }
@@ -456,6 +462,7 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
     let mut para_style: (RunProps, Option<String>) = (RunProps::default(), None);
     let mut para_align: Option<String> = None;
     let mut in_ppr = false;
+    let mut in_tbl_borders = false;
     let mut run = RunProps::default();
     let mut in_run = false;
     let mut in_rpr = false;
@@ -537,6 +544,25 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
                     }
                     "pPr" | "rPr" | "r" | "t" | "tc" | "tbl" | "tr" if empty => {}
                     "pPr" => in_ppr = true,
+                    "tblBorders" if !empty => in_tbl_borders = true,
+                    "top" | "left" | "bottom" | "right" | "start" | "end" | "insideH"
+                    | "insideV"
+                        if in_tbl_borders =>
+                    {
+                        let line =
+                            attr(&e, "val").is_some_and(|v| !matches!(v.as_str(), "nil" | "none"));
+                        if let (true, Some(table)) = (line, tables.last_mut()) {
+                            table.bordered = true;
+                        }
+                    }
+                    // Word 기본 "표 구분선"(TableGrid) 스타일은 테두리가 있다.
+                    "tblStyle" => {
+                        let grid = attr(&e, "val")
+                            .is_some_and(|v| v.to_ascii_lowercase().contains("grid"));
+                        if let (true, Some(table)) = (grid, tables.last_mut()) {
+                            table.bordered = true;
+                        }
+                    }
                     "pStyle" if in_ppr => {
                         if let Some(id) = attr(&e, "val") {
                             para_style = resolve_style(&styles, &id);
@@ -612,7 +638,10 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
                                 "tables are nested too deeply",
                             ));
                         }
-                        tables.push(TableBuild { rows: Vec::new() });
+                        tables.push(TableBuild {
+                            rows: Vec::new(),
+                            bordered: false,
+                        });
                     }
                     "tr" => {
                         if let Some(table) = tables.last_mut() {
@@ -755,6 +784,7 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
                 "t" => in_text = false,
                 "rPr" => in_rpr = false,
                 "pPr" => in_ppr = false,
+                "tblBorders" => in_tbl_borders = false,
                 "numPr" => in_numpr = false,
                 "r" => {
                     flush(
