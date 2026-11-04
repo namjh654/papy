@@ -68,6 +68,20 @@ pre code { background: none; border: 0; padding: 0; }
 .lang a { color: var(--muted); text-decoration: none; padding: 3px 10px; border-radius: 999px; font-size: 13px; }
 .lang a:hover { color: var(--fg); background: var(--bg-soft); }
 .lang a[aria-current="true"] { color: var(--brand); background: var(--brand-soft); font-weight: 600; }
+
+/* 좁은 화면: 첫 줄은 로고와 언어, 메뉴는 둘째 줄 한 줄로 두고 넘치면 옆으로 민다(줄바꿈으로 첫 화면을 가리지 않게) */
+@media (max-width: 720px) {
+  .bar { gap: 6px 12px; min-height: 0; padding-top: 10px; }
+  .brand { order: 1; }
+  .lang { order: 2; }
+  .nav {
+    order: 3; flex: 1 0 100%; flex-wrap: nowrap; gap: 2px; position: relative;
+    margin: 0 -16px; padding: 0 16px 8px;
+    overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch;
+  }
+  .nav::-webkit-scrollbar { display: none; }
+  .nav a { flex: none; white-space: nowrap; padding: 6px 9px; font-size: 14px; }
+}
 .not-found + .not-found { margin-top: 40px; padding-top: 32px; border-top: 1px solid var(--line); }
 
 main { padding: 40px 0 64px; }
