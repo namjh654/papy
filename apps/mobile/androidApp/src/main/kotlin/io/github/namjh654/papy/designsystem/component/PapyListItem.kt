@@ -79,7 +79,7 @@ private fun PapyListItemPreview() = PapyTheme {
         PapyListItem(
             title = "엘사",
             subtitle = "내일 회의 자료 공유드려요. 확인 부탁드립니다.",
-            leading = { PapyAvatar(name = "엘사", size = 48.dp) },
+            leading = null,
             trailing = { Text("오후 3:20", style = PapyTheme.typography.caption, color = PapyTheme.colors.onSurfaceTertiary) },
             onClick = {},
         )

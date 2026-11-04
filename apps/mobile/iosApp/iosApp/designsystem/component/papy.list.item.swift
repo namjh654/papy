@@ -69,7 +69,7 @@ extension PapyListItem where Leading == EmptyView, Trailing == EmptyView {
             title: "엘사",
             subtitle: "내일 회의 자료 공유드려요. 확인 부탁드립니다.",
             action: {},
-            leading: { PapyAvatar(name: "엘사", size: 48) },
+            leading: { PapyIcon("papy_ic_file", size: PapySize.icon) },
             trailing: {
                 Text("오후 3:20")
                     .papyFont(PapyFont.caption)

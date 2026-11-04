@@ -38,10 +38,6 @@ class AndroidEnvironmentsPlugin : Plugin<Project> {
                         versionCode = values.getValue("app.versionCode").toInt()
                         if (name != "prod") versionNameSuffix = "-$name"
                         resValue("string", "app_name", EnvConfig.displayName(values))
-                        // 카카오 로그인 리다이렉트(kakao{앱 키}://oauth) — 키가 없으면 받는 Activity 를 끈다(DEC-119)
-                        val kakaoKey = values["social.kakao.appKey"].orEmpty()
-                        manifestPlaceholders["kakaoScheme"] = "kakao$kakaoKey"
-                        manifestPlaceholders["kakaoEnabled"] = kakaoKey.isNotBlank().toString()
                     }
                 }
             }

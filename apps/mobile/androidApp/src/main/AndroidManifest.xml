@@ -1,17 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- 네트워크 연결 상태(오프라인 안내) — NetworkMonitor -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <!-- Android 13+ 알림 권한 (로그인 후 PushEffects 가 요청) -->
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <!-- 런타임 권한 예시(feature:permission). 앱에서 쓰지 않으면 AppPermission 항목과 함께 지운다 -->
-    <uses-permission android:name="android.permission.CAMERA" />
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-    <!-- 카메라가 없는 기기에도 설치되게 한다 -->
-    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <!-- Papy 는 문서 앱이라 알림·카메라·위치 권한을 쓰지 않는다(템플릿 예시 권한 제거, 스토어 데이터 보안 항목을 줄인다).
+         INTERNET·ACCESS_NETWORK_STATE 는 core:data(템플릿 공통 계층)의 네트워크 감시가 쓴다. 문서는 네트워크로 보내지 않는다. -->
+    <!-- 라이브러리(Firebase·Play 서비스 등)가 합쳐 넣는 권한도 뺀다: 광고 ID·광고 측정·푸시 수신·알림·카메라·위치.
+         Papy 는 광고·추적·푸시를 쓰지 않는다(개인정보처리방침과 스토어 데이터 보안 답변이 "수집 없음"이 되게). -->
+    <uses-permission android:name="com.google.android.gms.permission.AD_ID" tools:node="remove" />
+    <uses-permission android:name="android.permission.ACCESS_ADSERVICES_ATTRIBUTION" tools:node="remove" />
+    <uses-permission android:name="android.permission.ACCESS_ADSERVICES_AD_ID" tools:node="remove" />
+    <uses-permission android:name="com.google.android.finsky.permission.BIND_GET_INSTALL_REFERRER_SERVICE" tools:node="remove" />
+    <uses-permission android:name="com.google.android.c2dm.permission.RECEIVE" tools:node="remove" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" tools:node="remove" />
+    <uses-permission android:name="android.permission.CAMERA" tools:node="remove" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" tools:node="remove" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" tools:node="remove" />
 
     <application
         android:name=".app.PapyApplication"
@@ -34,55 +40,20 @@
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <!-- 외부 링크 papy://<path> → PushManager.openLink (scheme 은 앱에 맞게 바꾼다 — docs/template-setup.md) -->
+            <!-- 다른 앱에서 문서를 "Papy 로 열기" (MainActivity.handleIntent → IncomingDocuments) -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="papy" />
+                <data android:scheme="content" />
+                <data android:mimeType="application/pdf" />
+                <data android:mimeType="application/x-hwp" />
+                <data android:mimeType="application/haansofthwp" />
+                <data android:mimeType="application/vnd.hancom.hwp" />
+                <data android:mimeType="application/hwp+zip" />
+                <data android:mimeType="application/vnd.hancom.hwpx" />
+                <data android:mimeType="application/vnd.openxmlformats-officedocument.wordprocessingml.document" />
             </intent-filter>
         </activity>
-
-        <!-- 카카오 로그인 리다이렉트(kakao{앱 키}://oauth, DEC-119). env social.kakao.appKey 가 없으면 꺼진다 -->
-        <activity
-            android:name="com.kakao.sdk.auth.AuthCodeHandlerActivity"
-            android:enabled="${kakaoEnabled}"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data
-                    android:host="oauth"
-                    android:scheme="${kakaoScheme}" />
-            </intent-filter>
-        </activity>
-
-        <!-- FCM 수신 (google-services.json 이 없으면 Firebase 가 초기화되지 않아 호출되지 않는다) -->
-        <service
-            android:name=".push.PapyMessagingService"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="com.google.firebase.MESSAGING_EVENT" />
-            </intent-filter>
-        </service>
-
-        <meta-data
-            android:name="com.google.firebase.messaging.default_notification_channel_id"
-            android:value="default" />
-        <meta-data
-            android:name="com.google.firebase.messaging.default_notification_icon"
-            android:resource="@drawable/papy_ic_notification" />
-        <!-- 메시지 카메라 첨부: 찍은 사진을 받을 임시 파일을 카메라 앱에 넘긴다(res/xml/file_paths.xml) -->
-        <provider
-            android:name="androidx.core.content.FileProvider"
-            android:authorities="${applicationId}.files"
-            android:exported="false"
-            android:grantUriPermissions="true">
-            <meta-data
-                android:name="android.support.FILE_PROVIDER_PATHS"
-                android:resource="@xml/file_paths" />
-        </provider>
     </application>
 
 </manifest>

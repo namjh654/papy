@@ -1,6 +1,6 @@
 [package]
 name = "papy-ffi"
-description = "Papy C ABI boundary for mobile and other hosts"
+description = "Papy bindings for mobile hosts (UniFFI: Kotlin, Swift)"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -10,9 +10,23 @@ publish.workspace = true
 
 [dependencies]
 papy-core.workspace = true
+uniffi.workspace = true
+
+[features]
+# 바인딩 생성 도구(uniffi-bindgen) 실행 파일을 만들 때만 켠다.
+bindgen = ["uniffi/cli"]
+
+[[bin]]
+name = "uniffi-bindgen"
+path = "src/bin/uniffi-bindgen.rs"
+required-features = ["bindgen"]
 
 [lints]
 workspace = true
 
 [lib]
+name = "papy_ffi"
 crate-type = ["rlib", "staticlib", "cdylib"]
+
+[dev-dependencies]
+zip = { version = "8.5", default-features = false, features = ["deflate"] }

@@ -49,3 +49,9 @@ apps/desktop/src-tauri/notices/
 
 # rhwp-studio 빌드 결과 (scripts/fetch-rhwp-studio.mjs)
 apps/desktop/public/studio/
+
+# 모바일 엔진 빌드 결과(scripts/build-mobile-engine.mjs) — 바인딩 소스는 커밋한다
+apps/mobile/androidApp/src/main/jniLibs/
+apps/mobile/androidApp/src/main/assets/fonts/
+apps/mobile/iosApp/Frameworks/
+apps/mobile/iosApp/iosApp/Resources/EngineFonts/

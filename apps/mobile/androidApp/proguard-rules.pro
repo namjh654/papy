@@ -7,3 +7,10 @@
     public static int d(...);
     public static int i(...);
 }
+
+# Papy 엔진(UniFFI Kotlin 바인딩 + JNA, ADR 0006). JNA 는 리플렉션으로 Structure 필드·Library 메서드·콜백을 찾으므로
+# 이름을 바꾸거나 지우면 실행 중 엔진 호출이 깨진다. 생성된 바인딩(uniffi.**)과 JNA 를 그대로 둔다.
+-keep class com.sun.jna.** { *; }
+-keepclassmembers class * extends com.sun.jna.** { public *; }
+-keep class uniffi.** { *; }
+-dontwarn java.awt.**
