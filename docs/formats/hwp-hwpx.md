@@ -21,5 +21,5 @@
 
 ## 알려진 한계 (rhwp v0.8.7, 2026-11-03)
 
-- **HWPX 의 그림(해결, 우회)**: rhwp 가 HWPX 로 쓴 "그림만 든 문단"에는 줄 정보(`<hp:linesegarray>`)가 없고, rhwp 의 HWPX 읽기는 그 줄을 다시 계산하지 않아 그림이 그려지지 않았다. Papy 는 HWPX 를 열 때 그런 문단에 rhwp 가 HTML 그림에 쓰는 것과 같은 줄 정보를 채운다(`papy-hwp/src/repair.rs`, 테스트 `docx_images_are_kept`). 남은 점: 고급 편집기(studio, WASM rhwp)에 HWPX 를 넘기면 studio 쪽에서는 같은 문제가 남을 수 있다. 업스트림에 writer 수정(그림 문단 linesegarray 출력)을 제안할 것.
+- **HWPX 의 그림(해결, 우회)**: rhwp 가 HWPX 로 쓴 "그림만 든 문단"에는 줄 정보(`<hp:linesegarray>`)가 없고, rhwp 의 HWPX 읽기는 그 줄을 다시 계산하지 않아 그림이 그려지지 않았다. Papy 는 HWPX 를 열 때 그런 문단에 rhwp 가 HTML 그림에 쓰는 것과 같은 줄 정보를 채운다(`papy-hwp/src/repair.rs`, 테스트 `docx_images_are_kept`). 고급 편집기(studio, WASM rhwp)에는 HWPX 문서도 HWP 바이트로 넘기고(HWP 는 줄 정보를 쓴다) 돌려받을 때만 HWPX 로 받아 열면서 다시 고친다(`App.tsx`). studio 화면에서 그림이 보이는지는 실제 창에서 아직 확인하지 못했다. 업스트림에 writer 수정(그림 문단 linesegarray 출력)을 제안할 것.
 - **고급 편집(rhwp-studio)**: 암호 문서는 엔진이 암호 없이 넘기고, 돌려받을 때 원래 암호를 새 세션에 다시 건다(`Engine::save_unprotected`·`copy_save_password`). 암호 문자열은 화면으로 가지 않는다.

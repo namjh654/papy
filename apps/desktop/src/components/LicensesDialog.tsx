@@ -1,6 +1,7 @@
 // 정보·오픈소스 라이선스: Papy 라이선스 요약과, 함께 배포되는 구성요소의 라이선스 고지 전문.
 import { useEffect, useMemo, useState } from "react";
 import { engineVersion, licenseNotices } from "../engine";
+import { locale, MESSAGES, setLocale, t, type Locale } from "../i18n";
 
 interface Props {
   onClose(): void;
@@ -39,21 +40,32 @@ export function LicensesDialog({ onClose }: Props) {
   return (
     <div className="backdrop" onKeyDown={(event) => event.key === "Escape" && onClose()}>
       <div className="dialog licenses" role="dialog" aria-modal="true" aria-labelledby="licenses-title">
-        <h2 id="licenses-title">Papy 정보</h2>
+        <h2 id="licenses-title">{t.about.title}</h2>
         <p className="muted">
-          엔진 {version || "…"} · Papy 는 <strong>PolyForm Noncommercial 1.0.0</strong>(polyformproject.org)으로
-          배포됩니다. 개인·학습·연구·비영리 용도는 무료이고, 상업적 이용은 허용되지 않습니다.
+          {t.about.engine} {version || "…"} · {t.about.licenseBefore}
+          <strong>PolyForm Noncommercial 1.0.0</strong>
+          {t.about.licenseAfter}
         </p>
-        <h3>오픈소스 라이선스</h3>
+        <label className="language-pick">
+          {t.about.language}{" "}
+          <select value={locale} onChange={(event) => setLocale(event.target.value as Locale)}>
+            {(Object.keys(MESSAGES) as Locale[]).map((code) => (
+              <option key={code} value={code}>
+                {MESSAGES[code].languageName}
+              </option>
+            ))}
+          </select>
+        </label>
+        <h3>{t.about.openSource}</h3>
         {failed ? (
-          <p className="muted">라이선스 고지 파일을 찾지 못했습니다. 설치 폴더의 licenses/ 를 확인해 주세요.</p>
+          <p className="muted">{t.about.noticesMissing}</p>
         ) : !text ? (
-          <p className="muted">불러오는 중…</p>
+          <p className="muted">{t.common.loading}</p>
         ) : (
           <>
             <input
               type="search"
-              placeholder={`구성요소 ${sections.length}개 중 찾기 (예: rhwp, pdfium)`}
+              placeholder={t.about.search(sections.length)}
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               autoFocus
@@ -67,13 +79,13 @@ export function LicensesDialog({ onClose }: Props) {
                   <pre>{section.body}</pre>
                 </details>
               ))}
-              {shown.length > 200 && <p className="muted">{shown.length - 200}개 더 있습니다. 검색으로 좁혀 주세요.</p>}
+              {shown.length > 200 && <p className="muted">{t.about.more(shown.length - 200)}</p>}
             </div>
           </>
         )}
         <div className="dialog-actions">
           <button className="primary" onClick={onClose} autoFocus={failed}>
-            닫기
+            {t.common.close}
           </button>
         </div>
       </div>

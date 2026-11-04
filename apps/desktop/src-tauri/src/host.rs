@@ -199,6 +199,11 @@ pub enum EditOp {
         page: u32,
         area: RectDto,
     },
+    /// 영역 안 글자(PDF 글자 고치기 입력란).
+    TextInArea {
+        page: u32,
+        area: RectDto,
+    },
     Annotate {
         annotation: AnnotationDto,
     },
@@ -249,6 +254,14 @@ pub enum AnnotationDto {
         x: f32,
         y: f32,
         text: String,
+    },
+    /// 쪽에 있는 글자 고쳐 쓰기. font_size 가 없으면 원래 크기.
+    ReplaceText {
+        page: u32,
+        area: RectDto,
+        text: String,
+        color: String,
+        font_size: Option<f32>,
     },
 }
 
@@ -324,6 +337,24 @@ fn annotation(dto: AnnotationDto) -> papy_core::Result<Annotation> {
             }
         }
         AnnotationDto::Note { page, x, y, text } => Annotation::Note { page, x, y, text },
+        AnnotationDto::ReplaceText {
+            page,
+            area,
+            text,
+            color,
+            font_size,
+        } => {
+            if text.chars().count() > 10_000 {
+                return Err(bad_argument("text is too long"));
+            }
+            Annotation::ReplaceText {
+                page,
+                area: page_rect(page, area),
+                text,
+                color,
+                font_size,
+            }
+        }
     })
 }
 
@@ -485,6 +516,9 @@ pub fn run_edit(doc: &mut dyn Document, op: EditOp) -> papy_core::Result<Value> 
         EditOp::TextRects { page, area } => {
             let rects = doc.text_rects(page, page_rect(page, area))?;
             Value::Array(rects.into_iter().map(rect_json).collect())
+        }
+        EditOp::TextInArea { page, area } => {
+            Value::String(doc.text_in_area(page, page_rect(page, area))?)
         }
         EditOp::Annotate { annotation: dto } => {
             doc.annotate(&annotation(dto)?)?;

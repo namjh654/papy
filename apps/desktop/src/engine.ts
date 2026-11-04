@@ -1,5 +1,6 @@
 // Rust 호스트(src-tauri/src/lib.rs) command 의 타입 있는 래퍼.
 import { invoke } from "@tauri-apps/api/core";
+import { t } from "./i18n";
 
 export interface PageSize {
   /** pt */
@@ -84,6 +85,7 @@ export type EditOp =
   | { kind: "undo" }
   | { kind: "redo" }
   | { kind: "textRects"; page: number; area: Area }
+  | { kind: "textInArea"; page: number; area: Area }
   | { kind: "annotate"; annotation: Annotation }
   | { kind: "editPages"; op: PageOp };
 
@@ -101,7 +103,9 @@ export type Annotation =
   | { type: "textBox"; page: number; x: number; y: number; text: string; fontSize: number; color: string }
   | { type: "markup"; page: number; kind: MarkupKind; area: Area; color: string }
   | { type: "ink"; page: number; points: [number, number][]; color: string; width: number }
-  | { type: "note"; page: number; x: number; y: number; text: string };
+  | { type: "note"; page: number; x: number; y: number; text: string }
+  /** 쪽에 있는 글자를 지우고 그 자리에 새 글자를 넣는다. fontSize 가 없으면 원래 크기 */
+  | { type: "replaceText"; page: number; area: Area; text: string; color: string; fontSize?: number };
 
 export type PageOp =
   | { type: "rotate"; page: number; quarterTurns: number }
@@ -248,18 +252,18 @@ export function describeError(error: unknown): string {
   const code = error instanceof EngineError ? error.code : ErrorCode.Internal;
   switch (code) {
     case ErrorCode.Io:
-      return "파일을 읽을 수 없습니다. 파일이 옮겨졌거나 지워졌는지 확인해 주세요.";
+      return t.errors.io;
     case ErrorCode.UnsupportedFormat:
-      return "지원하지 않는 형식입니다. PDF, HWP, HWPX, DOCX 문서를 열 수 있습니다.";
+      return t.errors.unsupported;
     case ErrorCode.InvalidDocument:
-      return "문서가 손상됐거나 형식이 올바르지 않아 열 수 없습니다.";
+      return t.errors.invalid;
     case ErrorCode.PasswordRequired:
-      return "암호가 필요하거나 암호가 맞지 않습니다.";
+      return t.errors.password;
     case ErrorCode.NotImplemented:
-      return "이 문서에서는 아직 지원하지 않는 기능입니다.";
+      return t.errors.notSupported;
     case ErrorCode.LimitExceeded:
-      return "문서가 너무 커서 열 수 없습니다(파일 크기·쪽 수 제한).";
+      return t.errors.limit;
     default:
-      return "문제가 생겨 작업을 끝내지 못했습니다. 다시 시도해 주세요.";
+      return t.errors.internal;
   }
 }

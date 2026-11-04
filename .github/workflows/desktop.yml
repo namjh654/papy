@@ -45,6 +45,7 @@ jobs:
       - run: node scripts/fetch-rhwp-studio.mjs
       - run: node scripts/third-party-notices.mjs
       - run: pnpm --filter @papy/desktop typecheck
+      - run: pnpm --filter @papy/desktop test
       - name: clippy
         working-directory: apps/desktop/src-tauri
         run: |

@@ -3,6 +3,7 @@ import { extractText, outline as loadOutline, type OpenedDocument, type OutlineI
 import type { RenderQueue } from "../renderQueue";
 import { Icon } from "./Icon";
 import { PageCanvas } from "./PageCanvas";
+import { t } from "../i18n";
 
 const THUMB_WIDTH = 112;
 
@@ -27,13 +28,13 @@ export function Sidebar({ doc, current, queue, onGoTo, revision }: Props) {
   }, [doc]);
 
   const tabs: [Tab, string, boolean][] = [
-    ["thumbs", "쪽", true],
-    ["outline", "목차", items.length > 0],
-    ["text", "텍스트", doc.canExtractText],
+    ["thumbs", t.sidebar.pages, true],
+    ["outline", t.sidebar.outline, items.length > 0],
+    ["text", t.sidebar.text, doc.canExtractText],
   ];
 
   return (
-    <aside className="sidebar" aria-label="문서 탐색">
+    <aside className="sidebar" aria-label={t.sidebar.label}>
       <div className="tabs" role="tablist">
         {tabs
           .filter(([, , shown]) => shown)
@@ -92,7 +93,7 @@ function Thumbnails({ doc, current, queue, onGoTo, revision }: Props) {
             data-page={page}
             className={`thumb ${page === current ? "active" : ""}`}
             onClick={() => onGoTo(page)}
-            aria-label={`${page + 1}쪽으로 이동`}
+            aria-label={t.sidebar.goTo(page + 1)}
             aria-current={page === current ? "page" : undefined}
           >
             {visible.has(page) ? (
@@ -135,14 +136,14 @@ function OutlineNode({ item, current, onGoTo }: { item: OutlineItem; current: nu
     <li>
       <div className={`outline-row ${item.page === current ? "active" : ""}`}>
         {hasChildren ? (
-          <button className={`twisty ${open ? "open" : ""}`} onClick={() => setOpen(!open)} aria-label={open ? "접기" : "펼치기"}>
+          <button className={`twisty ${open ? "open" : ""}`} onClick={() => setOpen(!open)} aria-label={open ? t.sidebar.collapse : t.sidebar.expand}>
             <Icon name="chevron" size={14} />
           </button>
         ) : (
           <span className="twisty" />
         )}
         <button className="outline-title" disabled={item.page === null} onClick={() => item.page !== null && onGoTo(item.page)}>
-          {item.title || "(제목 없음)"}
+          {item.title || t.sidebar.untitled}
         </button>
       </div>
       {hasChildren && open && <OutlineTree items={item.children} current={current} onGoTo={onGoTo} />}
@@ -180,15 +181,15 @@ function PageText({ doc, page, revision }: { doc: OpenedDocument; page: number; 
   return (
     <div className="page-text">
       <div className="page-text-head">
-        <span>{page + 1}쪽 텍스트</span>
+        <span>{t.sidebar.pageText(page + 1)}</span>
         <button className="ghost small" onClick={copy} disabled={!text}>
-          <Icon name="copy" size={14} /> {copied ? "복사됨" : "복사"}
+          <Icon name="copy" size={14} /> {copied ? t.sidebar.copied : t.sidebar.copy}
         </button>
       </div>
       {text === null ? (
-        <p className="muted">읽는 중…</p>
+        <p className="muted">{t.sidebar.reading}</p>
       ) : text.trim() === "" ? (
-        <p className="muted">이 쪽에는 추출할 텍스트가 없습니다. 스캔한 이미지일 수 있습니다.</p>
+        <p className="muted">{t.sidebar.noText}</p>
       ) : (
         <pre>{text}</pre>
       )}

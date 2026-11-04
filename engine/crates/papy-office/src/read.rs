@@ -6,6 +6,7 @@ use base64::Engine as _;
 use std::collections::HashMap;
 use std::io::{Cursor, Read};
 
+use crate::notes::{FOOTNOTE_MARK, HeaderFooterText, Numbering, paragraph_texts, parse_footnotes};
 use papy_model::{Error, ErrorCode, Result};
 use quick_xml::Reader;
 use quick_xml::events::{BytesStart, Event};
@@ -22,6 +23,14 @@ pub struct DocxReadReport {
     pub images: usize,
     /// 옮기지 못한 그림·도형·개체 수(도형, 지원하지 않는 그림 형식, 크기 제한 초과 등).
     pub dropped_drawings: usize,
+    /// 머리말(글자만). 본문 HTML 을 붙여넣은 뒤 문서에 넣는다.
+    pub headers: Vec<HeaderFooterText>,
+    /// 꼬리말(글자만)
+    pub footers: Vec<HeaderFooterText>,
+    /// 본문 각주(글자만), 본문의 [`FOOTNOTE_MARK`] 와 같은 순서.
+    pub footnotes: Vec<Vec<String>>,
+    /// 옮기지 못한 각주·미주 수(표 안 각주, 미주, 첫 쪽 머리말 등).
+    pub dropped_notes: usize,
 }
 
 /// 그림 하나의 최대 크기, 문서 전체 그림 크기 합의 최대치.
@@ -200,13 +209,19 @@ struct ParaStyle {
     align: Option<String>,
 }
 
-fn local(name: &str) -> &str {
+pub(crate) fn local(name: &str) -> &str {
     name.rsplit(':').next().unwrap_or(name)
 }
 
-fn attr(element: &BytesStart, key: &str) -> Option<String> {
+pub(crate) fn attr(element: &BytesStart, key: &str) -> Option<String> {
     element.attributes().flatten().find_map(|attribute| {
-        (local(attribute.key.as_ref()) == key).then(|| attribute.value.to_string())
+        // 값의 문자 참조(&#61623; 등)는 풀고, 풀 수 없으면 원래 값을 쓴다.
+        (local(attribute.key.as_ref()) == key).then(|| {
+            attribute
+                .normalized_value(quick_xml::XmlVersion::default())
+                .map(|value| value.into_owned())
+                .unwrap_or_else(|_| attribute.value.to_string())
+        })
     })
 }
 
@@ -419,6 +434,15 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
     let rels = read_part(&mut archive, "word/_rels/document.xml.rels")?
         .map(|xml| parse_rels(&xml))
         .unwrap_or_default();
+    let footnotes = read_part(&mut archive, "word/footnotes.xml")?
+        .map(|xml| parse_footnotes(&xml))
+        .unwrap_or_default();
+    let mut numbering = read_part(&mut archive, "word/numbering.xml")?
+        .map(|xml| Numbering::parse(&xml))
+        .unwrap_or_default();
+    // 머리말·꼬리말 참조: (머리말인가, 종류, 관계 id). 첫 구역 것을 쓴다.
+    let mut header_refs: Vec<(bool, String, String)> = Vec::new();
+    let mut sections_seen = 0usize;
     let mut image_budget = MAX_TOTAL_IMAGE_BYTES;
     let mut drawing: Option<Drawing> = None;
 
@@ -439,6 +463,9 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
     let mut in_rpr = false;
     let mut in_text = false;
     let mut list_item = false;
+    let mut in_numpr = false;
+    let mut num_id: Option<String> = None;
+    let mut ilvl = 0usize;
     // 지금 런의 글자(이미 HTML 이스케이프됨). 런이 끝나거나 탭·줄바꿈을 만나면 서식 span 으로 내보낸다.
     let mut run_text = String::new();
     let flush = |para_html: &mut String,
@@ -485,6 +512,8 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
                         para_style = (RunProps::default(), None);
                         para_align = None;
                         list_item = false;
+                        num_id = None;
+                        ilvl = 0;
                     }
                     "pPr" | "rPr" | "r" | "t" | "tc" | "tbl" | "tr" if empty => {}
                     "pPr" => in_ppr = true,
@@ -494,7 +523,39 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
                         }
                     }
                     "jc" if in_ppr && !in_rpr => para_align = attr(&e, "val"),
-                    "numPr" if in_ppr => list_item = true,
+                    "numPr" if in_ppr => {
+                        list_item = true;
+                        in_numpr = !empty;
+                    }
+                    "numId" if in_numpr => num_id = attr(&e, "val"),
+                    "ilvl" if in_numpr => {
+                        ilvl = attr(&e, "val").and_then(|v| v.parse().ok()).unwrap_or(0)
+                    }
+                    "sectPr" if !empty => sections_seen += 1,
+                    kind @ ("headerReference" | "footerReference") if sections_seen == 1 => {
+                        if let (Some(kind_attr), Some(id)) = (attr(&e, "type"), attr(&e, "id")) {
+                            header_refs.push((kind == "headerReference", kind_attr, id));
+                        }
+                    }
+                    "footnoteReference" if in_run => {
+                        flush(
+                            &mut para_html,
+                            &mut run_text,
+                            &run,
+                            &para_style.0,
+                            &defaults,
+                        );
+                        let note = attr(&e, "id").and_then(|id| footnotes.get(&id));
+                        match note {
+                            // 표 안 각주는 rhwp 에 넣을 자리가 없어 옮기지 않는다.
+                            Some(note) if cell.is_empty() => {
+                                para_html.push(FOOTNOTE_MARK);
+                                report.footnotes.push(note.clone());
+                            }
+                            _ => report.dropped_notes += 1,
+                        }
+                    }
+                    "endnoteReference" if in_run => report.dropped_notes += 1,
                     "r" if in_para => {
                         in_run = true;
                         run = RunProps::default();
@@ -632,6 +693,7 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
                 "t" => in_text = false,
                 "rPr" => in_rpr = false,
                 "pPr" => in_ppr = false,
+                "numPr" => in_numpr = false,
                 "r" => {
                     flush(
                         &mut para_html,
@@ -648,8 +710,15 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
                     let style = align
                         .map(|a| format!(" style=\"text-align:{}\"", align_css(&a)))
                         .unwrap_or_default();
-                    let bullet = if list_item { "• " } else { "" };
-                    let html = format!("<p{style}>{bullet}{para_html}</p>");
+                    let label = match (&num_id, list_item) {
+                        (Some(id), _) => numbering.label(id, ilvl),
+                        (None, true) => Some("•".into()),
+                        (None, false) => None,
+                    };
+                    let label = label
+                        .map(|label| format!("{} ", escape(&label)))
+                        .unwrap_or_default();
+                    let html = format!("<p{style}>{label}{para_html}</p>");
                     out(&mut body, &mut cell, &html);
                 }
                 "tc" => {
@@ -668,6 +737,40 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
                 _ => {}
             },
             _ => {}
+        }
+    }
+    // 머리말·꼬리말: 짝수 쪽 것이 있으면 기본(default)은 홀수 쪽이다. 첫 쪽 것은 rhwp 에 맞는 자리가 없다.
+    let has_even = header_refs.iter().any(|(_, kind, _)| kind == "even");
+    for (is_header, kind, id) in header_refs {
+        let apply_to = match kind.as_str() {
+            "default" if has_even => 2,
+            "default" => 0,
+            "even" => 1,
+            _ => {
+                report.dropped_notes += 1;
+                continue;
+            }
+        };
+        let Some(path) = rels.get(&id).filter(|path| !path.is_empty()) else {
+            continue;
+        };
+        let Some(xml) = read_part(&mut archive, path)? else {
+            continue;
+        };
+        let paragraphs = paragraph_texts(&xml);
+        if paragraphs.iter().all(|p| p.trim().is_empty()) {
+            continue;
+        }
+        let target = if is_header {
+            &mut report.headers
+        } else {
+            &mut report.footers
+        };
+        if !target.iter().any(|existing| existing.apply_to == apply_to) {
+            target.push(HeaderFooterText {
+                apply_to,
+                paragraphs,
+            });
         }
     }
     Ok((format!("<html><body>{body}</body></html>"), report))

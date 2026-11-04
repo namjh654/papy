@@ -1,4 +1,5 @@
 {
   "extends": "@papy/config/tsconfig.base.json",
-  "include": ["src", "vite.config.ts"]
+  "compilerOptions": { "allowImportingTsExtensions": true },
+  "include": ["src", "test", "vite.config.ts"]
 }
