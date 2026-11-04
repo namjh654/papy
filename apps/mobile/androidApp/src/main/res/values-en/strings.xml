@@ -94,7 +94,16 @@
     <string name="viewer_text_unavailable">There\'s no readable text on this page. It may be a scanned image.</string>
     <string name="viewer_text_copy">Copy</string>
     <string name="viewer_text_copied">Copied</string>
-    <string name="viewer_loss">%1$d element(s) in this document, such as grouped shapes or charts, can\'t be shown yet.</string>
+    <string name="viewer_loss">%1$d element(s) in this document, such as charts or endnotes, can\'t be shown yet.</string>
+    <string name="viewer_outline">Outline</string>
+    <string name="viewer_search">Find</string>
+    <string name="viewer_search_hint">Find in document</string>
+    <string name="viewer_search_none">No matches.</string>
+    <string name="viewer_search_count">%1$d match(es)</string>
+    <string name="viewer_search_more">More than %1$d matches</string>
+    <string name="viewer_search_page">p. %1$d</string>
+    <string name="viewer_unsupported_placeholders">%1$d chart(s) or object(s) on this page can\'t be shown and are drawn as dashed placeholders.</string>
+    <string name="viewer_unsupported_images">%1$d image(s) on this page are shown as empty picture frames because the document has no image data for them.</string>
     <string name="viewer_page_failed">This page couldn\'t be drawn</string>
     <string name="common_close">Close</string>
     <!-- 문서 편집(feature:documents) -->

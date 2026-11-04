@@ -2,6 +2,11 @@ package io.github.namjh654.papy.screen.documents
 
 import android.graphics.Bitmap
 import androidx.compose.foundation.Image
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.rememberTransformableState
@@ -216,6 +221,16 @@ fun ViewerScreen(ref: String, name: String, onBack: () -> Unit) {
                         Icon(painterResource(R.drawable.papy_ic_send), contentDescription = stringResource(R.string.viewer_export_pdf), tint = PapyTheme.colors.onSurface)
                     }
                 }
+                if (!state.editing && state.outline.isNotEmpty()) {
+                    IconButton(onClick = viewModel::showOutline) {
+                        Icon(painterResource(R.drawable.papy_ic_tab_list), contentDescription = stringResource(R.string.viewer_outline), tint = PapyTheme.colors.onSurface)
+                    }
+                }
+                if (!state.editing) {
+                    IconButton(onClick = viewModel::showSearch) {
+                        Icon(painterResource(R.drawable.papy_ic_search), contentDescription = stringResource(R.string.viewer_search), tint = PapyTheme.colors.onSurface)
+                    }
+                }
                 IconButton(onClick = viewModel::showText) {
                     Icon(painterResource(R.drawable.papy_ic_copy), contentDescription = stringResource(R.string.viewer_text), tint = PapyTheme.colors.onSurface)
                 }
@@ -318,24 +333,97 @@ fun ViewerScreen(ref: String, name: String, onBack: () -> Unit) {
                         .padding(horizontal = PapySpacing.md, vertical = PapySpacing.xs),
                 )
             }
+            if (state.phase == ViewerPhase.Ready && state.showUnsupported) {
+                Notice(
+                    text = listOfNotNull(
+                        state.unsupported.placeholders.takeIf { it > 0 }?.let { stringResource(R.string.viewer_unsupported_placeholders, it) },
+                        state.unsupported.missingImages.takeIf { it > 0 }?.let { stringResource(R.string.viewer_unsupported_images, it) },
+                    ).joinToString(" "),
+                    onClose = viewModel::dismissUnsupported,
+                    modifier = Modifier.align(Alignment.TopCenter),
+                )
+            }
             if (state.phase == ViewerPhase.Ready && state.showLoss) {
-                Row(
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .padding(PapySpacing.sm)
-                        .clip(RoundedCornerShape(12))
-                        .background(PapyTheme.colors.onSurface)
-                        .padding(start = PapySpacing.md),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
+                Notice(
+                    text = stringResource(R.string.viewer_loss, state.document?.droppedObjects ?: 0),
+                    onClose = viewModel::dismissLoss,
+                    modifier = Modifier.align(Alignment.TopCenter),
+                )
+            }
+        }
+    }
+
+    if (state.showOutline) {
+        PapyBottomSheet(onDismiss = viewModel::hideOutline, title = stringResource(R.string.viewer_outline)) {
+            LazyColumn(Modifier.fillMaxWidth().heightIn(max = 480.dp)) {
+                itemsIndexed(state.outline) { _, entry ->
                     Text(
-                        stringResource(R.string.viewer_loss, state.document?.droppedObjects ?: 0),
-                        style = PapyTheme.typography.bodySmall,
-                        color = PapyTheme.colors.surface,
-                        modifier = Modifier.weight(1f, fill = false),
+                        entry.title,
+                        style = PapyTheme.typography.body,
+                        color = if (entry.page == null) PapyTheme.colors.onSurfaceVariant else PapyTheme.colors.onSurface,
+                        maxLines = 2,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(enabled = entry.page != null) { entry.page?.let(viewModel::openOutlineEntry) }
+                            .padding(start = PapySpacing.lg + PapySpacing.md * entry.depth.coerceAtMost(6), end = PapySpacing.lg)
+                            .padding(vertical = PapySpacing.sm),
                     )
-                    IconButton(onClick = viewModel::dismissLoss) {
-                        Icon(painterResource(R.drawable.papy_ic_close), contentDescription = stringResource(R.string.common_close), tint = PapyTheme.colors.surface)
+                }
+            }
+        }
+    }
+
+    if (state.showSearch) {
+        val search = state.search
+        // 창이 열리면 바로 칠 수 있게 입력칸에 초점을 둔다
+        val focus = remember { FocusRequester() }
+        LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
+        PapyBottomSheet(onDismiss = viewModel::hideSearch, title = stringResource(R.string.viewer_search)) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = PapySpacing.lg)) {
+                PapyTextField(
+                    value = search?.query.orEmpty(),
+                    onValueChange = viewModel::searchQuery,
+                    placeholder = stringResource(R.string.viewer_search_hint),
+                    modifier = Modifier.focusRequester(focus),
+                )
+                val hits = search?.hits
+                when {
+                    search == null || search.query.isBlank() -> Unit
+                    hits == null -> PapyLoadingIndicator(Modifier.align(Alignment.CenterHorizontally).padding(PapySpacing.md))
+                    hits.isEmpty() -> Text(stringResource(R.string.viewer_search_none), style = PapyTheme.typography.body, color = PapyTheme.colors.onSurfaceVariant, modifier = Modifier.padding(vertical = PapySpacing.md))
+                    else -> {
+                        Text(
+                            stringResource(if (search.more) R.string.viewer_search_more else R.string.viewer_search_count, hits.size),
+                            style = PapyTheme.typography.caption,
+                            color = PapyTheme.colors.onSurfaceVariant,
+                            modifier = Modifier.padding(top = PapySpacing.sm),
+                        )
+                        LazyColumn(Modifier.fillMaxWidth().heightIn(max = 420.dp)) {
+                            itemsIndexed(hits) { _, hit ->
+                                Row(
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .clickable { viewModel.openHit(hit.page) }
+                                        .padding(vertical = PapySpacing.sm),
+                                ) {
+                                    Text(
+                                        stringResource(R.string.viewer_search_page, hit.page + 1),
+                                        style = PapyTheme.typography.bodySmall,
+                                        color = PapyTheme.colors.onSurfaceVariant,
+                                        modifier = Modifier.widthIn(min = 44.dp),
+                                    )
+                                    Text(
+                                        buildAnnotatedString {
+                                            append(hit.before)
+                                            withStyle(SpanStyle(fontWeight = FontWeight.Bold, background = PapyTheme.colors.primary.copy(alpha = 0.18f))) { append(hit.matched) }
+                                            append(hit.after)
+                                        },
+                                        style = PapyTheme.typography.bodySmall,
+                                        color = PapyTheme.colors.onSurface,
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -401,6 +489,24 @@ fun ViewerScreen(ref: String, name: String, onBack: () -> Unit) {
     }
 }
 
+/** 쪽 위에 뜨는 안내(닫기 단추) */
+@Composable
+private fun Notice(text: String, onClose: () -> Unit, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier
+            .padding(PapySpacing.sm)
+            .clip(RoundedCornerShape(12))
+            .background(PapyTheme.colors.onSurface)
+            .padding(start = PapySpacing.md),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(text, style = PapyTheme.typography.bodySmall, color = PapyTheme.colors.surface, modifier = Modifier.weight(1f, fill = false))
+        IconButton(onClick = onClose) {
+            Icon(painterResource(R.drawable.papy_ic_close), contentDescription = stringResource(R.string.common_close), tint = PapyTheme.colors.surface)
+        }
+    }
+}
+
 @Composable
 private fun errorMessage(error: DocumentError?): String = stringResource(
     when (error) {
@@ -456,6 +562,10 @@ private fun Pages(state: ViewerUiState, composing: String?, onPageVisible: (Int)
 
     LaunchedEffect(listState) {
         snapshotFlow { listState.firstVisibleItemIndex }.distinctUntilChanged().collect(onPageVisible)
+    }
+    // 목차·찾기에서 고른 쪽으로 옮긴다
+    LaunchedEffect(state.jump) {
+        state.jump?.let { jump -> listState.scrollToItem(jump.page.coerceIn(0, (state.pageSizes.size - 1).coerceAtLeast(0))) }
     }
     // 그릴 배율: 확대가 멈추고 [RERENDER_DELAY_MS] 뒤의 값(손가락을 움직이는 동안 매번 다시 그리지 않는다)
     var renderZoom by remember { mutableFloatStateOf(1f) }

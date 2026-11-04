@@ -8,6 +8,9 @@ import io.github.namjh654.papy.feature.documents.ObjectKind
 import io.github.namjh654.papy.feature.documents.PageObject
 import io.github.namjh654.papy.feature.documents.TableCell
 import io.github.namjh654.papy.feature.documents.OpenedDocument
+import io.github.namjh654.papy.feature.documents.OutlineEntry
+import io.github.namjh654.papy.feature.documents.TextHit
+import io.github.namjh654.papy.feature.documents.UnsupportedCount
 import io.github.namjh654.papy.feature.documents.PageBox
 import io.github.namjh654.papy.feature.documents.PageSizePt
 import io.github.namjh654.papy.feature.documents.ParagraphHit
@@ -30,6 +33,20 @@ data class ViewerUiState(
     val text: PageText? = null,
     /** 옮기지 못한 요소 안내를 닫았다 */
     val lossDismissed: Boolean = false,
+    /** 목차(열 때 읽는다). 비어 있으면 목차 단추를 숨긴다 */
+    val outline: List<OutlineEntry> = emptyList(),
+    /** 목차 창이 열려 있다 */
+    val showOutline: Boolean = false,
+    /** 찾기 창이 열려 있다 */
+    val showSearch: Boolean = false,
+    /** 마지막 찾기(창을 닫아도 남겨 다시 열면 이어 본다). null 이면 찾은 적 없음 */
+    val search: SearchState? = null,
+    /** 지금 쪽에서 제대로 그리지 못한 개체 */
+    val unsupported: UnsupportedCount = UnsupportedCount(),
+    /** 그리지 못한 개체 안내를 닫았다(이 문서에서는 다시 띄우지 않는다) */
+    val unsupportedDismissed: Boolean = false,
+    /** 이 쪽으로 옮겨 달라는 요청. [PageJump.serial] 이 바뀔 때마다 플랫폼이 스크롤한다 */
+    val jump: PageJump? = null,
     /** 편집 모드(누르면 커서, 두 번 누르면 단어, 길게 누르면 문단 고치기) */
     val editing: Boolean = false,
     /** 커서(편집 모드). 선택이 있으면 선택의 움직이는 끝 */
@@ -61,6 +78,7 @@ data class ViewerUiState(
     val canExportPdf: Boolean get() = document?.canExportPdf == true
     val pageCount: Int get() = document?.pageCount ?: 0
     val showLoss: Boolean get() = (document?.droppedObjects ?: 0) > 0 && !lossDismissed
+    val showUnsupported: Boolean get() = !unsupported.isEmpty && !unsupportedDismissed && !showLoss
 
     /** PDF 로 내보낼 때 권하는 파일 이름 */
     val pdfName: String get() = name.substringBeforeLast('.').ifEmpty { name } + ".pdf"
@@ -82,6 +100,12 @@ data class ObjectSelection(val target: PageObject, val cell: TableCell? = null) 
 
 /** 표 도구 막대 */
 enum class TableCommand { RowAbove, RowBelow, ColumnLeft, ColumnRight, DeleteRow, DeleteColumn, MergeRight, MergeDown, DeleteTable }
+
+/** 찾기 창: 찾는 글자, 결과(null 이면 찾는 중), 결과가 상한에 닿아 더 있을 수 있음 */
+data class SearchState(val query: String = "", val hits: List<TextHit>? = emptyList(), val more: Boolean = false)
+
+/** 쪽 옮기기 요청. 같은 쪽을 다시 골라도 옮기도록 [serial] 을 늘린다 */
+data class PageJump(val page: Int, val serial: Int)
 
 /** 글자 보기 창 내용. [text] 가 null 이면 읽는 중, [unavailable] 이면 이 쪽 글자를 읽을 수 없음 */
 data class PageText(val page: Int, val text: String? = null, val unavailable: Boolean = false)

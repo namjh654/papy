@@ -29,6 +29,9 @@ import io.github.namjh654.papy.feature.documents.TextPos
 import io.github.namjh654.papy.feature.documents.TextRange
 import io.github.namjh654.papy.feature.documents.TextStyle
 import io.github.namjh654.papy.feature.documents.UndoResult
+import io.github.namjh654.papy.feature.documents.OutlineEntry
+import io.github.namjh654.papy.feature.documents.TextHit
+import io.github.namjh654.papy.feature.documents.UnsupportedCount
 import java.io.File
 import java.nio.ByteBuffer
 import java.util.concurrent.ConcurrentHashMap
@@ -49,6 +52,9 @@ import uniffi.papy_ffi.PapyException
 
 /** 문서 하나의 최대 크기(엔진 상한과 같은 1 GiB 보다 작게: 휴대폰 메모리) */
 private const val MAX_BYTES = 256L * 1024 * 1024
+/** 찾은 글자 앞뒤로 붙이는 글자 수(엔진과 같게) */
+private const val CONTEXT = 24
+private val WHITESPACE = Regex("\\s+")
 
 /**
  * Android 문서 엔진: HWP·HWPX·DOCX 는 Rust 엔진(UniFFI), PDF 는 운영체제 PdfRenderer(ADR 0006).
@@ -197,6 +203,55 @@ class AndroidDocumentEngine(private val context: Context) : DocumentEngine {
             }
         }
         return runCatching { rust.extractText(session.toULong(), page.toUInt()) }.getOrNull()
+    }
+
+    override fun outline(session: Long): List<OutlineEntry> {
+        // PdfRenderer 는 책갈피를 읽지 못한다.
+        if (pdfs.containsKey(session)) return emptyList()
+        return runCatching {
+            rust.outline(session.toULong()).map { OutlineEntry(it.title, it.page?.toInt(), it.depth.toInt()) }
+        }.getOrDefault(emptyList())
+    }
+
+    override fun findText(session: Long, query: String, max: Int): List<TextHit> {
+        if (pdfs.containsKey(session)) return findInPdf(session, query, max)
+        return runCatching {
+            rust.findText(session.toULong(), query, max.toUInt()).map { TextHit(it.page.toInt(), it.before, it.matched, it.after) }
+        }.getOrDefault(emptyList())
+    }
+
+    /** PDF 는 쪽 글자(Android 15+)에서 찾는다. 대소문자·공백 종류는 가리지 않는다 */
+    private fun findInPdf(session: Long, query: String, max: Int): List<TextHit> {
+        val needle = query.trim().replace(WHITESPACE, " ")
+        if (needle.isEmpty()) return emptyList()
+        val hits = mutableListOf<TextHit>()
+        val pages = pageCount(session) ?: return hits
+        for (page in 0 until pages) {
+            val text = pageText(session, page)?.replace(WHITESPACE, " ") ?: continue
+            var from = 0
+            while (hits.size < max) {
+                val at = text.indexOf(needle, from, ignoreCase = true)
+                if (at < 0) break
+                val end = at + needle.length
+                hits += TextHit(
+                    page = page,
+                    before = text.substring((at - CONTEXT).coerceAtLeast(0), at).trimStart(),
+                    matched = text.substring(at, end),
+                    after = text.substring(end, (end + CONTEXT).coerceAtMost(text.length)).trimEnd(),
+                )
+                from = end
+            }
+            if (hits.size >= max) break
+        }
+        return hits
+    }
+
+    override fun unsupportedObjects(session: Long, page: Int): UnsupportedCount {
+        if (pdfs.containsKey(session)) return UnsupportedCount()
+        return runCatching {
+            val count = rust.unsupportedObjects(session.toULong(), page.toUInt())
+            UnsupportedCount(placeholders = count.placeholders.toInt(), missingImages = count.missingImages.toInt())
+        }.getOrDefault(UnsupportedCount())
     }
 
     override fun pageCount(session: Long): Int? {

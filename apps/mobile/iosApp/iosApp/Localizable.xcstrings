@@ -1469,13 +1469,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%1$lld element(s) in this document, such as grouped shapes or charts, can't be shown yet."
+            "value" : "%1$lld element(s) in this document, such as charts or endnotes, can't be shown yet."
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "이 문서의 요소 %1$lld개(묶음 도형·차트 등)는 아직 옮기지 못해 보이지 않습니다."
+            "value" : "이 문서의 요소 %1$lld개(차트·미주 등)는 아직 옮기지 못해 보이지 않습니다."
           }
         }
       }
@@ -1493,6 +1493,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "문서를 여는 중…"
+          }
+        }
+      }
+    },
+    "viewer_outline" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Outline"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "목차"
           }
         }
       }
@@ -1748,6 +1765,108 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "저장했습니다"
+          }
+        }
+      }
+    },
+    "viewer_search" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Find"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "찾기"
+          }
+        }
+      }
+    },
+    "viewer_search_count" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld match(es)"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld개 찾음"
+          }
+        }
+      }
+    },
+    "viewer_search_hint" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Find in document"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "문서에서 찾기"
+          }
+        }
+      }
+    },
+    "viewer_search_more" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "More than %1$lld matches"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld개 넘게 찾음"
+          }
+        }
+      }
+    },
+    "viewer_search_none" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No matches."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "찾는 글자가 없습니다."
+          }
+        }
+      }
+    },
+    "viewer_search_page" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "p. %1$lld"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld쪽"
           }
         }
       }
@@ -2156,6 +2275,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "되돌리기"
+          }
+        }
+      }
+    },
+    "viewer_unsupported_images" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld image(s) on this page are shown as empty picture frames because the document has no image data for them."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 쪽의 그림 %1$lld개는 문서에 그림 데이터가 없어 빈 그림 자리로 표시했습니다."
+          }
+        }
+      }
+    },
+    "viewer_unsupported_placeholders" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld chart(s) or object(s) on this page can't be shown and are drawn as dashed placeholders."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 쪽의 차트·개체 %1$lld개는 표시하지 못해 자리만 점선으로 그렸습니다."
           }
         }
       }

@@ -94,7 +94,16 @@
     <string name="viewer_text_unavailable">이 쪽에서 읽을 수 있는 글자가 없습니다. 스캔한 이미지일 수 있습니다.</string>
     <string name="viewer_text_copy">복사</string>
     <string name="viewer_text_copied">복사했습니다</string>
-    <string name="viewer_loss">이 문서의 요소 %1$d개(묶음 도형·차트 등)는 아직 옮기지 못해 보이지 않습니다.</string>
+    <string name="viewer_loss">이 문서의 요소 %1$d개(차트·미주 등)는 아직 옮기지 못해 보이지 않습니다.</string>
+    <string name="viewer_outline">목차</string>
+    <string name="viewer_search">찾기</string>
+    <string name="viewer_search_hint">문서에서 찾기</string>
+    <string name="viewer_search_none">찾는 글자가 없습니다.</string>
+    <string name="viewer_search_count">%1$d개 찾음</string>
+    <string name="viewer_search_more">%1$d개 넘게 찾음</string>
+    <string name="viewer_search_page">%1$d쪽</string>
+    <string name="viewer_unsupported_placeholders">이 쪽의 차트·개체 %1$d개는 표시하지 못해 자리만 점선으로 그렸습니다.</string>
+    <string name="viewer_unsupported_images">이 쪽의 그림 %1$d개는 문서에 그림 데이터가 없어 빈 그림 자리로 표시했습니다.</string>
     <string name="viewer_page_failed">이 쪽을 그리지 못했습니다</string>
     <string name="common_close">닫기</string>
     <!-- 문서 편집(feature:documents) -->

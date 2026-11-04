@@ -737,6 +737,8 @@ internal object IntegrityCheckingUniffiLib {
     ): Int
     external fun uniffi_papy_ffi_checksum_method_papyengine_undo_depth(
     ): Int
+    external fun uniffi_papy_ffi_checksum_method_papyengine_unsupported_objects(
+    ): Int
     external fun uniffi_papy_ffi_checksum_method_papyengine_word_at(
     ): Int
     external fun uniffi_papy_ffi_checksum_constructor_papyengine_new(
@@ -827,6 +829,8 @@ internal object UniffiLib {
     ): RustBuffer.ByValue
     external fun uniffi_papy_ffi_fn_method_papyengine_undo_depth(`ptr`: Long,`sessionId`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Int
+    external fun uniffi_papy_ffi_fn_method_papyengine_unsupported_objects(`ptr`: Long,`sessionId`: Long,`page`: Int,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
     external fun uniffi_papy_ffi_fn_method_papyengine_word_at(`ptr`: Long,`sessionId`: Long,`position`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     external fun uniffi_papy_ffi_fn_func_engine_version(uniffi_out_err: UniffiRustCallStatus, 
@@ -1041,6 +1045,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_papy_ffi_checksum_method_papyengine_undo_depth() and 0xFFFF) != 39136) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if ((lib.uniffi_papy_ffi_checksum_method_papyengine_unsupported_objects() and 0xFFFF) != 47452) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_papy_ffi_checksum_method_papyengine_word_at() and 0xFFFF) != 36597) {
@@ -1627,6 +1634,11 @@ public interface PapyEngineInterface {
      * 지금 되돌릴 수 있는 단계 수.
      */
     fun `undoDepth`(`sessionId`: kotlin.ULong): kotlin.UInt
+    
+    /**
+     * 쪽에서 제대로 그리지 못한 개체 수. 쪽을 다시 배치하므로 보이는 쪽에 한 번씩만 부른다.
+     */
+    fun `unsupportedObjects`(`sessionId`: kotlin.ULong, `page`: kotlin.UInt): UnsupportedCount
     
     /**
      * 위치가 든 단어의 범위(두 번 눌러 고르기). 단어가 아니면 빈 범위.
@@ -2332,6 +2344,25 @@ open class PapyEngine: Disposable, AutoCloseable, PapyEngineInterface
         it,
         
         FfiConverterULong.lower(`sessionId`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    /**
+     * 쪽에서 제대로 그리지 못한 개체 수. 쪽을 다시 배치하므로 보이는 쪽에 한 번씩만 부른다.
+     */
+    @Throws(PapyException::class)override fun `unsupportedObjects`(`sessionId`: kotlin.ULong, `page`: kotlin.UInt): UnsupportedCount {
+            return FfiConverterTypeUnsupportedCount.lift(
+    callWithHandle {
+    uniffiRustCallWithError(PapyException) { _status ->
+    UniffiLib.uniffi_papy_ffi_fn_method_papyengine_unsupported_objects(
+        it,
+        
+        FfiConverterULong.lower(`sessionId`),
+        FfiConverterUInt.lower(`page`),_status)
 }
     }
     )
@@ -3424,6 +3455,53 @@ public object FfiConverterTypeTextHit: FfiConverterRustBuffer<TextHit> {
             FfiConverterString.write(value.`before`, buf)
             FfiConverterString.write(value.`matched`, buf)
             FfiConverterString.write(value.`after`, buf)
+    }
+}
+
+
+
+/**
+ * 쪽에서 제대로 그리지 못한 개체 수.
+ */
+data class UnsupportedCount (
+    /**
+     * 차트·OLE 등 자리만 점선으로 그린 개체
+     */
+    var `placeholders`: kotlin.UInt
+    , 
+    /**
+     * 문서에 그림 데이터가 없어 비워 둔 그림
+     */
+    var `missingImages`: kotlin.UInt
+    
+){
+    
+
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeUnsupportedCount: FfiConverterRustBuffer<UnsupportedCount> {
+    override fun read(buf: ByteBuffer): UnsupportedCount {
+        return UnsupportedCount(
+            FfiConverterUInt.read(buf),
+            FfiConverterUInt.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: UnsupportedCount) = (
+            FfiConverterUInt.allocationSize(value.`placeholders`) +
+            FfiConverterUInt.allocationSize(value.`missingImages`)
+    )
+
+    override fun write(value: UnsupportedCount, buf: ByteBuffer) {
+            FfiConverterUInt.write(value.`placeholders`, buf)
+            FfiConverterUInt.write(value.`missingImages`, buf)
     }
 }
 

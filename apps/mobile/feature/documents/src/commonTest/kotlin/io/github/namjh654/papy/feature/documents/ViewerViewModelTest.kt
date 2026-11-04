@@ -2,6 +2,8 @@ package io.github.namjh654.papy.feature.documents
 
 import io.github.namjh654.papy.core.data.storage.LocalStorage
 import app.cash.turbine.test
+import io.github.namjh654.papy.feature.documents.viewer.MAX_HITS
+import io.github.namjh654.papy.feature.documents.viewer.PageJump
 import io.github.namjh654.papy.feature.documents.viewer.PageText
 import io.github.namjh654.papy.feature.documents.viewer.StyleToggle
 import io.github.namjh654.papy.feature.documents.viewer.TableCommand
@@ -11,6 +13,7 @@ import io.github.namjh654.papy.feature.documents.viewer.ViewerViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
@@ -62,6 +65,21 @@ class FakeEngine(
     }
     override fun pageSize(session: Long, page: Int) = if (page == 1) null else PageSizePt(100f + page, 200f)
     override fun pageText(session: Long, page: Int) = if (page == 0) "첫 쪽" else null
+    var outlineCalls = 0
+    override fun outline(session: Long): List<OutlineEntry> {
+        outlineCalls++
+        return listOf(OutlineEntry("1. 개요", 0, 0), OutlineEntry("가. 목적", 2, 1))
+    }
+    val queries = mutableListOf<String>()
+    override fun findText(session: Long, query: String, max: Int): List<TextHit> {
+        queries += query
+        return List(minOf(max, if (query == "많이") 1000 else 2)) { TextHit(page = it % pages, before = "앞 ", matched = query, after = " 뒤") }
+    }
+    val unsupportedPages = mutableListOf<Int>()
+    override fun unsupportedObjects(session: Long, page: Int): UnsupportedCount {
+        unsupportedPages += page
+        return if (page == 2) UnsupportedCount(placeholders = 1) else UnsupportedCount()
+    }
     override fun pageCount(session: Long) = pages
     override fun paragraphAt(session: Long, page: Int, x: Float, y: Float): ParagraphHit? {
         val index = y.toInt() / 100
@@ -229,6 +247,60 @@ class ViewerViewModelTest {
         vm.hideText()
         assertNull(vm.uiState.value.text)
         assertEquals(DocumentKind.Hwp, recents.items.value.single().kind)
+    }
+
+    @Test
+    fun outlineSearchAndUnsupportedObjects() = runTest(dispatcher) {
+        val engine = FakeEngine()
+        val vm = ViewerViewModel("ref", "a.hwp", engine, recents(), io = dispatcher)
+        advanceUntilIdle()
+        // 목차는 열 때 읽고, 항목을 고르면 창을 닫고 그 쪽으로 옮긴다
+        assertEquals(2, vm.uiState.value.outline.size)
+        vm.showOutline()
+        assertTrue(vm.uiState.value.showOutline)
+        vm.openOutlineEntry(2)
+        assertFalse(vm.uiState.value.showOutline)
+        assertEquals(PageJump(2, 1), vm.uiState.value.jump)
+        assertEquals(2, vm.uiState.value.currentPage)
+        // 2쪽에는 그리지 못한 개체가 있다(잠시 기다렸다가 확인한다)
+        advanceUntilIdle()
+        assertEquals(UnsupportedCount(placeholders = 1), vm.uiState.value.unsupported)
+        // 옮기지 못한 요소 안내가 떠 있는 동안은 겹쳐 띄우지 않는다
+        assertFalse(vm.uiState.value.showUnsupported)
+        vm.dismissLoss()
+        assertTrue(vm.uiState.value.showUnsupported)
+        vm.dismissUnsupported()
+        assertFalse(vm.uiState.value.showUnsupported)
+        // 같은 쪽을 다시 골라도 옮기도록 번호가 바뀐다
+        vm.goTo(2)
+        assertEquals(PageJump(2, 2), vm.uiState.value.jump)
+        vm.goTo(99)
+        assertEquals(PageJump(2, 2), vm.uiState.value.jump)
+
+        // 찾기: 빠르게 친 글자는 마지막 것만 찾는다
+        vm.showSearch()
+        assertTrue(vm.uiState.value.showSearch)
+        vm.searchQuery("가")
+        vm.searchQuery("가나")
+        assertNull(vm.uiState.value.search?.hits)
+        advanceUntilIdle()
+        assertEquals(listOf("가나"), engine.queries)
+        assertEquals(2, vm.uiState.value.search?.hits?.size)
+        assertFalse(vm.uiState.value.search!!.more)
+        vm.searchQuery("많이")
+        advanceUntilIdle()
+        assertEquals(MAX_HITS, vm.uiState.value.search?.hits?.size)
+        assertTrue(vm.uiState.value.search!!.more)
+        vm.openHit(1)
+        assertEquals(1, vm.uiState.value.currentPage)
+        assertFalse(vm.uiState.value.showSearch)
+        // 다시 열면 앞의 결과가 남아 있다
+        vm.showSearch()
+        assertEquals("많이", vm.uiState.value.search?.query)
+        vm.searchQuery(" ")
+        assertEquals(emptyList(), vm.uiState.value.search?.hits)
+        vm.hideSearch()
+        assertFalse(vm.uiState.value.showSearch)
     }
 
     @Test

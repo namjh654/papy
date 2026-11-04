@@ -15,7 +15,11 @@ import io.github.namjh654.papy.feature.documents.RecentDocuments
 import io.github.namjh654.papy.feature.documents.TextPos
 import io.github.namjh654.papy.feature.documents.TextRange
 import io.github.namjh654.papy.feature.documents.TextStyle
+import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.flow.Flow
@@ -36,6 +40,10 @@ private const val PICTURE_MAX_PAGE_FRACTION = 0.6f
 private const val PICTURE_STEP = 1.25f
 private const val MIN_PICTURE = 8f
 private const val MAX_PICTURE = 2000f
+/** 찾기 결과 상한, 글자를 칠 때 찾기 전에 기다리는 시간, 쪽을 넘긴 뒤 그리지 못한 개체를 확인하기 전 기다리는 시간 */
+const val MAX_HITS = 300
+private const val SEARCH_DELAY_MS = 300L
+private const val UNSUPPORTED_DELAY_MS = 400L
 
 /**
  * 문서 보기·편집: 열기 → (암호) → 쪽 크기 읽기. 편집 모드에서는 커서를 놓고 글자를 치거나 지우고,
@@ -66,6 +74,9 @@ class ViewerViewModel(
     private val engineLock = Mutex()
     /** 쪽마다 표·그림 자리(편집하면 비운다) */
     private val objectCache = mutableMapOf<Int, List<PageObject>>()
+    private var searchJob: Job? = null
+    private var unsupportedJob: Job? = null
+    private var jumps = 0
 
     init {
         open(password = null)
@@ -82,6 +93,73 @@ class ViewerViewModel(
     fun pageVisible(index: Int) {
         if (index in 0 until currentState.pageCount && index != currentState.currentPage) {
             setState { copy(currentPage = index) }
+            checkUnsupported()
+        }
+    }
+
+    /** 쪽으로 옮긴다(목차·찾기 결과) */
+    fun goTo(page: Int) {
+        if (page !in 0 until currentState.pageCount) return
+        jumps += 1
+        setState { copy(jump = PageJump(page, jumps), currentPage = page) }
+        checkUnsupported()
+    }
+
+    // --- 목차·찾기 ---
+
+    fun showOutline() {
+        if (currentState.outline.isNotEmpty()) setState { copy(showOutline = true) }
+    }
+
+    fun hideOutline() = setState { copy(showOutline = false) }
+
+    /** 목차 항목을 고르면 창을 닫고 그 쪽으로 옮긴다 */
+    fun openOutlineEntry(page: Int) {
+        setState { copy(showOutline = false) }
+        goTo(page)
+    }
+
+    fun showSearch() = setState { copy(showSearch = true, search = search ?: SearchState()) }
+
+    fun hideSearch() = setState { copy(showSearch = false) }
+
+    /** 찾는 글자가 바뀌었다. 잠시 기다렸다가 찾는다(앞의 찾기는 버린다) */
+    fun searchQuery(query: String) {
+        val id = session ?: return
+        searchJob?.cancel()
+        if (query.isBlank()) {
+            setState { copy(search = SearchState(query)) }
+            return
+        }
+        setState { copy(search = SearchState(query, hits = null)) }
+        searchJob = viewModelScope.launch {
+            delay(SEARCH_DELAY_MS)
+            val hits = withContext(io) { engine.findText(id, query, MAX_HITS + 1) }
+            setState {
+                if (search?.query != query) this
+                else copy(search = SearchState(query, hits.take(MAX_HITS), more = hits.size > MAX_HITS))
+            }
+        }
+    }
+
+    /** 찾은 자리를 고르면 창을 닫고 그 쪽으로 옮긴다(찾은 글자는 남겨 다시 열면 이어 본다) */
+    fun openHit(page: Int) {
+        setState { copy(showSearch = false) }
+        goTo(page)
+    }
+
+    fun dismissUnsupported() = setState { copy(unsupportedDismissed = true) }
+
+    /** 지금 쪽에 그리지 못한 개체가 있는지 본다(쪽을 넘길 때마다 부르지 않게 잠시 기다린다) */
+    private fun checkUnsupported() {
+        val id = session ?: return
+        if (currentState.unsupportedDismissed) return
+        unsupportedJob?.cancel()
+        val page = currentState.currentPage
+        unsupportedJob = viewModelScope.launch {
+            delay(UNSUPPORTED_DELAY_MS)
+            val count = withContext(io) { engine.unsupportedObjects(id, page) }
+            setState { if (currentPage == page) copy(unsupported = count) else this }
         }
     }
 
@@ -473,8 +551,11 @@ class ViewerViewModel(
         objectCache.clear()
         val count = engine.pageCount(id) ?: currentState.pageCount
         val sizes = (0 until count).map { engine.pageSize(id, it) ?: FALLBACK_SIZE }
+        // 제목을 고치거나 쪽이 밀리면 목차도 바뀐다.
+        val outline = engine.outline(id)
         setState {
             copy(
+                outline = outline,
                 document = document?.copy(pageCount = sizes.size),
                 pageSizes = sizes,
                 currentPage = currentPage.coerceIn(0, (sizes.size - 1).coerceAtLeast(0)),
@@ -510,6 +591,9 @@ class ViewerViewModel(
             copy(phase = ViewerPhase.Ready, document = document, pageSizes = sizes, wrongPassword = false, currentPage = 0)
         }
         recents.add(ref, currentState.name, document.kind)
+        checkUnsupported()
+        val outline = withContext(io) { engine.outline(document.session) }
+        setState { copy(outline = outline) }
     }
 
     override fun onCleared() {

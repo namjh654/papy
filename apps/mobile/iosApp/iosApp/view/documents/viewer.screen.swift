@@ -24,6 +24,8 @@ struct ViewerScreen: View {
     @State private var pickedPicture: PhotosPickerItem?
     /// 표 넣기 창
     @State private var tableDialog = false
+    /// 찾기 창이 열리면 바로 칠 수 있게 입력칸에 초점을 둔다
+    @FocusState private var searchFocused: Bool
     @Environment(\.dismiss) private var dismiss
 
     init(ref: String, name: String) {
@@ -64,7 +66,8 @@ struct ViewerScreen: View {
                             doubleTap: { page, x, y in flush(); model.viewModel.doubleTap(page: Int32(page), x: x, y: y) },
                             longPress: { page, x, y in flush(); model.viewModel.longPress(page: Int32(page), x: x, y: y) }
                         ) : nil,
-                        onPageVisible: { model.viewModel.pageVisible(index: Int32($0)) }
+                        onPageVisible: { model.viewModel.pageVisible(index: Int32($0)) },
+                        jump: state.jump
                     )
                     .overlay(alignment: .bottom) {
                         Text(String(format: String(localized: "viewer_page_indicator"), Int(state.currentPage) + 1, Int(state.pageCount)))
@@ -98,19 +101,13 @@ struct ViewerScreen: View {
                     .background(PapyColor.primary, in: Capsule())
                     .padding(PapySpacing.sm)
             }
+            if state.phase == .ready && state.showUnsupported {
+                NoticeView(text: unsupportedMessage) { model.viewModel.dismissUnsupported() }
+            }
             if state.phase == .ready && state.showLoss {
-                HStack {
-                    Text(String(format: String(localized: "viewer_loss"), Int(state.document?.droppedObjects ?? 0)))
-                        .papyFont(PapyFont.bodySmall)
-                        .foregroundStyle(PapyColor.surface)
-                    Button { model.viewModel.dismissLoss() } label: {
-                        PapyIcon("papy_ic_close", size: PapySize.icon).foregroundStyle(PapyColor.surface)
-                    }
-                    .accessibilityLabel(String(localized: "common_close"))
+                NoticeView(text: String(format: String(localized: "viewer_loss"), Int(state.document?.droppedObjects ?? 0))) {
+                    model.viewModel.dismissLoss()
                 }
-                .padding(PapySpacing.md)
-                .background(PapyColor.onSurface, in: RoundedRectangle(cornerRadius: PapyRadius.lg))
-                .padding(PapySpacing.sm)
             }
         }
         .safeAreaInset(edge: .bottom) {
@@ -178,6 +175,14 @@ struct ViewerScreen: View {
                             .disabled(state.exporting)
                             .accessibilityLabel(String(localized: "viewer_export_pdf"))
                     }
+                    if !state.editing && !state.outline.isEmpty {
+                        Button { model.viewModel.showOutline() } label: { Image(systemName: "list.bullet.indent") }
+                            .accessibilityLabel(String(localized: "viewer_outline"))
+                    }
+                    if !state.editing {
+                        Button { model.viewModel.showSearch() } label: { Image(systemName: "magnifyingglass") }
+                            .accessibilityLabel(String(localized: "viewer_search"))
+                    }
                     Button { model.viewModel.showText() } label: { PapyIcon("papy_ic_copy", size: PapySize.icon) }
                         .accessibilityLabel(String(localized: "viewer_text"))
                 }
@@ -224,6 +229,32 @@ struct ViewerScreen: View {
             if ProcessInfo.processInfo.arguments.contains("-papyExportSmoke") {
                 model.viewModel.toggleEditing()
                 exportPdf()
+            }
+        }
+        // 개발 확인용: `-papyNavSmoke` 이면 목차 열기 → 마지막 항목으로 → 찾기 열고 "요구" 찾기(시뮬레이터 점검)
+        .task(id: state.phase) {
+            guard ProcessInfo.processInfo.arguments.contains("-papyNavSmoke"), state.phase == .ready else { return }
+            for _ in 0..<50 where model.state.outline.isEmpty { try? await Task.sleep(for: .milliseconds(100)) }
+            model.viewModel.showOutline()
+            try? await Task.sleep(for: .seconds(3))
+            if let last = model.state.outline.last?.page { model.viewModel.openOutlineEntry(page: last.int32Value) }
+            try? await Task.sleep(for: .seconds(3))
+            model.viewModel.showSearch()
+            try? await Task.sleep(for: .seconds(1))
+            model.viewModel.searchQuery(query: "요구")
+        }
+        // 개발 확인용: `-papyCellSmoke` 이면 편집 → 첫 표 첫 칸 누르기 → 아래로 세 번(2초마다, 시뮬레이터 점검)
+        .task(id: state.phase) {
+            guard ProcessInfo.processInfo.arguments.contains("-papyCellSmoke"), state.phase == .ready, state.canEdit,
+                  let session = state.document?.session,
+                  let cell = PapyDocumentEngine.shared.pageObjects(session: session, page: 0)
+                    .first(where: { $0.kind == .table })?.cells.first
+            else { return }
+            model.viewModel.toggleEditing()
+            model.viewModel.tap(page: 0, x: cell.box.x + 30, y: cell.box.y + 4)
+            for _ in 0..<3 {
+                try? await Task.sleep(for: .seconds(3))
+                model.viewModel.moveCaret(move: .down)
             }
         }
         // 개발 확인용: `-papyTableSmoke` 이면 표 넣기 → 칸에 치기 → 행 넣기 → 그림 넣기 → 크게 → 저장
@@ -280,6 +311,106 @@ struct ViewerScreen: View {
         .sheet(isPresented: Binding(get: { state.text != nil }, set: { if !$0 { model.viewModel.hideText() } })) {
             textSheet
         }
+        .sheet(isPresented: Binding(get: { state.showOutline }, set: { if !$0 { model.viewModel.hideOutline() } })) {
+            outlineSheet
+        }
+        .sheet(isPresented: Binding(get: { state.showSearch }, set: { if !$0 { model.viewModel.hideSearch() } })) {
+            searchSheet
+        }
+    }
+
+    private var unsupportedMessage: String {
+        var parts: [String] = []
+        if state.unsupported.placeholders > 0 {
+            parts.append(String(format: String(localized: "viewer_unsupported_placeholders"), Int(state.unsupported.placeholders)))
+        }
+        if state.unsupported.missingImages > 0 {
+            parts.append(String(format: String(localized: "viewer_unsupported_images"), Int(state.unsupported.missingImages)))
+        }
+        return parts.joined(separator: " ")
+    }
+
+    private var outlineSheet: some View {
+        NavigationStack {
+            List(Array(state.outline.enumerated()), id: \.offset) { _, entry in
+                Button {
+                    if let page = entry.page { model.viewModel.openOutlineEntry(page: page.int32Value) }
+                } label: {
+                    Text(entry.title)
+                        .papyFont(PapyFont.body)
+                        .foregroundStyle(entry.page == nil ? PapyColor.onSurfaceVariant : PapyColor.onSurface)
+                        .lineLimit(2)
+                        .padding(.leading, PapySpacing.md * CGFloat(min(Int(entry.depth), 6)))
+                }
+                .disabled(entry.page == nil)
+            }
+            .listStyle(.plain)
+            .navigationTitle(String(localized: "viewer_outline"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(String(localized: "common_close")) { model.viewModel.hideOutline() }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+    }
+
+    private var searchSheet: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                TextField(
+                    String(localized: "viewer_search_hint"),
+                    text: Binding(get: { state.search?.query ?? "" }, set: { model.viewModel.searchQuery(query: $0) })
+                )
+                .textFieldStyle(.roundedBorder)
+                .submitLabel(.search)
+                .focused($searchFocused)
+                .onAppear { searchFocused = true }
+                .padding()
+                if let search = state.search, !search.query.trimmingCharacters(in: .whitespaces).isEmpty {
+                    if let hits = search.hits {
+                        if hits.isEmpty {
+                            Text(String(localized: "viewer_search_none"))
+                                .papyFont(PapyFont.body)
+                                .foregroundStyle(PapyColor.onSurfaceVariant)
+                                .padding()
+                        } else {
+                            Text(String(format: String(localized: search.more ? "viewer_search_more" : "viewer_search_count"), hits.count))
+                                .papyFont(PapyFont.caption)
+                                .foregroundStyle(PapyColor.onSurfaceVariant)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal)
+                            List(Array(hits.enumerated()), id: \.offset) { _, hit in
+                                Button { model.viewModel.openHit(page: hit.page) } label: {
+                                    HStack(alignment: .firstTextBaseline) {
+                                        Text(String(format: String(localized: "viewer_search_page"), Int(hit.page) + 1))
+                                            .papyFont(PapyFont.bodySmall)
+                                            .foregroundStyle(PapyColor.onSurfaceVariant)
+                                            .frame(minWidth: 44, alignment: .leading)
+                                        (Text(hit.before) + Text(hit.matched).bold().foregroundColor(PapyColor.primary) + Text(hit.after))
+                                            .papyFont(PapyFont.bodySmall)
+                                            .foregroundStyle(PapyColor.onSurface)
+                                    }
+                                }
+                            }
+                            .listStyle(.plain)
+                        }
+                    } else {
+                        PapyLoadingIndicator().padding()
+                    }
+                }
+                Spacer(minLength: 0)
+            }
+            .navigationTitle(String(localized: "viewer_search"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(String(localized: "common_close")) { model.viewModel.hideSearch() }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
     }
 
     private func observeEvents() async {
@@ -445,6 +576,27 @@ struct ViewerScreen: View {
     }
 }
 
+/// 쪽 위에 뜨는 안내(닫기 단추)
+private struct NoticeView: View {
+    let text: String
+    let onClose: () -> Void
+
+    var body: some View {
+        HStack {
+            Text(text)
+                .papyFont(PapyFont.bodySmall)
+                .foregroundStyle(PapyColor.surface)
+            Button(action: onClose) {
+                PapyIcon("papy_ic_close", size: PapySize.icon).foregroundStyle(PapyColor.surface)
+            }
+            .accessibilityLabel(String(localized: "common_close"))
+        }
+        .padding(PapySpacing.md)
+        .background(PapyColor.onSurface, in: RoundedRectangle(cornerRadius: PapyRadius.lg))
+        .padding(PapySpacing.sm)
+    }
+}
+
 /// 쪽 목록. 확대하는 동안은 그림을 늘려 보이고, 손을 떼면 확대 배율에 맞춰 보이는 쪽을 다시 그린다(쪽당 최대 1200만 픽셀).
 private struct PagesView: View {
     let session: Int64
@@ -457,6 +609,8 @@ private struct PagesView: View {
     /// 편집 모드에서 쪽을 누르는 동작(쪽, x pt, y pt)
     let gestures: PageGestures?
     let onPageVisible: (Int) -> Void
+    /// 목차·찾기에서 고른 쪽(번호가 바뀔 때마다 옮긴다)
+    var jump: PageJump? = nil
 
     @State private var zoom: CGFloat = 1
     @GestureState private var pinch: CGFloat = 1
@@ -470,6 +624,7 @@ private struct PagesView: View {
     var body: some View {
         GeometryReader { geometry in
             let renderWidth = geometry.size.width * UIScreen.main.scale * 1.25 * zoom
+            ScrollViewReader { proxy in
             ScrollView([.vertical, .horizontal]) {
                 LazyVStack(spacing: PapySpacing.sm) {
                     ForEach(Array(sizes.enumerated()), id: \.offset) { index, size in
@@ -484,11 +639,16 @@ private struct PagesView: View {
                         )
                             .aspectRatio(CGFloat(size.width / max(size.height, 1)), contentMode: .fit)
                             .frame(width: (geometry.size.width - PapySpacing.sm * 2) * zoom * pinch)
+                            .id(index)
                             .onAppear { onPageVisible(index) }
                             .accessibilityLabel(String(format: String(localized: "viewer_page_indicator"), index + 1, sizes.count))
                     }
                 }
                 .padding(PapySpacing.sm)
+            }
+            .onChange(of: jump?.serial) { _, _ in
+                if let jump { proxy.scrollTo(Int(jump.page), anchor: .top) }
+            }
             }
             .gesture(
                 MagnifyGesture()

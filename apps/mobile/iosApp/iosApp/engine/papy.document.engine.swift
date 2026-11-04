@@ -145,6 +145,60 @@ final class PapyDocumentEngine: NSObject, DocumentEngine, @unchecked Sendable {
         return KotlinInt(int: Int32(clamping: count))
     }
 
+    func outline(session: Int64) -> [Core.OutlineEntry] {
+        if let document = pdf(session) {
+            var out: [Core.OutlineEntry] = []
+            func walk(_ node: PDFOutline, depth: Int32) {
+                for i in 0..<node.numberOfChildren {
+                    guard let child = node.child(at: i) else { continue }
+                    let page = child.destination?.page.map { KotlinInt(int: Int32(document.index(for: $0))) }
+                    out.append(Core.OutlineEntry(title: child.label ?? "", page: page, depth: depth))
+                    walk(child, depth: depth + 1)
+                }
+            }
+            if let root = document.outlineRoot { walk(root, depth: 0) }
+            return out
+        }
+        guard let entries = try? rust.outline(sessionId: UInt64(bitPattern: session)) else { return [] }
+        return entries.map { entry in
+            Core.OutlineEntry(title: entry.title, page: entry.page.map { KotlinInt(int: Int32(clamping: $0)) }, depth: Int32(clamping: entry.depth))
+        }
+    }
+
+    func findText(session: Int64, query: String, max: Int32) -> [Core.TextHit] {
+        if let document = pdf(session) {
+            let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !needle.isEmpty else { return [] }
+            var hits: [Core.TextHit] = []
+            for selection in document.findString(needle, withOptions: [.caseInsensitive]).prefix(Int(max)) {
+                guard let page = selection.pages.first else { continue }
+                let matched = selection.string ?? needle
+                // 앞뒤 글자: 고른 범위를 넓혀 읽고 찾은 글자를 기준으로 나눈다.
+                let context = selection.copy() as? PDFSelection
+                context?.extend(atStart: 24)
+                context?.extend(atEnd: 24)
+                let around = (context?.string ?? matched).replacingOccurrences(of: "\n", with: " ")
+                let range = around.range(of: matched, options: .caseInsensitive)
+                hits.append(Core.TextHit(
+                    page: Int32(document.index(for: page)),
+                    before: range.map { String(around[..<$0.lowerBound]).trimmingCharacters(in: .whitespaces) } ?? "",
+                    matched: matched,
+                    after: range.map { String(around[$0.upperBound...]).trimmingCharacters(in: .whitespaces) } ?? ""
+                ))
+            }
+            return hits
+        }
+        guard let hits = try? rust.findText(sessionId: UInt64(bitPattern: session), query: query, max: UInt32(clamping: max)) else { return [] }
+        return hits.map { Core.TextHit(page: Int32(clamping: $0.page), before: $0.before, matched: $0.matched, after: $0.after) }
+    }
+
+    func unsupportedObjects(session: Int64, page: Int32) -> Core.UnsupportedCount {
+        guard pdf(session) == nil, page >= 0,
+              let count = try? rust.unsupportedObjects(sessionId: UInt64(bitPattern: session), page: UInt32(page))
+        else { return Core.UnsupportedCount(placeholders: 0, missingImages: 0) }
+        return Core.UnsupportedCount(placeholders: Int32(clamping: count.placeholders), missingImages: Int32(clamping: count.missingImages))
+    }
+
     func paragraphAt(session: Int64, page: Int32, x: Float, y: Float) -> ParagraphHit? {
         guard pdf(session) == nil, page >= 0,
               let hit = try? rust.paragraphAt(sessionId: UInt64(bitPattern: session), page: UInt32(page), x: x, y: y)

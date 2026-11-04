@@ -760,6 +760,11 @@ public protocol PapyEngineProtocol: AnyObject, Sendable {
     func undoDepth(sessionId: UInt64) throws  -> UInt32
     
     /**
+     * 쪽에서 제대로 그리지 못한 개체 수. 쪽을 다시 배치하므로 보이는 쪽에 한 번씩만 부른다.
+     */
+    func unsupportedObjects(sessionId: UInt64, page: UInt32) throws  -> UnsupportedCount
+    
+    /**
      * 위치가 든 단어의 범위(두 번 눌러 고르기). 단어가 아니면 빈 범위.
      */
     func wordAt(sessionId: UInt64, position: EnginePosition) throws  -> EngineRange
@@ -1266,6 +1271,20 @@ open func undoDepth(sessionId: UInt64)throws  -> UInt32  {
     uniffi_papy_ffi_fn_method_papyengine_undo_depth(
             self.uniffiCloneHandle(),
         FfiConverterUInt64.lower(sessionId),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * 쪽에서 제대로 그리지 못한 개체 수. 쪽을 다시 배치하므로 보이는 쪽에 한 번씩만 부른다.
+     */
+open func unsupportedObjects(sessionId: UInt64, page: UInt32)throws  -> UnsupportedCount  {
+    return try  FfiConverterTypeUnsupportedCount_lift(try rustCallWithError(FfiConverterTypePapyError_lift) {
+        uniffiCallStatus in
+    uniffi_papy_ffi_fn_method_papyengine_unsupported_objects(
+            self.uniffiCloneHandle(),
+        FfiConverterUInt64.lower(sessionId),
+        FfiConverterUInt32.lower(page),uniffiCallStatus
     )
 })
 }
@@ -2797,6 +2816,75 @@ public func FfiConverterTypeTextHit_lower(_ value: TextHit) -> RustBuffer {
 
 
 /**
+ * 쪽에서 제대로 그리지 못한 개체 수.
+ */
+public struct UnsupportedCount: Equatable, Hashable {
+    /**
+     * 차트·OLE 등 자리만 점선으로 그린 개체
+     */
+    public var placeholders: UInt32
+    /**
+     * 문서에 그림 데이터가 없어 비워 둔 그림
+     */
+    public var missingImages: UInt32
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * 차트·OLE 등 자리만 점선으로 그린 개체
+         */placeholders: UInt32, 
+        /**
+         * 문서에 그림 데이터가 없어 비워 둔 그림
+         */missingImages: UInt32) {
+        self.placeholders = placeholders
+        self.missingImages = missingImages
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension UnsupportedCount: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeUnsupportedCount: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> UnsupportedCount {
+        return
+            try UnsupportedCount(
+                placeholders: FfiConverterUInt32.read(from: &buf), 
+                missingImages: FfiConverterUInt32.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: UnsupportedCount, into buf: inout [UInt8]) {
+        FfiConverterUInt32.write(value.placeholders, into: &buf)
+        FfiConverterUInt32.write(value.missingImages, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeUnsupportedCount_lift(_ buf: RustBuffer) throws -> UnsupportedCount {
+    return try FfiConverterTypeUnsupportedCount.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeUnsupportedCount_lower(_ value: UnsupportedCount) -> RustBuffer {
+    return FfiConverterTypeUnsupportedCount.lower(value)
+}
+
+
+/**
  * 커서 이동 방향.
  */
 
@@ -3723,6 +3811,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_papy_ffi_checksum_method_papyengine_undo_depth() != 39136) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_papy_ffi_checksum_method_papyengine_unsupported_objects() != 47452) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_papy_ffi_checksum_method_papyengine_word_at() != 36597) {
