@@ -1,0 +1,168 @@
+Papy 패치: 큰 표의 쪽 나누기·그리기에서 "행마다 모든 셀 훑기"(행 수 × 셀 수)를 셀 한 번 훑기로 바꾼다.
+
+rhwp v0.8.7(1a76570e). 결과는 바뀌지 않는다 — 계산 순서만 다르다.
+- typeset.rs `rowbreak_table_has_internal_saved_vpos_reset`: 행마다 모든 셀 → 셀마다 한 번
+- typeset/table/continuation/fragment/budget.rs `stored_row_heights`: 행마다 모든 셀 → 셀마다 한 번
+- model/table.rs `declared_width_rows_exceeding`: 행마다 모든 셀 → 셀을 행별로 한 번 나눔
+- layout/table_partial.rs: 셀마다 부르던 `leading_header_rows()`(전체 셀 훑기)를 한 번만
+
+확인(2026-11-04): rhwp 샘플 1,268개·16,320쪽의 쪽마다 픽셀 해시가 패치 전후 같다(`PAPY_CORPUS_PIXELS`),
+쪽 수·크기·글 기준값도 같다. issue2063_huge_cellbreak_table.hwp(161쪽) 열기 70.3 → 4.5초, 모든 쪽 글 31.9 → 4.8초,
+task2070 시장구조조사(314쪽) 열기 10.6 → 2.5초, 모든 쪽 글 30.7 → 1.8초. 업스트림에 알릴 것.
+
+diff --git a/src/model/table.rs b/src/model/table.rs
+index 406dd1b..3264741 100644
+--- a/src/model/table.rs
++++ b/src/model/table.rs
+@@ -697,12 +697,18 @@ impl Table {
+         if col_count == 0 || self.common.width == 0 {
+             return invalid;
+         }
+-        for row in 0..self.row_count {
+-            let mut cells = self
+-                .cells
+-                .iter()
+-                .filter(|cell| cell.row == row && cell.row_span == 1)
+-                .collect::<Vec<_>>();
++        // 셀을 행별로 한 번만 나눈다(행마다 모든 셀을 훑으면 행 수 × 셀 수가 되어 큰 표에서
++        // 쪽마다 느려진다). 행 안 순서는 원래 순서 그대로라 결과가 같다.
++        let mut rows: Vec<Vec<&Cell>> = vec![Vec::new(); usize::from(self.row_count)];
++        for cell in &self.cells {
++            if cell.row_span == 1 {
++                if let Some(bucket) = rows.get_mut(usize::from(cell.row)) {
++                    bucket.push(cell);
++                }
++            }
++        }
++        for (row, mut cells) in rows.into_iter().enumerate() {
++            let row = row as u16;
+             cells.sort_by_key(|cell| cell.col);
+             let mut next_col = 0usize;
+             let mut total = 0u64;
+diff --git a/src/renderer/layout/table_partial.rs b/src/renderer/layout/table_partial.rs
+index d7b7c9c..8a47cdc 100644
+--- a/src/renderer/layout/table_partial.rs
++++ b/src/renderer/layout/table_partial.rs
+@@ -4700,19 +4700,19 @@ impl LayoutEngine {
+                 )
+                 && table.row_count > 1
+                 && table.repeat_header
+-                && !table.leading_header_rows().is_empty()
+                 // 이 보정은 반복 제목행 바로 뒤에서 표 끝까지 걸친 가운데
+                 // 정렬 셀의 저장 물리 높이를 두 조각에 나누는 경우에만 필요하다.
+                 // 일반 83행 교육 표까지 열면 다른 조각이 본문 아래로 밀린다.
+-                && table.cells.iter().any(|cell| {
+-                    cell.row as usize == table.leading_header_rows().len()
++                // 제목행 수는 한 번만 센다(셀마다 다시 세면 셀 수의 제곱이 된다).
++                && Some(table.leading_header_rows().len()).is_some_and(|header_rows| header_rows > 0 && table.cells.iter().any(|cell| {
++                    cell.row as usize == header_rows
+                         && cell.row_span > 1
+                         && cell.row as usize + cell.row_span as usize == table.row_count as usize
+                         && matches!(
+                             cell.vertical_align,
+                             crate::model::table::VerticalAlign::Center
+                         )
+-                })
++                }))
+                 && table.outer_margin_top > 0
+                 && enclosing_cell_ctx.is_none()
+                 && !repeat_fragment_outer_margin
+diff --git a/src/renderer/typeset.rs b/src/renderer/typeset.rs
+index cd56863..a8239c8 100755
+--- a/src/renderer/typeset.rs
++++ b/src/renderer/typeset.rs
+@@ -1821,25 +1821,28 @@ fn rowbreak_row_has_internal_saved_vpos_reset(
+         .cells
+         .iter()
+         .filter(|cell| cell.row as usize == row)
+-        .any(|cell| {
+-            // 저장된 물리 page reset은 cell paragraph 경계에서 시작할 수도 있다. 각
+-            // paragraph 안의 `windows(2)`만 보면 `<OPTN>` 다음 `간 특수 검사`처럼
+-            // p[n]의 마지막 LINE_SEG → p[n+1]의 첫 LINE_SEG reset을 놓친다.
+-            let mut previous_vpos = None;
+-            for para in &cell.paragraphs {
+-                for seg in para
+-                    .line_segs
+-                    .iter()
+-                    .filter(|seg| !is_synthetic_line_seg(seg))
+-                {
+-                    if previous_vpos.is_some_and(|previous| previous > 0 && seg.vertical_pos <= 0) {
+-                        return true;
+-                    }
+-                    previous_vpos = Some(seg.vertical_pos);
+-                }
++        .any(cell_has_internal_saved_vpos_reset)
++}
++
++/// 셀 하나에 저장된 vpos reset이 있는가([`rowbreak_row_has_internal_saved_vpos_reset`]의 셀 단위).
++fn cell_has_internal_saved_vpos_reset(cell: &crate::model::table::Cell) -> bool {
++    // 저장된 물리 page reset은 cell paragraph 경계에서 시작할 수도 있다. 각
++    // paragraph 안의 `windows(2)`만 보면 `<OPTN>` 다음 `간 특수 검사`처럼
++    // p[n]의 마지막 LINE_SEG → p[n+1]의 첫 LINE_SEG reset을 놓친다.
++    let mut previous_vpos = None;
++    for para in &cell.paragraphs {
++        for seg in para
++            .line_segs
++            .iter()
++            .filter(|seg| !is_synthetic_line_seg(seg))
++        {
++            if previous_vpos.is_some_and(|previous| previous > 0 && seg.vertical_pos <= 0) {
++                return true;
+             }
+-            false
+-        })
++            previous_vpos = Some(seg.vertical_pos);
++        }
++    }
++    false
+ }
+ 
+ /// [#7288] «쪽 경계에서» 값 0 «나누지 않음» 의 **원자 규칙**을 이 표에 걸 수 있는가.
+@@ -1894,7 +1897,14 @@ pub(in crate::renderer) fn cell_unit_row_is_atomic_here(
+ 
+ /// RowBreak 표 셀 안에 저장된 vpos reset이 있는지 판별한다.
+ fn rowbreak_table_has_internal_saved_vpos_reset(table: &crate::model::table::Table) -> bool {
+-    (0..table.row_count as usize).any(|row| rowbreak_row_has_internal_saved_vpos_reset(table, row))
++    // 행마다 모든 셀을 훑으면 행 수 × 셀 수가 된다(큰 표에서 쪽마다 불려 조판이 느려진다).
++    // 행 범위 안의 셀을 한 번씩만 본다 — 결과는 같다.
++    let row_count = table.row_count as usize;
++    table
++        .cells
++        .iter()
++        .filter(|cell| (cell.row as usize) < row_count)
++        .any(cell_has_internal_saved_vpos_reset)
+ }
+ 
+ /// Whether every text-bearing cell proves, through its stored line segments,
+diff --git a/src/renderer/typeset/table/continuation/fragment/budget.rs b/src/renderer/typeset/table/continuation/fragment/budget.rs
+index 18464e1..71ec7dc 100644
+--- a/src/renderer/typeset/table/continuation/fragment/budget.rs
++++ b/src/renderer/typeset/table/continuation/fragment/budget.rs
+@@ -924,18 +924,15 @@ impl TypesetEngine {
+             exact_source_row_end.map_or(scan_row_count, |end| scan_row_count.min(end));
+         // [#6123] 저장 행 높이(행 안 row_span==1 셀의 최대 저장 높이). 프레임
+         // 바닥이 진짜 행 경계인지 저장 좌표계에서 검산하는 데 쓴다.
+-        let stored_row_heights: Vec<f64> = (0..row_count)
+-            .map(|row| {
+-                table
+-                    .cells
+-                    .iter()
+-                    .filter(|cell| {
+-                        cell.row as usize == row && cell.row_span == 1 && cell.height < 0x8000_0000
+-                    })
+-                    .map(|cell| hwpunit_to_px(cell.height as i32, self.dpi))
+-                    .fold(0.0f64, f64::max)
+-            })
+-            .collect();
++        // 셀을 한 번만 훑는다(행마다 모든 셀을 훑으면 행 수 × 셀 수가 되어 큰 표에서 느리다).
++        let mut stored_row_heights = vec![0.0f64; row_count];
++        for cell in &table.cells {
++            let row = cell.row as usize;
++            if row < row_count && cell.row_span == 1 && cell.height < 0x8000_0000 {
++                let height = hwpunit_to_px(cell.height as i32, self.dpi);
++                stored_row_heights[row] = stored_row_heights[row].max(height);
++            }
++        }
+         let source_first_fragment_row_end =
+             saved_first_fragment_source_frame.and_then(|(frame_height, _)| {
+                 nearest_saved_rowbreak_frame_row_end(

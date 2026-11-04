@@ -33,7 +33,7 @@
 |---|---|---|---|
 | PDFium 사전 빌드 ([bblanchon/pdfium-binaries](https://github.com/bblanchon/pdfium-binaries)) | chromium/8125 | `scripts/fetch-pdfium.mjs` (타깃별 SHA-256) | `node scripts/fetch-pdfium.mjs [rust-target]` |
 | `pdfium-render` (crate) | =0.9.5 (feature `pdfium_8125`) | `engine/crates/papy-pdf/Cargo.toml` | crates.io |
-| rhwp ([edwardkim/rhwp](https://github.com/edwardkim/rhwp)) | v0.8.7 (`1a76570e833917d15817415a53c09ad61ab3203f`) | `scripts/fetch-rhwp.mjs` | `node scripts/fetch-rhwp.mjs` (sparse, 약 47MB) |
+| rhwp ([edwardkim/rhwp](https://github.com/edwardkim/rhwp)) | v0.8.7 (`1a76570e833917d15817415a53c09ad61ab3203f`) | `scripts/fetch-rhwp.mjs` | `node scripts/fetch-rhwp.mjs` (sparse, 약 47MB). 받은 뒤 `engine/patches/rhwp/*.patch` 적용(큰 표 조판 속도, 결과 같음) |
 | `resvg` (crate) | =0.45.1 | `engine/crates/papy-hwp/Cargo.toml` | crates.io |
 | Noto Sans KR Regular (OFL-1.1) | rhwp v0.8.7 저장소 사본 | `scripts/fetch-rhwp.mjs` | rhwp 받을 때 함께 |
 | rhwp 샘플 문서 모음(MIT, 회귀 점검용) | rhwp v0.8.7 (`1a76570e`) `samples/` | `scripts/fetch-corpus.mjs` | `node scripts/fetch-corpus.mjs` (약 700MB → `tests/corpus/rhwp-samples/`, git 제외) |

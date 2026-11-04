@@ -16,6 +16,7 @@
 //! - `PAPY_CORPUS_ROUNDTRIP=1`: 문서를 같은 형식으로 저장한 뒤 다시 열어 쪽 수·글이 같은지 본다(PDF·보기 전용 HWP 3.x 제외).
 //!   다시 열기 실패는 실패로, 쪽 수·글 차이는 개수만 출력한다(rhwp 쓰기가 줄 정보를 바꿀 수 있다).
 //! - `PAPY_CORPUS_JOBS`: 동시에 여는 문서 수(기본: CPU 수). 시간을 잴 때는 1 로 둔다.
+//! - `PAPY_CORPUS_PIXELS=파일`: 그린 쪽마다 픽셀 해시를 쓴다. 조판 엔진을 고칠 때 전후 두 번 돌려 diff 한다.
 //! - `PAPY_PDFIUM_LIBRARY`: PDFium 라이브러리 경로. 없으면 PDF 는 건너뛴다(기준값 비교에서도 뺀다).
 
 use std::collections::BTreeMap;
@@ -55,6 +56,8 @@ struct Outcome {
     unsupported: usize,
     /// 그중 차트·OLE(점선 자리표시를 그린 것).
     placeholders: usize,
+    /// 그린 쪽마다 픽셀 해시(`PAPY_CORPUS_PIXELS` 로 파일에 쓴다).
+    pixels: Vec<(u32, u64)>,
     /// 첫 쪽 표시 시간(열기 + 첫 쪽 그리기). 그리지 않았으면 `None`.
     first_page: Option<Duration>,
     /// 형식 이름(시간 통계를 형식별로 나눈다).
@@ -174,6 +177,17 @@ fn corpus_opens_renders_and_extracts() {
     );
 
     first_page_report(&results);
+    // 조판 엔진을 고칠 때 그림이 그대로인지 보려고 쪽마다 픽셀 해시를 쓴다(두 번 돌려 diff).
+    if let Some(path) = std::env::var_os("PAPY_CORPUS_PIXELS").map(repo_path) {
+        let mut out = String::new();
+        for (i, outcome) in &results {
+            for (page, hash) in &outcome.pixels {
+                out.push_str(&format!("{}\t{page}\t{hash:016x}\n", names[*i]));
+            }
+        }
+        std::fs::write(&path, out).expect("write pixel hashes");
+        eprintln!("픽셀 해시: {}", path.display());
+    }
 
     if let Some(golden_path) = &golden_path {
         if update {
@@ -205,6 +219,7 @@ impl Outcome {
             outline: 0,
             unsupported: 0,
             placeholders: 0,
+            pixels: Vec::new(),
             first_page: None,
             format: "",
             note: String::new(),
@@ -290,10 +305,15 @@ fn check(engine: &Engine, path: &Path, mode: RenderMode, roundtrip: bool) -> Out
         };
         if draw {
             let t = Instant::now();
-            if let Err(error) = engine.render_page(id, page, &RenderRequest::with_scale(1.0)) {
-                outcome
+            match engine.render_page(id, page, &RenderRequest::with_scale(1.0)) {
+                Ok(bitmap) => {
+                    let mut hash = Fnv::new();
+                    hash.write(&bitmap.pixels);
+                    outcome.pixels.push((page, hash.finish()));
+                }
+                Err(error) => outcome
                     .failures
-                    .push(format!("{page}쪽 그리기 실패 {:?}", error.code));
+                    .push(format!("{page}쪽 그리기 실패 {:?}", error.code)),
             }
             outcome.slowest_page = outcome.slowest_page.max(t.elapsed());
             if page == 0 {

@@ -8,9 +8,13 @@
 //
 // 결과: engine/vendor/rhwp/ (papy-hwp 가 path 의존성으로 쓴다)
 // 버전을 올리면 TAG·COMMIT 을 함께 바꾸고 docs/development/versions.md 를 갱신한다.
+//
+// 받은 뒤 engine/patches/rhwp/*.patch 를 이름 순서로 적용한다(Papy 쪽 성능 수정 등, 업스트림에 알릴 것).
+// 패치 내용이 바뀌면 다시 받는다. rhwp 를 올릴 때는 패치가 아직 필요한지 보고, 업스트림에 들어갔으면 지운다.
 
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -36,7 +40,16 @@ const PATHS = [
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const outDir = join(root, "engine", "vendor", "rhwp");
 const stamp = join(outDir, ".papy-release");
-const expected = `${TAG} ${COMMIT} ${PATHS.join(",")}`;
+const patchDir = join(root, "engine", "patches", "rhwp");
+const patches = existsSync(patchDir)
+  ? readdirSync(patchDir)
+      .filter((name) => name.endsWith(".patch"))
+      .sort()
+      .map((name) => join(patchDir, name))
+  : [];
+const patchHash = createHash("sha256");
+for (const patch of patches) patchHash.update(readFileSync(patch));
+const expected = `${TAG} ${COMMIT} ${PATHS.join(",")} patches:${patchHash.digest("hex").slice(0, 16)}`;
 
 if (existsSync(stamp) && readFileSync(stamp, "utf8").trim() === expected) {
   console.log(`rhwp ${TAG} 이미 있음: ${outDir}`);
@@ -56,6 +69,10 @@ git("checkout", "-q", "--detach", COMMIT);
 
 const head = execFileSync("git", ["-C", outDir, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
 if (head !== COMMIT) throw new Error(`commit mismatch: expected ${COMMIT}, got ${head}`);
+for (const patch of patches) {
+  git("apply", "--whitespace=nowarn", patch);
+  console.log(`패치 적용: ${patch.slice(root.length + 1)}`);
+}
 // 중첩 저장소는 cargo 의 파일 목록 계산을 깨뜨린다. 커밋은 위에서 확인했으니 .git 은 지운다.
 rmSync(join(outDir, ".git"), { recursive: true, force: true });
 writeFileSync(stamp, `${expected}\n`);
