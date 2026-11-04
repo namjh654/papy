@@ -59,14 +59,13 @@ pnpm --filter @papy/website test     # 빌드 + 다국어 검사
 - Vercel 프로젝트 `papy` (https://papy-omega.vercel.app — `papy.vercel.app` 은 이미 다른 사람이 사용 중), Root Directory = `website`, Framework = Vite, Node 24.
 - Install: `pnpm install --frozen-lockfile --filter "@papy/website..."`, Build: `pnpm build`, Output: `dist`.
 - 저장소 루트 `.vercelignore` 로 앱·엔진 폴더는 올리지 않는다. 보안 헤더·CSP·캐시는 `vercel.json`.
-- **GitHub 와 연결돼 있지 않아 main 에 올려도 자동 배포되지 않는다.** 배포는 저장소 루트에서 Vercel CLI 로 한다:
+- GitHub `namjh654/papy` 와 연결돼 있다. **main 에 합치면 운영(papy-omega.vercel.app)에 자동 배포**되고, 다른 브랜치·PR 은 미리보기 배포가 만들어진다.
+- 급히 손으로 배포해야 할 때만 저장소 루트에서 Vercel CLI 를 쓴다:
 
   ```bash
   vercel link --yes --project papy   # 처음 한 번 (.vercel/ 는 git 제외)
   vercel deploy --prod --yes          # 운영 배포
   ```
-
-  자동 배포로 바꾸려면 Vercel 대시보드 papy → Settings → Git 에서 `namjh654/papy` 를 연결한다(그때 이 항목을 지운다).
 
 ## 검색 등록
 
