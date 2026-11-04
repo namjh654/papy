@@ -5,18 +5,24 @@ Source-available cross-platform document viewer and editor (PolyForm Noncommerci
 PDF 와 한국어 문서(HWP/HWPX)를 우선 지원하는 **비상업 용도 무료·오프라인 우선** 통합 문서 앱입니다.
 회원가입·광고·서버 업로드 없이, 사용자가 선택한 파일만 로컬에서 엽니다.
 
-> **상태: 초기 개발 단계.** 데스크톱 앱에서 PDF·HWP·HWPX 를 열어 보고 편집·저장할 수 있지만 아직 배포하지 않았습니다(안정화 중).
+> **상태: 미리보기(v0.2.0, pre-release).** PDF·HWP·HWPX·DOCX 보기, HWP·HWPX·DOCX 편집·저장, PDF 로 내보내기를 할 수 있습니다. 아직 시험 단계라 중요한 문서는 사본으로 써 주세요.
 > 지원 포맷·기능은 실제 테스트 문서와 회귀 테스트로 검증된 범위만 이 README 에 표시합니다.
+
+## 내려받기
+
+- 설치 파일: [GitHub Releases](https://github.com/namjh654/papy/releases) — macOS(dmg, Apple Silicon·Intel), Windows, Linux(AppImage·deb·rpm)
+- 소개·설치 방법·사용법: <https://papy-omega.vercel.app> (한국어·English)
+- 코드 서명이 없어 첫 실행 때 OS 보안 경고가 나올 수 있습니다 — 해결 방법은 [설치 안내](https://papy-omega.vercel.app/install/)
 
 ## 현재 구현 상태
 
 | 영역 | 상태 |
 |---|---|
 | Rust 엔진 (`engine/`) | 세션·상한·취소·오류 코드, 포맷 판별. PDF = PDFium(`papy-pdf`), HWP/HWPX = rhwp(`papy-hwp`): 열기·렌더·텍스트, PDF 목차, 암호 문서. 편집: HWP/HWPX 본문(입력·서식·되돌리기), PDF 주석·쪽 편집. 저장·변환: HWPX·HWP·PDF·텍스트 |
-| 데스크톱 (`apps/desktop/`) | Tauri 2. 보기 모드: 열기(대화상자·끌어다 놓기), 연속 스크롤, 확대/축소, 썸네일·목차·텍스트 사이드바, 암호, 최근 문서. 편집 모드(⌘E): HWP/HWPX 글자 입력·한글 입력기·서식·정렬, PDF 형광펜·밑줄·취소선·펜·텍스트 상자·메모·쪽 회전/삭제/이동. 저장(⌘S)·다른 이름으로 저장·다른 형식으로 내보내기. macOS·Windows·Linux 패키징을 CI 에서 빌드 |
+| 데스크톱 (`apps/desktop/`) | Tauri 2. 보기 모드: 열기(대화상자·끌어다 놓기·파일 더블클릭), 연속 스크롤, 확대/축소, 썸네일·목차·텍스트 사이드바, 암호, 최근 문서. 편집 모드(⌘E): HWP/HWPX/DOCX 글자 입력·한글 입력기·서식·정렬, PDF 형광펜·밑줄·취소선·펜·텍스트 상자·메모·쪽 회전/삭제/이동·쪽의 글자 고쳐 쓰기. 저장(⌘S)·다른 이름으로 저장·다른 형식으로 내보내기. 고급 편집(표·개체·머리말·각주)은 rhwp-studio 를 앱에 넣어 처리([ADR 0005](docs/decisions/0005-rhwp-studio-editor.md), macOS 확인). 화면 한국어·English. macOS·Windows·Linux 패키징을 CI 에서 빌드 |
 | 웹 (`apps/web/`) | Vite + React 골격. 문서 기능 없음 |
-| 모바일 (`apps/mobile/`) | 기존 KMP 템플릿([namjh654/kmp](https://github.com/namjh654/kmp)) 편입. 아직 Papy 기능·엔진 연결 없음 |
-| Word (DOCX) | 열기·편집·DOCX 저장, HWP·HWPX·PDF·텍스트와 상호 변환(`papy-office`: DOCX ↔ rhwp 문서 구조). 본문·글자/문단 서식·표(병합)·그림(읽기·쓰기) 지원. 머리말·꼬리말·각주·번호 목록(글자)도 옮김. 도형·미주·표 안 각주는 아직 옮기지 않으며 열 때 빠진 개수를 알림 |
+| 모바일 (`apps/mobile/`) | KMP 템플릿([namjh654/kmp](https://github.com/namjh654/kmp))을 편입해 Rust 엔진을 UniFFI 로 연결([ADR 0006](docs/decisions/0006-mobile-bridge.md)). 최근 문서·문서 보기(HWP·HWPX·DOCX 는 엔진, PDF 는 운영체제)·암호, 확대 후 다시 그리기, 커서 편집·글자 모양·서식 지키는 문단 바꾸기·되돌리기·저장, 표 칸·글상자 안 편집과 표 넣기·행열·합치기, 그림 넣기·크기·지우기, PDF 로 내보내기, 앱 안 오픈소스 라이선스 화면. Android 에뮬레이터·iOS 시뮬레이터에서 확인, Android 릴리스 준비(R8·16KB·ABI) |
+| Word (DOCX) | 열기·편집·DOCX 저장, HWP·HWPX·PDF·텍스트와 상호 변환(`papy-office`: DOCX ↔ rhwp 문서 구조). 본문·글자/문단 서식·표(병합)·그림(읽기·쓰기) 지원. 머리말·꼬리말·각주·번호 목록(글자)·도형(사각형·타원·선·글상자)도 옮김. 묶음 도형·차트·미주·표 안 각주·첫 쪽 머리말은 아직 옮기지 않으며 열 때 빠진 개수를 알림 |
 | XLSX·PPTX | 미구현 |
 
 ## 디렉터리
@@ -25,9 +31,9 @@ PDF 와 한국어 문서(HWP/HWPX)를 우선 지원하는 **비상업 용도 무
 papy/
 ├── engine/          Rust 문서 엔진 workspace (UI 프레임워크에 의존하지 않음)
 ├── apps/
-│   ├── desktop/     Tauri 2.x stable + React/TypeScript (Windows/macOS)
-│   ├── web/         Vite + React/TypeScript 브라우저 뷰어
-│   └── mobile/      KMP — Android Compose + iOS SwiftUI
+│   ├── desktop/     Tauri 2.x stable + React/TypeScript (Windows/macOS/Linux)
+│   ├── web/         Vite + React/TypeScript 브라우저 뷰어 (골격, WASM PoC 전)
+│   └── mobile/      KMP — Android Compose + iOS SwiftUI, 엔진은 UniFFI
 ├── packages/        web·desktop 이 실제로 공유하는 JS 코드만 (현재 config)
 ├── docs/            아키텍처·엔진·포맷·결정 기록·개발 가이드
 ├── tests/           포맷별 테스트, fixtures(배포 권리가 확인된 문서만)
@@ -36,7 +42,7 @@ papy/
 └── .github/         CI, Issue/PR 템플릿
 ```
 
-의존 방향은 항상 **engine → 앱** 입니다. 엔진은 Tauri·React·Compose·SwiftUI 를 참조하지 않습니다. 자세한 구조는 [docs/architecture/overview.md](docs/architecture/overview.md).
+의존 방향은 항상 **engine → 앱** 입니다. 엔진은 Tauri·React·Compose·SwiftUI 를 참조하지 않습니다. 자세한 구조는 [docs/architecture/overview.md](docs/architecture/overview.md), 단계별 진행·남은 일은 [docs/development/roadmap.md](docs/development/roadmap.md).
 
 ## 개발 환경
 
