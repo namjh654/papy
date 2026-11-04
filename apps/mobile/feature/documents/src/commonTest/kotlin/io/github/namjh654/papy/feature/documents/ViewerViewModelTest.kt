@@ -19,6 +19,7 @@ import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -454,5 +455,31 @@ class ViewerViewModelTest {
         }
         // 되돌리기로 한 동작씩 되돌린다
         assertTrue(vm.uiState.value.canUndo)
+    }
+
+    @Test
+    fun selectionAndStyleInsideCell() = runTest(dispatcher) {
+        val engine = FakeEngine()
+        val vm = ViewerViewModel("ref", "a.hwp", engine, recents(), io = dispatcher)
+        vm.toggleEditing()
+        vm.tap(0, 30f, 105f)
+        vm.insertTable(2, 2)
+        // 칸 안에서 범위를 늘린다(같은 칸 안)
+        vm.tap(0, 60f, 25f)
+        vm.toggleExtending()
+        vm.moveCaret(CaretMove.Right)
+        vm.moveCaret(CaretMove.Right)
+        val selection = vm.uiState.value.selection
+        assertNotNull(selection)
+        assertTrue(selection.start.inCell && selection.end.inCell)
+        assertEquals(2, selection.end.offset - selection.start.offset)
+        assertTrue(vm.uiState.value.selectionBoxes.isNotEmpty())
+        // 굵게는 칸 안 범위에 적용된다
+        vm.toggleStyle(StyleToggle.Bold)
+        assertEquals(selection, engine.styles.last().first)
+        // 범위를 늘리는 중에 본문을 누르면 칸 범위를 잇지 않는다(본문과 칸에 걸친 범위는 없다)
+        vm.tap(0, 30f, 105f)
+        assertNull(vm.uiState.value.selection)
+        assertFalse(vm.uiState.value.caret!!.position.inCell)
     }
 }

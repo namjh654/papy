@@ -243,6 +243,11 @@ struct ViewerScreen: View {
                 try? await Task.sleep(for: .seconds(1))
                 model.viewModel.type(text: "IOS")
                 try? await Task.sleep(for: .milliseconds(500))
+                // 칸 안 단어 고르기 → 빨강
+                model.viewModel.doubleTap(page: 0, x: cell.box.x + 6, y: cell.box.y + cell.box.height / 2)
+                try? await Task.sleep(for: .milliseconds(500))
+                model.viewModel.setColor(color: "#e53935")
+                try? await Task.sleep(for: .milliseconds(500))
                 model.viewModel.tableCommand(command: .rowBelow)
                 try? await Task.sleep(for: .seconds(1))
             }
@@ -261,6 +266,13 @@ struct ViewerScreen: View {
                 try? await Task.sleep(for: .seconds(1))
                 model.viewModel.resizePicture(steps: 1)
                 try? await Task.sleep(for: .seconds(1))
+                // 그림 바로 뒤를 눌러 치면 그림 뒤에 들어간다
+                let resized = PapyDocumentEngine.shared.pageObjects(session: model.state.document?.session ?? 0, page: 0)
+                    .first(where: { $0.kind == .picture })?.box ?? shown.box
+                model.viewModel.tap(page: 0, x: resized.x + resized.width + 0.5, y: resized.y + resized.height - 2)
+                try? await Task.sleep(for: .seconds(1))
+                model.viewModel.type(text: "P")
+                try? await Task.sleep(for: .milliseconds(500))
             }
             model.viewModel.save()
         }

@@ -220,14 +220,33 @@ impl EnginePosition {
     }
 }
 
-/// 본문 위치만 받는 기능(선택·글자 모양 등). 칸 안이면 아직 안 된다.
+/// 본문 위치만 받는 기능(표·그림 넣기). 칸 안이면 안 된다.
 fn body(position: EnginePosition) -> papy_core::Result<TextPos> {
     position.split().map_err(|_| {
         papy_core::Error::new(
             ErrorCode::NotImplemented,
-            "not supported inside table cells yet",
+            "not supported inside table cells",
         )
     })
+}
+
+/// 범위의 두 끝: 둘 다 본문이거나 둘 다 같은 칸 안
+enum Span {
+    Body(TextPos, TextPos),
+    Cell(CellPos, CellPos),
+}
+
+impl EngineRange {
+    fn span(self) -> papy_core::Result<Span> {
+        match (self.start.split(), self.end.split()) {
+            (Ok(start), Ok(end)) => Ok(Span::Body(start, end)),
+            (Err(start), Err(end)) => Ok(Span::Cell(start, end)),
+            _ => Err(papy_core::Error::new(
+                ErrorCode::InvalidArgument,
+                "a selection cannot cross a table cell boundary",
+            )),
+        }
+    }
 }
 
 impl From<EnginePosition> for TextPos {
@@ -755,7 +774,8 @@ impl PapyEngine {
                 offset: offset as u32,
                 ..start
             };
-            // 글자 수가 위치 수와 다르면(문단 안 개체 등) 겹치는 부분을 믿을 수 없으니 통째로 바꾼다.
+            // 글자 수가 위치 수와 다르면 겹치는 부분을 믿을 수 없으니 통째로 바꾼다
+            // (HWP 는 개체 자리에 U+FFFC 를 두어 수가 같다).
             let (prefix, suffix, delete_end) = if old.len() == end.offset as usize {
                 let (prefix, suffix) = common_ends(&old, &new);
                 (prefix, suffix, at(old.len() - suffix))
@@ -765,7 +785,11 @@ impl PapyEngine {
             if delete_end.offset as usize > prefix {
                 doc.delete_range(at(prefix), delete_end)?;
             }
-            let middle: String = new[prefix..new.len() - suffix].iter().collect();
+            // 개체 자리 표시(U+FFFC)는 글자로 넣지 않는다(지우면 개체가 지워지고, 남기면 개체가 남는다)
+            let middle: String = new[prefix..new.len() - suffix]
+                .iter()
+                .filter(|c| **c != '\u{FFFC}')
+                .collect();
             if !middle.is_empty() {
                 doc.insert_text(at(prefix), &middle)?;
             }
@@ -883,10 +907,18 @@ impl PapyEngine {
         session_id: u64,
         range: EngineRange,
     ) -> Result<EngineEdit, PapyError> {
-        Ok(self.engine.edit(session(session_id)?, |doc| {
-            let outcome = doc.delete_range(body(range.start)?, body(range.end)?)?;
-            edit_result(doc, outcome.caret)
-        })?)
+        Ok(self
+            .engine
+            .edit(session(session_id)?, |doc| match range.span()? {
+                Span::Body(start, end) => {
+                    let outcome = doc.delete_range(start, end)?;
+                    edit_result(doc, outcome.caret)
+                }
+                Span::Cell(start, end) => {
+                    let at = doc.cell_delete_range(start, end)?;
+                    cell_edit_result(doc, at)
+                }
+            })?)
     }
 
     /// 범위를 줄마다 덮는 사각형(선택 표시).
@@ -896,19 +928,22 @@ impl PapyEngine {
         range: EngineRange,
     ) -> Result<Vec<PageRegion>, PapyError> {
         Ok(self.engine.edit(session(session_id)?, |doc| {
-            Ok(doc
-                .selection_rects(body(range.start)?, body(range.end)?)?
-                .into_iter()
-                .map(PageRegion::from)
-                .collect())
+            let rects = match range.span()? {
+                Span::Body(start, end) => doc.selection_rects(start, end)?,
+                Span::Cell(start, end) => doc.cell_selection_rects(start, end)?,
+            };
+            Ok(rects.into_iter().map(PageRegion::from).collect())
         })?)
     }
 
     /// 범위의 글자(문단 사이는 `\n`).
     pub fn text_in_range(&self, session_id: u64, range: EngineRange) -> Result<String, PapyError> {
-        Ok(self.engine.edit(session(session_id)?, |doc| {
-            doc.text_in_range(body(range.start)?, body(range.end)?)
-        })?)
+        Ok(self
+            .engine
+            .edit(session(session_id)?, |doc| match range.span()? {
+                Span::Body(start, end) => doc.text_in_range(start, end),
+                Span::Cell(start, end) => doc.cell_text_in_range(start, end),
+            })?)
     }
 
     /// 위치가 든 단어의 범위(두 번 눌러 고르기). 단어가 아니면 빈 범위.
@@ -918,17 +953,25 @@ impl PapyEngine {
         position: EnginePosition,
     ) -> Result<EngineRange, PapyError> {
         Ok(self.engine.edit(session(session_id)?, |doc| {
-            // 칸 안은 아직 단어를 고르지 않는다(빈 범위 = 커서만)
-            let Ok(pos) = position.split() else {
-                return Ok(EngineRange {
-                    start: position,
-                    end: position,
-                });
-            };
-            let start = TextPos { offset: 0, ..pos };
-            let end = paragraph_end(doc, pos.section, pos.paragraph)?;
-            let chars: Vec<char> = doc.text_in_range(start, end)?.chars().collect();
-            let at = (pos.offset as usize).min(chars.len());
+            // 커서가 든 문단(칸 안이면 칸 문단)의 글자
+            let chars: Vec<char> = match position.split() {
+                Ok(pos) => {
+                    let start = TextPos { offset: 0, ..pos };
+                    let end = paragraph_end(doc, pos.section, pos.paragraph)?;
+                    doc.text_in_range(start, end)?
+                }
+                Err(cell) => {
+                    let start = CellPos { offset: 0, ..cell };
+                    let end = CellPos {
+                        offset: doc.cell_paragraph_len(cell)?,
+                        ..cell
+                    };
+                    doc.cell_text_in_range(start, end)?
+                }
+            }
+            .chars()
+            .collect();
+            let at = (position.offset as usize).min(chars.len());
             let mut from = at;
             while from > 0 && is_word_char(chars[from - 1]) {
                 from -= 1;
@@ -955,7 +998,10 @@ impl PapyEngine {
         position: EnginePosition,
     ) -> Result<EngineTextStyle, PapyError> {
         Ok(self.engine.edit(session(session_id)?, |doc| {
-            let format = doc.char_format(body(position)?)?;
+            let format = match position.split() {
+                Ok(pos) => doc.char_format(pos)?,
+                Err(cell) => doc.cell_char_format(cell)?,
+            };
             Ok(EngineTextStyle {
                 font_size: format.font_size,
                 bold: format.bold,
@@ -999,7 +1045,10 @@ impl PapyEngine {
                 strikethrough: style.strikethrough,
                 color: style.color.clone(),
             };
-            doc.apply_char_format(body(range.start)?, body(range.end)?, &format)?;
+            match range.span()? {
+                Span::Body(start, end) => doc.apply_char_format(start, end, &format)?,
+                Span::Cell(start, end) => doc.cell_apply_char_format(start, end, &format)?,
+            }
             Ok(depth(doc))
         })?)
     }

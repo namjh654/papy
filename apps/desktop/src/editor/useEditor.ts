@@ -234,7 +234,11 @@ export function useEditor(docId: number, active: boolean, callbacks: EditorCallb
     let text = "";
     await enqueue(async () => {
       const r = range();
-      if (r && hasSelection()) text = await edit<string>(docId, { kind: "textInRange", start: r[0], end: r[1] });
+      if (r && hasSelection()) {
+        const raw = await edit<string>(docId, { kind: "textInRange", start: r[0], end: r[1] });
+        // 그림·표 같은 개체 자리 표시(U+FFFC)는 복사하지 않는다
+        text = raw.replace(/\uFFFC/g, "");
+      }
     });
     return text;
   }, [docId, enqueue]);

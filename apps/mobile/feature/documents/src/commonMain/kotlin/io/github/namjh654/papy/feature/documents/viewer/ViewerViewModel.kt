@@ -125,8 +125,8 @@ class ViewerViewModel(
         }
         val caret = engine.caretAt(id, page, x, y) ?: return@withEngine
         val state = currentState
-        // 칸 안에서는 범위 선택을 아직 하지 않는다
-        val anchor = if (state.extending && !caret.position.inCell) state.anchor ?: state.caret?.position?.takeUnless { it.inCell } else null
+        // 범위는 같은 곳(본문, 또는 같은 칸) 안에서만 늘린다
+        val anchor = if (state.extending) (state.anchor ?: state.caret?.position)?.takeIf { it.sameBlock(caret.position) } else null
         showCaret(id, caret, anchor)
     }
 
@@ -278,7 +278,7 @@ class ViewerViewModel(
             selection != null && move == CaretMove.Right -> engine.caretAtPosition(id, selection.end)
             else -> engine.moveCaret(id, caret.position, move, caret.box.x)
         } ?: return@withEngine
-        val anchor = if (state.extending) state.anchor ?: caret.position else null
+        val anchor = if (state.extending) (state.anchor ?: caret.position).takeIf { it.sameBlock(target.position) } else null
         showCaret(id, target, anchor)
     }
 
@@ -459,7 +459,7 @@ class ViewerViewModel(
             }
             table?.let { ObjectSelection(it, it.cells.firstOrNull { cell -> cell.cell == ref.cell }) }
         }
-        val range = anchor?.let { TextRange.of(it, caret.position) }?.takeUnless { it.isEmpty || caret.position.inCell }
+        val range = anchor?.takeIf { it.sameBlock(caret.position) }?.let { TextRange.of(it, caret.position) }?.takeUnless { it.isEmpty }
         val boxes = range?.let { engine.selectionBoxes(id, it) }.orEmpty()
         // 선택이 있으면 선택 첫 글자의 모양(커서 앞 글자를 읽으므로 한 글자 뒤 위치)
         val styleAt = range?.start?.let { it.copy(offset = it.offset + 1) } ?: caret.position

@@ -1105,58 +1105,98 @@ fn table_after_inline_picture_at_line_end() {
     );
 }
 
-#[test]
-fn caret_positions_around_inline_picture() {
-    // "Papy 쪽 1" 의 3 자리(p 와 y 사이)에 그림. 글자 자리 3 은 그림 앞, 4 는 y 뒤다.
-    let mut doc = editable(1);
-    doc.insert_picture(pos(0, 3), RED_PNG, 120.0, 60.0).unwrap();
-    let picture = doc
-        .page_objects(0)
+/// 쪽 0 의 그림 사각형
+fn picture_rect(doc: &mut Box<dyn Document>) -> Option<papy_model::PageRect> {
+    doc.page_objects(0)
         .unwrap()
         .into_iter()
         .find(|o| o.kind == papy_model::ObjectKind::Picture)
-        .unwrap()
-        .rect;
+        .map(|o| o.rect)
+}
+
+#[test]
+fn caret_positions_around_inline_picture() {
+    // "Papy 쪽 1" 의 3 자리(p 와 y 사이)에 그림. 커서 자리는 그림도 한 칸: 3 은 그림 앞, 4 는 그림 뒤(y 앞)
+    let mut doc = editable(1);
+    doc.insert_picture(pos(0, 3), RED_PNG, 120.0, 60.0).unwrap();
+    let rect = picture_rect(&mut doc).unwrap();
     let before = doc.caret_rect(pos(0, 3)).unwrap();
-    let after_y = doc.caret_rect(pos(0, 4)).unwrap();
-    assert!((before.x - picture.x).abs() < 1.0, "{before:?} {picture:?}");
+    let after = doc.caret_rect(pos(0, 4)).unwrap();
+    assert!((before.x - rect.x).abs() < 1.0, "{before:?} {rect:?}");
     assert!(
-        after_y.x > picture.x + picture.width,
-        "{after_y:?} {picture:?}"
+        (after.x - (rect.x + rect.width)).abs() < 1.0,
+        "{after:?} {rect:?}"
     );
-    // 줄 끝을 누르면 문단 끝(글자 8개)
+    // 그림만 고르면 선택이 그림을 덮는다
+    let picked = doc.selection_rects(pos(0, 3), pos(0, 4)).unwrap();
+    assert!(
+        picked
+            .iter()
+            .any(|r| r.x <= rect.x + 1.0 && r.x + r.width >= rect.x + rect.width - 1.0),
+        "{picked:?} {rect:?}"
+    );
+    // 문단 글자는 개체 자리에 U+FFFC 를 둔다(자리 수 = 글자 수)
+    let text = doc.text_in_range(pos(0, 0), pos(0, 9)).unwrap();
+    assert_eq!(text, "Pap\u{FFFC}y 쪽 1");
+    // 줄 끝을 누르면 문단 끝(글자 8 + 그림 1)
     let end = doc
-        .hit_test(
-            0,
-            picture.x + picture.width + 200.0,
-            picture.y + picture.height - 3.0,
-        )
+        .hit_test(0, rect.x + rect.width + 200.0, rect.y + rect.height - 3.0)
         .unwrap();
-    assert_eq!(end.offset, 8);
-    // 아래로 옮겨도 글자 자리다(그림 뒤 줄 끝 → 다음 줄)
+    assert_eq!(end.offset, 9);
+    // 그림 바로 뒤를 누르면 그 자리
+    let hit = doc
+        .hit_test(0, rect.x + rect.width + 0.5, rect.y + rect.height - 3.0)
+        .unwrap();
+    assert_eq!(hit.offset, 4, "{hit:?}");
+    // 위아래로 옮겨도 문단 안 자리다
     let x = doc.caret_rect(end).unwrap().x;
     let down = doc.move_vertical(end, 1, x).unwrap();
-    assert!(down.paragraph > 0 || down.offset <= 8, "{down:?}");
     let back = doc.move_vertical(down, -1, x).unwrap();
-    assert_eq!(back.paragraph, 0, "{back:?}");
-    assert!(back.offset <= 8, "{back:?}");
-    // 그 자리에 친 글자는 문단 끝에 붙는다
-    doc.insert_text(end, "Z").unwrap();
-    assert!(
-        doc.extract_text(0)
-            .unwrap()
-            .lines()
-            .next()
-            .unwrap()
-            .ends_with("1Z")
+    assert!(back.paragraph == 0 && back.offset <= 9, "{back:?}");
+    // 그림 뒤에 친 글자는 그림 뒤에 들어간다
+    let typed = doc.insert_text(pos(0, 4), "Z").unwrap().caret;
+    assert_eq!(typed.offset, 5);
+    assert_eq!(
+        doc.text_in_range(pos(0, 0), pos(0, 10)).unwrap(),
+        "Pap\u{FFFC}Zy 쪽 1"
     );
+    let z = doc.caret_rect(typed).unwrap();
+    assert!(z.x > rect.x + rect.width, "{z:?} {rect:?}");
+    // 그림 앞에 친 글자는 그림 앞에
+    doc.insert_text(pos(0, 3), "A").unwrap();
+    assert_eq!(
+        doc.text_in_range(pos(0, 0), pos(0, 11)).unwrap(),
+        "PapA\u{FFFC}Zy 쪽 1"
+    );
+    // 그림 뒤에서 지우기 → 그림이 지워진다(글자는 그대로)
+    doc.delete_backward(pos(0, 5)).unwrap();
+    assert!(picture_rect(&mut doc).is_none());
+    assert_eq!(
+        doc.text_in_range(pos(0, 0), pos(0, 10)).unwrap(),
+        "PapAZy 쪽 1"
+    );
+    // 되돌리면 그림이 돌아온다
+    doc.undo().unwrap();
+    assert!(picture_rect(&mut doc).is_some());
+    // 그림 뒤에서 문단 나누기 → 그림은 앞 문단에 남는다
+    doc.insert_text(pos(0, 5), "\n").unwrap();
+    assert_eq!(
+        doc.text_in_range(pos(0, 0), pos(0, 5)).unwrap(),
+        "PapA\u{FFFC}"
+    );
+    let objects = doc.page_objects(0).unwrap();
+    let moved = objects
+        .iter()
+        .find(|o| o.kind == papy_model::ObjectKind::Picture)
+        .unwrap();
+    assert_eq!(moved.object.paragraph, 0);
 }
 
 #[test]
 fn docx_round_trip_keeps_inline_picture_place_and_table_borders() {
     let mut doc = editable(1);
     doc.insert_picture(pos(0, 3), RED_PNG, 60.0, 30.0).unwrap();
-    doc.insert_table(pos(0, 8), 2, 2).unwrap();
+    doc.insert_table(pos(0, 9), 2, 2).unwrap();
     let docx = doc.save(SaveFormat::Docx).unwrap();
     let mut again = open(HwpBackend::docx(), docx, &options()).unwrap();
     let objects = again.page_objects(0).unwrap();
@@ -1165,7 +1205,7 @@ fn docx_round_trip_keeps_inline_picture_place_and_table_borders() {
         .find(|o| o.kind == papy_model::ObjectKind::Picture)
         .expect("picture");
     // 그림은 글자 사이(p 와 y 사이)에 남는다: 문단 끝 글자보다 앞
-    let end = again.caret_rect(pos(0, 8)).unwrap();
+    let end = again.caret_rect(pos(0, 9)).unwrap();
     assert!(
         picture.rect.x + picture.rect.width < end.x,
         "{:?} vs end {end:?}",
@@ -1197,4 +1237,73 @@ fn docx_round_trip_keeps_inline_picture_place_and_table_borders() {
         "dark {best} of {}",
         table.rect.width
     );
+}
+
+#[test]
+fn cell_selection_format_and_delete() {
+    use papy_model::HitTarget;
+    let mut doc = editable(1);
+    doc.insert_table(pos(0, 0), 1, 2).unwrap();
+    let table = table_of(&mut doc);
+    let cell = table.cells.iter().find(|c| c.col == 0).unwrap();
+    let HitTarget::Cell(at) = doc
+        .hit_test_target(0, cell.rect.x + 4.0, cell.rect.y + cell.rect.height / 2.0)
+        .unwrap()
+    else {
+        panic!("expected a cell")
+    };
+    let start = papy_model::CellPos { offset: 0, ..at };
+    let end = doc.cell_insert_text(start, "Hello\nworld").unwrap();
+    assert_eq!((end.cell_paragraph, end.offset), (1, 5));
+    let hello = papy_model::CellPos { offset: 5, ..start };
+    // 범위 글자·선택 사각형(칸 안)
+    assert_eq!(doc.cell_text_in_range(start, end).unwrap(), "Hello\nworld");
+    let rects = doc.cell_selection_rects(start, hello).unwrap();
+    assert!(!rects.is_empty());
+    assert!(
+        rects
+            .iter()
+            .all(|r| r.x >= cell.rect.x - 1.0
+                && r.x + r.width <= cell.rect.x + cell.rect.width + 1.0),
+        "{rects:?} in {:?}",
+        cell.rect
+    );
+    // 굵게: 첫 단어만
+    let depth = doc.undo_depth();
+    doc.cell_apply_char_format(
+        start,
+        hello,
+        &CharFormat {
+            bold: Some(true),
+            ..CharFormat::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(doc.undo_depth(), depth + 1);
+    assert_eq!(
+        doc.cell_char_format(papy_model::CellPos { offset: 3, ..start })
+            .unwrap()
+            .bold,
+        Some(true)
+    );
+    assert_eq!(doc.cell_char_format(end).unwrap().bold, Some(false));
+    // 다른 칸과 섞인 범위는 받지 않는다
+    let other = papy_model::CellPos {
+        cell: table.cells.iter().find(|c| c.col == 1).unwrap().cell,
+        ..start
+    };
+    assert!(doc.cell_selection_rects(start, other).is_err());
+    // 칸 문단을 넘는 범위 지우기 → 합쳐진다
+    let caret = doc
+        .cell_delete_range(
+            papy_model::CellPos { offset: 2, ..start },
+            papy_model::CellPos { offset: 2, ..end },
+        )
+        .unwrap();
+    assert_eq!((caret.cell_paragraph, caret.offset), (0, 2));
+    let rest = papy_model::CellPos { offset: 5, ..start };
+    assert_eq!(doc.cell_text_in_range(start, rest).unwrap(), "Herld");
+    // 되돌리기 한 번에 지우기 전으로
+    doc.undo().unwrap();
+    assert_eq!(doc.cell_text_in_range(start, end).unwrap(), "Hello\nworld");
 }

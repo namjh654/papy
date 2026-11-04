@@ -159,11 +159,12 @@ impl HwpDocument {
         self.cell_typing = None;
     }
 
+    /// 문단 길이(커서 자리 수: 글자 + 글자처럼 놓인 개체)
     fn paragraph_len(&mut self, section: u32, paragraph: u32) -> Result<u32> {
-        self.read("read paragraph", |doc| {
+        let text = self.read("read paragraph", |doc| {
             doc.get_paragraph_length_native(section as usize, paragraph as usize)
-        })
-        .map(|len| len as u32)
+        })?;
+        Ok((text + inline_slots(&self.doc, section as usize, paragraph as usize).len()) as u32)
     }
 
     fn paragraph_count(&mut self, section: u32) -> Result<u32> {
@@ -203,6 +204,7 @@ impl HwpDocument {
         let mut caret = pos;
         for (index, line) in text.split('\n').enumerate() {
             if index > 0 {
+                // 문단 나누기는 커서(논리) 자리로 나눈다
                 let reply = self.write("split paragraph", |doc| {
                     doc.split_paragraph_native(
                         caret.section as usize,
@@ -213,40 +215,70 @@ impl HwpDocument {
                 })?;
                 let reply = json(&reply)?;
                 caret.paragraph = uint(&reply, "paraIdx").unwrap_or(caret.paragraph + 1);
-                caret.offset = uint(&reply, "charOffset").unwrap_or(0);
+                caret.offset = 0;
             }
             let line = line.trim_end_matches('\r');
             if line.is_empty() {
                 continue;
             }
-            let reply = self.write("insert text", |doc| {
-                doc.insert_text_native(
-                    caret.section as usize,
-                    caret.paragraph as usize,
-                    caret.offset as usize,
-                    line,
-                )
-            })?;
-            caret.offset = uint(&json(&reply)?, "charOffset")
-                .unwrap_or(caret.offset + line.chars().count() as u32);
+            let (section, paragraph) = (caret.section as usize, caret.paragraph as usize);
+            let logical = caret.offset as usize;
+            if after_object(&self.doc, section, paragraph, logical) {
+                // 개체 바로 뒤: 글자 자리로는 개체 앞이 되므로 rhwp 의 논리 자리 넣기를 쓴다
+                // (wasm 래퍼라 오류면 패닉하지만 자리를 먼저 확인했고, 패닉은 guard 가 받는다)
+                self.write("insert text", |doc| {
+                    doc.insert_text_logical(caret.section, caret.paragraph, caret.offset, line)
+                        .map_err(|_| rhwp::HwpError::RenderError("insert text".into()))
+                })?;
+            } else {
+                let at = text_offset(&self.doc, section, paragraph, logical);
+                self.write("insert text", |doc| {
+                    doc.insert_text_native(section, paragraph, at, line)
+                })?;
+            }
+            caret.offset += line.chars().count() as u32;
         }
         Ok(caret)
     }
 
+    /// 범위(커서 자리)를 지운다. 범위 안의 글자처럼 놓인 개체(그림·표 등)도 지운다.
     fn delete_plain(&mut self, start: TextPos, end: TextPos) -> Result<()> {
         if start == end {
             return Ok(());
         }
-        self.write("delete", |doc| {
-            doc.delete_range_native(
-                start.section as usize,
-                start.paragraph as usize,
-                start.offset as usize,
-                end.paragraph as usize,
-                end.offset as usize,
-                None,
-            )
-        })?;
+        let section = start.section as usize;
+        let (first, last) = (start.paragraph as usize, end.paragraph as usize);
+        // 글자 자리는 개체를 지우기 전에 잰다(개체를 지워도 글자 자리는 그대로다)
+        let from = text_offset(&self.doc, section, first, start.offset as usize);
+        let to = text_offset(&self.doc, section, last, end.offset as usize);
+        // 처음·끝 문단에서 범위에 든 개체(가운데 문단은 통째로 지워진다)
+        let mut objects: Vec<(usize, usize)> = Vec::new();
+        for (logical, control) in inline_slots(&self.doc, section, first) {
+            let inside = logical >= start.offset as usize
+                && (first != last || logical < end.offset as usize);
+            if inside {
+                objects.push((first, control));
+            }
+        }
+        if last != first {
+            for (logical, control) in inline_slots(&self.doc, section, last) {
+                if logical < end.offset as usize {
+                    objects.push((last, control));
+                }
+            }
+        }
+        // 뒤에서부터 지워 앞 개체 번호가 바뀌지 않게 한다
+        objects.sort_unstable_by(|a, b| b.cmp(a));
+        for (paragraph, control) in objects {
+            self.write("delete object", |doc| {
+                doc.delete_control_native(section, paragraph, control)
+            })?;
+        }
+        if first != last || to > from {
+            self.write("delete", |doc| {
+                doc.delete_range_native(section, first, from, last, to, None)
+            })?;
+        }
         Ok(())
     }
 
@@ -299,6 +331,44 @@ impl HwpDocument {
         .map(|count| count as u32)
     }
 
+    /// 칸 안 범위: 같은 칸, 앞뒤 순서, 둘 다 칸 안
+    fn cell_range(&mut self, start: CellPos, end: CellPos) -> Result<()> {
+        let same = (start.section, start.paragraph, start.control, start.cell)
+            == (end.section, end.paragraph, end.control, end.cell);
+        if !same || (start.cell_paragraph, start.offset) > (end.cell_paragraph, end.offset) {
+            return Err(Error::new(
+                ErrorCode::InvalidArgument,
+                "cell selection must be ordered and within one cell",
+            ));
+        }
+        self.validate_cell(start)?;
+        self.validate_cell(end)
+    }
+
+    /// 칸 안 범위를 칸 문단마다 (문단, 처음, 끝) 으로 나눈다
+    fn cell_spans(&mut self, start: CellPos, end: CellPos) -> Result<Vec<(u32, u32, u32)>> {
+        let mut spans = Vec::new();
+        for cell_paragraph in start.cell_paragraph..=end.cell_paragraph {
+            let at = CellPos {
+                cell_paragraph,
+                offset: 0,
+                ..start
+            };
+            let from = if cell_paragraph == start.cell_paragraph {
+                start.offset
+            } else {
+                0
+            };
+            let to = if cell_paragraph == end.cell_paragraph {
+                end.offset
+            } else {
+                self.cell_len(at)?
+            };
+            spans.push((cell_paragraph, from, to));
+        }
+        Ok(spans)
+    }
+
     fn validate_cell(&mut self, pos: CellPos) -> Result<()> {
         if pos.cell_paragraph < self.cell_paragraphs(pos)? && pos.offset <= self.cell_len(pos)? {
             Ok(())
@@ -328,14 +398,14 @@ impl HwpDocument {
     }
 
     /// 표·그림 고치기 공통: 편집 단계를 열고 쓰기 호출을 한다.
-    /// rhwp 가 준 커서 자리(누른 자리·위아래 옮기기) → 글자 자리.
+    /// rhwp 가 준 커서 자리(누른 자리·위아래 옮기기)를 바로잡는다.
     ///
     /// rhwp 의 `charOffset` 은 대개 논리 자리지만 줄 끝에서는 글자 자리(문단 글자 수)로 잘려 온다.
-    /// 함께 온 `cursorRect` 는 늘 맞으므로, 그 사각형을 그리는 논리 자리를 찾아 글자 자리로 바꾼다.
+    /// 함께 온 `cursorRect` 는 늘 맞으므로, 그 사각형을 그리는 논리 자리를 찾는다.
     fn resolve_hit(&self, pos: TextPos, reply: &Value) -> TextPos {
         let (section, paragraph) = (pos.section as usize, pos.paragraph as usize);
         let raw = pos.offset as usize;
-        let inline = inline_controls(&self.doc, section, paragraph);
+        let inline = inline_slots(&self.doc, section, paragraph).len();
         let target = reply
             .get("cursorRect")
             .and_then(|r| Some((r.get("x")?.as_f64()?, r.get("pageIndex")?.as_u64()?)));
@@ -362,8 +432,9 @@ impl HwpDocument {
                 logical = found;
             }
         }
+        let len = text_len(&self.doc, section, paragraph) + inline;
         TextPos {
-            offset: text_offset(&self.doc, section, paragraph, logical) as u32,
+            offset: logical.min(len) as u32,
             ..pos
         }
     }
@@ -398,69 +469,63 @@ fn reflow_paragraph(
     doc.delete_text_native(section, paragraph, 0, 1)
 }
 
-/// rhwp 는 자리를 두 가지로 센다. 글자 편집(넣기·지우기·모양)은 글자 자리, 커서(누른 자리·커서
-/// 사각형·위아래 옮기기)와 표 넣기는 글자처럼 놓인 개체도 한 칸으로 세는 논리 자리다.
-/// Papy 의 자리는 글자 자리이고, rhwp 커서 호출 앞뒤에서 바꾼다.
-/// 같은 글자 자리에 개체가 있으면 글자가 개체 앞이다(rhwp 가 그 자리에 친 글자를 개체 앞에 넣는다).
-///
-/// 글자 자리 → 논리 자리
-fn logical_offset(doc: &Rhwp, section: usize, paragraph: usize, offset: usize) -> usize {
-    let Some(para) = doc
-        .document()
-        .sections
-        .get(section)
-        .and_then(|s| s.paragraphs.get(paragraph))
-    else {
-        return offset;
-    };
-    let positions = para.control_text_positions();
-    let before = para
-        .controls
-        .iter()
-        .enumerate()
-        .filter(|(index, control)| {
-            control.is_logical_inline() && positions.get(*index).is_some_and(|&at| at < offset)
-        })
-        .count();
-    offset + before
-}
+/// 글자처럼 놓인 개체 자리 표시(문단 글자를 읽을 때). 자리 수와 글자 수를 맞춘다.
+pub(crate) const OBJECT_MARK: char = '\u{FFFC}';
 
-/// 문단 안 글자처럼 놓인 개체 수
-fn inline_controls(doc: &Rhwp, section: usize, paragraph: usize) -> usize {
+/// rhwp 는 자리를 두 가지로 센다. 커서(누른 자리·커서 사각형·위아래 옮기기)·문단 나누기·표 넣기는
+/// 글자처럼 놓인 개체(그림·표·각주 등)도 한 칸으로 세는 논리 자리, 글자 넣기·지우기·모양은 글자 자리다.
+/// Papy 의 본문 자리는 논리 자리(커서 자리)이고, rhwp 글자 호출 앞에서 글자 자리로 바꾼다.
+/// 표 칸 안 자리는 글자 자리 그대로다.
+fn paragraph_of(
+    doc: &Rhwp,
+    section: usize,
+    paragraph: usize,
+) -> Option<&rhwp::model::paragraph::Paragraph> {
     doc.document()
         .sections
         .get(section)
         .and_then(|s| s.paragraphs.get(paragraph))
-        .map_or(0, |para| {
-            para.controls
-                .iter()
-                .filter(|control| control.is_logical_inline())
-                .count()
-        })
 }
 
-/// 논리 자리 → 글자 자리. 개체 바로 뒤 자리는 그 개체 앞 글자 자리가 된다.
-fn text_offset(doc: &Rhwp, section: usize, paragraph: usize, logical: usize) -> usize {
-    let Some(para) = doc
-        .document()
-        .sections
-        .get(section)
-        .and_then(|s| s.paragraphs.get(paragraph))
-    else {
-        return logical;
+/// 문단 글자 수
+fn text_len(doc: &Rhwp, section: usize, paragraph: usize) -> usize {
+    paragraph_of(doc, section, paragraph).map_or(0, |para| para.text.chars().count())
+}
+
+/// 글자처럼 놓인 개체의 (논리 자리, 개체 번호). 자리 순서.
+fn inline_slots(doc: &Rhwp, section: usize, paragraph: usize) -> Vec<(usize, usize)> {
+    let Some(para) = paragraph_of(doc, section, paragraph) else {
+        return Vec::new();
     };
     let positions = para.logical_control_positions();
-    let before = para
+    let mut slots: Vec<(usize, usize)> = para
         .controls
         .iter()
         .enumerate()
-        .filter(|(index, control)| {
-            control.is_logical_inline() && positions.get(*index).is_some_and(|&at| at < logical)
-        })
+        .filter(|(_, control)| control.is_logical_inline())
+        .filter_map(|(index, _)| positions.get(index).map(|&at| (at, index)))
+        .collect();
+    slots.sort_unstable();
+    slots
+}
+
+/// 논리 자리 → 글자 자리(그 자리 앞 개체 수만큼 뺀다)
+fn text_offset(doc: &Rhwp, section: usize, paragraph: usize, logical: usize) -> usize {
+    let before = inline_slots(doc, section, paragraph)
+        .iter()
+        .filter(|(at, _)| *at < logical)
         .count();
     logical
         .saturating_sub(before)
-        .min(para.text.chars().count())
+        .min(text_len(doc, section, paragraph))
+}
+
+/// 논리 자리 바로 앞이 개체다(그 자리에 친 글자는 개체 뒤에 넣어야 한다)
+fn after_object(doc: &Rhwp, section: usize, paragraph: usize, logical: usize) -> bool {
+    logical > 0
+        && inline_slots(doc, section, paragraph)
+            .iter()
+            .any(|(at, _)| *at + 1 == logical)
 }
 
 /// 그림 형식(확장자). rhwp 가 넣을 수 있는 것만.
@@ -601,6 +666,26 @@ pub(crate) fn parse_page_size(json: &str) -> Option<PageSize> {
     })
 }
 
+/// rhwp 글자 속성 JSON → 글자 모양
+fn parse_char_format(value: &Value) -> CharFormat {
+    let flag = |key: &str| value.get(key).and_then(Value::as_bool);
+    CharFormat {
+        font_family: value
+            .get("fontFamily")
+            .and_then(Value::as_str)
+            .map(str::to_owned),
+        font_size: float(value, "fontSize").map(|size| size / 100.0),
+        bold: flag("bold"),
+        italic: flag("italic"),
+        underline: flag("underline"),
+        strikethrough: flag("strikethrough"),
+        color: value
+            .get("textColor")
+            .and_then(Value::as_str)
+            .map(str::to_owned),
+    }
+}
+
 fn char_format_json(format: &CharFormat, font_ids: Option<[i32; 7]>) -> String {
     let mut props = serde_json::Map::new();
     let mut set = |key: &str, value: Value| {
@@ -737,25 +822,21 @@ impl Document for HwpDocument {
 
     fn caret_rect(&mut self, pos: TextPos) -> Result<PageRect> {
         let reply = self.read("locate caret", |doc| {
-            let (section, paragraph) = (pos.section as usize, pos.paragraph as usize);
-            let offset = logical_offset(doc, section, paragraph, pos.offset as usize);
-            doc.get_cursor_rect_native(section, paragraph, offset)
+            doc.get_cursor_rect_native(
+                pos.section as usize,
+                pos.paragraph as usize,
+                pos.offset as usize,
+            )
         })?;
         parse_rect(&json(&reply)?).ok_or_else(|| engine_error("locate caret"))
     }
 
     fn move_vertical(&mut self, pos: TextPos, lines: i32, preferred_x: f32) -> Result<TextPos> {
-        let logical = logical_offset(
-            &self.doc,
-            pos.section as usize,
-            pos.paragraph as usize,
-            pos.offset as usize,
-        ) as u32;
         let reply = self.read_wrapper("move caret", |doc| {
             doc.move_vertical(
                 pos.section,
                 pos.paragraph,
-                logical,
+                pos.offset,
                 lines,
                 (preferred_x / PT_PER_PX) as f64,
                 u32::MAX,
@@ -865,15 +946,32 @@ impl Document for HwpDocument {
                 text.push('\n');
             }
             if to > from {
-                let part = self.read("read text", |doc| {
-                    doc.get_text_range_native(
-                        start.section as usize,
-                        paragraph as usize,
-                        from as usize,
-                        (to - from) as usize,
-                    )
-                })?;
-                text.push_str(&part);
+                // 글자와 개체 자리(U+FFFC)를 커서 자리 순서로 늘어놓는다(자리 수 = 글자 수)
+                let section = start.section as usize;
+                let paragraph = paragraph as usize;
+                let slots = inline_slots(&self.doc, section, paragraph);
+                let mut logical = from as usize;
+                while logical < to as usize {
+                    if slots.iter().any(|(at, _)| *at == logical) {
+                        text.push(OBJECT_MARK);
+                        logical += 1;
+                        continue;
+                    }
+                    // 다음 개체 자리 또는 끝까지 이어진 글자
+                    let next = slots
+                        .iter()
+                        .map(|(at, _)| *at)
+                        .filter(|at| *at > logical)
+                        .min()
+                        .unwrap_or(usize::MAX)
+                        .min(to as usize);
+                    let at = text_offset(&self.doc, section, paragraph, logical);
+                    let part = self.read("read text", |doc| {
+                        doc.get_text_range_native(section, paragraph, at, next - logical)
+                    })?;
+                    text.push_str(&part);
+                    logical = next;
+                }
             }
         }
         Ok(text)
@@ -948,31 +1046,17 @@ impl Document for HwpDocument {
 
     fn char_format(&mut self, pos: TextPos) -> Result<CharFormat> {
         // 커서는 앞 글자의 서식을 따른다(줄 처음이면 첫 글자).
-        let offset = pos.offset.saturating_sub(1);
+        let offset = text_offset(
+            &self.doc,
+            pos.section as usize,
+            pos.paragraph as usize,
+            pos.offset as usize,
+        )
+        .saturating_sub(1);
         let reply = self.read("read format", |doc| {
-            doc.get_char_properties_at_native(
-                pos.section as usize,
-                pos.paragraph as usize,
-                offset as usize,
-            )
+            doc.get_char_properties_at_native(pos.section as usize, pos.paragraph as usize, offset)
         })?;
-        let value = json(&reply)?;
-        let flag = |key: &str| value.get(key).and_then(Value::as_bool);
-        Ok(CharFormat {
-            font_family: value
-                .get("fontFamily")
-                .and_then(Value::as_str)
-                .map(str::to_owned),
-            font_size: float(&value, "fontSize").map(|size| size / 100.0),
-            bold: flag("bold"),
-            italic: flag("italic"),
-            underline: flag("underline"),
-            strikethrough: flag("strikethrough"),
-            color: value
-                .get("textColor")
-                .and_then(Value::as_str)
-                .map(str::to_owned),
-        })
+        Ok(parse_char_format(&json(&reply)?))
     }
 
     fn apply_char_format(
@@ -1011,16 +1095,13 @@ impl Document for HwpDocument {
             } else {
                 self.paragraph_len(start.section, paragraph)?
             };
+            let section = start.section as usize;
+            let from = text_offset(&self.doc, section, paragraph as usize, from as usize);
+            let to = text_offset(&self.doc, section, paragraph as usize, to as usize);
             if to > from {
                 let props = props.clone();
                 self.write("apply format", |doc| {
-                    doc.apply_char_format_native(
-                        start.section as usize,
-                        paragraph as usize,
-                        from as usize,
-                        to as usize,
-                        &props,
-                    )
+                    doc.apply_char_format_native(section, paragraph as usize, from, to, &props)
                 })?;
             }
         }
@@ -1233,6 +1314,141 @@ impl Document for HwpDocument {
         })
     }
 
+    fn cell_paragraph_len(&mut self, pos: CellPos) -> Result<u32> {
+        if pos.cell_paragraph >= self.cell_paragraphs(pos)? {
+            return Err(Error::new(
+                ErrorCode::InvalidArgument,
+                "position is outside the cell",
+            ));
+        }
+        self.cell_len(pos)
+    }
+
+    fn cell_selection_rects(&mut self, start: CellPos, end: CellPos) -> Result<Vec<PageRect>> {
+        self.cell_range(start, end)?;
+        let reply = self.read_wrapper("measure selection", |doc| {
+            doc.get_selection_rects_in_cell(
+                start.section,
+                start.paragraph,
+                start.control,
+                start.cell,
+                start.cell_paragraph,
+                start.offset,
+                end.cell_paragraph,
+                end.offset,
+            )
+        })?;
+        Ok(json(&reply)?
+            .as_array()
+            .map(|items| items.iter().filter_map(parse_rect).collect())
+            .unwrap_or_default())
+    }
+
+    fn cell_text_in_range(&mut self, start: CellPos, end: CellPos) -> Result<String> {
+        self.cell_range(start, end)?;
+        let mut text = String::new();
+        for (index, (cell_paragraph, from, to)) in
+            self.cell_spans(start, end)?.into_iter().enumerate()
+        {
+            if index > 0 {
+                text.push('\n');
+            }
+            if to > from {
+                let part = self.read("read text", |doc| {
+                    doc.get_text_in_cell_native(
+                        start.section as usize,
+                        start.paragraph as usize,
+                        start.control as usize,
+                        start.cell as usize,
+                        cell_paragraph as usize,
+                        from as usize,
+                        (to - from) as usize,
+                    )
+                })?;
+                text.push_str(&part);
+            }
+        }
+        Ok(text)
+    }
+
+    fn cell_delete_range(&mut self, start: CellPos, end: CellPos) -> Result<CellPos> {
+        self.cell_range(start, end)?;
+        if start == end {
+            return Ok(start);
+        }
+        self.begin_cell_step(start, None);
+        self.write("delete", |doc| {
+            doc.delete_range_native(
+                start.section as usize,
+                start.cell_paragraph as usize,
+                start.offset as usize,
+                end.cell_paragraph as usize,
+                end.offset as usize,
+                Some((
+                    start.paragraph as usize,
+                    start.control as usize,
+                    start.cell as usize,
+                )),
+            )
+        })?;
+        Ok(start)
+    }
+
+    fn cell_char_format(&mut self, pos: CellPos) -> Result<CharFormat> {
+        self.validate_cell(pos)?;
+        // 커서는 앞 글자의 서식을 따른다(칸 문단 처음이면 첫 글자)
+        let reply = self.read("read format", |doc| {
+            doc.get_cell_char_properties_at_native(
+                pos.section as usize,
+                pos.paragraph as usize,
+                pos.control as usize,
+                pos.cell as usize,
+                pos.cell_paragraph as usize,
+                pos.offset.saturating_sub(1) as usize,
+            )
+        })?;
+        Ok(parse_char_format(&json(&reply)?))
+    }
+
+    fn cell_apply_char_format(
+        &mut self,
+        start: CellPos,
+        end: CellPos,
+        format: &CharFormat,
+    ) -> Result<()> {
+        self.cell_range(start, end)?;
+        if start == end {
+            return Ok(());
+        }
+        // 칸 안은 글꼴 이름 바꾸기를 아직 받지 않는다(모바일 도구 막대에 없다)
+        let props = char_format_json(
+            &CharFormat {
+                font_family: None,
+                ..format.clone()
+            },
+            None,
+        );
+        self.begin_cell_step(start, None);
+        for (cell_paragraph, from, to) in self.cell_spans(start, end)? {
+            if to > from {
+                let props = props.clone();
+                self.write("apply format", |doc| {
+                    doc.apply_char_format_in_cell_native(
+                        start.section as usize,
+                        start.paragraph as usize,
+                        start.control as usize,
+                        start.cell as usize,
+                        cell_paragraph as usize,
+                        from as usize,
+                        to as usize,
+                        &props,
+                    )
+                })?;
+            }
+        }
+        Ok(())
+    }
+
     fn page_objects(&mut self, page: u32) -> Result<Vec<PageObject>> {
         let reply = self.read("read objects", |doc| {
             doc.get_page_control_layout_native(page)
@@ -1250,9 +1466,14 @@ impl Document for HwpDocument {
         self.validate(pos)?;
         self.begin_step(pos, None);
         self.write("insert table", |doc| {
-            let (section, paragraph) = (pos.section as usize, pos.paragraph as usize);
-            let offset = logical_offset(doc, section, paragraph, pos.offset as usize);
-            doc.create_table_native(section, paragraph, offset, rows as u16, cols as u16)
+            // 표 넣기는 커서(논리) 자리로 문단을 나눈다
+            doc.create_table_native(
+                pos.section as usize,
+                pos.paragraph as usize,
+                pos.offset as usize,
+                rows as u16,
+                cols as u16,
+            )
         })?;
         Ok(())
     }
@@ -1314,11 +1535,18 @@ impl Document for HwpDocument {
         self.begin_step(pos, None);
         // 원래 픽셀 크기를 모르면 보이는 크기(96 DPI)로 둔다.
         let (px_w, px_h) = ((width / PT_PER_PX) as u32, (height / PT_PER_PX) as u32);
+        // 그림 넣기는 글자 자리를 받는다(같은 자리의 개체 뒤에 놓인다)
+        let at = text_offset(
+            &self.doc,
+            pos.section as usize,
+            pos.paragraph as usize,
+            pos.offset as usize,
+        );
         let reply = self.write("insert picture", |doc| {
             doc.insert_picture_native(
                 pos.section as usize,
                 pos.paragraph as usize,
-                pos.offset as usize,
+                at,
                 &[],
                 image,
                 hwpunit(width),

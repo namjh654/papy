@@ -77,6 +77,11 @@ fn docx_paragraphs(paragraphs: &[&str]) -> Vec<u8> {
         .iter()
         .map(|text| format!("<w:p><w:r><w:t>{text}</w:t></w:r></w:p>"))
         .collect();
+    docx_body(&body)
+}
+
+/// `w:body` 안 XML 로 DOCX 를 만든다
+fn docx_body(body: &str) -> Vec<u8> {
     let document = format!(r#"<w:document xmlns:w="w"><w:body>{body}</w:body></w:document>"#);
     let mut buffer = std::io::Cursor::new(Vec::new());
     let mut zip = zip::ZipWriter::new(&mut buffer);
@@ -403,10 +408,46 @@ fn tables_and_pictures_through_the_bridge() {
         .move_caret(doc.session, back.caret.position, CaretDirection::Left, 0.0)
         .unwrap();
     assert_eq!(left.position.offset, 2);
-    // 칸 안에서는 단어 고르기·글자 모양이 아직 안 된다(빈 범위·오류)
+    // 칸 안 단어 고르기("칸 글" 의 2 자리 → "글"), 선택 표시, 굵게
     let word = engine.word_at(doc.session, left.position).unwrap();
-    assert_eq!(word.start, word.end);
-    assert!(engine.text_style(doc.session, left.position).is_err());
+    assert_eq!((word.start.offset, word.end.offset), (2, 3));
+    assert!(word.start.cell.is_some());
+    assert_eq!(engine.text_in_range(doc.session, word).unwrap(), "글");
+    assert!(
+        !engine
+            .selection_regions(doc.session, word)
+            .unwrap()
+            .is_empty()
+    );
+    engine
+        .apply_text_style(
+            doc.session,
+            word,
+            EngineTextStyle {
+                font_size: None,
+                bold: Some(true),
+                italic: None,
+                underline: None,
+                strikethrough: None,
+                color: Some("#e53935".into()),
+            },
+        )
+        .unwrap();
+    let style = engine.text_style(doc.session, word.end).unwrap();
+    assert_eq!(style.bold, Some(true));
+    assert_eq!(style.color.as_deref(), Some("#e53935"));
+    // 본문과 칸에 걸친 범위는 받지 않는다
+    assert!(
+        engine
+            .selection_regions(
+                doc.session,
+                EngineRange {
+                    start,
+                    end: word.end
+                }
+            )
+            .is_err()
+    );
     // 표 고치기
     engine
         .edit_table(
@@ -466,4 +507,43 @@ fn tables_and_pictures_through_the_bridge() {
             .insert_picture(doc.session, start, b"nope".to_vec(), 10.0, 10.0)
             .is_err()
     );
+}
+
+#[test]
+fn paragraph_edit_keeps_inline_picture() {
+    let engine = PapyEngine::new(None);
+    let doc = engine.open(docx_paragraphs(&["앞 뒤"]), None).unwrap();
+    let at = |offset| EnginePosition {
+        section: 0,
+        paragraph: 0,
+        offset,
+        cell: None,
+    };
+    engine
+        .insert_picture(doc.session, at(1), RED_PNG.to_vec(), 40.0, 20.0)
+        .unwrap();
+    let pictures = |engine: &PapyEngine| {
+        engine
+            .page_objects(doc.session, 0)
+            .unwrap()
+            .iter()
+            .filter(|o| o.kind == EngineObjectKind::Picture)
+            .count()
+    };
+    assert_eq!(pictures(&engine), 1);
+    // 문단 글자에는 그림 자리(U+FFFC)가 보인다
+    let hit = engine.paragraph_at(doc.session, 0, 80.0, 80.0).unwrap();
+    assert_eq!(hit.text, "앞\u{FFFC} 뒤");
+    // 다른 글자만 고치면 그림이 남는다
+    engine
+        .replace_paragraph(doc.session, 0, 0, "앞\u{FFFC} 뒤 고침".into())
+        .unwrap();
+    assert_eq!(pictures(&engine), 1);
+    let hit = engine.paragraph_at(doc.session, 0, 80.0, 80.0).unwrap();
+    assert_eq!(hit.text, "앞\u{FFFC} 뒤 고침");
+    // 자리 표시를 지우면 그림도 지워진다
+    engine
+        .replace_paragraph(doc.session, 0, 0, "앞 뒤 고침".into())
+        .unwrap();
+    assert_eq!(pictures(&engine), 0);
 }

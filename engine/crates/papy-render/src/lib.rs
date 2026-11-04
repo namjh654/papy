@@ -323,6 +323,41 @@ pub trait Document: Send {
         Err(not_supported("cell editing"))
     }
 
+    /// 칸 안 문단의 글자 수.
+    fn cell_paragraph_len(&mut self, _pos: CellPos) -> Result<u32> {
+        Err(not_supported("cell editing"))
+    }
+
+    /// 칸 안 범위를 줄마다 덮는 사각형. 두 끝은 같은 칸이고 `start` ≤ `end`.
+    fn cell_selection_rects(&mut self, _start: CellPos, _end: CellPos) -> Result<Vec<PageRect>> {
+        Err(not_supported("cell editing"))
+    }
+
+    /// 칸 안 범위의 글자(칸 문단 사이는 `\n`).
+    fn cell_text_in_range(&mut self, _start: CellPos, _end: CellPos) -> Result<String> {
+        Err(not_supported("cell editing"))
+    }
+
+    /// 칸 안 범위를 지운다(칸 문단을 넘으면 합친다). 커서(`start`)를 돌려준다.
+    fn cell_delete_range(&mut self, _start: CellPos, _end: CellPos) -> Result<CellPos> {
+        Err(not_supported("cell editing"))
+    }
+
+    /// 칸 안 위치의 글자 모양(커서 앞 글자).
+    fn cell_char_format(&mut self, _pos: CellPos) -> Result<CharFormat> {
+        Err(not_supported("cell editing"))
+    }
+
+    /// 칸 안 범위에 글자 모양을 적용한다(값이 있는 것만).
+    fn cell_apply_char_format(
+        &mut self,
+        _start: CellPos,
+        _end: CellPos,
+        _format: &CharFormat,
+    ) -> Result<()> {
+        Err(not_supported("cell editing"))
+    }
+
     /// 쪽에 그려진 표·그림.
     fn page_objects(&mut self, _page: u32) -> Result<Vec<PageObject>> {
         Ok(Vec::new())

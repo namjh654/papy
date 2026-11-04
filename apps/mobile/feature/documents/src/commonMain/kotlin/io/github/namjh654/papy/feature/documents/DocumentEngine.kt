@@ -124,11 +124,20 @@ data class PageBox(val page: Int, val x: Float, val y: Float, val width: Float, 
 data class ParagraphHit(val section: Int, val paragraph: Int, val text: String, val boxes: List<PageBox>)
 
 /**
- * 본문 위치. [offset] 은 문단 안 글자(유니코드 스칼라) 위치.
+ * 본문 위치. [offset] 은 문단 안 커서 자리(글자, 그리고 글자처럼 놓인 그림·표도 한 칸).
  * 표 칸·글상자 안이면 [cell] 이 있고, [paragraph] 는 표를 가진 본문 문단, [offset] 은 칸 문단 안 위치다.
  */
 data class TextPos(val section: Int, val paragraph: Int, val offset: Int, val cell: CellRef? = null) : Comparable<TextPos> {
     val inCell: Boolean get() = cell != null
+
+    /** 같은 곳(둘 다 본문, 또는 같은 표 칸)이다. 범위는 같은 곳 안에서만 고른다 */
+    fun sameBlock(other: TextPos): Boolean = when {
+        cell == null && other.cell == null -> true
+        cell != null && other.cell != null ->
+            section == other.section && paragraph == other.paragraph &&
+                cell.control == other.cell.control && cell.cell == other.cell.cell
+        else -> false
+    }
 
     override fun compareTo(other: TextPos): Int =
         compareValuesBy(this, other, TextPos::section, TextPos::paragraph, { it.cell?.cell ?: -1 }, { it.cell?.cellParagraph ?: -1 }, TextPos::offset)
