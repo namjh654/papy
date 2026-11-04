@@ -220,6 +220,12 @@ impl Document for PdfDocument {
             .call(move |state| state.text_rects(id, page, area))
     }
 
+    fn text_in_area(&mut self, page: u32, area: PageRect) -> Result<String> {
+        let id = self.id;
+        self.worker
+            .call(move |state| state.text_in_area(id, page, area))
+    }
+
     fn edit_pages(&mut self, op: PageOp) -> Result<()> {
         let id = self.id;
         self.info.page_count = self.worker.call(move |state| state.edit_pages(id, op))?;

@@ -269,6 +269,11 @@ pub trait Document: Send {
         Err(not_supported("annotations"))
     }
 
+    /// 영역 안의 글자(PDF 글자 고치기 입력란을 채울 때).
+    fn text_in_area(&mut self, _page: u32, _area: PageRect) -> Result<String> {
+        Err(not_supported("annotations"))
+    }
+
     /// 쪽을 회전·삭제·이동한다(`capabilities.page_edit`).
     fn edit_pages(&mut self, _op: PageOp) -> Result<()> {
         Err(not_supported("page editing"))

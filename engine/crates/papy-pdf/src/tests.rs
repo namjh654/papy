@@ -509,3 +509,74 @@ fn page_operations_and_undo() {
         ErrorCode::InvalidArgument
     );
 }
+
+#[test]
+fn replace_existing_text() {
+    let mut doc = open_editable(1);
+    assert_eq!(doc.text_in_area(0, TEXT_AREA).unwrap(), "Hello Papy 1");
+    // 글자 크기를 주지 않으면 원래 크기(24pt)로, 같은 자리에 넣는다.
+    doc.annotate(&Annotation::ReplaceText {
+        page: 0,
+        area: TEXT_AREA,
+        text: "Bye Papy".into(),
+        color: "#000000".into(),
+        font_size: None,
+    })
+    .unwrap();
+    let text = doc.extract_text(0).unwrap();
+    assert!(
+        text.contains("Bye Papy") && !text.contains("Hello"),
+        "{text}"
+    );
+    let rects = doc.text_rects(0, TEXT_AREA).unwrap();
+    assert_eq!(
+        rects.len(),
+        1,
+        "new text sits where the old text was: {rects:?}"
+    );
+    assert!(rects[0].height > 15.0, "kept the original size: {rects:?}");
+    // 한글로 바꾸기(한글 글꼴을 넣는다), 되돌리기, 저장 후 다시 열기.
+    doc.annotate(&Annotation::ReplaceText {
+        page: 0,
+        area: TEXT_AREA,
+        text: "안녕 페이피".into(),
+        color: "#d92d20".into(),
+        font_size: Some(18.0),
+    })
+    .unwrap();
+    // PDFium 은 넣은 공백을 줄바꿈 없는 공백(U+00A0)으로 꺼낸다.
+    let korean = doc.extract_text(0).unwrap().replace('\u{a0}', " ");
+    assert!(korean.contains("안녕 페이피"), "{korean}");
+    doc.undo().unwrap();
+    assert!(doc.extract_text(0).unwrap().contains("Bye Papy"));
+    let saved = doc.save(SaveFormat::Pdf).unwrap();
+    let mut reopened = open_bytes(saved).unwrap();
+    assert!(reopened.extract_text(0).unwrap().contains("Bye Papy"));
+    // 빈 영역·지우기만 하기
+    let empty = PageRect {
+        page: 0,
+        x: 10.0,
+        y: 360.0,
+        width: 20.0,
+        height: 20.0,
+    };
+    let error = doc
+        .annotate(&Annotation::ReplaceText {
+            page: 0,
+            area: empty,
+            text: "x".into(),
+            color: "#000000".into(),
+            font_size: None,
+        })
+        .unwrap_err();
+    assert_eq!(error.code, ErrorCode::InvalidArgument);
+    doc.annotate(&Annotation::ReplaceText {
+        page: 0,
+        area: TEXT_AREA,
+        text: String::new(),
+        color: "#000000".into(),
+        font_size: None,
+    })
+    .unwrap();
+    assert!(!doc.extract_text(0).unwrap().contains("Papy"));
+}

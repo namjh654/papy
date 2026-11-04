@@ -33,6 +33,7 @@ import { Toolbar, type Mode, type ZoomMode } from "./components/Toolbar";
 import { PX_PER_PT, Viewer, type ViewerHandle } from "./components/Viewer";
 import { Welcome } from "./components/Welcome";
 import { LicensesDialog } from "./components/LicensesDialog";
+import { t } from "./i18n";
 
 const ZOOM_STEPS = [0.25, 0.33, 0.5, 0.67, 0.75, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 5];
 const ZOOM_MIN = ZOOM_STEPS[0]!;
@@ -50,11 +51,11 @@ const workFormats = (doc: OpenedDocument) =>
   doc.format === "PDF" ? ["pdf"] : doc.saveFormats.filter((ext) => ext === "hwpx" || ext === "hwp" || ext === "docx");
 const canModify = (doc: OpenedDocument | null) => !!doc && (doc.canEdit || doc.canAnnotate || doc.canEditPages);
 const FORMAT_NAMES: Record<string, string> = {
-  hwpx: "HWPX 문서",
-  hwp: "HWP 문서",
-  docx: "Word 문서",
-  pdf: "PDF",
-  txt: "텍스트",
+  hwpx: t.formats.hwpx,
+  hwp: t.formats.hwp,
+  docx: t.formats.docx,
+  pdf: t.formats.pdf,
+  txt: t.formats.txt,
 };
 /** 고급 편집기(rhwp-studio)로 넘길 형식. HWP·HWPX 만 된다. */
 const studioFormat = (doc: OpenedDocument): StudioFormat | null =>
@@ -156,7 +157,7 @@ export function App() {
       setDoc((old) => (old && old.id === current.id ? { ...old, path, fileName: name } : old));
       setDirty(false);
       setRecent(rememberRecent({ path, name, format: current.format }));
-      setNotice(`저장했습니다: ${name}`);
+      setNotice(t.app.saved(name));
       return true;
     } catch (caught) {
       setError(describeError(caught));
@@ -204,7 +205,7 @@ export function App() {
     const path = extensionOf(chosen) === ext ? chosen : `${chosen}.${ext}`;
     try {
       await saveDocument(current.id, path);
-      setNotice(`내보냈습니다: ${fileNameOf(path)}`);
+      setNotice(t.app.exported(fileNameOf(path)));
     } catch (caught) {
       setError(describeError(caught));
     }
@@ -214,13 +215,13 @@ export function App() {
   const confirmDiscard = useCallback(async () => {
     const current = docRef.current;
     if (!current || !dirtyRef.current) return true;
-    const answer = await message(`"${current.fileName}"의 변경 내용을 저장할까요?\n저장하지 않으면 변경 내용이 사라집니다.`, {
-      title: "저장하지 않은 변경",
+    const answer = await message(t.app.unsavedQuestion(current.fileName), {
+      title: t.app.unsavedTitle,
       kind: "warning",
-      buttons: { yes: "저장", no: "저장 안 함", cancel: "취소" },
+      buttons: { yes: t.common.save, no: t.app.dontSave, cancel: t.common.cancel },
     });
-    if (answer === "저장" || answer === "Yes") return save();
-    return answer === "저장 안 함" || answer === "No";
+    if (answer === t.common.save || answer === "Yes") return save();
+    return answer === t.app.dontSave || answer === "No";
   }, [save]);
 
   // 창을 닫을 때도 확인한다.
@@ -254,7 +255,7 @@ export function App() {
         setDoc({ ...opened, path });
         setLoss(
           opened.droppedObjects > 0
-            ? `이 문서의 도형·그림 ${opened.droppedObjects}개는 아직 옮기지 못해 보이지 않습니다. 저장하면 빠진 채로 저장되니 원본은 따로 두세요.`
+            ? t.app.dropped(opened.droppedObjects)
             : null,
         );
         setMode("view");
@@ -288,7 +289,7 @@ export function App() {
     const selected = await openDialog({
       multiple: false,
       directory: false,
-      filters: [{ name: "문서 (PDF, HWP, HWPX, DOCX)", extensions: EXTENSIONS }],
+      filters: [{ name: t.app.openFilter, extensions: EXTENSIONS }],
     });
     if (typeof selected === "string") void openPath(selected);
   }, [openPath]);
@@ -328,7 +329,7 @@ export function App() {
         setRevision((value) => value + 1);
         setCurrent((page) => Math.min(page, Math.max(0, opened.pageCount - 1)));
         setStudio(false);
-        setNotice("고급 편집 내용을 반영했습니다. 저장하면 파일에 씁니다.");
+        setNotice(t.app.studioApplied);
       } catch (caught) {
         setError(describeError(caught));
         throw caught;
@@ -405,7 +406,7 @@ export function App() {
           EXTENSIONS.includes(item.split(".").pop()?.toLowerCase() ?? ""),
         );
         if (path) void openPath(path);
-        else if (event.payload.paths.length > 0) setError("PDF, HWP, HWPX, DOCX 파일만 열 수 있습니다.");
+        else if (event.payload.paths.length > 0) setError(t.app.onlySupported);
       }
     });
     return () => {
@@ -525,7 +526,7 @@ export function App() {
         <div className="loss-banner" role="status">
           <span>{loss}</span>
           <button className="ghost small" onClick={() => setLoss(null)}>
-            닫기
+            {t.common.close}
           </button>
         </div>
       )}
@@ -558,7 +559,7 @@ export function App() {
 
       {busy && (
         <div className="busy" role="status">
-          <span className="spinner" /> 문서를 여는 중…
+          <span className="spinner" /> {t.app.opening}
         </div>
       )}
       {notice && !error && (
@@ -570,20 +571,22 @@ export function App() {
         <div className="toast" role="alert">
           <span>{error}</span>
           <button className="ghost small" onClick={() => setError(null)}>
-            닫기
+            {t.common.close}
           </button>
         </div>
       )}
       {dragging && (
         <div className="drop-overlay">
-          <div>여기에 놓으면 문서를 엽니다</div>
+          <div>{t.app.dropHere}</div>
         </div>
       )}
       {studio && doc && studioFormat(doc) && (
         <StudioEditor
           fileName={doc.fileName}
           format={studioFormat(doc)!}
-          load={() => exportDocument(doc.id, studioFormat(doc)!)}
+          // studio 에는 늘 HWP 로 넘긴다: rhwp 0.8.7 의 HWPX 쓰기는 그림만 든 문단의 줄 정보를 빼서
+          // studio(WASM)가 그림을 그리지 못한다. 돌려받을 때는 원래 형식(format)으로 받는다.
+          load={() => exportDocument(doc.id, "hwp")}
           onApply={applyStudio}
           onCancel={() => setStudio(false)}
         />

@@ -9,6 +9,8 @@ use papy_model::{Error, ErrorCode, Result};
 use rhwp::model::bin_data::BinDataContent;
 use rhwp::model::control::Control;
 use rhwp::model::document::{DocInfo, Document};
+use rhwp::model::footnote::Footnote;
+use rhwp::model::header_footer::HeaderFooterApply;
 use rhwp::model::image::Picture;
 use rhwp::model::paragraph::Paragraph;
 use rhwp::model::style::{Alignment, LineSpacingType, UnderlineType};
@@ -24,6 +26,8 @@ struct Media<'a> {
     files: Vec<(u16, String, &'static str, Vec<u8>)>,
     /// 그림 개체 번호(docPr id)
     next_object: u32,
+    /// 각주 본문 XML(`<w:footnote>` 안쪽). 각주 id 는 순서 + 1.
+    footnotes: Vec<String>,
 }
 
 impl Media<'_> {
@@ -197,6 +201,40 @@ fn para_props(info: &DocInfo, paragraph: &Paragraph) -> String {
     props
 }
 
+/// 각주 참조 런. 각주 본문을 모아 두고 번호(id)를 매긴다.
+fn write_footnote(
+    out: &mut String,
+    info: &DocInfo,
+    media: &mut Media,
+    footnote: &Footnote,
+    depth: usize,
+) -> Result<()> {
+    if depth > MAX_DEPTH {
+        return Ok(());
+    }
+    // 자리를 먼저 잡아 각주 안 각주가 있어도 번호가 꼬이지 않게 한다.
+    media.footnotes.push(String::new());
+    let id = media.footnotes.len();
+    let mut body = String::new();
+    for (index, paragraph) in footnote.paragraphs.iter().enumerate() {
+        let prefix = if index == 0 {
+            r#"<w:r><w:rPr><w:vertAlign w:val="superscript"/></w:rPr><w:footnoteRef/></w:r><w:r><w:t xml:space="preserve"> </w:t></w:r>"#
+        } else {
+            ""
+        };
+        write_paragraph_with(&mut body, info, media, paragraph, depth + 1, prefix)?;
+    }
+    if footnote.paragraphs.is_empty() {
+        body.push_str(r#"<w:p><w:r><w:rPr><w:vertAlign w:val="superscript"/></w:rPr><w:footnoteRef/></w:r></w:p>"#);
+    }
+    media.footnotes[id - 1] = body;
+    let _ = write!(
+        out,
+        r#"<w:r><w:rPr><w:vertAlign w:val="superscript"/></w:rPr><w:footnoteReference w:id="{id}"/></w:r>"#
+    );
+    Ok(())
+}
+
 /// 문단 하나와 그 안의 표.
 fn write_paragraph(
     out: &mut String,
@@ -205,11 +243,40 @@ fn write_paragraph(
     paragraph: &Paragraph,
     depth: usize,
 ) -> Result<()> {
+    write_paragraph_with(out, info, media, paragraph, depth, "")
+}
+
+/// 문단 하나와 그 안의 표. `prefix` 는 문단 속성 바로 뒤에 넣는 런(각주 번호 표시 등).
+fn write_paragraph_with(
+    out: &mut String,
+    info: &DocInfo,
+    media: &mut Media,
+    paragraph: &Paragraph,
+    depth: usize,
+    prefix: &str,
+) -> Result<()> {
     out.push_str("<w:p>");
     out.push_str(&para_props(info, paragraph));
+    out.push_str(prefix);
     let chars: Vec<char> = paragraph.text.chars().collect();
+    // 각주 자리(글자 위치) — 그 앞에서 런을 끊고 각주 참조를 넣는다.
+    let mut notes: Vec<(usize, &Footnote)> = paragraph
+        .control_text_positions()
+        .into_iter()
+        .zip(&paragraph.controls)
+        .filter_map(|(position, control)| match control {
+            Control::Footnote(footnote) => Some((position, footnote.as_ref())),
+            _ => None,
+        })
+        .collect();
+    notes.sort_by_key(|(position, _)| *position);
+    let mut notes = notes.into_iter().peekable();
     let mut start = 0;
     while start < chars.len() {
+        while let Some((_, footnote)) = notes.next_if(|(position, _)| *position <= start) {
+            write_footnote(out, info, media, footnote, depth)?;
+        }
+        let next_note = notes.peek().map_or(usize::MAX, |(position, _)| *position);
         let shape_of = |index: usize| {
             let raw = paragraph
                 .char_offsets
@@ -226,7 +293,7 @@ fn write_paragraph(
         };
         let shape = shape_of(start);
         let mut end = start + 1;
-        while end < chars.len() && shape_of(end) == shape {
+        while end < chars.len() && end < next_note && shape_of(end) == shape {
             end += 1;
         }
         out.push_str("<w:r>");
@@ -258,6 +325,9 @@ fn write_paragraph(
         flush(out, &mut text);
         out.push_str("</w:r>");
         start = end;
+    }
+    for (_, footnote) in notes {
+        write_footnote(out, info, media, footnote, depth)?;
     }
     // 그림은 문단 끝에 글자처럼 놓는다(rhwp 의 그림 문단은 대개 그림 하나뿐이다).
     for control in &paragraph.controls {
@@ -376,7 +446,7 @@ fn write_table(
     Ok(())
 }
 
-fn section_props(document: &Document) -> String {
+fn section_props(document: &Document, references: &str) -> String {
     let Some(page) = document.sections.first().map(|s| &s.section_def.page_def) else {
         return String::new();
     };
@@ -393,7 +463,7 @@ fn section_props(document: &Document) -> String {
         ""
     };
     format!(
-        r#"<w:sectPr><w:pgSz w:w="{width}" w:h="{height}"{orient}/><w:pgMar w:top="{}" w:right="{}" w:bottom="{}" w:left="{}" w:header="{}" w:footer="{}" w:gutter="{}"/></w:sectPr>"#,
+        r#"<w:sectPr>{references}<w:pgSz w:w="{width}" w:h="{height}"{orient}/><w:pgMar w:top="{}" w:right="{}" w:bottom="{}" w:left="{}" w:header="{}" w:footer="{}" w:gutter="{}"/></w:sectPr>"#,
         twips(page.margin_top + page.margin_header),
         twips(page.margin_right),
         twips(page.margin_bottom + page.margin_footer),
@@ -405,17 +475,46 @@ fn section_props(document: &Document) -> String {
 }
 
 const CONTENT_TYPES: &str = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Default Extension="jpeg" ContentType="image/jpeg"/><Default Extension="gif" ContentType="image/gif"/><Default Extension="bmp" ContentType="image/bmp"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/></Types>"#;
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Default Extension="jpeg" ContentType="image/jpeg"/><Default Extension="gif" ContentType="image/gif"/><Default Extension="bmp" ContentType="image/bmp"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>"#;
 
 const ROOT_RELS: &str = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>"#;
 
-/// 본문 관계: 스타일 + 그림들
-fn document_rels(media: &Media) -> String {
+const REL: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+const WML: &str = "application/vnd.openxmlformats-officedocument.wordprocessingml";
+
+/// 머리말·꼬리말·각주 같은 본문 밖 부분 하나.
+struct Part {
+    /// word/ 아래 파일 이름(header1.xml 등)
+    name: String,
+    /// 관계 id(본문 관계에 넣지 않는 부분은 None)
+    rel: Option<String>,
+    /// 관계 종류(header, footer, footnotes, settings)
+    kind: &'static str,
+    xml: String,
+}
+
+/// 관계 파일: `extra` 부분들 + 그림들. 본문에는 스타일도 넣는다.
+fn rels_xml(media: &Media, extra: &[Part], styles: bool) -> String {
     let mut rels = String::from(
         r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>"#,
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">"#,
     );
+    if styles {
+        let _ = write!(
+            rels,
+            r#"<Relationship Id="rId1" Type="{REL}/styles" Target="styles.xml"/>"#
+        );
+    }
+    for part in extra {
+        if let Some(id) = &part.rel {
+            let _ = write!(
+                rels,
+                r#"<Relationship Id="{id}" Type="{REL}/{}" Target="{}"/>"#,
+                part.kind, part.name
+            );
+        }
+    }
     for (index, file) in media.files.iter().enumerate() {
         let _ = write!(
             rels,
@@ -431,6 +530,81 @@ fn document_rels(media: &Media) -> String {
 const STYLES: &str = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:docDefaults><w:rPrDefault><w:rPr><w:sz w:val="20"/><w:lang w:val="ko-KR" w:eastAsia="ko-KR"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:after="0" w:line="240" w:lineRule="auto"/></w:pPr></w:pPrDefault></w:docDefaults><w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/></w:style></w:styles>"#;
 
+const NAMESPACES: &str = r#"xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing""#;
+
+/// 첫 구역의 머리말·꼬리말을 부분으로 쓰고 sectPr 참조를 돌려준다. 같은 종류·쪽은 처음 것만.
+fn header_footer_parts(
+    document: &Document,
+    media: &mut Media,
+    parts: &mut Vec<Part>,
+) -> Result<String> {
+    let info = &document.doc_info;
+    let mut seen: Vec<(bool, &'static str)> = Vec::new();
+    let mut references = (String::new(), String::new());
+    let Some(section) = document.sections.first() else {
+        return Ok(String::new());
+    };
+    for control in section.paragraphs.iter().flat_map(|p| &p.controls) {
+        let (is_header, apply, paragraphs) = match control {
+            Control::Header(header) => (true, header.apply_to, &header.paragraphs),
+            Control::Footer(footer) => (false, footer.apply_to, &footer.paragraphs),
+            _ => continue,
+        };
+        let kind = match apply {
+            HeaderFooterApply::Even => "even",
+            _ => "default",
+        };
+        if seen.contains(&(is_header, kind)) {
+            continue;
+        }
+        seen.push((is_header, kind));
+        let (tag, name) = if is_header {
+            ("hdr", "header")
+        } else {
+            ("ftr", "footer")
+        };
+        let index = parts.len() + 1;
+        let mut xml = format!(
+            r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:{tag} {NAMESPACES}>"#
+        );
+        for paragraph in paragraphs {
+            write_paragraph(&mut xml, info, media, paragraph, 1)?;
+        }
+        if paragraphs.is_empty() {
+            xml.push_str("<w:p/>");
+        }
+        let _ = write!(xml, "</w:{tag}>");
+        let rel = format!("rIdPart{index}");
+        let reference = format!(r#"<w:{name}Reference w:type="{kind}" r:id="{rel}"/>"#);
+        // sectPr 안에서는 머리말 참조가 꼬리말 참조보다 앞에 온다.
+        if is_header {
+            &mut references.0
+        } else {
+            &mut references.1
+        }
+        .push_str(&reference);
+        parts.push(Part {
+            name: format!("{name}{index}.xml"),
+            rel: Some(rel),
+            kind: name,
+            xml,
+        });
+    }
+    if seen.iter().any(|(_, kind)| *kind == "even") {
+        parts.push(Part {
+            name: "settings.xml".into(),
+            rel: Some("rIdSettings".into()),
+            kind: "settings",
+            xml: format!(
+                r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:settings {NAMESPACES}><w:evenAndOddHeaders/></w:settings>"#
+            ),
+        });
+    }
+    Ok(references.0 + &references.1)
+}
+
 /// rhwp 문서를 DOCX 바이트로 쓴다.
 pub fn docx_from_document(document: &Document) -> Result<Vec<u8>> {
     let info = &document.doc_info;
@@ -438,6 +612,7 @@ pub fn docx_from_document(document: &Document) -> Result<Vec<u8>> {
         contents: &document.bin_data_content,
         files: Vec::new(),
         next_object: 0,
+        footnotes: Vec::new(),
     };
     let mut body = String::new();
     for section in &document.sections {
@@ -445,10 +620,32 @@ pub fn docx_from_document(document: &Document) -> Result<Vec<u8>> {
             write_paragraph(&mut body, info, &mut media, paragraph, 0)?;
         }
     }
+    let mut extra: Vec<Part> = Vec::new();
+    let references = header_footer_parts(document, &mut media, &mut extra)?;
+    if !media.footnotes.is_empty() {
+        let mut xml = format!(
+            r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:footnotes {NAMESPACES}><w:footnote w:type="separator" w:id="-1"><w:p><w:r><w:separator/></w:r></w:p></w:footnote><w:footnote w:type="continuationSeparator" w:id="0"><w:p><w:r><w:continuationSeparator/></w:r></w:p></w:footnote>"#
+        );
+        for (index, note) in media.footnotes.iter().enumerate() {
+            let _ = write!(
+                xml,
+                r#"<w:footnote w:id="{}">{note}</w:footnote>"#,
+                index + 1
+            );
+        }
+        xml.push_str("</w:footnotes>");
+        extra.push(Part {
+            name: "footnotes.xml".into(),
+            rel: Some("rIdFootnotes".into()),
+            kind: "footnotes",
+            xml,
+        });
+    }
     let xml = format!(
         r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"><w:body>{body}{}</w:body></w:document>"#,
-        section_props(document)
+<w:document {NAMESPACES}><w:body>{body}{}</w:body></w:document>"#,
+        section_props(document, &references)
     );
 
     let mut buffer = Cursor::new(Vec::new());
@@ -456,14 +653,40 @@ pub fn docx_from_document(document: &Document) -> Result<Vec<u8>> {
     let options = zip::write::SimpleFileOptions::default()
         .compression_method(zip::CompressionMethod::Deflated);
     let io = |_| Error::new(ErrorCode::Internal, "could not write DOCX");
-    let rels = document_rels(&media);
+    let rels = rels_xml(&media, &extra, true);
+    let mut content_types = String::from(CONTENT_TYPES);
+    for part in &extra {
+        let _ = write!(
+            content_types,
+            r#"<Override PartName="/word/{}" ContentType="{WML}.{}+xml"/>"#,
+            part.name, part.kind
+        );
+    }
+    content_types.push_str("</Types>");
+    // 본문 밖 부분의 그림 관계: 그림 관계 id 를 본문과 같게 쓴다.
+    let part_rels: Vec<(String, String)> = extra
+        .iter()
+        .filter(|part| part.kind != "settings" && !media.files.is_empty())
+        .map(|part| {
+            (
+                format!("word/_rels/{}.rels", part.name),
+                rels_xml(&media, &[], false),
+            )
+        })
+        .collect();
     let mut parts: Vec<(String, &[u8])> = vec![
-        ("[Content_Types].xml".into(), CONTENT_TYPES.as_bytes()),
+        ("[Content_Types].xml".into(), content_types.as_bytes()),
         ("_rels/.rels".into(), ROOT_RELS.as_bytes()),
         ("word/_rels/document.xml.rels".into(), rels.as_bytes()),
         ("word/styles.xml".into(), STYLES.as_bytes()),
         ("word/document.xml".into(), xml.as_bytes()),
     ];
+    for part in &extra {
+        parts.push((format!("word/{}", part.name), part.xml.as_bytes()));
+    }
+    for (name, xml) in &part_rels {
+        parts.push((name.clone(), xml.as_bytes()));
+    }
     for file in &media.files {
         parts.push((format!("word/media/{}", file.1), &file.3));
     }

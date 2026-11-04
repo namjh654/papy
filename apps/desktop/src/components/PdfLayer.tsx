@@ -1,8 +1,10 @@
-// PDF 편집 모드에서 쪽 위에 겹치는 층: 끌어서 형광펜·밑줄·취소선, 펜으로 그리기, 텍스트 상자·메모 입력.
+// PDF 편집 모드에서 쪽 위에 겹치는 층: 끌어서 형광펜·밑줄·취소선, 펜으로 그리기, 텍스트 상자·메모 입력,
+// 끌어서 고른 기존 글자 고쳐 쓰기.
 import { useEffect, useRef, useState } from "react";
 import { edit, type Annotation, type Area, type PageRect } from "../engine";
+import { t } from "../i18n";
 
-export type PdfTool = "select" | "highlight" | "underline" | "strikeOut" | "pen" | "text" | "note";
+export type PdfTool = "select" | "highlight" | "underline" | "strikeOut" | "pen" | "text" | "note" | "replace";
 
 export interface PdfToolSettings {
   tool: PdfTool;
@@ -24,9 +26,12 @@ interface Props {
 
 type Point = [number, number];
 interface Draft {
-  kind: "text" | "note";
+  kind: "text" | "note" | "replace";
   x: number;
   y: number;
+  /** 글자 고치기: 고를 영역과 원래 글자 */
+  area?: Area;
+  initial?: string;
 }
 
 const normalize = (a: Point, b: Point): Area => ({
@@ -65,13 +70,15 @@ export function PdfLayer({ docId, page, scale, settings, onAnnotate }: Props) {
   };
 
   const markup = tool === "highlight" || tool === "underline" || tool === "strikeOut";
+  /** 끌어서 영역을 고르는 도구 */
+  const dragging = markup || tool === "replace";
 
   const onPointerDown = (event: React.PointerEvent) => {
     if (event.button !== 0 || tool === "select" || draft) return;
     event.preventDefault();
     (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
     const point = at(event);
-    if (markup) {
+    if (dragging) {
       dragId.current += 1;
       setDrag([point, point]);
     }
@@ -106,7 +113,14 @@ export function PdfLayer({ docId, page, scale, settings, onAnnotate }: Props) {
       dragId.current += 1;
       setDrag(null);
       setPreview([]);
-      if (area.width > 2 || area.height > 2) {
+      if (tool === "replace") {
+        if (area.width > 2 && area.height > 2) {
+          void edit<string>(docId, { kind: "textInArea", page, area }).then(
+            (text) => text && setDraft({ kind: "replace", x: area.x, y: area.y, area, initial: text }),
+            () => undefined,
+          );
+        }
+      } else if (area.width > 2 || area.height > 2) {
         void onAnnotate({ type: "markup", page, kind: tool as "highlight", area, color });
       }
     } else if (stroke) {
@@ -121,6 +135,13 @@ export function PdfLayer({ docId, page, scale, settings, onAnnotate }: Props) {
     const current = draft;
     setDraft(null);
     if (!current || !text) return;
+    if (current.kind === "replace") {
+      // 바꾼 게 없으면 문서를 건드리지 않는다.
+      if (text !== current.initial && current.area) {
+        void onAnnotate({ type: "replaceText", page, area: current.area, text, color });
+      }
+      return;
+    }
     void onAnnotate(
       current.kind === "note"
         ? { type: "note", page, x: current.x, y: current.y, text }
@@ -172,7 +193,8 @@ export function PdfLayer({ docId, page, scale, settings, onAnnotate }: Props) {
           <textarea
             ref={input}
             rows={draft.kind === "note" ? 3 : 1}
-            placeholder={draft.kind === "note" ? "메모 내용" : "텍스트 입력"}
+            defaultValue={draft.initial}
+            placeholder={draft.kind === "note" ? t.pdf.notePlaceholder : t.pdf.textPlaceholder}
             style={
               draft.kind === "text"
                 ? { fontSize: settings.fontSize * scale, color, lineHeight: 1.25 }
@@ -194,7 +216,9 @@ export function PdfLayer({ docId, page, scale, settings, onAnnotate }: Props) {
             }}
             onBlur={commitDraft}
           />
-          <span className="pdf-draft-hint">{navigator.userAgent.includes("Mac") ? "⌘" : "Ctrl"}+Enter 또는 바깥 클릭으로 넣기 · Esc 취소</span>
+          <span className="pdf-draft-hint">
+            {t.pdf.draftHint(navigator.userAgent.includes("Mac") ? "⌘" : "Ctrl", draft.kind === "replace")}
+          </span>
         </div>
       )}
     </div>
