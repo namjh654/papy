@@ -11,16 +11,6 @@ plugins {
 val exported = listOf(
     ":core:common",
     ":core:data",
-    ":feature:auth",
-    ":feature:home",
-    ":feature:example",
-    ":feature:settings",
-    ":feature:notice",
-    ":feature:permission",
-    ":feature:inbox",
-    ":feature:search",
-    ":feature:chat",
-    ":feature:community",
     ":feature:documents",
 )
 

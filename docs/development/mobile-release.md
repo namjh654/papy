@@ -12,7 +12,7 @@
 | 엔진 크기 | Rust release: 기호 제거 + LTO(fat) + codegen-units 1 → arm64 `.so` 19.5MB → 15.0MB |
 | ABI | `arm64-v8a`, `x86_64` 만(엔진을 이 둘만 만든다). 32비트 기기는 설치되지 않는다(설치되면 문서를 못 연다) |
 | 16KB 페이지 | Android 15+ 대상 앱 요구사항. 엔진을 `-z max-page-size=16384` 로 링크한다(`scripts/build-mobile-engine.mjs`) |
-| 권한 | 알림·카메라·위치 권한 제거(템플릿 예시). 남은 것: INTERNET·ACCESS_NETWORK_STATE(템플릿 모듈 정리 때 뺀다) |
+| 권한 | 알림·카메라·위치 권한 제거(템플릿 예시). 남은 것: INTERNET·ACCESS_NETWORK_STATE(core:data 네트워크 코드가 남아 있음 — 문서는 밖으로 보내지 않는다), DYNAMIC_RECEIVER_NOT_EXPORTED(androidx 자동) |
 
 ## 배포 전에 해야 할 것
 
@@ -21,7 +21,7 @@
 | 1 | 업로드 키(keystore) 만들기 → `env/release-signing.local.properties` 또는 CI 비밀값(`ANDROID_KEYSTORE_FILE` 등) | 사용자 | 키 파일·비밀번호는 커밋하지 않는다. Play App Signing 사용 권장 |
 | 2 | 엔진 빌드: `node scripts/fetch-rhwp.mjs` → `node scripts/build-mobile-engine.mjs android` | 빌드 | release 는 LTO 로 ABI 당 약 6분 |
 | 3 | App Bundle 빌드: `./gradlew -Papp.env=prod :androidApp:bundleProdRelease` | 빌드 | Play 가 ABI·화면 밀도별로 나눠 내려준다(기기당 엔진 1개만) |
-| 4 | 템플릿 모듈 정리(로그인·채팅·푸시·소셜·Firebase 등) | 승인 필요 | 코드 축소(dex 6.8MB 중 상당 부분)·권한·데이터 보안 항목이 준다. 파일 삭제라 자동 모드에서 막혔다 |
+| 4 | 템플릿 모듈 정리 | 완료 | 2026-11-04. APK 42.9→40.2MB, AAB 29.9→24.8MB, dex 6.8→3.4MB |
 | 5 | 앱 안 오픈소스 라이선스 화면(UniFFI·JNA·rhwp·Noto Sans KR 등) | 개발 | MIT·Apache·OFL 고지 의무 |
 | 6 | 개인정보처리방침 URL | 완료 | env `url.privacy` 를 `https://papy-omega.vercel.app/privacy/` 로 바꿨다. 스토어 등록에도 이 주소를 쓴다 |
 | 7 | 앱 아이콘·이름 확인(지금 템플릿 아이콘일 수 있음) | 사용자 확인 | `res/mipmap-*` |

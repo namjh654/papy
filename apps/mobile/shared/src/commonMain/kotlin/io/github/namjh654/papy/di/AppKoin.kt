@@ -3,16 +3,6 @@ package io.github.namjh654.papy.di
 import io.github.namjh654.papy.core.data.di.dataModule
 import io.github.namjh654.papy.core.data.logging.configureLogging
 import io.github.namjh654.papy.core.data.platform.PlatformServices
-import io.github.namjh654.papy.feature.auth.di.authModule
-import io.github.namjh654.papy.feature.home.di.homeModule
-import io.github.namjh654.papy.feature.example.di.exampleModule
-import io.github.namjh654.papy.feature.settings.di.settingsModule
-import io.github.namjh654.papy.feature.notice.di.noticeModule
-import io.github.namjh654.papy.feature.permission.di.permissionModule
-import io.github.namjh654.papy.feature.inbox.di.inboxModule
-import io.github.namjh654.papy.feature.search.di.searchModule
-import io.github.namjh654.papy.feature.chat.di.chatModule
-import io.github.namjh654.papy.feature.community.di.communityModule
 import io.github.namjh654.papy.feature.documents.DocumentEngine
 import io.github.namjh654.papy.feature.documents.di.documentsModule
 import org.koin.core.Koin
@@ -27,16 +17,6 @@ fun appModules(
     services: PlatformServices = PlatformServices(),
 ): List<Module> = listOf(
     dataModule(services = services),
-    authModule,
-    homeModule,
-    exampleModule,
-    settingsModule,
-    noticeModule,
-    permissionModule,
-    inboxModule,
-    searchModule,
-    chatModule,
-    communityModule,
     documentsModule,
 )
 

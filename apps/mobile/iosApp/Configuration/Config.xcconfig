@@ -1,10 +1,6 @@
 // 앱 공통 빌드 설정. 환경별 값(APP_ENV·앱 이름·번들 ID 접미사)은 env/*.properties 에서 생성한 파일에서 온다.
 #include "Env.generated.xcconfig"
 
-// 소셜 로그인 URL 스킴(DEC-119) — 키가 없으면 쓰이지 않는 자리 값. 키가 있으면 아래 파일(env 비밀 키에서 생성, 커밋 안 함)이 덮어쓴다
-SOCIAL_KAKAO_URL_SCHEME = papy-social-off-kakao
-SOCIAL_GOOGLE_URL_SCHEME = papy-social-off-google
-#include? "Social.local.generated.xcconfig"
 
 TEAM_ID=
 

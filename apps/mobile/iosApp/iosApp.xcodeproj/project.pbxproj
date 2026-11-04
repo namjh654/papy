@@ -7,15 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		F1A5E0010000000000000001 /* FirebaseMessaging in Frameworks */ = {isa = PBXBuildFile; productRef = F1A5E0010000000000000003 /* FirebaseMessaging */; };
-		F1A5E0010000000000000004 /* FirebaseCrashlytics in Frameworks */ = {isa = PBXBuildFile; productRef = F1A5E0010000000000000005 /* FirebaseCrashlytics */; };
-		F1A5E0010000000000000006 /* FirebaseAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = F1A5E0010000000000000007 /* FirebaseAnalytics */; };
-		F1A5E0020000000000000010 /* KakaoSDKCommon in Frameworks */ = {isa = PBXBuildFile; productRef = F1A5E0020000000000000011 /* KakaoSDKCommon */; };
-		F1A5E0020000000000000012 /* KakaoSDKAuth in Frameworks */ = {isa = PBXBuildFile; productRef = F1A5E0020000000000000013 /* KakaoSDKAuth */; };
-		F1A5E0020000000000000014 /* KakaoSDKUser in Frameworks */ = {isa = PBXBuildFile; productRef = F1A5E0020000000000000015 /* KakaoSDKUser */; };
-		F1A5E0020000000000000016 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = F1A5E0020000000000000017 /* GoogleSignIn */; };
-		F1A5E0030000000000000011 /* NukeUI in Frameworks */ = {isa = PBXBuildFile; productRef = F1A5E0030000000000000012 /* NukeUI */; };
-		F1A5E0020000000000000018 /* NidThirdPartyLogin in Frameworks */ = {isa = PBXBuildFile; productRef = F1A5E0020000000000000019 /* NidThirdPartyLogin */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -53,15 +44,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				F1A5E0010000000000000001 /* FirebaseMessaging in Frameworks */,
-				F1A5E0010000000000000006 /* FirebaseAnalytics in Frameworks */,
-				F1A5E0010000000000000004 /* FirebaseCrashlytics in Frameworks */,
-				F1A5E0020000000000000010 /* KakaoSDKCommon in Frameworks */,
-				F1A5E0020000000000000012 /* KakaoSDKAuth in Frameworks */,
-				F1A5E0020000000000000014 /* KakaoSDKUser in Frameworks */,
-				F1A5E0020000000000000016 /* GoogleSignIn in Frameworks */,
-				F1A5E0030000000000000011 /* NukeUI in Frameworks */,
-				F1A5E0020000000000000018 /* NidThirdPartyLogin in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -107,15 +89,6 @@
 			);
 			name = iosApp;
 			packageProductDependencies = (
-				F1A5E0010000000000000003 /* FirebaseMessaging */,
-				F1A5E0010000000000000007 /* FirebaseAnalytics */,
-				F1A5E0010000000000000005 /* FirebaseCrashlytics */,
-				F1A5E0020000000000000011 /* KakaoSDKCommon */,
-				F1A5E0020000000000000013 /* KakaoSDKAuth */,
-				F1A5E0020000000000000015 /* KakaoSDKUser */,
-				F1A5E0020000000000000017 /* GoogleSignIn */,
-				F1A5E0030000000000000012 /* NukeUI */,
-				F1A5E0020000000000000019 /* NidThirdPartyLogin */,
 			);
 			productName = iosApp;
 			productReference = 72137EF397420CD5002804C6 /* papy app.app */;
@@ -147,11 +120,6 @@
 			mainGroup = AADB600C9268336DE7DDB5DE;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				F1A5E0010000000000000002 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
-				F1A5E0020000000000000001 /* XCRemoteSwiftPackageReference "kakao-ios-sdk" */,
-				F1A5E0020000000000000002 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
-				F1A5E0030000000000000001 /* XCRemoteSwiftPackageReference "Nuke" */,
-				F1A5E0020000000000000003 /* XCRemoteSwiftPackageReference "naveridlogin-sdk-ios-swift" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 7FE5F43902C9CF74623335B0 /* Products */;
@@ -818,94 +786,9 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		F1A5E0010000000000000002 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/firebase/firebase-ios-sdk";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 12.19.2;
-			};
-		};
-		F1A5E0020000000000000001 /* XCRemoteSwiftPackageReference "kakao-ios-sdk" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/kakao/kakao-ios-sdk";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 2.29.0;
-			};
-		};
-		F1A5E0020000000000000002 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/google/GoogleSignIn-iOS";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 10.1.0;
-			};
-		};
-		F1A5E0020000000000000003 /* XCRemoteSwiftPackageReference "naveridlogin-sdk-ios-swift" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/naver/naveridlogin-sdk-ios-swift";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 5.2.1;
-			};
-		};
-		F1A5E0030000000000000001 /* XCRemoteSwiftPackageReference "Nuke" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/kean/Nuke";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 13.2.0;
-			};
-		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		F1A5E0010000000000000003 /* FirebaseMessaging */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = F1A5E0010000000000000002 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
-			productName = FirebaseMessaging;
-		};
-		F1A5E0010000000000000005 /* FirebaseCrashlytics */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = F1A5E0010000000000000002 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
-			productName = FirebaseCrashlytics;
-		};
-		F1A5E0010000000000000007 /* FirebaseAnalytics */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = F1A5E0010000000000000002 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
-			productName = FirebaseAnalytics;
-		};
-		F1A5E0020000000000000011 /* KakaoSDKCommon */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = F1A5E0020000000000000001 /* XCRemoteSwiftPackageReference "kakao-ios-sdk" */;
-			productName = KakaoSDKCommon;
-		};
-		F1A5E0020000000000000013 /* KakaoSDKAuth */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = F1A5E0020000000000000001 /* XCRemoteSwiftPackageReference "kakao-ios-sdk" */;
-			productName = KakaoSDKAuth;
-		};
-		F1A5E0020000000000000015 /* KakaoSDKUser */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = F1A5E0020000000000000001 /* XCRemoteSwiftPackageReference "kakao-ios-sdk" */;
-			productName = KakaoSDKUser;
-		};
-		F1A5E0020000000000000017 /* GoogleSignIn */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = F1A5E0020000000000000002 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
-			productName = GoogleSignIn;
-		};
-		F1A5E0020000000000000019 /* NidThirdPartyLogin */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = F1A5E0020000000000000003 /* XCRemoteSwiftPackageReference "naveridlogin-sdk-ios-swift" */;
-			productName = NidThirdPartyLogin;
-		};
-		F1A5E0030000000000000012 /* NukeUI */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = F1A5E0030000000000000001 /* XCRemoteSwiftPackageReference "Nuke" */;
-			productName = NukeUI;
-		};
 /* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = A97C8B0475BC739C00B2CC36 /* Project object */;

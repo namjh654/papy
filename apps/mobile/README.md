@@ -3,7 +3,7 @@
 > 이 폴더는 KMP 템플릿 [namjh654/kmp](https://github.com/namjh654/kmp) 커밋 `c5a0d93`(v0.4.12)을 복사 편입한 것이다. 아래 본문은 템플릿 원문이다.
 > **Papy 1단계(2026-11-04)**: 시작 화면이 문서 앱(최근 문서 → 문서 보기, `feature:documents`)이다. Rust 엔진은 UniFFI 로 연결했다([ADR 0006](../../docs/decisions/0006-mobile-bridge.md)).
 > 빌드 전에 저장소 루트에서 `node scripts/fetch-rhwp.mjs` → `node scripts/build-mobile-engine.mjs all` (Android NDK·rustup 모바일 타깃 필요).
-> 템플릿의 로그인·탭·채팅 등은 화면에서만 뺐고 코드는 남아 있다. 템플릿의 ELSA 이름은 Papy 로 바꿨다(프로젝트 `papykmp`, 패키지·앱 ID `io.github.namjh654.papy`, 딥링크 `papy://`).
+> 쓰지 않는 템플릿 모듈(로그인·탭·채팅·푸시·소셜·Firebase 등)은 2026-11-04 에 지웠다. 원본은 namjh654/kmp 에 있다. 템플릿의 ELSA 이름은 Papy 로 바꿨다(프로젝트 `papykmp`, 패키지·앱 ID `io.github.namjh654.papy`, 딥링크 `papy://`).
 > 출처·편입 시 변경·바꿀 식별자 후보는 [docs/architecture/kmp-template-origin.md](../../docs/architecture/kmp-template-origin.md).
 >
 > 실행: 이 폴더에서 `scripts/orca.sh check` (템플릿 점검 + 단위 테스트 + Android dev 빌드 + iOS Kotlin 컴파일 + mac 이면 xcodebuild).
