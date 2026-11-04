@@ -26,8 +26,19 @@ export const ko = {
     unsavedQuestion: (name: string) => `"${name}"의 변경 내용을 저장할까요?\n저장하지 않으면 변경 내용이 사라집니다.`,
     unsavedTitle: "저장하지 않은 변경",
     dontSave: "저장 안 함",
+    unsupported: (charts: number, embedded: number, missing: number) =>
+      [
+        charts + embedded > 0
+          ? `이 쪽의 ${[charts > 0 ? `차트 ${charts}개` : "", embedded > 0 ? `다른 프로그램 개체 ${embedded}개` : ""]
+              .filter(Boolean)
+              .join(", ")}는 표시하지 못해 자리만 점선으로 그렸습니다.`
+          : "",
+        missing > 0 ? `이 쪽의 그림 ${missing}개는 문서에 그림 데이터가 없어 빈 그림 자리로 표시했습니다.` : "",
+      ]
+        .filter(Boolean)
+        .join(" "),
     dropped: (count: number) =>
-      `이 문서의 요소 ${count}개(도형, 미주, 표 안 각주 등)는 아직 옮기지 못해 보이지 않습니다. 저장하면 빠진 채로 저장되니 원본은 따로 두세요.`,
+      `이 문서의 요소 ${count}개(차트, 묶음 안 그림, 표 안 각주 등)는 아직 옮기지 못해 보이지 않습니다. 저장하면 빠진 채로 저장되니 원본은 따로 두세요.`,
     openFilter: "문서 (PDF, HWP, HWPX, DOCX)",
     studioApplied: "고급 편집 내용을 반영했습니다. 저장하면 파일에 씁니다.",
     onlySupported: "PDF, HWP, HWPX, DOCX 파일만 열 수 있습니다.",

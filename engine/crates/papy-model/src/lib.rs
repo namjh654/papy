@@ -436,6 +436,26 @@ pub struct EditOutcome {
     pub caret: TextPos,
 }
 
+/// 쪽에 있지만 Papy 가 제대로 그리지 못한 개체의 종류.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum UnsupportedKind {
+    /// 차트(자리만 점선으로 그린다).
+    Chart,
+    /// OLE 등 다른 프로그램의 개체.
+    EmbeddedObject,
+    /// 문서에 데이터가 없거나 읽지 못한 그림.
+    MissingImage,
+}
+
+/// 쪽에서 제대로 그리지 못한 개체 하나와 그 자리(pt). 앱은 "이 쪽의 개체 N개를 표시하지 못했다"고 알린다.
+#[derive(Debug, Clone, PartialEq)]
+pub struct UnsupportedObject {
+    /// 종류.
+    pub kind: UnsupportedKind,
+    /// 쪽 위 자리.
+    pub rect: PageRect,
+}
+
 /// 문서에서 찾은 글자 하나. 앞뒤 글자를 조금 붙여 목록에 보여 줄 수 있게 한다.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TextMatch {

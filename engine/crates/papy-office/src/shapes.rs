@@ -2,7 +2,8 @@
 //!
 //! 도형은 rhwp HTML 붙여넣기로 넣을 수 없어, 본문에는 [`SHAPE_MARK`] 만 두고 도형 정보는
 //! [`crate::DocxReadReport::shapes`] 로 넘긴다. papy-hwp 가 붙여넣은 뒤 그 자리에 도형을 만든다.
-//! 묶음 도형·차트·SmartArt 는 아직 옮기지 않는다.
+//! 묶음 도형(`wpg:wgp`)은 안의 도형을 하나씩 풀어 같은 자리에 놓는다(묶음 안 그림은 아직 옮기지 않는다).
+//! 차트·SmartArt 는 아직 옮기지 않는다.
 
 use quick_xml::events::BytesStart;
 
@@ -130,6 +131,157 @@ pub(crate) struct Drawing {
     in_textbox: bool,
     in_text: bool,
     text: Vec<String>,
+    /// `a:xfrm` 안의 `a:off`·`a:ext`(묶음 안 도형의 자리, 묶음 좌표)
+    in_xfrm: bool,
+    xfrm_off: Option<(i64, i64)>,
+    xfrm_ext: Option<(i64, i64)>,
+    /// 묶음 도형(읽는 중이거나 다 읽은 것)
+    group: Option<Group>,
+    /// 맨 바깥 묶음을 다 읽었다
+    group_done: bool,
+}
+
+/// 묶음의 좌표 변환: 자식 좌표 `ch_off..ch_off+ch_ext` 를 부모 좌표 `off..off+ext` 로 옮긴다.
+#[derive(Debug, Clone, Copy, Default)]
+struct GroupXfrm {
+    off: (i64, i64),
+    ext: (i64, i64),
+    ch_off: (i64, i64),
+    ch_ext: (i64, i64),
+}
+
+impl GroupXfrm {
+    fn map(&self, (x, y): (f64, f64)) -> (f64, f64) {
+        let scale = |ext: i64, ch: i64| if ch > 0 { ext as f64 / ch as f64 } else { 1.0 };
+        (
+            self.off.0 as f64 + (x - self.ch_off.0 as f64) * scale(self.ext.0, self.ch_ext.0),
+            self.off.1 as f64 + (y - self.ch_off.1 as f64) * scale(self.ext.1, self.ch_ext.1),
+        )
+    }
+}
+
+/// 묶음 안 도형 하나와 그 자리(맨 바깥 묶음 좌표, EMU): 두 모서리.
+#[derive(Debug)]
+struct Placed {
+    drawing: Drawing,
+    a: (f64, f64),
+    b: (f64, f64),
+}
+
+/// 묶음 도형을 읽는 동안의 상태.
+#[derive(Debug, Default)]
+struct Group {
+    /// 바깥 묶음부터 지금 묶음까지의 변환
+    stack: Vec<GroupXfrm>,
+    /// `grpSpPr` 안(지금 묶음의 변환을 읽는 중)
+    in_props: bool,
+    in_xfrm: bool,
+    /// 읽는 중인 안쪽 도형
+    child: Option<Box<Drawing>>,
+    /// 다 읽은 안쪽 도형과 그 자리
+    done: Vec<Placed>,
+    /// 옮기지 못한 안쪽 개체(그림·차트 등)
+    dropped: usize,
+    /// 옮기지 못하는 안쪽 개체를 건너뛰는 깊이
+    skip: usize,
+}
+
+impl Group {
+    fn start(&mut self, name: &str, e: &BytesStart<'_>, empty: bool) {
+        if self.skip > 0 {
+            if !empty {
+                self.skip += 1;
+            }
+            return;
+        }
+        if let Some(child) = self.child.as_mut() {
+            child.start(name, e, empty);
+            return;
+        }
+        let point = |x: &str, y: &str| {
+            let v = |k| attr(e, k).and_then(|v| v.parse::<i64>().ok()).unwrap_or(0);
+            (v(x), v(y))
+        };
+        match name {
+            "grpSp" if !empty => self.stack.push(GroupXfrm::default()),
+            "grpSpPr" if !empty => self.in_props = true,
+            "xfrm" if self.in_props && !empty => self.in_xfrm = true,
+            "off" | "ext" | "chOff" | "chExt" if self.in_xfrm => {
+                let value = if name.ends_with("Off") || name == "off" {
+                    point("x", "y")
+                } else {
+                    point("cx", "cy")
+                };
+                if let Some(top) = self.stack.last_mut() {
+                    match name {
+                        "off" => top.off = value,
+                        "ext" => top.ext = value,
+                        "chOff" => top.ch_off = value,
+                        _ => top.ch_ext = value,
+                    }
+                }
+            }
+            "wsp" if !empty => {
+                self.child = Some(Box::new(Drawing {
+                    shape: true,
+                    ..Drawing::default()
+                }))
+            }
+            // 묶음 안 그림·차트·잉크 등은 아직 옮기지 않는다.
+            "pic" | "graphicFrame" | "contentPart" => {
+                self.dropped += 1;
+                if !empty {
+                    self.skip = 1;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn end(&mut self, name: &str) {
+        if self.skip > 0 {
+            self.skip -= 1;
+            return;
+        }
+        if name == "wsp" {
+            if let Some(child) = self.child.take() {
+                let off = child.xfrm_off.unwrap_or((0, 0));
+                let ext = child.xfrm_ext.unwrap_or((0, 0));
+                let mut a = (off.0 as f64, off.1 as f64);
+                let mut b = ((off.0 + ext.0) as f64, (off.1 + ext.1) as f64);
+                for xfrm in self.stack.iter().rev() {
+                    a = xfrm.map(a);
+                    b = xfrm.map(b);
+                }
+                self.done.push(Placed {
+                    drawing: *child,
+                    a,
+                    b,
+                });
+            }
+            return;
+        }
+        if let Some(child) = self.child.as_mut() {
+            child.end(name);
+            return;
+        }
+        match name {
+            "grpSp" => {
+                self.stack.pop();
+            }
+            "grpSpPr" => self.in_props = false,
+            "xfrm" => self.in_xfrm = false,
+            _ => {}
+        }
+    }
+
+    fn text(&mut self, text: &str) {
+        if self.skip == 0 {
+            if let Some(child) = self.child.as_mut() {
+                child.text(text);
+            }
+        }
+    }
 }
 
 fn relative(value: Option<String>, horizontal: bool) -> Relative {
@@ -159,6 +311,10 @@ impl Drawing {
 
     /// 요소 시작(빈 요소 포함).
     pub fn start(&mut self, name: &str, e: &BytesStart<'_>, empty: bool) {
+        if let (Some(group), false) = (self.group.as_mut(), self.group_done) {
+            group.start(name, e, empty);
+            return;
+        }
         match name {
             "inline" => self.inline = true,
             "anchor" => self.behind = attr(e, "behindDoc").as_deref() == Some("1"),
@@ -187,12 +343,28 @@ impl Drawing {
             "pic" => self.picture = true,
             "blip" => self.embed = self.embed.take().or_else(|| attr(e, "embed")),
             "wsp" => self.shape = true,
-            // 묶음·차트·SmartArt·잉크 등
+            // 묶음 도형: 맨 바깥 묶음의 변환부터 읽는다.
+            "wgp" if !empty => {
+                self.group = Some(Group {
+                    stack: vec![GroupXfrm::default()],
+                    ..Group::default()
+                })
+            }
+            // 차트·SmartArt·잉크 등
             "wgp" | "grpSp" | "chart" | "relIds" | "contentPart" => self.unsupported = true,
             "spPr" if !empty => self.in_shape_props = true,
             "xfrm" if self.in_shape_props => {
                 self.flip_h = attr(e, "flipH").as_deref() == Some("1");
                 self.flip_v = attr(e, "flipV").as_deref() == Some("1");
+                self.in_xfrm = !empty;
+            }
+            "off" if self.in_xfrm => {
+                let v = |k| attr(e, k).and_then(|v| v.parse::<i64>().ok()).unwrap_or(0);
+                self.xfrm_off = Some((v("x"), v("y")));
+            }
+            "ext" if self.in_xfrm => {
+                let v = |k| attr(e, k).and_then(|v| v.parse::<i64>().ok()).unwrap_or(0);
+                self.xfrm_ext = Some((v("cx"), v("cy")));
             }
             "prstGeom" if self.in_shape_props => self.geometry = attr(e, "prst"),
             "custGeom" if self.in_shape_props => self.geometry = Some("custom".into()),
@@ -235,6 +407,15 @@ impl Drawing {
 
     /// 요소 끝.
     pub fn end(&mut self, name: &str) {
+        if let (Some(group), false) = (self.group.as_mut(), self.group_done) {
+            if name != "wgp" {
+                group.end(name);
+                return;
+            }
+            // 맨 바깥 묶음이 끝났다. 이후 요소(anchor 끝 등)는 이 그리기 것이다.
+            self.group_done = true;
+            return;
+        }
         match name {
             "posOffset" => {
                 self.in_offset = false;
@@ -247,6 +428,7 @@ impl Drawing {
             }
             "positionH" | "positionV" => self.position = None,
             "spPr" => self.in_shape_props = false,
+            "xfrm" => self.in_xfrm = false,
             "ln" => self.in_line = false,
             "solidFill" => self.in_solid = false,
             "txbxContent" => self.in_textbox = false,
@@ -257,6 +439,10 @@ impl Drawing {
 
     /// 글자 내용.
     pub fn text(&mut self, text: &str) {
+        if let (Some(group), false) = (self.group.as_mut(), self.group_done) {
+            group.text(text);
+            return;
+        }
         if self.in_offset {
             self.offset_text.push_str(text);
         } else if self.in_text {
@@ -271,8 +457,56 @@ impl Drawing {
         }
     }
 
+    /// 다 읽은 그리기의 도형들과 옮기지 못한 개체 수. 묶음이면 안의 도형을 하나씩 풀어
+    /// 묶음 자리 기준으로 놓는다(글자처럼 놓은 묶음도 문단 기준으로 떠 있게 놓는다).
+    pub fn into_shapes(mut self) -> (Vec<DocxShape>, usize) {
+        let Some(group) = self.group.take() else {
+            return match self.into_shape() {
+                Some(shape) => (vec![shape], 0),
+                None => (Vec::new(), 1),
+            };
+        };
+        let mut dropped = group.dropped;
+        let (base_h, base_x) = self.horizontal.unwrap_or((Relative::Column, 0));
+        let (base_v, base_y) = self.vertical.unwrap_or((Relative::Paragraph, 0));
+        let wrap = match self.wrap {
+            Some(wrap) if !self.inline => wrap,
+            _ => Wrap::InFront,
+        };
+        let mut shapes = Vec::new();
+        for Placed {
+            drawing: child,
+            a,
+            b,
+        } in group.done
+        {
+            let (x0, x1) = (a.0.min(b.0), a.0.max(b.0));
+            let (y0, y1) = (a.1.min(b.1), a.1.max(b.1));
+            let child = Drawing {
+                cx: Some(x1 - x0),
+                cy: Some(y1 - y0),
+                ..child
+            };
+            match child.into_shape() {
+                Some(shape) => shapes.push(DocxShape {
+                    inline: false,
+                    horizontal: (base_h, base_x + x0.round() as i64),
+                    vertical: (base_v, base_y + y0.round() as i64),
+                    wrap,
+                    ..shape
+                }),
+                None => dropped += 1,
+            }
+        }
+        // 옮길 것이 하나도 없던 묶음은 통째로 빠진 것으로 센다.
+        if shapes.is_empty() && dropped == 0 {
+            dropped = 1;
+        }
+        (shapes, dropped)
+    }
+
     /// 다 읽은 도형. 옮길 수 없는 것이면 None.
-    pub fn into_shape(self) -> Option<DocxShape> {
+    fn into_shape(self) -> Option<DocxShape> {
         if !self.shape || self.unsupported {
             return None;
         }

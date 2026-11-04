@@ -1,8 +1,9 @@
 //! DOCX 에서 읽은 머리말·꼬리말·각주를 rhwp 문서에 넣는다(본문 HTML 을 붙여넣은 뒤).
 //!
-//! 각주: 본문 문단의 [`papy_office::FOOTNOTE_MARK`] 자리마다 그 글자를 지우고 각주를 넣는다(문서 순서 = 번호 순서).
+//! 각주·미주: 본문 문단의 [`papy_office::FOOTNOTE_MARK`]·[`papy_office::ENDNOTE_MARK`] 자리마다 그 글자를 지우고
+//! 각주·미주를 넣는다(문서 순서 = 번호 순서). 주 안 글자는 rhwp 의 각주 편집 함수로 넣는다(미주도 같은 함수가 다룬다).
 
-use papy_office::{DocxReadReport, FOOTNOTE_MARK, HeaderFooterText};
+use papy_office::{DocxReadReport, ENDNOTE_MARK, FOOTNOTE_MARK, HeaderFooterText};
 use rhwp::HwpError;
 
 use crate::Rhwp;
@@ -17,7 +18,8 @@ pub(crate) fn apply(doc: &mut Rhwp, report: &DocxReadReport) -> Result<usize, Hw
             }
         }
     }
-    dropped += footnotes(doc, &report.footnotes)?;
+    dropped += notes(doc, &report.footnotes, FOOTNOTE_MARK)?;
+    dropped += notes(doc, &report.endnotes, ENDNOTE_MARK)?;
     Ok(dropped)
 }
 
@@ -42,8 +44,8 @@ fn header_footer(doc: &mut Rhwp, is_header: bool, item: &HeaderFooterText) -> Re
     Ok(())
 }
 
-/// 본문 각주 자리 표시를 각주로 바꾼다. 자리 표시보다 각주가 모자라거나 남으면 남는 것을 센다.
-fn footnotes(doc: &mut Rhwp, notes: &[Vec<String>]) -> Result<usize, HwpError> {
+/// 본문 각주(미주) 자리 표시를 각주(미주)로 바꾼다. 자리 표시보다 주가 모자라거나 남으면 남는 것을 센다.
+fn notes(doc: &mut Rhwp, notes: &[Vec<String>], mark: char) -> Result<usize, HwpError> {
     let mut next = 0usize;
     let paragraph_count = doc
         .document()
@@ -55,18 +57,22 @@ fn footnotes(doc: &mut Rhwp, notes: &[Vec<String>]) -> Result<usize, HwpError> {
             let offset = doc.document().sections[0].paragraphs[para]
                 .text
                 .chars()
-                .position(|c| c == FOOTNOTE_MARK);
+                .position(|c| c == mark);
             let Some(offset) = offset else { break };
             doc.delete_text_native(0, para, offset, 1)?;
             let Some(note) = notes.get(next) else {
                 continue;
             };
             next += 1;
-            let result = doc.insert_footnote_native(0, para, offset)?;
+            let result = if mark == ENDNOTE_MARK {
+                doc.insert_endnote_native(0, para, offset)?
+            } else {
+                doc.insert_footnote_native(0, para, offset)?
+            };
             let control = serde_json::from_str::<serde_json::Value>(&result)
                 .ok()
                 .and_then(|value| value.get("controlIdx")?.as_u64())
-                .ok_or_else(|| HwpError::RenderError("footnote insert result".into()))?
+                .ok_or_else(|| HwpError::RenderError("note insert result".into()))?
                 as usize;
             for (index, text) in note.iter().enumerate() {
                 if index > 0 {

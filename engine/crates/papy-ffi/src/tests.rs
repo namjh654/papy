@@ -575,6 +575,10 @@ fn outline_and_find_text() {
             },
         ]
     );
+    assert_eq!(
+        engine.unsupported_objects(doc.session, 0).unwrap(),
+        UnsupportedCount::default()
+    );
     let hits = engine.find_text(doc.session, "PAPY".into(), 10).unwrap();
     assert_eq!(hits.len(), 2);
     assert_eq!((hits[0].page, hits[0].matched.as_str()), (0, "Papy"));

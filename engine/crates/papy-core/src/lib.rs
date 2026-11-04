@@ -25,7 +25,7 @@ pub use papy_model::{
     Alignment, Annotation, Capabilities, CaretMotion, CellPos, CharFormat, DocumentFormat,
     DocumentInfo, EditOutcome, Error, ErrorCode, HitTarget, MarkupKind, ObjectKind, ObjectRef,
     OutlineItem, PageObject, PageOp, PageRect, PageSize, ParaFormat, Result, SaveFormat,
-    TableCellBox, TableOp, TextMatch, TextPos,
+    TableCellBox, TableOp, TextMatch, TextPos, UnsupportedKind, UnsupportedObject,
 };
 pub use papy_render::{
     BackendOpenOptions, Bitmap, CancelToken, Document, FormatBackend, RenderRequest, Source,
@@ -381,6 +381,11 @@ impl Engine {
             }
         }
         Ok(out)
+    }
+
+    /// 쪽에서 제대로 그리지 못한 개체. 쪽을 다시 배치하므로 보이는 쪽에 한 번씩만 부른다.
+    pub fn unsupported_objects(&self, id: SessionId, page: u32) -> Result<Vec<UnsupportedObject>> {
+        self.with_page(id, page, |doc| doc.unsupported_objects(page))
     }
 
     /// 목차.

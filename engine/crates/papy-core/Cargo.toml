@@ -15,5 +15,8 @@ papy-pdf.workspace = true
 papy-hwp.workspace = true
 papy-office.workspace = true
 
+[dev-dependencies]
+zip = { version = "8.5", default-features = false, features = ["deflate"] }
+
 [lints]
 workspace = true

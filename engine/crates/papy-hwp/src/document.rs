@@ -6,7 +6,7 @@
 use papy_model::{
     Alignment, CaretMotion, CellPos, CharFormat, DocumentInfo, EditOutcome, Error, ErrorCode,
     HitTarget, ObjectKind, ObjectRef, OutlineItem, PageObject, PageRect, PageSize, ParaFormat,
-    Result, SaveFormat, TableCellBox, TableOp, TextPos,
+    Result, SaveFormat, TableCellBox, TableOp, TextPos, UnsupportedKind, UnsupportedObject,
 };
 use papy_office::DocxHeading;
 use papy_render::{Bitmap, Document, RenderRequest};
@@ -795,6 +795,36 @@ fn char_format_json(format: &CharFormat, font_ids: Option<[i32; 7]>) -> String {
     Value::Object(props).to_string()
 }
 
+/// rhwp 가 그리지 못한 개체 자리에 두는 자리표시(점선 상자) 노드를 모은다.
+fn collect_placeholders(
+    node: &rhwp::renderer::render_tree::RenderNode,
+    page: u32,
+    out: &mut Vec<UnsupportedObject>,
+) {
+    use rhwp::renderer::render_tree::{PlaceholderKind, RenderNodeType};
+    if let RenderNodeType::Placeholder(placeholder) = &node.node_type {
+        let kind = match placeholder.kind {
+            PlaceholderKind::MissingPicture => UnsupportedKind::MissingImage,
+            PlaceholderKind::Ole if placeholder.label.contains("차트") => UnsupportedKind::Chart,
+            PlaceholderKind::Ole => UnsupportedKind::EmbeddedObject,
+        };
+        let b = &node.bbox;
+        out.push(UnsupportedObject {
+            kind,
+            rect: PageRect {
+                page,
+                x: b.x as f32 * PT_PER_PX,
+                y: b.y as f32 * PT_PER_PX,
+                width: b.width as f32 * PT_PER_PX,
+                height: b.height as f32 * PT_PER_PX,
+            },
+        });
+    }
+    for child in &node.children {
+        collect_placeholders(child, page, out);
+    }
+}
+
 /// (수준, 제목, 쪽) 목록을 수준에 따라 나무로 만든다. 수준이 건너뛰면(1 → 3) 바로 위 항목 아래에 둔다.
 pub(crate) fn outline_tree(flat: Vec<(u8, String, Option<u32>)>) -> Vec<OutlineItem> {
     fn insert(items: &mut Vec<OutlineItem>, depth: usize, item: OutlineItem) {
@@ -875,6 +905,13 @@ impl Document for HwpDocument {
 
     fn extract_text(&mut self, page: u32) -> Result<String> {
         self.read("extract text", |doc| doc.extract_page_text_native(page))
+    }
+
+    fn unsupported_objects(&mut self, page: u32) -> Result<Vec<UnsupportedObject>> {
+        let tree = self.read("lay out page", |doc| doc.build_page_render_tree(page))?;
+        let mut out = Vec::new();
+        collect_placeholders(&tree.root, page, &mut out);
+        Ok(out)
     }
 
     fn outline(&mut self) -> Result<Vec<OutlineItem>> {
@@ -1292,6 +1329,65 @@ impl Document for HwpDocument {
             return Ok(HitTarget::Cell(cell));
         }
         let pos = parse_pos(&value).ok_or_else(|| engine_error("hit test"))?;
+        Ok(HitTarget::Body(self.resolve_hit(pos, &value)))
+    }
+
+    fn move_vertical_target(
+        &mut self,
+        from: HitTarget,
+        lines: i32,
+        preferred_x: f32,
+    ) -> Result<HitTarget> {
+        let x = (preferred_x / PT_PER_PX) as f64;
+        let reply = match from {
+            HitTarget::Body(pos) => self.read_wrapper("move caret", |doc| {
+                doc.move_vertical(
+                    pos.section,
+                    pos.paragraph,
+                    pos.offset,
+                    lines,
+                    x,
+                    u32::MAX,
+                    0,
+                    0,
+                    0,
+                )
+            })?,
+            HitTarget::Cell(cell) => {
+                self.validate_cell(cell)?;
+                self.read_wrapper("move caret", |doc| {
+                    doc.move_vertical(
+                        cell.section,
+                        cell.cell_paragraph,
+                        cell.offset,
+                        lines,
+                        x,
+                        cell.paragraph,
+                        cell.control,
+                        cell.cell,
+                        cell.cell_paragraph,
+                    )
+                })?
+            }
+        };
+        let value = json(&reply)?;
+        // 결과가 칸 안(같은 칸·다른 칸·글상자)이면 칸 위치, 아니면 본문 위치.
+        if value.get("parentParaIndex").is_some() {
+            let field = |key| uint(&value, key).ok_or_else(|| engine_error("move caret"));
+            let moved = CellPos {
+                section: field("sectionIndex")?,
+                paragraph: field("parentParaIndex")?,
+                control: field("controlIndex")?,
+                cell: field("cellIndex")?,
+                cell_paragraph: field("cellParaIndex")?,
+                offset: uint(&value, "charOffset").unwrap_or(0),
+            };
+            // 표 안 표 등 다룰 수 없는 칸이면 표를 가진 본문 문단으로 간다.
+            if self.validate_cell(moved).is_ok() {
+                return Ok(HitTarget::Cell(moved));
+            }
+        }
+        let pos = parse_pos(&value).ok_or_else(|| engine_error("move caret"))?;
         Ok(HitTarget::Body(self.resolve_hit(pos, &value)))
     }
 

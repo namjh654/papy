@@ -11,6 +11,8 @@ use crate::read::{attr, local};
 
 /// 본문 문단 안 각주 자리 표시(사용자 영역 글자). rhwp 에 붙여넣은 뒤 이 자리에 각주를 넣고 지운다.
 pub const FOOTNOTE_MARK: char = '\u{E0F1}';
+/// 본문 문단 안 미주 자리 표시(각주와 같은 방식).
+pub const ENDNOTE_MARK: char = '\u{E0F3}';
 
 /// 머리말·꼬리말 하나.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -80,6 +82,15 @@ pub fn paragraph_texts(xml: &str) -> Vec<String> {
 
 /// `word/footnotes.xml` → 각주 id 별 문단 글자. 구분선(separator) 각주는 뺀다.
 pub fn parse_footnotes(xml: &str) -> HashMap<String, Vec<String>> {
+    parse_notes(xml, "footnote")
+}
+
+/// `word/endnotes.xml` 의 미주(id → 문단 글자).
+pub fn parse_endnotes(xml: &str) -> HashMap<String, Vec<String>> {
+    parse_notes(xml, "endnote")
+}
+
+fn parse_notes(xml: &str, element: &str) -> HashMap<String, Vec<String>> {
     let mut notes = HashMap::new();
     let mut reader = Reader::from_str(xml);
     let mut start = None;
@@ -88,12 +99,12 @@ pub fn parse_footnotes(xml: &str) -> HashMap<String, Vec<String>> {
         let position = reader.buffer_position() as usize;
         match reader.read_event() {
             Ok(Event::Eof) | Err(_) => break,
-            Ok(Event::Start(e)) if local_name(&e) == "footnote" => {
+            Ok(Event::Start(e)) if local_name(&e) == element => {
                 let separator = attr(&e, "type").is_some_and(|t| t != "normal");
                 id = attr(&e, "id").filter(|_| !separator);
                 start = Some(position);
             }
-            Ok(Event::End(e)) if local(e.name().as_ref()) == "footnote" => {
+            Ok(Event::End(e)) if local(e.name().as_ref()) == element => {
                 let end = reader.buffer_position() as usize;
                 if let (Some(id), Some(start)) = (id.take(), start.take()) {
                     if let Some(part) = xml.get(start..end) {

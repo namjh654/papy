@@ -27,8 +27,24 @@ export const en: Messages = {
     unsavedQuestion: (name) => `Save changes to "${name}"?\nIf you don't save, your changes will be lost.`,
     unsavedTitle: "Unsaved changes",
     dontSave: "Don't save",
+    unsupported: (charts, embedded, missing) =>
+      [
+        charts + embedded > 0
+          ? `On this page, ${[
+              charts > 0 ? `${charts} chart${charts === 1 ? "" : "s"}` : "",
+              embedded > 0 ? `${embedded} embedded object${embedded === 1 ? "" : "s"}` : "",
+            ]
+              .filter(Boolean)
+              .join(" and ")} couldn't be shown and ${charts + embedded === 1 ? "is" : "are"} drawn as a dashed placeholder.`
+          : "",
+        missing > 0
+          ? `${missing} image${missing === 1 ? " is" : "s are"} shown as an empty picture frame because the document has no image data for ${missing === 1 ? "it" : "them"}.`
+          : "",
+      ]
+        .filter(Boolean)
+        .join(" "),
     dropped: (count) =>
-      `${count} element(s) in this document (shapes, endnotes, footnotes inside tables and so on) can't be carried over yet and aren't shown. Saving will leave them out, so keep a copy of the original.`,
+      `${count} element(s) in this document (charts, pictures inside groups, footnotes inside tables and so on) can't be carried over yet and aren't shown. Saving will leave them out, so keep a copy of the original.`,
     openFilter: "Documents (PDF, HWP, HWPX, DOCX)",
     studioApplied: "Advanced edits applied. Save to write them to the file.",
     onlySupported: "Only PDF, HWP, HWPX and DOCX files can be opened.",

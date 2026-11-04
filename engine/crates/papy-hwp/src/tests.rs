@@ -752,6 +752,52 @@ fn docx_headers_footers_and_footnotes() {
     }
 }
 
+#[test]
+fn docx_endnotes_are_kept() {
+    let document = r#"<w:document xmlns:w="w"><w:body><w:p><w:r><w:t>본문</w:t></w:r><w:r><w:endnoteReference w:id="1"/></w:r><w:r><w:t xml:space="preserve"> 계속</w:t></w:r><w:r><w:footnoteReference w:id="1"/></w:r></w:p></w:body></w:document>"#;
+    let bytes = zip_parts(&[
+        ("[Content_Types].xml", "<Types/>"),
+        ("word/document.xml", document),
+        (
+            "word/endnotes.xml",
+            r#"<w:endnotes xmlns:w="w"><w:endnote w:id="1"><w:p><w:r><w:t>미주 첫 줄</w:t></w:r></w:p><w:p><w:r><w:t>미주 둘째 줄</w:t></w:r></w:p></w:endnote></w:endnotes>"#,
+        ),
+        (
+            "word/footnotes.xml",
+            r#"<w:footnotes xmlns:w="w"><w:footnote w:id="1"><w:p><w:r><w:t>각주 글</w:t></w:r></w:p></w:footnote></w:footnotes>"#,
+        ),
+    ]);
+    let mut doc = open(HwpBackend::docx(), bytes, &options()).unwrap();
+    assert_eq!(doc.info().dropped_objects, 0);
+    let text: String = (0..doc.info().page_count)
+        .map(|page| doc.extract_text(page).unwrap())
+        .collect();
+    assert!(!text.contains(papy_office::ENDNOTE_MARK), "{text:?}");
+    for part in ["본문", "계속", "미주 첫 줄", "미주 둘째 줄", "각주 글"] {
+        assert!(text.contains(part), "{part}: {text:?}");
+    }
+    // DOCX 로 저장하면 미주 부분과 참조가 생기고, 다시 열어도 그대로다.
+    let docx = doc.save(SaveFormat::Docx).unwrap();
+    let body = zip_text(&docx, "word/document.xml");
+    assert_eq!(body.matches("<w:endnoteReference").count(), 1, "{body}");
+    assert_eq!(body.matches("<w:footnoteReference").count(), 1, "{body}");
+    let endnotes = zip_text(&docx, "word/endnotes.xml");
+    assert!(
+        endnotes.contains("미주 첫 줄") && endnotes.contains("미주 둘째 줄"),
+        "{endnotes}"
+    );
+    assert!(zip_text(&docx, "[Content_Types].xml").contains("endnotes+xml"));
+    let mut again = open(HwpBackend::docx(), docx, &options()).unwrap();
+    assert_eq!(again.info().dropped_objects, 0);
+    // HWP 로 저장해도 미주가 남는다.
+    let hwp = again.save(SaveFormat::Hwp).unwrap();
+    let mut hwp_doc = open(HwpBackend::hwp(), hwp, &options()).unwrap();
+    let text: String = (0..hwp_doc.info().page_count)
+        .map(|page| hwp_doc.extract_text(page).unwrap())
+        .collect();
+    assert!(text.contains("미주 둘째 줄"), "{text:?}");
+}
+
 fn zip_parts(parts: &[(&str, &str)]) -> Vec<u8> {
     use std::io::Write;
     let mut buffer = std::io::Cursor::new(Vec::new());
@@ -847,7 +893,7 @@ fn docx_shapes_are_kept_and_saved() {
 
 #[test]
 fn docx_unsupported_drawings_are_counted() {
-    // 묶음 도형과 표 안 글상자: 묶음은 빠진 것으로 세고, 표 안 글상자는 글자만 남긴다.
+    // 빈 묶음 도형과 표 안 글상자: 빈 묶음은 빠진 것으로 세고, 표 안 글상자는 글자만 남긴다.
     let document = r#"<w:document xmlns:w="w" xmlns:wp="wp" xmlns:a="a" xmlns:wps="wps" xmlns:wpg="wpg"><w:body><w:p><w:r><w:drawing><wp:inline><wp:extent cx="100000" cy="100000"/><a:graphic><a:graphicData><wpg:wgp><wps:wsp/></wpg:wgp></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p><w:tbl><w:tr><w:tc><w:p><w:r><w:drawing><wp:inline><wp:extent cx="100000" cy="100000"/><a:graphic><a:graphicData><wps:wsp><wps:txbx><w:txbxContent><w:p><w:r><w:t>칸 안 상자</w:t></w:r></w:p></w:txbxContent></wps:txbx></wps:wsp></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p></w:tc></w:tr></w:tbl><w:p/></w:body></w:document>"#;
     let bytes = zip_parts(&[
         ("[Content_Types].xml", "<Types/>"),
@@ -857,6 +903,47 @@ fn docx_unsupported_drawings_are_counted() {
     assert_eq!(doc.info().dropped_objects, 2);
     let text = doc.extract_text(0).unwrap();
     assert!(text.contains("칸 안 상자"), "{text:?}");
+}
+
+#[test]
+fn docx_group_shapes_are_unpacked() {
+    // 묶음 좌표 200×100 을 2,540,000×1,270,000 EMU(200×100pt)로: 빨간 사각형(왼쪽 반), 파란 타원(오른쪽 반)
+    let document = r#"<w:document xmlns:w="w" xmlns:wp="wp" xmlns:a="a" xmlns:wps="wps" xmlns:wpg="wpg"><w:body><w:p><w:r><w:t>묶음 앞</w:t></w:r><w:r><w:drawing><wp:anchor behindDoc="0"><wp:positionH relativeFrom="page"><wp:posOffset>1270000</wp:posOffset></wp:positionH><wp:positionV relativeFrom="paragraph"><wp:posOffset>0</wp:posOffset></wp:positionV><wp:extent cx="2540000" cy="1270000"/><wp:wrapSquare/><wp:docPr id="1"/><a:graphic><a:graphicData><wpg:wgp><wpg:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="2540000" cy="1270000"/><a:chOff x="0" y="0"/><a:chExt cx="200" cy="100"/></a:xfrm></wpg:grpSpPr><wps:wsp><wps:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="100" cy="100"/></a:xfrm><a:prstGeom prst="rect"/><a:solidFill><a:srgbClr val="FF0000"/></a:solidFill></wps:spPr><wps:bodyPr/></wps:wsp><wps:wsp><wps:spPr><a:xfrm><a:off x="100" y="0"/><a:ext cx="100" cy="100"/></a:xfrm><a:prstGeom prst="ellipse"/><a:solidFill><a:srgbClr val="0000FF"/></a:solidFill></wps:spPr><wps:bodyPr/></wps:wsp></wpg:wgp></a:graphicData></a:graphic></wp:anchor></w:drawing></w:r><w:r><w:t xml:space="preserve"> 묶음 뒤</w:t></w:r></w:p></w:body></w:document>"#;
+    let bytes = zip_parts(&[
+        ("[Content_Types].xml", "<Types/>"),
+        ("word/document.xml", document),
+    ]);
+    let mut doc = open(HwpBackend::docx(), bytes, &options()).unwrap();
+    assert_eq!(doc.info().dropped_objects, 0);
+    let page = doc.render_page(0, &RenderRequest::with_scale(1.0)).unwrap();
+    let count = |want: fn(&[u8]) -> bool| page.pixels.chunks_exact(4).filter(|p| want(p)).count();
+    let red = count(|p| p[0] > 200 && p[1] < 60 && p[2] < 60);
+    let blue = count(|p| p[2] > 200 && p[0] < 60 && p[1] < 60);
+    // 사각형 100×100pt = 10,000 px, 타원 약 7,850 px(배율 1 = 1pt 당 1px)
+    assert!(red > 8_000, "red {red}");
+    assert!(blue > 6_000, "blue {blue}");
+    // 두 도형이 나란히: 빨강은 왼쪽, 파랑은 오른쪽
+    let column = |want: fn(&[u8]) -> bool| {
+        let width = page.width as usize;
+        let xs: Vec<usize> = page
+            .pixels
+            .chunks_exact(4)
+            .enumerate()
+            .filter(|(_, p)| want(p))
+            .map(|(i, _)| i % width)
+            .collect();
+        xs.iter().sum::<usize>() / xs.len().max(1)
+    };
+    let (red_x, blue_x) = (
+        column(|p| p[0] > 200 && p[1] < 60 && p[2] < 60),
+        column(|p| p[2] > 200 && p[0] < 60 && p[1] < 60),
+    );
+    assert!(blue_x > red_x + 60, "red x {red_x}, blue x {blue_x}");
+    let text = doc.extract_text(0).unwrap();
+    assert!(text.contains("묶음 앞 묶음 뒤"), "{text:?}");
+    // DOCX 로 저장하면 도형 둘(묶음은 풀린 채)
+    let body = zip_text(&doc.save(SaveFormat::Docx).unwrap(), "word/document.xml");
+    assert_eq!(body.matches("<wps:wsp>").count(), 2, "{body}");
 }
 
 // ---- 표·그림 ----
@@ -1511,4 +1598,90 @@ fn outline_tree_nests_by_level() {
     assert_eq!(first, ["가-1", "가-2"]);
     assert_eq!(tree[1].children[0].title, "나-1");
     assert_eq!(tree[1].page, Some(2));
+}
+
+#[test]
+fn missing_picture_is_reported() {
+    let mut doc = editable(1);
+    assert!(doc.unsupported_objects(0).unwrap().is_empty());
+    doc.insert_picture(pos(0, 3), RED_PNG, 120.0, 60.0).unwrap();
+    assert!(doc.unsupported_objects(0).unwrap().is_empty());
+    // 그림 데이터가 없는 떠 있는 그림(결재 문서의 서명 칸처럼 자리만 남은 것). 글자처럼 놓인 그림은
+    // rhwp 가 자리표시 없이 건너뛰어서 세지 못한다.
+    let mut core = DocumentCore::from_bytes(&doc.save(SaveFormat::Hwp).unwrap()).unwrap();
+    for paragraph in &mut core.document_mut().sections[0].paragraphs {
+        for control in &mut paragraph.controls {
+            if let rhwp::model::control::Control::Picture(picture) = control {
+                picture.image_attr.bin_data_id = 999;
+                picture.common.treat_as_char = false;
+            }
+        }
+    }
+    let bytes = core.export_hwp_native().unwrap();
+    let mut doc = open(HwpBackend::hwp(), bytes, &options()).unwrap();
+    let objects = doc.unsupported_objects(0).unwrap();
+    assert_eq!(objects.len(), 1, "{objects:?}");
+    assert_eq!(objects[0].kind, papy_model::UnsupportedKind::MissingImage);
+    let rect = objects[0].rect;
+    assert!(
+        (rect.width - 120.0).abs() < 2.0 && (rect.height - 60.0).abs() < 2.0,
+        "{rect:?}"
+    );
+    // 그리기·저장은 그대로 된다.
+    doc.render_page(0, &RenderRequest::with_scale(0.5)).unwrap();
+}
+
+#[test]
+fn caret_moves_up_and_down_through_table_cells() {
+    use papy_model::HitTarget;
+    let mut doc = editable(1);
+    // "Papy 쪽 1" 뒤에 문단을 하나 더 두고, 그 사이 표(2행 1열)
+    doc.insert_text(pos(0, 8), "\n아래 문단").unwrap();
+    doc.insert_table(pos(1, 0), 2, 1).unwrap();
+    let table = table_of(&mut doc);
+    let cell_at = |row: u32| *table.cells.iter().find(|c| c.row == row).unwrap();
+    let (top, bottom) = (cell_at(0), cell_at(1));
+    let HitTarget::Cell(first) = doc
+        .hit_test_target(0, top.rect.x + 4.0, top.rect.y + top.rect.height / 2.0)
+        .unwrap()
+    else {
+        panic!("expected the top cell")
+    };
+    // 칸 안에 두 줄: 아래로 한 줄은 같은 칸 둘째 문단
+    let end = doc.cell_insert_text(first, "첫 줄\n둘째 줄").unwrap();
+    let start = papy_model::CellPos {
+        cell_paragraph: 0,
+        offset: 0,
+        ..end
+    };
+    let x = doc.cell_caret_rect(start).unwrap().x;
+    let down = doc
+        .move_vertical_target(HitTarget::Cell(start), 1, x)
+        .unwrap();
+    let HitTarget::Cell(second_line) = down else {
+        panic!("expected to stay in the cell: {down:?}")
+    };
+    assert_eq!(
+        (second_line.cell, second_line.cell_paragraph),
+        (top.cell, 1)
+    );
+    // 한 줄 더 내려가면 아래 칸
+    let down = doc
+        .move_vertical_target(HitTarget::Cell(second_line), 1, x)
+        .unwrap();
+    let HitTarget::Cell(lower) = down else {
+        panic!("expected the lower cell: {down:?}")
+    };
+    assert_eq!(lower.cell, bottom.cell);
+    // 마지막 칸에서 더 내려가면 표 밖 본문
+    let out = doc
+        .move_vertical_target(HitTarget::Cell(lower), 1, x)
+        .unwrap();
+    assert!(matches!(out, HitTarget::Body(_)), "{out:?}");
+    // 본문에서 위로 올라오면 다시 표 안
+    let back = doc.move_vertical_target(out, -1, x).unwrap();
+    assert!(
+        matches!(back, HitTarget::Cell(c) if c.cell == bottom.cell),
+        "{back:?}"
+    );
 }

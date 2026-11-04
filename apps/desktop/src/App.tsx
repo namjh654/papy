@@ -28,6 +28,7 @@ import { StudioEditor, studioAvailable, type StudioFormat } from "./components/S
 import { clearRecent, forgetRecent, loadRecent, rememberRecent, type RecentFile } from "./recent";
 import { RenderQueue } from "./renderQueue";
 import { PasswordDialog } from "./components/PasswordDialog";
+import { PageIssues } from "./components/PageIssues";
 import { Sidebar } from "./components/Sidebar";
 import { Toolbar, type Mode, type ZoomMode } from "./components/Toolbar";
 import { PX_PER_PT, Viewer, type ViewerHandle } from "./components/Viewer";
@@ -530,6 +531,7 @@ export function App() {
           </button>
         </div>
       )}
+      {doc && <PageIssues doc={doc} page={current} revision={revision} />}
       <div className="workspace">
         {doc && sidebarOpen && <Sidebar doc={doc} current={current} queue={queue} onGoTo={goTo} revision={revision} />}
         <main className="main" ref={main}>

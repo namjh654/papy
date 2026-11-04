@@ -18,12 +18,12 @@ PDF 와 한국어 문서(HWP/HWPX)를 우선 지원하는 **비상업 용도 무
 
 | 영역 | 상태 |
 |---|---|
-| Rust 엔진 (`engine/`) | 세션·상한·취소·오류 코드, 포맷 판별. PDF = PDFium(`papy-pdf`), HWP/HWPX = rhwp(`papy-hwp`): 열기·렌더·텍스트, 목차(PDF 책갈피·HWP/HWPX 개요 문단·DOCX 제목 스타일), 문서 글자 찾기, 암호 문서. HWP 3.x 는 보기 전용(PDF·텍스트로 내보내기). 편집: HWP/HWPX 본문(입력·서식·되돌리기), PDF 주석·쪽 편집. 저장·변환: HWPX·HWP·PDF·텍스트 |
+| Rust 엔진 (`engine/`) | 세션·상한·취소·오류 코드, 포맷 판별. PDF = PDFium(`papy-pdf`), HWP/HWPX = rhwp(`papy-hwp`): 열기·렌더·텍스트, 목차(PDF 책갈피·HWP/HWPX 개요 문단·DOCX 제목 스타일), 문서 글자 찾기, 그리지 못한 개체(차트·OLE·데이터 없는 그림) 쪽마다 알림, 암호 문서. HWP 3.x 는 보기 전용(PDF·텍스트로 내보내기). 편집: HWP/HWPX 본문(입력·서식·되돌리기), PDF 주석·쪽 편집. 저장·변환: HWPX·HWP·PDF·텍스트 |
 | 데스크톱 (`apps/desktop/`) | Tauri 2. 보기 모드: 열기(대화상자·끌어다 놓기·파일 더블클릭), 연속 스크롤, 확대/축소, 썸네일·목차·찾기·텍스트 사이드바, 암호, 최근 문서. 편집 모드(⌘E): HWP/HWPX/DOCX 글자 입력·한글 입력기·서식·정렬, PDF 형광펜·밑줄·취소선·펜·텍스트 상자·메모·쪽 회전/삭제/이동·쪽의 글자 고쳐 쓰기. 저장(⌘S)·다른 이름으로 저장·다른 형식으로 내보내기. 고급 편집(표·개체·머리말·각주)은 rhwp-studio 를 앱에 넣어 처리([ADR 0005](docs/decisions/0005-rhwp-studio-editor.md), macOS 확인). 화면 한국어·English. macOS·Windows·Linux 패키징을 CI 에서 빌드 |
 | 웹 (`apps/web/`) | Vite + React 골격. 문서 기능 없음 |
-| 모바일 (`apps/mobile/`) | KMP 템플릿([namjh654/kmp](https://github.com/namjh654/kmp))을 편입해 Rust 엔진을 UniFFI 로 연결([ADR 0006](docs/decisions/0006-mobile-bridge.md)). 최근 문서·문서 보기(HWP·HWPX·DOCX 는 엔진, PDF 는 운영체제)·암호, 확대 후 다시 그리기, 커서 편집·글자 모양·서식 지키는 문단 바꾸기·되돌리기·저장, 표 칸·글상자 안 편집과 표 넣기·행열·합치기, 그림 넣기·크기·지우기, PDF 로 내보내기, 앱 안 오픈소스 라이선스 화면. Android 에뮬레이터·iOS 시뮬레이터에서 확인, Android 릴리스 준비(R8·16KB·ABI) |
-| 회귀 테스트 | 손상 파일 168가지(기본 `cargo test`), rhwp 샘플 1,268개·16,320쪽 기준값 비교(손으로 실행) — [test-corpus.md](docs/formats/test-corpus.md) |
-| Word (DOCX) | 열기·편집·DOCX 저장, HWP·HWPX·PDF·텍스트와 상호 변환(`papy-office`: DOCX ↔ rhwp 문서 구조). 본문·글자/문단 서식·표(병합)·그림(읽기·쓰기) 지원. 머리말·꼬리말·각주·번호 목록(글자)·도형(사각형·타원·선·글상자)도 옮김. 묶음 도형·차트·미주·표 안 각주·첫 쪽 머리말은 아직 옮기지 않으며 열 때 빠진 개수를 알림 |
+| 모바일 (`apps/mobile/`) | KMP 템플릿([namjh654/kmp](https://github.com/namjh654/kmp))을 편입해 Rust 엔진을 UniFFI 로 연결([ADR 0006](docs/decisions/0006-mobile-bridge.md)). 최근 문서·문서 보기(HWP·HWPX·DOCX 는 엔진, PDF 는 운영체제)·암호, 확대 후 다시 그리기, 커서 편집·글자 모양·서식 지키는 문단 바꾸기·되돌리기·저장, 표 칸·글상자 안 편집과 표 넣기·행열·합치기, 그림 넣기·크기·지우기, 칸 안 위·아래 줄 이동, 목차·찾기, PDF 로 내보내기, 앱 안 오픈소스 라이선스 화면. Android 에뮬레이터·iOS 시뮬레이터에서 확인, Android 릴리스 준비(R8·16KB·ABI) |
+| 회귀 테스트 | 손상 파일 168가지(기본 `cargo test`), rhwp 샘플 1,268개·16,320쪽 기준값 비교·첫 쪽 표시 시간, 무작위 손상 반복·장시간 반복(손으로 실행) — [test-corpus.md](docs/formats/test-corpus.md) |
+| Word (DOCX) | 열기·편집·DOCX 저장, HWP·HWPX·PDF·텍스트와 상호 변환(`papy-office`: DOCX ↔ rhwp 문서 구조). 본문·글자/문단 서식·표(병합)·그림(읽기·쓰기) 지원. 머리말·꼬리말·각주·미주·번호 목록(글자)·도형(사각형·타원·선·글상자, 묶음 도형은 풀어서)·제목(목차)도 옮김. 차트·묶음 안 그림·표 안 각주·첫 쪽 머리말은 아직 옮기지 않으며 열 때 빠진 개수를 알림 |
 | XLSX·PPTX | 미구현 |
 
 ## 디렉터리

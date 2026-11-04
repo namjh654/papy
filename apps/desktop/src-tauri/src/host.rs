@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use papy_core::{
     Alignment, Annotation, CancelToken, CaretMotion, CharFormat, Document, DocumentSource, Engine,
     Error, ErrorCode, MarkupKind, OpenOptions, OutlineItem, PageOp, PageRect, ParaFormat,
-    RenderRequest, SaveFormat, SessionId, TextPos,
+    RenderRequest, SaveFormat, SessionId, TextPos, UnsupportedKind,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -700,6 +700,28 @@ pub fn find_text(
             after: hit.after,
         })
         .collect())
+}
+
+/// 쪽에서 제대로 그리지 못한 개체의 종류별 개수.
+#[derive(Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct UnsupportedDto {
+    charts: u32,
+    embedded: u32,
+    missing_images: u32,
+}
+
+/// 쪽에서 제대로 그리지 못한 개체 수.
+pub fn unsupported(engine: &Engine, id: u64, page: u32) -> papy_core::Result<UnsupportedDto> {
+    let mut out = UnsupportedDto::default();
+    for object in engine.unsupported_objects(session(id)?, page)? {
+        match object.kind {
+            UnsupportedKind::Chart => out.charts += 1,
+            UnsupportedKind::EmbeddedObject => out.embedded += 1,
+            UnsupportedKind::MissingImage => out.missing_images += 1,
+        }
+    }
+    Ok(out)
 }
 
 /// 목차.

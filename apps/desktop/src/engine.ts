@@ -224,6 +224,17 @@ export function findText(id: number, query: string): Promise<TextMatch[]> {
   return call("find_text", { id, query });
 }
 
+/** 쪽에서 제대로 그리지 못한 개체 수(자리만 점선으로 그린 것). */
+export interface Unsupported {
+  charts: number;
+  embedded: number;
+  missingImages: number;
+}
+
+export function unsupportedObjects(id: number, page: number): Promise<Unsupported> {
+  return call("unsupported_objects", { id, page });
+}
+
 export function outline(id: number): Promise<OutlineItem[]> {
   return call("outline", { id });
 }

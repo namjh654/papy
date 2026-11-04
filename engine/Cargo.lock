@@ -1187,6 +1187,7 @@ dependencies = [
  "papy-office",
  "papy-pdf",
  "papy-render",
+ "zip",
 ]
 
 [[package]]

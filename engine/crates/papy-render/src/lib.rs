@@ -13,7 +13,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use papy_model::{
     Annotation, CaretMotion, CellPos, CharFormat, DocumentFormat, DocumentInfo, EditOutcome, Error,
     ErrorCode, HitTarget, ObjectRef, OutlineItem, PageObject, PageOp, PageRect, PageSize,
-    ParaFormat, Result, SaveFormat, TableOp, TextPos,
+    ParaFormat, Result, SaveFormat, TableOp, TextPos, UnsupportedObject,
 };
 
 /// 렌더링 결과. RGBA 8비트, 알파는 premultiplied 가 아님, 행 사이 여백 없음(`stride == width * 4`).
@@ -154,6 +154,11 @@ pub trait Document: Send {
 
     /// 목차.
     fn outline(&mut self) -> Result<Vec<OutlineItem>> {
+        Ok(Vec::new())
+    }
+
+    /// 쪽에서 제대로 그리지 못한 개체(차트·OLE·없는 그림 자리 등). 기본은 없음.
+    fn unsupported_objects(&mut self, _page: u32) -> Result<Vec<UnsupportedObject>> {
         Ok(Vec::new())
     }
 
@@ -301,6 +306,22 @@ pub trait Document: Send {
     /// 쪽 위 점에 가장 가까운 위치(표 칸·글상자 안이면 칸 위치). 기본은 본문만 본다.
     fn hit_test_target(&mut self, page: u32, x: f32, y: f32) -> Result<HitTarget> {
         self.hit_test(page, x, y).map(HitTarget::Body)
+    }
+
+    /// 위·아래로 줄을 옮긴다. 칸 안에서 시작해 다른 칸이나 표 밖 본문으로 나갈 수 있다.
+    /// 기본은 본문만 [`move_vertical`](Self::move_vertical) 로 옮긴다.
+    fn move_vertical_target(
+        &mut self,
+        from: HitTarget,
+        lines: i32,
+        preferred_x: f32,
+    ) -> Result<HitTarget> {
+        match from {
+            HitTarget::Body(pos) => self
+                .move_vertical(pos, lines, preferred_x)
+                .map(HitTarget::Body),
+            HitTarget::Cell(_) => Err(not_supported("cell editing")),
+        }
     }
 
     /// 칸 안 커서 사각형.

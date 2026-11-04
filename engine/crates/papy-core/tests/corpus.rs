@@ -51,6 +51,14 @@ struct Outcome {
     slowest_page: Duration,
     /// 목차 항목 수.
     outline: usize,
+    /// 그린 쪽에서 제대로 그리지 못한 개체 수(차트·OLE·없는 그림 자리).
+    unsupported: usize,
+    /// 그중 차트·OLE(점선 자리표시를 그린 것).
+    placeholders: usize,
+    /// 첫 쪽 표시 시간(열기 + 첫 쪽 그리기). 그리지 않았으면 `None`.
+    first_page: Option<Duration>,
+    /// 형식 이름(시간 통계를 형식별로 나눈다).
+    format: &'static str,
     note: String,
 }
 
@@ -124,8 +132,10 @@ fn corpus_opens_renders_and_extracts() {
     let mut total_pages = 0;
     let mut roundtrip_diffs = 0;
     let mut with_outline = 0;
+    let mut with_unsupported = 0;
     for (i, outcome) in &results {
         with_outline += usize::from(outcome.outline > 0);
+        with_unsupported += usize::from(outcome.unsupported > 0);
         let name = &names[*i];
         eprintln!(
             "{name}: {}쪽 · 열기 {} ms · 그리기 {} ms (가장 느린 쪽 {} ms){}",
@@ -153,7 +163,7 @@ fn corpus_opens_renders_and_extracts() {
         eprintln!("  {} ms · {pages}쪽 · {name}", time.as_millis());
     }
     eprintln!(
-        "\n문서 {}개 · {total_pages}쪽 · 목차 있는 문서 {with_outline}개 · {} ms (동시 {jobs}){}",
+        "\n문서 {}개 · {total_pages}쪽 · 목차 있는 문서 {with_outline}개 · 표시 못 한 개체가 있는 문서 {with_unsupported}개 · {} ms (동시 {jobs}){}",
         results.len(),
         started.elapsed().as_millis(),
         if roundtrip {
@@ -162,6 +172,8 @@ fn corpus_opens_renders_and_extracts() {
             String::new()
         },
     );
+
+    first_page_report(&results);
 
     if let Some(golden_path) = &golden_path {
         if update {
@@ -191,8 +203,42 @@ impl Outcome {
             render: Duration::ZERO,
             slowest_page: Duration::ZERO,
             outline: 0,
+            unsupported: 0,
+            placeholders: 0,
+            first_page: None,
+            format: "",
             note: String::new(),
         }
+    }
+}
+
+/// 첫 쪽 표시 시간(열기 + 첫 쪽 그리기, 배율 1)을 형식별 분위수로 보인다.
+/// 동시에 여러 문서를 돌리면 느려지므로 정확한 값은 `PAPY_CORPUS_JOBS=1` 로 잰다.
+fn first_page_report(results: &BTreeMap<usize, Outcome>) {
+    let mut by_format: BTreeMap<&str, Vec<Duration>> = BTreeMap::new();
+    for outcome in results.values() {
+        if let Some(time) = outcome.first_page {
+            by_format.entry(outcome.format).or_default().push(time);
+            by_format.entry("전체").or_default().push(time);
+        }
+    }
+    if by_format.is_empty() {
+        return;
+    }
+    eprintln!(
+        "\n첫 쪽 표시 시간(열기 + 첫 쪽 그리기, ms): 형식 · 문서 수 · 중앙값 · 90% · 99% · 최대"
+    );
+    for (format, mut times) in by_format {
+        times.sort();
+        let at = |q: f64| times[((times.len() - 1) as f64 * q).round() as usize].as_millis();
+        eprintln!(
+            "  {format} · {} · {} · {} · {} · {}",
+            times.len(),
+            at(0.5),
+            at(0.9),
+            at(0.99),
+            at(1.0)
+        );
     }
 }
 
@@ -223,6 +269,7 @@ fn check(engine: &Engine, path: &Path, mode: RenderMode, roundtrip: bool) -> Out
     outcome.open = t0.elapsed();
     let info = engine.info(id).unwrap();
     outcome.pages = info.page_count;
+    outcome.format = info.format.name();
 
     let mut sizes = Fnv::new();
     let mut text = Fnv::new();
@@ -249,6 +296,21 @@ fn check(engine: &Engine, path: &Path, mode: RenderMode, roundtrip: bool) -> Out
                     .push(format!("{page}쪽 그리기 실패 {:?}", error.code));
             }
             outcome.slowest_page = outcome.slowest_page.max(t.elapsed());
+            if page == 0 {
+                outcome.first_page = Some(outcome.open + t.elapsed());
+            }
+            match engine.unsupported_objects(id, page) {
+                Ok(objects) => {
+                    outcome.unsupported += objects.len();
+                    outcome.placeholders += objects
+                        .iter()
+                        .filter(|o| o.kind != papy_core::UnsupportedKind::MissingImage)
+                        .count();
+                }
+                Err(error) => outcome
+                    .failures
+                    .push(format!("{page}쪽 미지원 개체 확인 실패 {:?}", error.code)),
+            }
         }
         match engine.extract_text(id, page) {
             Ok(page_text) => {
@@ -292,6 +354,12 @@ fn check(engine: &Engine, path: &Path, mode: RenderMode, roundtrip: bool) -> Out
         }
     }
     outcome.render = t1.elapsed();
+    if outcome.unsupported > 0 {
+        outcome.note += &format!(
+            " · 표시 못 한 개체 {}(차트·OLE {})",
+            outcome.unsupported, outcome.placeholders
+        );
+    }
     if info.dropped_objects > 0 {
         outcome.note = format!(" · 못 옮긴 요소 {}", info.dropped_objects);
     }

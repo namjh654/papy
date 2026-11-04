@@ -4,81 +4,12 @@
 //! 연다. 어떤 입력이든 패닉 없이 정해진 오류 코드로 끝나거나, 열리면 첫 쪽을 그리고 글을 꺼낼 수 있어야 한다.
 //! 문서 하나는 시간 상한 안에 끝나야 한다(무한 반복 방지). PDF 는 PDFium 이 있을 때만 본다.
 
-use std::panic::{AssertUnwindSafe, catch_unwind};
-use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
+mod common;
 
-use papy_core::{
-    DocumentSource, Engine, EngineResources, Limits, OpenOptions, SaveFormat, TextPos,
-};
-use papy_render::RenderRequest;
+use std::time::{Duration, Instant};
 
 /// 망가뜨린 문서 하나에 허용하는 시간. 디버그 빌드 기준으로 넉넉하게 잡는다.
 const PER_CASE: Duration = Duration::from_secs(20);
-
-fn blank_hwp() -> Vec<u8> {
-    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../vendor/rhwp/saved/blank2010.hwp");
-    std::fs::read(&path).unwrap_or_else(|_| {
-        panic!(
-            "{} 가 없다. 먼저 `node scripts/fetch-rhwp.mjs`",
-            path.display()
-        )
-    })
-}
-
-fn pdfium() -> Option<PathBuf> {
-    if let Some(path) = std::env::var_os("PAPY_PDFIUM_LIBRARY") {
-        return Some(PathBuf::from(path));
-    }
-    let target = match (std::env::consts::ARCH, std::env::consts::OS) {
-        ("aarch64", "macos") => "aarch64-apple-darwin",
-        ("x86_64", "macos") => "x86_64-apple-darwin",
-        ("x86_64", "windows") => "x86_64-pc-windows-msvc",
-        ("aarch64", "windows") => "aarch64-pc-windows-msvc",
-        ("x86_64", "linux") => "x86_64-unknown-linux-gnu",
-        ("aarch64", "linux") => "aarch64-unknown-linux-gnu",
-        _ => return None,
-    };
-    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../vendor/pdfium")
-        .join(target)
-        .join(papy_core::pdfium_library_file_name());
-    path.exists().then_some(path)
-}
-
-/// 글 두 문단과 표 하나가 든 문서를 각 형식으로 저장한다.
-fn samples(engine: &Engine, with_pdf: bool) -> Vec<(&'static str, Vec<u8>)> {
-    let id = engine
-        .open(
-            DocumentSource::Bytes(blank_hwp().into()),
-            OpenOptions::default(),
-        )
-        .unwrap();
-    engine
-        .edit(id, |doc| {
-            let start = TextPos::default();
-            doc.insert_text(start, "Papy 손상 파일 점검\n둘째 문단 — 표 앞")?;
-            doc.insert_table(
-                TextPos {
-                    paragraph: 1,
-                    ..start
-                },
-                2,
-                3,
-            )
-        })
-        .unwrap();
-    let mut out = vec![
-        ("hwp", engine.save(id, SaveFormat::Hwp).unwrap()),
-        ("hwpx", engine.save(id, SaveFormat::Hwpx).unwrap()),
-        ("docx", engine.save(id, SaveFormat::Docx).unwrap()),
-    ];
-    if with_pdf {
-        out.push(("pdf", engine.save(id, SaveFormat::Pdf).unwrap()));
-    }
-    engine.close(id).unwrap();
-    out
-}
 
 /// 바이트열을 망가뜨리는 방법들. 같은 입력이면 늘 같은 결과(재현 가능).
 fn mutations(bytes: &[u8]) -> Vec<(String, Vec<u8>)> {
@@ -123,40 +54,17 @@ fn mutations(bytes: &[u8]) -> Vec<(String, Vec<u8>)> {
 
 #[test]
 fn damaged_documents_fail_cleanly() {
-    let pdfium = pdfium();
-    let engine = Engine::with_resources(
-        Limits::default(),
-        EngineResources {
-            pdfium_library: pdfium.clone().unwrap_or_default(),
-            korean_font: None,
-        },
-    );
+    let (engine, has_pdf) = common::engine();
     let mut failures = Vec::new();
     let mut opened = 0;
     let mut cases = 0;
-    for (format, bytes) in samples(&engine, pdfium.is_some()) {
+    for (format, bytes) in common::samples(&engine, has_pdf) {
         for (how, data) in mutations(&bytes) {
             cases += 1;
             let started = Instant::now();
-            let result = catch_unwind(AssertUnwindSafe(|| -> Result<bool, String> {
-                let Ok(id) =
-                    engine.open(DocumentSource::Bytes(data.into()), OpenOptions::default())
-                else {
-                    return Ok(false);
-                };
-                let info = engine.info(id).map_err(|e| format!("정보 {:?}", e.code))?;
-                if info.page_count > 0 {
-                    // 열렸으면 그리기·글 꺼내기도 패닉 없이 끝나야 한다(오류는 괜찮다).
-                    let _ = engine.render_page(id, 0, &RenderRequest::with_scale(0.5));
-                    let _ = engine.extract_text(id, 0);
-                }
-                engine.close(id).map_err(|e| format!("닫기 {:?}", e.code))?;
-                Ok(true)
-            }));
-            match result {
-                Ok(Ok(was_opened)) => opened += usize::from(was_opened),
-                Ok(Err(message)) => failures.push(format!("{format} {how}: {message}")),
-                Err(_) => failures.push(format!("{format} {how}: 패닉")),
+            match common::exercise(&engine, data) {
+                Ok(was_opened) => opened += usize::from(was_opened),
+                Err(message) => failures.push(format!("{format} {how}: {message}")),
             }
             let took = started.elapsed();
             if took > PER_CASE {

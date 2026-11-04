@@ -568,6 +568,15 @@ pub struct TextHit {
     pub after: String,
 }
 
+/// 쪽에서 제대로 그리지 못한 개체 수.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, uniffi::Record)]
+pub struct UnsupportedCount {
+    /// 차트·OLE 등 자리만 점선으로 그린 개체
+    pub placeholders: u32,
+    /// 문서에 그림 데이터가 없어 비워 둔 그림
+    pub missing_images: u32,
+}
+
 fn flatten_outline(items: Vec<papy_core::OutlineItem>, depth: u32, out: &mut Vec<OutlineEntry>) {
     for item in items {
         out.push(OutlineEntry {
@@ -778,6 +787,25 @@ impl PapyEngine {
         }
     }
 
+    /// 쪽에서 제대로 그리지 못한 개체 수. 쪽을 다시 배치하므로 보이는 쪽에 한 번씩만 부른다.
+    pub fn unsupported_objects(
+        &self,
+        session_id: u64,
+        page: u32,
+    ) -> Result<UnsupportedCount, PapyError> {
+        let mut out = UnsupportedCount::default();
+        for object in self
+            .engine
+            .unsupported_objects(session(session_id)?, page)?
+        {
+            match object.kind {
+                papy_core::UnsupportedKind::MissingImage => out.missing_images += 1,
+                _ => out.placeholders += 1,
+            }
+        }
+        Ok(out)
+    }
+
     /// 쪽 수(편집하면 바뀔 수 있다).
     pub fn page_count(&self, session_id: u64) -> Result<u32, PapyError> {
         Ok(self.engine.page_count(session(session_id)?)?)
@@ -913,9 +941,25 @@ impl PapyEngine {
         preferred_x: f32,
     ) -> Result<EngineCaret, PapyError> {
         Ok(self.engine.edit(session(session_id)?, |doc| {
+            // 위·아래: 본문·칸 구별 없이 줄을 옮긴다(칸 안 다음 줄, 다른 칸, 표 밖 본문으로).
+            if matches!(direction, CaretDirection::Up | CaretDirection::Down) {
+                let from = match position.split() {
+                    Ok(pos) => HitTarget::Body(pos),
+                    Err(cell) => HitTarget::Cell(cell),
+                };
+                let lines = if direction == CaretDirection::Up {
+                    -1
+                } else {
+                    1
+                };
+                return match doc.move_vertical_target(from, lines, preferred_x)? {
+                    HitTarget::Body(pos) => caret(doc, pos),
+                    HitTarget::Cell(cell) => cell_caret(doc, cell),
+                };
+            }
             let pos = match position.split() {
                 Ok(pos) => pos,
-                // 칸 안: 왼쪽·오른쪽만(위·아래·줄 끝은 제자리)
+                // 칸 안: 왼쪽·오른쪽만(줄 처음·끝은 제자리)
                 Err(cell) => {
                     let moved = match direction {
                         CaretDirection::Left => doc.cell_move_caret(cell, CaretMotion::Left)?,
@@ -929,9 +973,7 @@ impl PapyEngine {
                 CaretDirection::Left => doc.move_caret(pos, CaretMotion::Left)?,
                 CaretDirection::Right => doc.move_caret(pos, CaretMotion::Right)?,
                 CaretDirection::LineStart => doc.move_caret(pos, CaretMotion::LineStart)?,
-                CaretDirection::LineEnd => doc.move_caret(pos, CaretMotion::LineEnd)?,
-                CaretDirection::Up => doc.move_vertical(pos, -1, preferred_x)?,
-                CaretDirection::Down => doc.move_vertical(pos, 1, preferred_x)?,
+                _ => doc.move_caret(pos, CaretMotion::LineEnd)?,
             };
             caret(doc, moved)
         })?)

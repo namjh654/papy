@@ -10,9 +10,9 @@ use papy_model::{Error, ErrorCode, Result};
 use rhwp::model::bin_data::BinDataContent;
 use rhwp::model::control::Control;
 use rhwp::model::document::{DocInfo, Document};
-use rhwp::model::footnote::Footnote;
 use rhwp::model::header_footer::HeaderFooterApply;
 use rhwp::model::image::Picture;
+use rhwp::model::paragraph::Paragraph as NoteParagraph;
 use rhwp::model::paragraph::Paragraph;
 use rhwp::model::shape::{HorzRelTo, ShapeObject, TextWrap, VertRelTo};
 use rhwp::model::style::FillType;
@@ -31,6 +31,8 @@ struct Media<'a> {
     next_object: u32,
     /// 각주 본문 XML(`<w:footnote>` 안쪽). 각주 id 는 순서 + 1.
     footnotes: Vec<String>,
+    /// 미주 본문 XML(`<w:endnote>` 안쪽). 미주 id 는 순서 + 1.
+    endnotes: Vec<String>,
 }
 
 impl Media<'_> {
@@ -320,36 +322,47 @@ fn para_props(info: &DocInfo, paragraph: &Paragraph) -> String {
     props
 }
 
-/// 각주 참조 런. 각주 본문을 모아 두고 번호(id)를 매긴다.
-fn write_footnote(
+/// 각주·미주 참조 런. 본문을 모아 두고 번호(id)를 매긴다. `endnote` 면 미주.
+fn write_note(
     out: &mut String,
     info: &DocInfo,
     media: &mut Media,
-    footnote: &Footnote,
+    paragraphs: &[NoteParagraph],
+    endnote: bool,
     depth: usize,
 ) -> Result<()> {
     if depth > MAX_DEPTH {
         return Ok(());
     }
-    // 자리를 먼저 잡아 각주 안 각주가 있어도 번호가 꼬이지 않게 한다.
-    media.footnotes.push(String::new());
-    let id = media.footnotes.len();
-    let mut body = String::new();
-    for (index, paragraph) in footnote.paragraphs.iter().enumerate() {
-        let prefix = if index == 0 {
-            r#"<w:r><w:rPr><w:vertAlign w:val="superscript"/></w:rPr><w:footnoteRef/></w:r><w:r><w:t xml:space="preserve"> </w:t></w:r>"#
+    let tag = if endnote { "endnote" } else { "footnote" };
+    // 자리를 먼저 잡아 주 안 주가 있어도 번호가 꼬이지 않게 한다.
+    fn notes<'m>(media: &'m mut Media<'_>, endnote: bool) -> &'m mut Vec<String> {
+        if endnote {
+            &mut media.endnotes
         } else {
-            ""
+            &mut media.footnotes
+        }
+    }
+    notes(media, endnote).push(String::new());
+    let id = notes(media, endnote).len();
+    let mark =
+        format!(r#"<w:r><w:rPr><w:vertAlign w:val="superscript"/></w:rPr><w:{tag}Ref/></w:r>"#);
+    let mut body = String::new();
+    for (index, paragraph) in paragraphs.iter().enumerate() {
+        let prefix = if index == 0 {
+            format!(r#"{mark}<w:r><w:t xml:space="preserve"> </w:t></w:r>"#)
+        } else {
+            String::new()
         };
-        write_paragraph_with(&mut body, info, media, paragraph, depth + 1, prefix)?;
+        write_paragraph_with(&mut body, info, media, paragraph, depth + 1, &prefix)?;
     }
-    if footnote.paragraphs.is_empty() {
-        body.push_str(r#"<w:p><w:r><w:rPr><w:vertAlign w:val="superscript"/></w:rPr><w:footnoteRef/></w:r></w:p>"#);
+    if paragraphs.is_empty() {
+        let _ = write!(body, "<w:p>{mark}</w:p>");
     }
-    media.footnotes[id - 1] = body;
+    notes(media, endnote)[id - 1] = body;
     let _ = write!(
         out,
-        r#"<w:r><w:rPr><w:vertAlign w:val="superscript"/></w:rPr><w:footnoteReference w:id="{id}"/></w:r>"#
+        r#"<w:r><w:rPr><w:vertAlign w:val="superscript"/></w:rPr><w:{tag}Reference w:id="{id}"/></w:r>"#
     );
     Ok(())
 }
@@ -363,7 +376,8 @@ fn write_inline(
     depth: usize,
 ) -> Result<()> {
     match control {
-        Control::Footnote(footnote) => write_footnote(out, info, media, footnote, depth)?,
+        Control::Footnote(note) => write_note(out, info, media, &note.paragraphs, false, depth)?,
+        Control::Endnote(note) => write_note(out, info, media, &note.paragraphs, true, depth)?,
         Control::Picture(picture) => write_picture(out, media, picture),
         Control::Shape(shape) if depth < MAX_DEPTH => write_shape(out, info, media, shape, depth)?,
         _ => {}
@@ -423,7 +437,10 @@ fn write_paragraph_with(
         .filter(|(_, control)| {
             matches!(
                 control,
-                Control::Footnote(_) | Control::Picture(_) | Control::Shape(_)
+                Control::Footnote(_)
+                    | Control::Endnote(_)
+                    | Control::Picture(_)
+                    | Control::Shape(_)
             )
         })
         .collect();
@@ -775,6 +792,7 @@ pub fn docx_from_document_with_outline(
         files: Vec::new(),
         next_object: 0,
         footnotes: Vec::new(),
+        endnotes: Vec::new(),
     };
     let mut body = String::new();
     for (section_index, section) in document.sections.iter().enumerate() {
@@ -788,23 +806,25 @@ pub fn docx_from_document_with_outline(
     }
     let mut extra: Vec<Part> = Vec::new();
     let references = header_footer_parts(document, &mut media, &mut extra)?;
-    if !media.footnotes.is_empty() {
+    for (notes, tag, kind, rel) in [
+        (&media.footnotes, "footnote", "footnotes", "rIdFootnotes"),
+        (&media.endnotes, "endnote", "endnotes", "rIdEndnotes"),
+    ] {
+        if notes.is_empty() {
+            continue;
+        }
         let mut xml = format!(
             r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:footnotes {NAMESPACES}><w:footnote w:type="separator" w:id="-1"><w:p><w:r><w:separator/></w:r></w:p></w:footnote><w:footnote w:type="continuationSeparator" w:id="0"><w:p><w:r><w:continuationSeparator/></w:r></w:p></w:footnote>"#
+<w:{kind} {NAMESPACES}><w:{tag} w:type="separator" w:id="-1"><w:p><w:r><w:separator/></w:r></w:p></w:{tag}><w:{tag} w:type="continuationSeparator" w:id="0"><w:p><w:r><w:continuationSeparator/></w:r></w:p></w:{tag}>"#
         );
-        for (index, note) in media.footnotes.iter().enumerate() {
-            let _ = write!(
-                xml,
-                r#"<w:footnote w:id="{}">{note}</w:footnote>"#,
-                index + 1
-            );
+        for (index, note) in notes.iter().enumerate() {
+            let _ = write!(xml, r#"<w:{tag} w:id="{}">{note}</w:{tag}>"#, index + 1);
         }
-        xml.push_str("</w:footnotes>");
+        let _ = write!(xml, "</w:{kind}>");
         extra.push(Part {
-            name: "footnotes.xml".into(),
-            rel: Some("rIdFootnotes".into()),
-            kind: "footnotes",
+            name: format!("{kind}.xml"),
+            rel: Some(rel.into()),
+            kind,
             xml,
         });
     }

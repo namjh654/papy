@@ -6,7 +6,10 @@ use base64::Engine as _;
 use std::collections::HashMap;
 use std::io::{Cursor, Read};
 
-use crate::notes::{FOOTNOTE_MARK, HeaderFooterText, Numbering, paragraph_texts, parse_footnotes};
+use crate::notes::{
+    ENDNOTE_MARK, FOOTNOTE_MARK, HeaderFooterText, Numbering, paragraph_texts, parse_endnotes,
+    parse_footnotes,
+};
 use crate::shapes::{DocxShape, Drawing, SHAPE_MARK};
 use papy_model::{Error, ErrorCode, Result};
 use quick_xml::Reader;
@@ -28,9 +31,11 @@ pub struct DocxReadReport {
     pub headers: Vec<HeaderFooterText>,
     /// 꼬리말(글자만)
     pub footers: Vec<HeaderFooterText>,
+    /// 본문 미주(글자만), 본문의 [`ENDNOTE_MARK`] 와 같은 순서.
+    pub endnotes: Vec<Vec<String>>,
     /// 본문 각주(글자만), 본문의 [`FOOTNOTE_MARK`] 와 같은 순서.
     pub footnotes: Vec<Vec<String>>,
-    /// 옮기지 못한 각주·미주 수(표 안 각주, 미주, 첫 쪽 머리말 등).
+    /// 옮기지 못한 각주·미주 수(표 안 각주·미주, 첫 쪽 머리말 등).
     pub dropped_notes: usize,
     /// 본문 도형, 본문의 [`SHAPE_MARK`] 와 같은 순서.
     pub shapes: Vec<DocxShape>,
@@ -482,6 +487,9 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
     let footnotes = read_part(&mut archive, "word/footnotes.xml")?
         .map(|xml| parse_footnotes(&xml))
         .unwrap_or_default();
+    let endnotes = read_part(&mut archive, "word/endnotes.xml")?
+        .map(|xml| parse_endnotes(&xml))
+        .unwrap_or_default();
     let mut numbering = read_part(&mut archive, "word/numbering.xml")?
         .map(|xml| Numbering::parse(&xml))
         .unwrap_or_default();
@@ -632,7 +640,7 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
                             header_refs.push((kind == "headerReference", kind_attr, id));
                         }
                     }
-                    "footnoteReference" if in_run => {
+                    kind @ ("footnoteReference" | "endnoteReference") if in_run => {
                         flush(
                             &mut para_html,
                             &mut run_text,
@@ -640,17 +648,20 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
                             &para_style.0,
                             &defaults,
                         );
-                        let note = attr(&e, "id").and_then(|id| footnotes.get(&id));
-                        match note {
-                            // 표 안 각주는 rhwp 에 넣을 자리가 없어 옮기지 않는다.
+                        let (notes, mark, out) = if kind == "footnoteReference" {
+                            (&footnotes, FOOTNOTE_MARK, &mut report.footnotes)
+                        } else {
+                            (&endnotes, ENDNOTE_MARK, &mut report.endnotes)
+                        };
+                        match attr(&e, "id").and_then(|id| notes.get(&id)) {
+                            // 표 안 각주·미주는 rhwp 에 넣을 자리가 없어 옮기지 않는다.
                             Some(note) if cell.is_empty() => {
-                                para_html.push(FOOTNOTE_MARK);
-                                report.footnotes.push(note.clone());
+                                para_html.push(mark);
+                                out.push(note.clone());
                             }
                             _ => report.dropped_notes += 1,
                         }
                     }
-                    "endnoteReference" if in_run => report.dropped_notes += 1,
                     "r" if in_para => {
                         in_run = true;
                         run = RunProps::default();
@@ -780,20 +791,20 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
                             &para_style.0,
                             &defaults,
                         );
-                        match done.into_shape() {
-                            // 표 안 도형은 rhwp 에 넣을 자리가 없어 글상자 글자만 남긴다.
-                            Some(shape) if cell.is_empty() && in_para => {
+                        let (shapes, dropped) = done.into_shapes();
+                        report.dropped_drawings += dropped;
+                        for shape in shapes {
+                            if cell.is_empty() && in_para {
                                 para_html.push(SHAPE_MARK);
                                 report.shapes.push(shape);
-                            }
-                            Some(shape) => {
+                            } else {
+                                // 표 안 도형은 rhwp 에 넣을 자리가 없어 글상자 글자만 남긴다.
                                 for text in shape.text.iter().filter(|t| !t.is_empty()) {
                                     para_html.push_str(&escape(text));
                                     para_html.push(' ');
                                 }
                                 report.dropped_drawings += 1;
                             }
-                            None => report.dropped_drawings += 1,
                         }
                         continue;
                     }

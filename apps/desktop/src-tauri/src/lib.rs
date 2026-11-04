@@ -10,7 +10,7 @@ pub mod host;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
-use host::{EditOp, OpenedDocument, OutlineDto, PageSizeDto, TextMatchDto};
+use host::{EditOp, OpenedDocument, OutlineDto, PageSizeDto, TextMatchDto, UnsupportedDto};
 use papy_core::{CancelToken, Engine, EngineResources, Error, ErrorCode, Limits};
 use serde::Serialize;
 use serde_json::Value;
@@ -163,6 +163,15 @@ async fn find_text(
         host::find_text(engine, id, &query, &cancel)
     })
     .await
+}
+
+#[tauri::command]
+async fn unsupported_objects(
+    state: State<'_, AppState>,
+    id: u64,
+    page: u32,
+) -> CommandResult<UnsupportedDto> {
+    blocking(&state, move |engine| host::unsupported(engine, id, page)).await
 }
 
 #[tauri::command]
@@ -330,6 +339,7 @@ pub fn run() {
             extract_text,
             outline,
             find_text,
+            unsupported_objects,
             close_document,
             edit,
             page_layout,

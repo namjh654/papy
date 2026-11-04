@@ -1,5 +1,5 @@
 use super::*;
-use crate::notes::{FOOTNOTE_MARK, HeaderFooterText};
+use crate::notes::{ENDNOTE_MARK, FOOTNOTE_MARK, HeaderFooterText};
 use std::io::{Cursor, Write};
 
 /// 주어진 document.xml(과 styles.xml)로 최소 DOCX 를 만든다.
@@ -219,7 +219,11 @@ pub(crate) const NOTES_DOCUMENT: &str = r#"<w:document xmlns:w="w" xmlns:r="r"><
 <w:sectPr><w:headerReference w:type="default" r:id="rIdH"/><w:footerReference w:type="default" r:id="rIdF"/><w:headerReference w:type="first" r:id="rIdH"/></w:sectPr>
 </w:body></w:document>"#;
 
-pub(crate) const NOTES_PARTS: [(&str, &str); 5] = [
+pub(crate) const NOTES_PARTS: [(&str, &str); 6] = [
+    (
+        "word/endnotes.xml",
+        r#"<w:endnotes xmlns:w="w"><w:endnote w:type="separator" w:id="-1"><w:p><w:r><w:separator/></w:r></w:p></w:endnote><w:endnote w:id="1"><w:p><w:r><w:endnoteRef/></w:r><w:r><w:t xml:space="preserve"> 미주 글</w:t></w:r></w:p></w:endnote></w:endnotes>"#,
+    ),
     (
         "word/_rels/document.xml.rels",
         r#"<Relationships xmlns="r"><Relationship Id="rIdH" Type="header" Target="header1.xml"/><Relationship Id="rIdF" Type="footer" Target="footer1.xml"/></Relationships>"#,
@@ -265,8 +269,10 @@ fn numbering_footnotes_headers_and_footers() {
         report.footnotes,
         vec![vec![" 각주 & 하나".to_string(), "둘째 줄".to_string()]]
     );
-    // 표 안 각주, 미주, 첫 쪽 머리말은 옮기지 못한다.
-    assert_eq!(report.dropped_notes, 3);
+    assert!(html.contains(&format!("끝{ENDNOTE_MARK}")), "{html}");
+    assert_eq!(report.endnotes, vec![vec![" 미주 글".to_string()]]);
+    // 표 안 각주, 첫 쪽 머리말은 옮기지 못한다.
+    assert_eq!(report.dropped_notes, 2);
     assert_eq!(
         report.headers,
         vec![HeaderFooterText {
@@ -286,4 +292,48 @@ fn number_formats() {
     assert_eq!(format_number(15, "ganada"), "가");
     assert_eq!(format_number(3, "decimalEnclosedCircle"), "③");
     assert_eq!(format_number(7, "decimal"), "7");
+}
+
+/// 묶음 도형: 묶음 좌표(200×100)를 2,000,000×1,000,000 EMU 로 늘린 묶음 안에 사각형·글상자 타원,
+/// 안쪽 묶음(좌표를 반으로 줄임)의 선, 그림 하나.
+const GROUP_DOCUMENT: &str = r#"<w:document xmlns:w="w" xmlns:wp="wp" xmlns:a="a" xmlns:wpg="wpg" xmlns:wps="wps" xmlns:pic="pic"><w:body><w:p><w:r><w:drawing><wp:anchor behindDoc="0"><wp:positionH relativeFrom="page"><wp:posOffset>500000</wp:posOffset></wp:positionH><wp:positionV relativeFrom="paragraph"><wp:posOffset>100000</wp:posOffset></wp:positionV><wp:extent cx="2000000" cy="1000000"/><wp:wrapSquare/><a:graphic><a:graphicData><wpg:wgp>
+<wpg:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="2000000" cy="1000000"/><a:chOff x="0" y="0"/><a:chExt cx="200" cy="100"/></a:xfrm></wpg:grpSpPr>
+<wps:wsp><wps:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="100" cy="50"/></a:xfrm><a:prstGeom prst="rect"/><a:solidFill><a:srgbClr val="FF0000"/></a:solidFill></wps:spPr><wps:txbx><w:txbxContent><w:p><w:r><w:t>묶음 글</w:t></w:r></w:p></w:txbxContent></wps:txbx></wps:wsp>
+<wps:wsp><wps:spPr><a:xfrm flipH="1"><a:off x="100" y="50"/><a:ext cx="100" cy="50"/></a:xfrm><a:prstGeom prst="ellipse"/></wps:spPr></wps:wsp>
+<wpg:grpSp><wpg:grpSpPr><a:xfrm><a:off x="0" y="50"/><a:ext cx="100" cy="50"/><a:chOff x="0" y="0"/><a:chExt cx="200" cy="100"/></a:xfrm></wpg:grpSpPr>
+<wps:wsp><wps:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="200" cy="0"/></a:xfrm><a:prstGeom prst="line"/><a:ln w="12700"><a:solidFill><a:srgbClr val="00FF00"/></a:solidFill></a:ln></wps:spPr></wps:wsp>
+</wpg:grpSp>
+<pic:pic><pic:blipFill><a:blip r:embed="rId1" xmlns:r="r"/></pic:blipFill></pic:pic>
+</wpg:wgp></a:graphicData></a:graphic></wp:anchor></w:drawing></w:r><w:r><w:t>뒤 글</w:t></w:r></w:p></w:body></w:document>"#;
+
+#[test]
+fn group_shapes_are_unpacked() {
+    let (html, report) = docx_to_html(&docx(GROUP_DOCUMENT, None)).unwrap();
+    assert_eq!(html.matches(SHAPE_MARK).count(), 3, "{html}");
+    assert!(html.contains("뒤 글"));
+    // 묶음 안 그림만 빠진다
+    assert_eq!(report.dropped_drawings, 1);
+    let shapes = &report.shapes;
+    assert_eq!(shapes.len(), 3);
+    let rect = &shapes[0];
+    assert_eq!(rect.kind, ShapeKind::Rectangle);
+    assert_eq!((rect.width, rect.height), (1_000_000, 500_000));
+    assert_eq!(rect.horizontal, (Relative::Page, 500_000));
+    assert_eq!(rect.vertical, (Relative::Paragraph, 100_000));
+    assert_eq!(rect.wrap, Wrap::Square);
+    assert!(!rect.inline);
+    assert_eq!(rect.fill, Some(0xFF0000));
+    assert_eq!(rect.text, vec!["묶음 글".to_owned()]);
+    let ellipse = &shapes[1];
+    assert_eq!(ellipse.kind, ShapeKind::Ellipse);
+    assert_eq!(ellipse.horizontal, (Relative::Page, 1_500_000));
+    assert_eq!(ellipse.vertical, (Relative::Paragraph, 600_000));
+    assert!(ellipse.flip_h);
+    // 안쪽 묶음: (0,0)-(200,0) → 바깥 (0,50)-(100,50) → (0,500000)-(1000000,500000)
+    let line = &shapes[2];
+    assert_eq!(line.kind, ShapeKind::Line);
+    assert_eq!((line.width, line.height), (1_000_000, 0));
+    assert_eq!(line.horizontal, (Relative::Page, 500_000));
+    assert_eq!(line.vertical, (Relative::Paragraph, 600_000));
+    assert_eq!(line.line, Some(0x00FF00));
 }
