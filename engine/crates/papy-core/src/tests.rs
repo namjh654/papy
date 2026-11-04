@@ -32,6 +32,10 @@ fn other_zip_is_container() {
 fn detects_compound_file() {
     let head = [papy_hwp::CFB_SIGNATURE, &[0; 8]].concat();
     assert_eq!(detect_format(&head), Some(DocumentFormat::CompoundFile));
+    assert_eq!(
+        detect_format(b"HWP Document File V3.00 \x1a\x01\x02\x03\x04\x05"),
+        Some(DocumentFormat::CompoundFile)
+    );
 }
 
 #[test]

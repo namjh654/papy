@@ -1307,3 +1307,72 @@ fn cell_selection_format_and_delete() {
     doc.undo().unwrap();
     assert_eq!(doc.cell_text_in_range(start, end).unwrap(), "Hello\nworld");
 }
+
+#[test]
+fn demultiply_matches_tiny_skia() {
+    for a in 0..=255u8 {
+        for c in 0..=a {
+            let mut px = [c, c, c, a];
+            demultiply_in_place(&mut px);
+            let want = tiny_skia::PremultipliedColorU8::from_rgba(c, c, c, a)
+                .unwrap()
+                .demultiply();
+            assert_eq!(
+                px,
+                [want.red(), want.green(), want.blue(), a],
+                "c={c} a={a}"
+            );
+        }
+    }
+}
+
+/// 다른 프로그램이 만든 HWPX: `mimetype` 이 압축됐거나 뒤에 있거나 없다. 앞부분 판별로는 ZIP 컨테이너지만 HWPX 로 열린다.
+#[test]
+fn hwpx_without_leading_stored_mimetype_opens() {
+    use std::io::{Read, Write};
+    let original = sample(2, true, None);
+    let mut archive = zip::ZipArchive::new(std::io::Cursor::new(&original[..])).unwrap();
+    let mut entries = Vec::new();
+    for i in 0..archive.len() {
+        let mut file = archive.by_index(i).unwrap();
+        let mut data = Vec::new();
+        file.read_to_end(&mut data).unwrap();
+        entries.push((file.name().to_string(), data));
+    }
+    let rebuild = |order: &mut dyn Iterator<Item = &(String, Vec<u8>)>| {
+        let mut buffer = std::io::Cursor::new(Vec::new());
+        let mut zip = zip::ZipWriter::new(&mut buffer);
+        for (name, data) in order {
+            // 모두 deflate 로 압축한다(mimetype 포함).
+            zip.start_file(name.as_str(), zip::write::SimpleFileOptions::default())
+                .unwrap();
+            zip.write_all(data).unwrap();
+        }
+        zip.finish().unwrap();
+        buffer.into_inner()
+    };
+    let compressed = rebuild(&mut entries.iter());
+    let mimetype_last = rebuild(
+        &mut entries
+            .iter()
+            .filter(|(n, _)| n != "mimetype")
+            .chain(entries.iter().filter(|(n, _)| n == "mimetype")),
+    );
+    let no_mimetype = rebuild(&mut entries.iter().filter(|(n, _)| n != "mimetype"));
+    for (what, bytes) in [
+        ("compressed", compressed),
+        ("mimetype last", mimetype_last),
+        ("no mimetype", no_mimetype),
+    ] {
+        assert!(
+            !has_hwpx_mimetype(&bytes),
+            "{what}: head sniff should not match"
+        );
+        let mut doc =
+            open(HwpBackend::docx(), bytes, &options()).unwrap_or_else(|e| panic!("{what}: {e:?}"));
+        let info = doc.info();
+        assert_eq!(info.format, DocumentFormat::Hwpx, "{what}");
+        assert_eq!(info.page_count, 2, "{what}");
+        assert!(doc.extract_text(1).unwrap().contains("Papy 쪽 2"), "{what}");
+    }
+}

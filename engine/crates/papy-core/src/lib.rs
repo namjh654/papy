@@ -56,7 +56,8 @@ pub fn detect_format(head: &[u8]) -> Option<DocumentFormat> {
         Some(DocumentFormat::Hwpx)
     } else if papy_hwp::has_zip_signature(head) {
         Some(DocumentFormat::ZipContainer)
-    } else if papy_hwp::has_cfb_signature(head) {
+    } else if papy_hwp::has_cfb_signature(head) || papy_hwp::has_hwp3_signature(head) {
+        // HWP 3.x 도 HWP 어댑터가 연다(앱에는 HWP 로 보인다. 저장하면 HWP 5.x 로 쓴다).
         Some(DocumentFormat::CompoundFile)
     } else {
         None

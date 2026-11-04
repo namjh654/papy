@@ -1,0 +1,45 @@
+name: corpus
+
+# 문서 모음 회귀 점검(rhwp 샘플 1,268개, 약 700MB). 오래 걸려서 손으로 돌린다 — rhwp 를 올리거나 엔진 조판·변환을
+# 크게 바꿨을 때. 기준값(tests/corpus/rhwp-samples.golden.tsv)과 다르면 실패한다. docs/formats/test-corpus.md
+on:
+  workflow_dispatch:
+    inputs:
+      render:
+        description: "그릴 쪽: first(첫 쪽만) · all(모든 쪽) · none"
+        default: first
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  corpus:
+    # 기준값을 macOS(Apple Silicon)에서 만들었다.
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: engine
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - run: node ../scripts/fetch-rhwp.mjs
+      - run: node ../scripts/fetch-pdfium.mjs
+      - run: node ../scripts/fetch-corpus.mjs
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: engine
+      - name: corpus
+        env:
+          PAPY_CORPUS: tests/corpus/rhwp-samples
+          PAPY_CORPUS_GOLDEN: tests/corpus/rhwp-samples.golden.tsv
+          PAPY_CORPUS_RENDER: ${{ inputs.render }}
+          PAPY_CORPUS_ROUNDTRIP: "1"
+        # rhwp 의 조판 진단 출력(LAYOUT_OVERFLOW 등)은 걸러 낸다.
+        run: |
+          export PAPY_PDFIUM_LIBRARY="$PWD/vendor/pdfium/aarch64-apple-darwin/libpdfium.dylib"
+          set -o pipefail
+          cargo test --release --locked -p papy-core --test corpus -- --ignored --nocapture 2>&1 \
+            | grep -v -E '^(LAYOUT|TYPESET|표준 CFB|\[)'

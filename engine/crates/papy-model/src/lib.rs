@@ -12,9 +12,11 @@ use std::fmt;
 pub enum DocumentFormat {
     /// PDF (`%PDF-` 시그니처).
     Pdf,
-    /// HWPX — ZIP 컨테이너, 첫 항목 `mimetype` 이 `application/hwp+zip`.
+    /// HWPX — ZIP 컨테이너, 첫 항목 `mimetype` 이 `application/hwp+zip`. `mimetype` 이 없거나 압축된 HWPX 는
+    /// 처음에 [`ZipContainer`](Self::ZipContainer) 로 판별되고, 열 때 HWPX 로 확정된다.
     Hwpx,
     /// HWP 5.x — OLE 복합 문서(CFB) 컨테이너. 다른 CFB 포맷(구형 DOC/XLS/PPT)과 구분하려면 스트림 확인이 더 필요하다.
+    /// HWP 3.x(`HWP Document File` 로 시작)도 이 형식으로 열린다(저장하면 HWP 5.x).
     CompoundFile,
     /// HWPX 로 판별되지 않은 ZIP 컨테이너(DOCX/XLSX/PPTX 후보). 내부 항목 확인이 더 필요하다.
     ZipContainer,

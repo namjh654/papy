@@ -36,6 +36,7 @@
 | rhwp ([edwardkim/rhwp](https://github.com/edwardkim/rhwp)) | v0.8.7 (`1a76570e833917d15817415a53c09ad61ab3203f`) | `scripts/fetch-rhwp.mjs` | `node scripts/fetch-rhwp.mjs` (sparse, 약 47MB) |
 | `resvg` (crate) | =0.45.1 | `engine/crates/papy-hwp/Cargo.toml` | crates.io |
 | Noto Sans KR Regular (OFL-1.1) | rhwp v0.8.7 저장소 사본 | `scripts/fetch-rhwp.mjs` | rhwp 받을 때 함께 |
+| rhwp 샘플 문서 모음(MIT, 회귀 점검용) | rhwp v0.8.7 (`1a76570e`) `samples/` | `scripts/fetch-corpus.mjs` | `node scripts/fetch-corpus.mjs` (약 700MB → `tests/corpus/rhwp-samples/`, git 제외) |
 | rhwp-studio + @rhwp/core 0.8.7 WASM (MIT) | rhwp v0.8.7 (`1a76570e`), npm sha512 고정 | `scripts/fetch-rhwp-studio.mjs` | `node scripts/fetch-rhwp-studio.mjs` (빌드 결과 약 41MB → `apps/desktop/public/studio/`) |
 | @rhwp/editor SDK (MIT) | rhwp v0.8.7 `npm/editor` | `apps/desktop/src/vendor/rhwp-editor/` (패치 표시 `Papy:`) | 직접 복사 |
 

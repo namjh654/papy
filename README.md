@@ -12,10 +12,11 @@ PDF 와 한국어 문서(HWP/HWPX)를 우선 지원하는 **비상업 용도 무
 
 | 영역 | 상태 |
 |---|---|
-| Rust 엔진 (`engine/`) | 세션·상한·취소·오류 코드, 포맷 판별. PDF = PDFium(`papy-pdf`), HWP/HWPX = rhwp(`papy-hwp`): 열기·렌더·텍스트, PDF 목차, 암호 문서. 편집: HWP/HWPX 본문(입력·서식·되돌리기), PDF 주석·쪽 편집. 저장·변환: HWPX·HWP·PDF·텍스트 |
+| Rust 엔진 (`engine/`) | 세션·상한·취소·오류 코드, 포맷 판별. PDF = PDFium(`papy-pdf`), HWP/HWPX = rhwp(`papy-hwp`): 열기·렌더·텍스트, PDF 목차, 암호 문서. HWP 3.x 는 보기 전용(PDF·텍스트로 내보내기). 편집: HWP/HWPX 본문(입력·서식·되돌리기), PDF 주석·쪽 편집. 저장·변환: HWPX·HWP·PDF·텍스트 |
 | 데스크톱 (`apps/desktop/`) | Tauri 2. 보기 모드: 열기(대화상자·끌어다 놓기), 연속 스크롤, 확대/축소, 썸네일·목차·텍스트 사이드바, 암호, 최근 문서. 편집 모드(⌘E): HWP/HWPX 글자 입력·한글 입력기·서식·정렬, PDF 형광펜·밑줄·취소선·펜·텍스트 상자·메모·쪽 회전/삭제/이동. 저장(⌘S)·다른 이름으로 저장·다른 형식으로 내보내기. macOS·Windows·Linux 패키징을 CI 에서 빌드 |
 | 웹 (`apps/web/`) | Vite + React 골격. 문서 기능 없음 |
-| 모바일 (`apps/mobile/`) | 기존 KMP 템플릿([namjh654/kmp](https://github.com/namjh654/kmp)) 편입. 아직 Papy 기능·엔진 연결 없음 |
+| 모바일 (`apps/mobile/`) | KMP(Compose·SwiftUI), 엔진은 UniFFI 로 연결. HWP·HWPX·DOCX 보기·편집(커서 입력·글자 모양·표·그림)·저장·PDF 로 내보내기, PDF 보기(운영체제) — [ADR 0006](docs/decisions/0006-mobile-bridge.md) |
+| 회귀 테스트 | 손상 파일 168가지(기본 `cargo test`), rhwp 샘플 1,268개·16,320쪽 기준값 비교(손으로 실행) — [test-corpus.md](docs/formats/test-corpus.md) |
 | Word (DOCX) | 열기·편집·DOCX 저장, HWP·HWPX·PDF·텍스트와 상호 변환(`papy-office`: DOCX ↔ rhwp 문서 구조). 본문·글자/문단 서식·표(병합)·그림(읽기·쓰기) 지원. 머리말·꼬리말·각주·번호 목록(글자)도 옮김. 도형·미주·표 안 각주는 아직 옮기지 않으며 열 때 빠진 개수를 알림 |
 | XLSX·PPTX | 미구현 |
 

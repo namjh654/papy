@@ -148,7 +148,9 @@ impl Document for PdfDocument {
                 .set_target_height(height as Pixels)
                 .set_clear_color(clear)
                 .render_annotations(true)
-                .render_form_data(true);
+                .render_form_data(true)
+                // PDFium 이 RGBA 순서로 바로 그리게 한다(BGRA→RGBA 변환 한 번을 덜 한다).
+                .set_reverse_byte_order(true);
             let bitmap = page.render_with_config(&config).map_err(map_error)?;
             let (actual_w, actual_h) = (bitmap.width() as u32, bitmap.height() as u32);
             let pixels = tight_rgba(bitmap.as_rgba_bytes(), actual_w, actual_h)?;

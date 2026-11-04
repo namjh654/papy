@@ -41,6 +41,14 @@ pub fn has_cfb_signature(head: &[u8]) -> bool {
     head.starts_with(CFB_SIGNATURE)
 }
 
+/// HWP 3.x 문서의 시작 문자열.
+pub const HWP3_SIGNATURE: &[u8] = b"HWP Document File";
+
+/// 앞부분 바이트가 HWP 3.x 시그니처로 시작하는지 본다. rhwp 가 HWP 3.x 를 읽어 HWP 5.x 와 같은 문서 구조로 바꾼다.
+pub fn has_hwp3_signature(head: &[u8]) -> bool {
+    head.starts_with(HWP3_SIGNATURE)
+}
+
 /// 앞부분 바이트가 ZIP 로컬 헤더로 시작하는지 본다.
 pub fn has_zip_signature(head: &[u8]) -> bool {
     head.starts_with(ZIP_LOCAL_HEADER)
@@ -88,7 +96,7 @@ impl HwpBackend {
         }
     }
 
-    /// HWP 5.x(OLE 복합 문서) 어댑터. 다른 CFB 문서(구형 DOC 등)는 `UnsupportedFormat` 으로 거절한다.
+    /// HWP 5.x(OLE 복합 문서)·HWP 3.x 어댑터. 다른 CFB 문서(구형 DOC 등)는 `UnsupportedFormat` 으로 거절한다.
     pub fn hwp() -> Self {
         Self {
             format: DocumentFormat::CompoundFile,
@@ -122,8 +130,21 @@ impl FormatBackend for HwpBackend {
             Source::Bytes(bytes) => bytes,
         };
         if self.format == DocumentFormat::ZipContainer {
+            // `mimetype` 이 첫 항목이 아니거나 압축된 HWPX(다른 프로그램이 만든 파일)는 앞부분만으로는 HWPX 로
+            // 판별되지 않는다. DOCX 가 아니면 중앙 디렉터리의 HWPX 필수 항목으로 다시 본다.
+            if !papy_office::is_docx(bytes)
+                && rhwp::parser::detect_format(bytes) == rhwp::parser::FileFormat::Hwpx
+            {
+                return Self::hwpx().open_hwp(bytes, options);
+            }
             return self.open_docx(bytes, options);
         }
+        self.open_hwp(bytes, options)
+    }
+}
+
+impl HwpBackend {
+    fn open_hwp(&self, bytes: &[u8], options: &BackendOpenOptions) -> Result<Box<dyn Document>> {
         let password = options.password.as_deref();
         let mut doc = guard(|| match password {
             Some(password) => Rhwp::from_bytes_with_password(bytes, password.as_bytes()),
@@ -139,6 +160,20 @@ impl FormatBackend for HwpBackend {
         if page_count > options.max_pages {
             return Err(Error::new(ErrorCode::LimitExceeded, "too many pages"));
         }
+        // HWP 3.x 는 rhwp 가 HWP 5.x 구조로 바꿔 읽는데, 다시 HWP/HWPX 로 쓰면 그림·도형·양식 글상자가 빠진다
+        // (문서 모음 회귀 점검, docs/formats/test-corpus.md). 원본을 덮어쓰지 않게 보기 전용으로 열고 PDF·텍스트로만 내보낸다.
+        let hwp3 = has_hwp3_signature(bytes);
+        let save_formats = if hwp3 {
+            vec![SaveFormat::Pdf, SaveFormat::Text]
+        } else {
+            vec![
+                SaveFormat::Hwpx,
+                SaveFormat::Hwp,
+                SaveFormat::Docx,
+                SaveFormat::Pdf,
+                SaveFormat::Text,
+            ]
+        };
         let info = DocumentInfo {
             format: self.format,
             page_count,
@@ -149,14 +184,8 @@ impl FormatBackend for HwpBackend {
                 render: true,
                 extract_text: true,
                 save: true,
-                edit: true,
-                save_formats: vec![
-                    SaveFormat::Hwpx,
-                    SaveFormat::Hwp,
-                    SaveFormat::Docx,
-                    SaveFormat::Pdf,
-                    SaveFormat::Text,
-                ],
+                edit: !hwp3,
+                save_formats,
                 ..Capabilities::default()
             },
         };
@@ -273,20 +302,46 @@ pub(crate) fn rasterize(
         height as f32 / size.height(),
     );
     resvg::render(&tree, transform, &mut pixmap.as_mut());
-    // tiny-skia 는 premultiplied 알파다. Bitmap 계약은 straight 알파.
-    let pixels = pixmap
-        .pixels()
-        .iter()
-        .flat_map(|p| {
-            let c = p.demultiply();
-            [c.red(), c.green(), c.blue(), c.alpha()]
-        })
-        .collect();
+    // tiny-skia 는 premultiplied 알파다. Bitmap 계약은 straight 알파라서 투명한 점만 되돌린다.
+    // 버퍼는 새로 만들지 않고 그대로 넘긴다(흰 바탕이면 모든 점이 불투명이라 바꿀 것이 없다).
+    let mut pixels = pixmap.take();
+    if !white_background {
+        demultiply_in_place(&mut pixels);
+    }
     Ok(Bitmap {
         width,
         height,
         pixels,
     })
+}
+
+/// 글꼴 파일을 한 번만 메모리에 매핑해 두고 계속 쓴다.
+///
+/// fontdb 는 파일 글꼴의 데이터를 쓸 때마다 파일을 열고 매핑한다. usvg 는 글자 하나마다(윤곽선·대체 글꼴 찾기)
+/// 그 데이터를 읽으므로, 그대로 두면 한 쪽 그리는 시간의 대부분이 파일 열기·매핑에 든다(측정: 쪽당 약 130 ms → 20 ms).
+/// 매핑은 가상 메모리만 잡고, 실제로 읽은 쪽만 메모리에 올라온다.
+fn share_font_data(fonts: &mut usvg::fontdb::Database) {
+    let ids: Vec<_> = fonts.faces().map(|face| face.id).collect();
+    for id in ids {
+        // SAFETY: 매핑한 글꼴 파일을 다른 프로세스가 고치면 내용이 바뀔 수 있다(fontdb 문서). 시스템·앱 글꼴은
+        // 실행 중에 고쳐 쓰지 않으며, 지우는 것은 매핑에 영향을 주지 않는다. 같은 파일의 다른 face 는 함께 공유된다.
+        let _ = unsafe { fonts.make_shared_face_data(id) };
+    }
+}
+
+/// premultiplied RGBA 를 straight RGBA 로 바꾼다. 불투명(255)·완전 투명(0) 점은 그대로 둔다.
+fn demultiply_in_place(pixels: &mut [u8]) {
+    for p in pixels.chunks_exact_mut(4) {
+        let a = p[3];
+        if a == 0 || a == 255 {
+            continue;
+        }
+        // tiny-skia 의 demultiply 와 같은 식(f64 반올림까지 같게).
+        let a = f64::from(a) / 255.0;
+        for c in &mut p[..3] {
+            *c = (f64::from(*c) / a + 0.5) as u8;
+        }
+    }
 }
 
 static FALLBACK_FONT: OnceLock<std::path::PathBuf> = OnceLock::new();
@@ -341,6 +396,7 @@ fn svg_options() -> &'static usvg::Options<'static> {
             // 읽지 못하면(파일 없음 등) 시스템 글꼴만 쓴다.
             let _ = fonts.load_font_file(path);
         }
+        share_font_data(&mut fonts);
         // 문서가 지정한 글꼴이 없으면 generic(serif 등)으로 떨어진다. fontdb 기본값(Times New Roman 등)이
         // 설치돼 있지 않으면 글자가 통째로 빠지므로, 한글 글꼴 → 흔한 라틴 글꼴 → 아무 글꼴 순으로 반드시 채운다.
         let has = |fonts: &usvg::fontdb::Database, name: &str| {

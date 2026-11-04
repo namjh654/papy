@@ -58,3 +58,7 @@ apps/mobile/iosApp/iosApp/Resources/EngineFonts/
 # 앱 라이선스 고지(scripts/third-party-notices.mjs mobile 이 만든다)
 apps/mobile/androidApp/src/main/assets/licenses/
 apps/mobile/iosApp/iosApp/Resources/Licenses/
+
+# 회귀 점검 문서 모음(scripts/fetch-corpus.mjs 가 받는다)
+tests/corpus/rhwp-samples/
+tests/corpus/rhwp-samples.download/
