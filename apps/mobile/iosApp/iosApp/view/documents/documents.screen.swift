@@ -6,6 +6,7 @@ import Core
 struct DocumentsScreen: View {
 
     let onOpen: (String, String) -> Void
+    let onLicenses: () -> Void
 
     @StateObject private var model = SharedViewModel(IOSAppGraph.shared.documentsViewModel(), state: \.uiState)
     @State private var picking = false
@@ -49,6 +50,9 @@ struct DocumentsScreen: View {
                         }
                     }
                 }
+                PapyButton(String(localized: "licenses_title"), style: .text, size: .small, fullWidth: false, action: onLicenses)
+                    .padding(.top, PapySpacing.xl)
+                    .accessibilityIdentifier("documents_licenses")
             }
             .padding(PapySize.screenPadding)
         }

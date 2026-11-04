@@ -4,6 +4,7 @@
 //   node scripts/build-mobile-engine.mjs bindings   # Kotlin·Swift 바인딩만 다시 만든다(커밋 대상)
 //   node scripts/build-mobile-engine.mjs android    # libpapy_ffi.so (arm64-v8a, x86_64) → androidApp/src/main/jniLibs
 //   node scripts/build-mobile-engine.mjs ios        # PapyFFI.xcframework (기기, 시뮬레이터) → iosApp/Frameworks
+//   node scripts/build-mobile-engine.mjs notices    # 앱 라이선스 고지(third-party-notices.mjs mobile)
 //   node scripts/build-mobile-engine.mjs all
 //
 // 필요한 것: rustup 타깃(aarch64-linux-android x86_64-linux-android aarch64-apple-ios aarch64-apple-ios-sim),
@@ -134,8 +135,19 @@ function ios() {
   console.log(`iOS → ${out}`);
 }
 
+/** 앱 라이선스 고지(앱 화면 "오픈소스 라이선스"). Rust crate·Gradle 라이브러리 목록이 바뀌면 다시 만든다. */
+function notices() {
+  execFileSync(process.execPath, [join(root, "scripts", "third-party-notices.mjs"), "mobile"], { cwd: root, stdio: "inherit" });
+}
+
 const what = process.argv[2] ?? "all";
-const steps = { bindings, android, ios, all: () => (bindings(), android(), process.platform === "darwin" && ios()) };
+const steps = {
+  bindings,
+  android: () => (android(), notices()),
+  ios: () => (ios(), notices()),
+  notices,
+  all: () => (bindings(), android(), process.platform === "darwin" && ios(), notices()),
+};
 if (!steps[what]) {
   console.error(`사용법: node scripts/build-mobile-engine.mjs [${Object.keys(steps).join("|")}]`);
   process.exit(2);

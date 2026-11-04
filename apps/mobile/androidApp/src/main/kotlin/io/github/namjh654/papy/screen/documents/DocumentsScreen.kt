@@ -40,7 +40,7 @@ import org.koin.androidx.compose.koinViewModel
 
 /** 첫 화면: 문서 열기 + 최근 문서 */
 @Composable
-fun DocumentsScreen(onOpen: (ref: String, name: String) -> Unit) {
+fun DocumentsScreen(onOpen: (ref: String, name: String) -> Unit, onLicenses: () -> Unit) {
     val viewModel: DocumentsViewModel = koinViewModel()
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -129,6 +129,15 @@ fun DocumentsScreen(onOpen: (ref: String, name: String) -> Unit) {
                         }
                     }
                 }
+            }
+            item(key = "licenses") {
+                PapyButton(
+                    text = stringResource(R.string.licenses_title),
+                    onClick = onLicenses,
+                    style = PapyButtonStyle.Text,
+                    size = PapyButtonSize.Small,
+                    modifier = Modifier.padding(top = PapySpacing.xl),
+                )
             }
         }
     }

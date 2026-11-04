@@ -715,6 +715,74 @@
         }
       }
     },
+    "licenses_intro" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Papy is distributed under PolyForm Noncommercial 1.0.0 (non-commercial use). These are the %1$lld other components in the app and their licenses."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Papy 는 PolyForm Noncommercial 1.0.0 라이선스로 배포됩니다(비상업적 사용). 앱에 들어 있는 다른 구성요소 %1$lld개와 그 라이선스입니다."
+          }
+        }
+      }
+    },
+    "licenses_missing" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The license notice file is missing. In development builds, create it with node scripts/third-party-notices.mjs mobile."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "라이선스 고지 파일이 없습니다. 개발 빌드에서는 node scripts/third-party-notices.mjs mobile 로 만듭니다."
+          }
+        }
+      }
+    },
+    "licenses_search" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Find a component"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "구성요소 찾기"
+          }
+        }
+      }
+    },
+    "licenses_title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open-source licenses"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "오픈소스 라이선스"
+          }
+        }
+      }
+    },
     "notice_empty" : {
       "extractionState" : "manual",
       "localizations" : {

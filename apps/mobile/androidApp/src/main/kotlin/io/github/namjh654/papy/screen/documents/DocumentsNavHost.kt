@@ -21,6 +21,9 @@ sealed interface DocumentsRoute {
 
     @Serializable
     data class Viewer(val ref: String, val name: String) : DocumentsRoute
+
+    @Serializable
+    data object Licenses : DocumentsRoute
 }
 
 /** 다른 앱에서 "Papy 로 열기"로 넘어온 문서(MainActivity 가 넣고 화면이 꺼낸다) */
@@ -46,11 +49,17 @@ fun DocumentsNavHost() {
     }
     NavHost(navController = navController, startDestination = DocumentsRoute.Home) {
         composable<DocumentsRoute.Home> {
-            DocumentsScreen(onOpen = { ref, name -> navController.navigate(DocumentsRoute.Viewer(ref, name)) })
+            DocumentsScreen(
+                onOpen = { ref, name -> navController.navigate(DocumentsRoute.Viewer(ref, name)) },
+                onLicenses = { navController.navigate(DocumentsRoute.Licenses) },
+            )
         }
         composable<DocumentsRoute.Viewer> { entry ->
             val route = entry.toRoute<DocumentsRoute.Viewer>()
             ViewerScreen(ref = route.ref, name = route.name, onBack = { navController.popBackStack() })
+        }
+        composable<DocumentsRoute.Licenses> {
+            LicensesScreen(onBack = { navController.popBackStack() })
         }
     }
 }

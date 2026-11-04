@@ -10,13 +10,18 @@ struct DocumentsRoot: View {
     }
 
     @State private var path: [Opened] = []
+    @State private var showLicenses = false
 
     var body: some View {
         NavigationStack(path: $path) {
-            DocumentsScreen { ref, name in path.append(Opened(ref: ref, name: name)) }
+            DocumentsScreen(
+                onOpen: { ref, name in path.append(Opened(ref: ref, name: name)) },
+                onLicenses: { showLicenses = true }
+            )
                 .navigationDestination(for: Opened.self) { opened in
                     ViewerScreen(ref: opened.ref, name: opened.name)
                 }
+                .navigationDestination(isPresented: $showLicenses) { LicensesScreen() }
         }
         #if DEBUG
         // 개발 확인용: `-papyOpen <파일 이름>` 이면 앱 Documents 폴더의 파일을 바로 연다(시뮬레이터 점검).
@@ -30,6 +35,10 @@ struct DocumentsRoot: View {
                 path = [Opened(ref: ref, name: url.lastPathComponent)]
             }
         }
+        #endif
+        #if DEBUG
+        // 개발 확인용: `-papyLicenses` 이면 라이선스 화면을 연다
+        .task { if ProcessInfo.processInfo.arguments.contains("-papyLicenses") { showLicenses = true } }
         #endif
         // 파일 앱 등에서 "Papy 로 열기"
         .onOpenURL { url in

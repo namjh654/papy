@@ -55,3 +55,6 @@ apps/mobile/androidApp/src/main/jniLibs/
 apps/mobile/androidApp/src/main/assets/fonts/
 apps/mobile/iosApp/Frameworks/
 apps/mobile/iosApp/iosApp/Resources/EngineFonts/
+# 앱 라이선스 고지(scripts/third-party-notices.mjs mobile 이 만든다)
+apps/mobile/androidApp/src/main/assets/licenses/
+apps/mobile/iosApp/iosApp/Resources/Licenses/

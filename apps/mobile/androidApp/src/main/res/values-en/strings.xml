@@ -130,4 +130,8 @@
     <string name="viewer_caret_left">Move cursor left</string>
     <string name="viewer_caret_right">Move cursor right</string>
     <string name="viewer_edit_paragraph">Edit paragraph</string>
+    <string name="licenses_title">Open-source licenses</string>
+    <string name="licenses_intro">Papy is distributed under PolyForm Noncommercial 1.0.0 (non-commercial use). These are the %1$d other components in the app and their licenses.</string>
+    <string name="licenses_missing">The license notice file is missing. In development builds, create it with node scripts/third-party-notices.mjs mobile.</string>
+    <string name="licenses_search">Find a component</string>
 </resources>
