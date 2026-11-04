@@ -677,9 +677,25 @@ internal object IntegrityCheckingUniffiLib {
     internal fun ensureInitialized() = Unit
     external fun uniffi_papy_ffi_checksum_func_engine_version(
     ): Int
+    external fun uniffi_papy_ffi_checksum_method_papyengine_apply_text_style(
+    ): Int
+    external fun uniffi_papy_ffi_checksum_method_papyengine_caret_at(
+    ): Int
+    external fun uniffi_papy_ffi_checksum_method_papyengine_caret_at_point(
+    ): Int
     external fun uniffi_papy_ffi_checksum_method_papyengine_close(
     ): Int
+    external fun uniffi_papy_ffi_checksum_method_papyengine_delete_backward(
+    ): Int
+    external fun uniffi_papy_ffi_checksum_method_papyengine_delete_range(
+    ): Int
+    external fun uniffi_papy_ffi_checksum_method_papyengine_export(
+    ): Int
     external fun uniffi_papy_ffi_checksum_method_papyengine_extract_text(
+    ): Int
+    external fun uniffi_papy_ffi_checksum_method_papyengine_insert_text(
+    ): Int
+    external fun uniffi_papy_ffi_checksum_method_papyengine_move_caret(
     ): Int
     external fun uniffi_papy_ffi_checksum_method_papyengine_open(
     ): Int
@@ -695,7 +711,17 @@ internal object IntegrityCheckingUniffiLib {
     ): Int
     external fun uniffi_papy_ffi_checksum_method_papyengine_save(
     ): Int
+    external fun uniffi_papy_ffi_checksum_method_papyengine_selection_regions(
+    ): Int
+    external fun uniffi_papy_ffi_checksum_method_papyengine_text_in_range(
+    ): Int
+    external fun uniffi_papy_ffi_checksum_method_papyengine_text_style(
+    ): Int
     external fun uniffi_papy_ffi_checksum_method_papyengine_undo(
+    ): Int
+    external fun uniffi_papy_ffi_checksum_method_papyengine_undo_depth(
+    ): Int
+    external fun uniffi_papy_ffi_checksum_method_papyengine_word_at(
     ): Int
     external fun uniffi_papy_ffi_checksum_constructor_papyengine_new(
     ): Int
@@ -725,9 +751,25 @@ internal object UniffiLib {
     ): Unit
     external fun uniffi_papy_ffi_fn_constructor_papyengine_new(`koreanFont`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Long
+    external fun uniffi_papy_ffi_fn_method_papyengine_apply_text_style(`ptr`: Long,`sessionId`: Long,`range`: RustBuffer.ByValue,`style`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): Int
+    external fun uniffi_papy_ffi_fn_method_papyengine_caret_at(`ptr`: Long,`sessionId`: Long,`position`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    external fun uniffi_papy_ffi_fn_method_papyengine_caret_at_point(`ptr`: Long,`sessionId`: Long,`page`: Int,`x`: Float,`y`: Float,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
     external fun uniffi_papy_ffi_fn_method_papyengine_close(`ptr`: Long,`sessionId`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
+    external fun uniffi_papy_ffi_fn_method_papyengine_delete_backward(`ptr`: Long,`sessionId`: Long,`position`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    external fun uniffi_papy_ffi_fn_method_papyengine_delete_range(`ptr`: Long,`sessionId`: Long,`range`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    external fun uniffi_papy_ffi_fn_method_papyengine_export(`ptr`: Long,`sessionId`: Long,`extension`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
     external fun uniffi_papy_ffi_fn_method_papyengine_extract_text(`ptr`: Long,`sessionId`: Long,`page`: Int,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    external fun uniffi_papy_ffi_fn_method_papyengine_insert_text(`ptr`: Long,`sessionId`: Long,`position`: RustBuffer.ByValue,`text`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    external fun uniffi_papy_ffi_fn_method_papyengine_move_caret(`ptr`: Long,`sessionId`: Long,`position`: RustBuffer.ByValue,`direction`: RustBuffer.ByValue,`preferredX`: Float,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     external fun uniffi_papy_ffi_fn_method_papyengine_open(`ptr`: Long,`bytes`: RustBuffer.ByValue,`password`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
@@ -743,8 +785,18 @@ internal object UniffiLib {
     ): Int
     external fun uniffi_papy_ffi_fn_method_papyengine_save(`ptr`: Long,`sessionId`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
+    external fun uniffi_papy_ffi_fn_method_papyengine_selection_regions(`ptr`: Long,`sessionId`: Long,`range`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    external fun uniffi_papy_ffi_fn_method_papyengine_text_in_range(`ptr`: Long,`sessionId`: Long,`range`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    external fun uniffi_papy_ffi_fn_method_papyengine_text_style(`ptr`: Long,`sessionId`: Long,`position`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
     external fun uniffi_papy_ffi_fn_method_papyengine_undo(`ptr`: Long,`sessionId`: Long,uniffi_out_err: UniffiRustCallStatus, 
-    ): Byte
+    ): RustBuffer.ByValue
+    external fun uniffi_papy_ffi_fn_method_papyengine_undo_depth(`ptr`: Long,`sessionId`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    ): Int
+    external fun uniffi_papy_ffi_fn_method_papyengine_word_at(`ptr`: Long,`sessionId`: Long,`position`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
     external fun uniffi_papy_ffi_fn_func_engine_version(uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     external fun ffi_papy_ffi_rustbuffer_alloc(`size`: Long,uniffi_out_err: UniffiRustCallStatus, 
@@ -869,10 +921,34 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if ((lib.uniffi_papy_ffi_checksum_func_engine_version() and 0xFFFF) != 34981) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if ((lib.uniffi_papy_ffi_checksum_method_papyengine_apply_text_style() and 0xFFFF) != 16748) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if ((lib.uniffi_papy_ffi_checksum_method_papyengine_caret_at() and 0xFFFF) != 39839) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if ((lib.uniffi_papy_ffi_checksum_method_papyengine_caret_at_point() and 0xFFFF) != 51899) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if ((lib.uniffi_papy_ffi_checksum_method_papyengine_close() and 0xFFFF) != 47855) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if ((lib.uniffi_papy_ffi_checksum_method_papyengine_delete_backward() and 0xFFFF) != 39482) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if ((lib.uniffi_papy_ffi_checksum_method_papyengine_delete_range() and 0xFFFF) != 13120) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if ((lib.uniffi_papy_ffi_checksum_method_papyengine_export() and 0xFFFF) != 34227) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if ((lib.uniffi_papy_ffi_checksum_method_papyengine_extract_text() and 0xFFFF) != 8103) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if ((lib.uniffi_papy_ffi_checksum_method_papyengine_insert_text() and 0xFFFF) != 12120) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if ((lib.uniffi_papy_ffi_checksum_method_papyengine_move_caret() and 0xFFFF) != 14004) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_papy_ffi_checksum_method_papyengine_open() and 0xFFFF) != 52631) {
@@ -890,13 +966,28 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if ((lib.uniffi_papy_ffi_checksum_method_papyengine_render_page() and 0xFFFF) != 371) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_papy_ffi_checksum_method_papyengine_replace_paragraph() and 0xFFFF) != 30685) {
+    if ((lib.uniffi_papy_ffi_checksum_method_papyengine_replace_paragraph() and 0xFFFF) != 65330) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_papy_ffi_checksum_method_papyengine_save() and 0xFFFF) != 57793) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_papy_ffi_checksum_method_papyengine_undo() and 0xFFFF) != 56942) {
+    if ((lib.uniffi_papy_ffi_checksum_method_papyengine_selection_regions() and 0xFFFF) != 18185) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if ((lib.uniffi_papy_ffi_checksum_method_papyengine_text_in_range() and 0xFFFF) != 51091) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if ((lib.uniffi_papy_ffi_checksum_method_papyengine_text_style() and 0xFFFF) != 17451) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if ((lib.uniffi_papy_ffi_checksum_method_papyengine_undo() and 0xFFFF) != 9934) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if ((lib.uniffi_papy_ffi_checksum_method_papyengine_undo_depth() and 0xFFFF) != 39136) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if ((lib.uniffi_papy_ffi_checksum_method_papyengine_word_at() and 0xFFFF) != 36597) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_papy_ffi_checksum_constructor_papyengine_new() and 0xFFFF) != 27607) {
@@ -1329,14 +1420,55 @@ public object FfiConverterByteArray: FfiConverterRustBuffer<ByteArray> {
 public interface PapyEngineInterface {
     
     /**
+     * 범위에 글자 모양을 적용한다(값이 있는 것만). 편집 뒤 되돌리기 단계 수를 돌려준다.
+     */
+    fun `applyTextStyle`(`sessionId`: kotlin.ULong, `range`: EngineRange, `style`: EngineTextStyle): kotlin.UInt
+    
+    /**
+     * 위치의 커서.
+     */
+    fun `caretAt`(`sessionId`: kotlin.ULong, `position`: EnginePosition): EngineCaret
+    
+    /**
+     * 쪽의 (x, y)(pt) 자리에 가장 가까운 커서.
+     */
+    fun `caretAtPoint`(`sessionId`: kotlin.ULong, `page`: kotlin.UInt, `x`: kotlin.Float, `y`: kotlin.Float): EngineCaret
+    
+    /**
      * 문서를 닫는다. 이미 닫혔으면 아무것도 하지 않는다.
      */
     fun `close`(`sessionId`: kotlin.ULong)
     
     /**
+     * 커서 앞 글자를 지운다(문단 처음이면 앞 문단과 합친다).
+     */
+    fun `deleteBackward`(`sessionId`: kotlin.ULong, `position`: EnginePosition): EngineEdit
+    
+    /**
+     * 범위를 지운다(문단을 넘으면 합친다). 같은 구역 안이어야 한다.
+     */
+    fun `deleteRange`(`sessionId`: kotlin.ULong, `range`: EngineRange): EngineEdit
+    
+    /**
+     * 다른 형식으로 내보낸 바이트. `extension`: "pdf" | "hwpx" | "hwp" | "docx" | "txt".
+     * 작업 문서는 그대로 둔다.
+     */
+    fun `export`(`sessionId`: kotlin.ULong, `extension`: kotlin.String): kotlin.ByteArray
+    
+    /**
      * 쪽의 글자.
      */
     fun `extractText`(`sessionId`: kotlin.ULong, `page`: kotlin.UInt): kotlin.String
+    
+    /**
+     * 커서 자리에 글자를 넣는다(`\n` 은 문단 나누기). 앞 글자의 모양을 따른다.
+     */
+    fun `insertText`(`sessionId`: kotlin.ULong, `position`: EnginePosition, `text`: kotlin.String): EngineEdit
+    
+    /**
+     * 커서를 옮긴다. `preferred_x` 는 위·아래로 옮길 때 지킬 가로 위치(pt).
+     */
+    fun `moveCaret`(`sessionId`: kotlin.ULong, `position`: EnginePosition, `direction`: CaretDirection, `preferredX`: kotlin.Float): EngineCaret
     
     /**
      * 바이트로 문서를 연다.
@@ -1364,8 +1496,8 @@ public interface PapyEngineInterface {
     fun `renderPage`(`sessionId`: kotlin.ULong, `page`: kotlin.UInt, `scale`: kotlin.Float): PageImage
     
     /**
-     * 문단 글자를 바꾼다(문단 서식은 그대로, `\n` 은 문단 나누기).
-     * 지우기·넣기로 하므로 되돌리기 단계 수(0~2)를 돌려준다 — 되돌릴 때 그만큼 [`Self::undo`] 를 부른다.
+     * 문단 글자를 바꾼다(`\n` 은 문단 나누기). 앞뒤로 같은 부분은 두고 바뀐 가운데만 지우고 넣어
+     * 바뀌지 않은 글자의 모양(굵게·색 등)을 지킨다. 편집 뒤 되돌리기 단계 수를 돌려준다.
      */
     fun `replaceParagraph`(`sessionId`: kotlin.ULong, `section`: kotlin.UInt, `paragraph`: kotlin.UInt, `text`: kotlin.String): kotlin.UInt
     
@@ -1375,9 +1507,34 @@ public interface PapyEngineInterface {
     fun `save`(`sessionId`: kotlin.ULong): kotlin.ByteArray
     
     /**
-     * 마지막 편집을 되돌린다. 되돌린 것이 있으면 true.
+     * 범위를 줄마다 덮는 사각형(선택 표시).
      */
-    fun `undo`(`sessionId`: kotlin.ULong): kotlin.Boolean
+    fun `selectionRegions`(`sessionId`: kotlin.ULong, `range`: EngineRange): List<PageRegion>
+    
+    /**
+     * 범위의 글자(문단 사이는 `\n`).
+     */
+    fun `textInRange`(`sessionId`: kotlin.ULong, `range`: EngineRange): kotlin.String
+    
+    /**
+     * 위치의 글자 모양(커서 앞 글자).
+     */
+    fun `textStyle`(`sessionId`: kotlin.ULong, `position`: EnginePosition): EngineTextStyle
+    
+    /**
+     * 마지막 편집 한 단계를 되돌린다.
+     */
+    fun `undo`(`sessionId`: kotlin.ULong): EngineUndo
+    
+    /**
+     * 지금 되돌릴 수 있는 단계 수.
+     */
+    fun `undoDepth`(`sessionId`: kotlin.ULong): kotlin.UInt
+    
+    /**
+     * 위치가 든 단어의 범위(두 번 눌러 고르기). 단어가 아니면 빈 범위.
+     */
+    fun `wordAt`(`sessionId`: kotlin.ULong, `position`: EnginePosition): EngineRange
     
     companion object
 }
@@ -1500,6 +1657,66 @@ open class PapyEngine: Disposable, AutoCloseable, PapyEngineInterface
 
     
     /**
+     * 범위에 글자 모양을 적용한다(값이 있는 것만). 편집 뒤 되돌리기 단계 수를 돌려준다.
+     */
+    @Throws(PapyException::class)override fun `applyTextStyle`(`sessionId`: kotlin.ULong, `range`: EngineRange, `style`: EngineTextStyle): kotlin.UInt {
+            return FfiConverterUInt.lift(
+    callWithHandle {
+    uniffiRustCallWithError(PapyException) { _status ->
+    UniffiLib.uniffi_papy_ffi_fn_method_papyengine_apply_text_style(
+        it,
+        
+        FfiConverterULong.lower(`sessionId`),
+        FfiConverterTypeEngineRange.lower(`range`),
+        FfiConverterTypeEngineTextStyle.lower(`style`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    /**
+     * 위치의 커서.
+     */
+    @Throws(PapyException::class)override fun `caretAt`(`sessionId`: kotlin.ULong, `position`: EnginePosition): EngineCaret {
+            return FfiConverterTypeEngineCaret.lift(
+    callWithHandle {
+    uniffiRustCallWithError(PapyException) { _status ->
+    UniffiLib.uniffi_papy_ffi_fn_method_papyengine_caret_at(
+        it,
+        
+        FfiConverterULong.lower(`sessionId`),
+        FfiConverterTypeEnginePosition.lower(`position`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    /**
+     * 쪽의 (x, y)(pt) 자리에 가장 가까운 커서.
+     */
+    @Throws(PapyException::class)override fun `caretAtPoint`(`sessionId`: kotlin.ULong, `page`: kotlin.UInt, `x`: kotlin.Float, `y`: kotlin.Float): EngineCaret {
+            return FfiConverterTypeEngineCaret.lift(
+    callWithHandle {
+    uniffiRustCallWithError(PapyException) { _status ->
+    UniffiLib.uniffi_papy_ffi_fn_method_papyengine_caret_at_point(
+        it,
+        
+        FfiConverterULong.lower(`sessionId`),
+        FfiConverterUInt.lower(`page`),
+        FfiConverterFloat.lower(`x`),
+        FfiConverterFloat.lower(`y`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    /**
      * 문서를 닫는다. 이미 닫혔으면 아무것도 하지 않는다.
      */override fun `close`(`sessionId`: kotlin.ULong)
         = 
@@ -1516,6 +1733,64 @@ open class PapyEngine: Disposable, AutoCloseable, PapyEngineInterface
 
     
     /**
+     * 커서 앞 글자를 지운다(문단 처음이면 앞 문단과 합친다).
+     */
+    @Throws(PapyException::class)override fun `deleteBackward`(`sessionId`: kotlin.ULong, `position`: EnginePosition): EngineEdit {
+            return FfiConverterTypeEngineEdit.lift(
+    callWithHandle {
+    uniffiRustCallWithError(PapyException) { _status ->
+    UniffiLib.uniffi_papy_ffi_fn_method_papyengine_delete_backward(
+        it,
+        
+        FfiConverterULong.lower(`sessionId`),
+        FfiConverterTypeEnginePosition.lower(`position`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    /**
+     * 범위를 지운다(문단을 넘으면 합친다). 같은 구역 안이어야 한다.
+     */
+    @Throws(PapyException::class)override fun `deleteRange`(`sessionId`: kotlin.ULong, `range`: EngineRange): EngineEdit {
+            return FfiConverterTypeEngineEdit.lift(
+    callWithHandle {
+    uniffiRustCallWithError(PapyException) { _status ->
+    UniffiLib.uniffi_papy_ffi_fn_method_papyengine_delete_range(
+        it,
+        
+        FfiConverterULong.lower(`sessionId`),
+        FfiConverterTypeEngineRange.lower(`range`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    /**
+     * 다른 형식으로 내보낸 바이트. `extension`: "pdf" | "hwpx" | "hwp" | "docx" | "txt".
+     * 작업 문서는 그대로 둔다.
+     */
+    @Throws(PapyException::class)override fun `export`(`sessionId`: kotlin.ULong, `extension`: kotlin.String): kotlin.ByteArray {
+            return FfiConverterByteArray.lift(
+    callWithHandle {
+    uniffiRustCallWithError(PapyException) { _status ->
+    UniffiLib.uniffi_papy_ffi_fn_method_papyengine_export(
+        it,
+        
+        FfiConverterULong.lower(`sessionId`),
+        FfiConverterString.lower(`extension`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    /**
      * 쪽의 글자.
      */
     @Throws(PapyException::class)override fun `extractText`(`sessionId`: kotlin.ULong, `page`: kotlin.UInt): kotlin.String {
@@ -1527,6 +1802,47 @@ open class PapyEngine: Disposable, AutoCloseable, PapyEngineInterface
         
         FfiConverterULong.lower(`sessionId`),
         FfiConverterUInt.lower(`page`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    /**
+     * 커서 자리에 글자를 넣는다(`\n` 은 문단 나누기). 앞 글자의 모양을 따른다.
+     */
+    @Throws(PapyException::class)override fun `insertText`(`sessionId`: kotlin.ULong, `position`: EnginePosition, `text`: kotlin.String): EngineEdit {
+            return FfiConverterTypeEngineEdit.lift(
+    callWithHandle {
+    uniffiRustCallWithError(PapyException) { _status ->
+    UniffiLib.uniffi_papy_ffi_fn_method_papyengine_insert_text(
+        it,
+        
+        FfiConverterULong.lower(`sessionId`),
+        FfiConverterTypeEnginePosition.lower(`position`),
+        FfiConverterString.lower(`text`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    /**
+     * 커서를 옮긴다. `preferred_x` 는 위·아래로 옮길 때 지킬 가로 위치(pt).
+     */
+    @Throws(PapyException::class)override fun `moveCaret`(`sessionId`: kotlin.ULong, `position`: EnginePosition, `direction`: CaretDirection, `preferredX`: kotlin.Float): EngineCaret {
+            return FfiConverterTypeEngineCaret.lift(
+    callWithHandle {
+    uniffiRustCallWithError(PapyException) { _status ->
+    UniffiLib.uniffi_papy_ffi_fn_method_papyengine_move_caret(
+        it,
+        
+        FfiConverterULong.lower(`sessionId`),
+        FfiConverterTypeEnginePosition.lower(`position`),
+        FfiConverterTypeCaretDirection.lower(`direction`),
+        FfiConverterFloat.lower(`preferredX`),_status)
 }
     }
     )
@@ -1632,8 +1948,8 @@ open class PapyEngine: Disposable, AutoCloseable, PapyEngineInterface
 
     
     /**
-     * 문단 글자를 바꾼다(문단 서식은 그대로, `\n` 은 문단 나누기).
-     * 지우기·넣기로 하므로 되돌리기 단계 수(0~2)를 돌려준다 — 되돌릴 때 그만큼 [`Self::undo`] 를 부른다.
+     * 문단 글자를 바꾼다(`\n` 은 문단 나누기). 앞뒤로 같은 부분은 두고 바뀐 가운데만 지우고 넣어
+     * 바뀌지 않은 글자의 모양(굵게·색 등)을 지킨다. 편집 뒤 되돌리기 단계 수를 돌려준다.
      */
     @Throws(PapyException::class)override fun `replaceParagraph`(`sessionId`: kotlin.ULong, `section`: kotlin.UInt, `paragraph`: kotlin.UInt, `text`: kotlin.String): kotlin.UInt {
             return FfiConverterUInt.lift(
@@ -1672,16 +1988,110 @@ open class PapyEngine: Disposable, AutoCloseable, PapyEngineInterface
 
     
     /**
-     * 마지막 편집을 되돌린다. 되돌린 것이 있으면 true.
+     * 범위를 줄마다 덮는 사각형(선택 표시).
      */
-    @Throws(PapyException::class)override fun `undo`(`sessionId`: kotlin.ULong): kotlin.Boolean {
-            return FfiConverterBoolean.lift(
+    @Throws(PapyException::class)override fun `selectionRegions`(`sessionId`: kotlin.ULong, `range`: EngineRange): List<PageRegion> {
+            return FfiConverterSequenceTypePageRegion.lift(
+    callWithHandle {
+    uniffiRustCallWithError(PapyException) { _status ->
+    UniffiLib.uniffi_papy_ffi_fn_method_papyengine_selection_regions(
+        it,
+        
+        FfiConverterULong.lower(`sessionId`),
+        FfiConverterTypeEngineRange.lower(`range`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    /**
+     * 범위의 글자(문단 사이는 `\n`).
+     */
+    @Throws(PapyException::class)override fun `textInRange`(`sessionId`: kotlin.ULong, `range`: EngineRange): kotlin.String {
+            return FfiConverterString.lift(
+    callWithHandle {
+    uniffiRustCallWithError(PapyException) { _status ->
+    UniffiLib.uniffi_papy_ffi_fn_method_papyengine_text_in_range(
+        it,
+        
+        FfiConverterULong.lower(`sessionId`),
+        FfiConverterTypeEngineRange.lower(`range`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    /**
+     * 위치의 글자 모양(커서 앞 글자).
+     */
+    @Throws(PapyException::class)override fun `textStyle`(`sessionId`: kotlin.ULong, `position`: EnginePosition): EngineTextStyle {
+            return FfiConverterTypeEngineTextStyle.lift(
+    callWithHandle {
+    uniffiRustCallWithError(PapyException) { _status ->
+    UniffiLib.uniffi_papy_ffi_fn_method_papyengine_text_style(
+        it,
+        
+        FfiConverterULong.lower(`sessionId`),
+        FfiConverterTypeEnginePosition.lower(`position`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    /**
+     * 마지막 편집 한 단계를 되돌린다.
+     */
+    @Throws(PapyException::class)override fun `undo`(`sessionId`: kotlin.ULong): EngineUndo {
+            return FfiConverterTypeEngineUndo.lift(
     callWithHandle {
     uniffiRustCallWithError(PapyException) { _status ->
     UniffiLib.uniffi_papy_ffi_fn_method_papyengine_undo(
         it,
         
         FfiConverterULong.lower(`sessionId`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    /**
+     * 지금 되돌릴 수 있는 단계 수.
+     */
+    @Throws(PapyException::class)override fun `undoDepth`(`sessionId`: kotlin.ULong): kotlin.UInt {
+            return FfiConverterUInt.lift(
+    callWithHandle {
+    uniffiRustCallWithError(PapyException) { _status ->
+    UniffiLib.uniffi_papy_ffi_fn_method_papyengine_undo_depth(
+        it,
+        
+        FfiConverterULong.lower(`sessionId`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    /**
+     * 위치가 든 단어의 범위(두 번 눌러 고르기). 단어가 아니면 빈 범위.
+     */
+    @Throws(PapyException::class)override fun `wordAt`(`sessionId`: kotlin.ULong, `position`: EnginePosition): EngineRange {
+            return FfiConverterTypeEngineRange.lift(
+    callWithHandle {
+    uniffiRustCallWithError(PapyException) { _status ->
+    UniffiLib.uniffi_papy_ffi_fn_method_papyengine_word_at(
+        it,
+        
+        FfiConverterULong.lower(`sessionId`),
+        FfiConverterTypeEnginePosition.lower(`position`),_status)
 }
     }
     )
@@ -1802,6 +2212,329 @@ public object FfiConverterTypeDocumentSummary: FfiConverterRustBuffer<DocumentSu
             FfiConverterOptionalString.write(value.`title`, buf)
             FfiConverterUInt.write(value.`droppedObjects`, buf)
             FfiConverterBoolean.write(value.`canEdit`, buf)
+    }
+}
+
+
+
+/**
+ * 커서: 위치와 화면에 그릴 세로 막대(너비 0).
+ */
+data class EngineCaret (
+    /**
+     * 위치
+     */
+    var `position`: EnginePosition
+    , 
+    /**
+     * 커서 사각형(pt)
+     */
+    var `rect`: PageRegion
+    
+){
+    
+
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeEngineCaret: FfiConverterRustBuffer<EngineCaret> {
+    override fun read(buf: ByteBuffer): EngineCaret {
+        return EngineCaret(
+            FfiConverterTypeEnginePosition.read(buf),
+            FfiConverterTypePageRegion.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: EngineCaret) = (
+            FfiConverterTypeEnginePosition.allocationSize(value.`position`) +
+            FfiConverterTypePageRegion.allocationSize(value.`rect`)
+    )
+
+    override fun write(value: EngineCaret, buf: ByteBuffer) {
+            FfiConverterTypeEnginePosition.write(value.`position`, buf)
+            FfiConverterTypePageRegion.write(value.`rect`, buf)
+    }
+}
+
+
+
+/**
+ * 편집 결과: 커서와 지금 되돌릴 수 있는 단계 수(이어 친 글자는 한 단계로 묶인다).
+ */
+data class EngineEdit (
+    /**
+     * 편집 뒤 커서
+     */
+    var `caret`: EngineCaret
+    , 
+    /**
+     * 되돌리기 단계 수
+     */
+    var `undoDepth`: kotlin.UInt
+    
+){
+    
+
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeEngineEdit: FfiConverterRustBuffer<EngineEdit> {
+    override fun read(buf: ByteBuffer): EngineEdit {
+        return EngineEdit(
+            FfiConverterTypeEngineCaret.read(buf),
+            FfiConverterUInt.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: EngineEdit) = (
+            FfiConverterTypeEngineCaret.allocationSize(value.`caret`) +
+            FfiConverterUInt.allocationSize(value.`undoDepth`)
+    )
+
+    override fun write(value: EngineEdit, buf: ByteBuffer) {
+            FfiConverterTypeEngineCaret.write(value.`caret`, buf)
+            FfiConverterUInt.write(value.`undoDepth`, buf)
+    }
+}
+
+
+
+/**
+ * 본문 위치. 구역·문단은 0부터, `offset` 은 문단 안 글자(유니코드 스칼라) 위치.
+ * (Swift 에서 앱 쪽 이름과 겹치지 않게 Engine 을 붙인다.)
+ */
+data class EnginePosition (
+    /**
+     * 구역
+     */
+    var `section`: kotlin.UInt
+    , 
+    /**
+     * 문단
+     */
+    var `paragraph`: kotlin.UInt
+    , 
+    /**
+     * 문단 안 글자 위치
+     */
+    var `offset`: kotlin.UInt
+    
+){
+    
+
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeEnginePosition: FfiConverterRustBuffer<EnginePosition> {
+    override fun read(buf: ByteBuffer): EnginePosition {
+        return EnginePosition(
+            FfiConverterUInt.read(buf),
+            FfiConverterUInt.read(buf),
+            FfiConverterUInt.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: EnginePosition) = (
+            FfiConverterUInt.allocationSize(value.`section`) +
+            FfiConverterUInt.allocationSize(value.`paragraph`) +
+            FfiConverterUInt.allocationSize(value.`offset`)
+    )
+
+    override fun write(value: EnginePosition, buf: ByteBuffer) {
+            FfiConverterUInt.write(value.`section`, buf)
+            FfiConverterUInt.write(value.`paragraph`, buf)
+            FfiConverterUInt.write(value.`offset`, buf)
+    }
+}
+
+
+
+/**
+ * 범위(`start` ≤ `end`).
+ */
+data class EngineRange (
+    /**
+     * 처음
+     */
+    var `start`: EnginePosition
+    , 
+    /**
+     * 끝
+     */
+    var `end`: EnginePosition
+    
+){
+    
+
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeEngineRange: FfiConverterRustBuffer<EngineRange> {
+    override fun read(buf: ByteBuffer): EngineRange {
+        return EngineRange(
+            FfiConverterTypeEnginePosition.read(buf),
+            FfiConverterTypeEnginePosition.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: EngineRange) = (
+            FfiConverterTypeEnginePosition.allocationSize(value.`start`) +
+            FfiConverterTypeEnginePosition.allocationSize(value.`end`)
+    )
+
+    override fun write(value: EngineRange, buf: ByteBuffer) {
+            FfiConverterTypeEnginePosition.write(value.`start`, buf)
+            FfiConverterTypeEnginePosition.write(value.`end`, buf)
+    }
+}
+
+
+
+/**
+ * 글자 모양. 읽을 때는 다 채워지고, 적용할 때는 값이 있는 것만 바꾼다.
+ */
+data class EngineTextStyle (
+    /**
+     * 크기(pt)
+     */
+    var `fontSize`: kotlin.Float?
+    , 
+    /**
+     * 굵게
+     */
+    var `bold`: kotlin.Boolean?
+    , 
+    /**
+     * 기울임
+     */
+    var `italic`: kotlin.Boolean?
+    , 
+    /**
+     * 밑줄
+     */
+    var `underline`: kotlin.Boolean?
+    , 
+    /**
+     * 취소선
+     */
+    var `strikethrough`: kotlin.Boolean?
+    , 
+    /**
+     * 색(`#rrggbb`)
+     */
+    var `color`: kotlin.String?
+    
+){
+    
+
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeEngineTextStyle: FfiConverterRustBuffer<EngineTextStyle> {
+    override fun read(buf: ByteBuffer): EngineTextStyle {
+        return EngineTextStyle(
+            FfiConverterOptionalFloat.read(buf),
+            FfiConverterOptionalBoolean.read(buf),
+            FfiConverterOptionalBoolean.read(buf),
+            FfiConverterOptionalBoolean.read(buf),
+            FfiConverterOptionalBoolean.read(buf),
+            FfiConverterOptionalString.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: EngineTextStyle) = (
+            FfiConverterOptionalFloat.allocationSize(value.`fontSize`) +
+            FfiConverterOptionalBoolean.allocationSize(value.`bold`) +
+            FfiConverterOptionalBoolean.allocationSize(value.`italic`) +
+            FfiConverterOptionalBoolean.allocationSize(value.`underline`) +
+            FfiConverterOptionalBoolean.allocationSize(value.`strikethrough`) +
+            FfiConverterOptionalString.allocationSize(value.`color`)
+    )
+
+    override fun write(value: EngineTextStyle, buf: ByteBuffer) {
+            FfiConverterOptionalFloat.write(value.`fontSize`, buf)
+            FfiConverterOptionalBoolean.write(value.`bold`, buf)
+            FfiConverterOptionalBoolean.write(value.`italic`, buf)
+            FfiConverterOptionalBoolean.write(value.`underline`, buf)
+            FfiConverterOptionalBoolean.write(value.`strikethrough`, buf)
+            FfiConverterOptionalString.write(value.`color`, buf)
+    }
+}
+
+
+
+/**
+ * 되돌리기 결과.
+ */
+data class EngineUndo (
+    /**
+     * 되돌린 자리의 커서(되돌린 것이 없거나 자리가 사라졌으면 없음)
+     */
+    var `caret`: EngineCaret?
+    , 
+    /**
+     * 남은 되돌리기 단계 수
+     */
+    var `undoDepth`: kotlin.UInt
+    
+){
+    
+
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeEngineUndo: FfiConverterRustBuffer<EngineUndo> {
+    override fun read(buf: ByteBuffer): EngineUndo {
+        return EngineUndo(
+            FfiConverterOptionalTypeEngineCaret.read(buf),
+            FfiConverterUInt.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: EngineUndo) = (
+            FfiConverterOptionalTypeEngineCaret.allocationSize(value.`caret`) +
+            FfiConverterUInt.allocationSize(value.`undoDepth`)
+    )
+
+    override fun write(value: EngineUndo, buf: ByteBuffer) {
+            FfiConverterOptionalTypeEngineCaret.write(value.`caret`, buf)
+            FfiConverterUInt.write(value.`undoDepth`, buf)
     }
 }
 
@@ -2040,6 +2773,65 @@ public object FfiConverterTypeParagraphAtPoint: FfiConverterRustBuffer<Paragraph
             FfiConverterSequenceTypePageRegion.write(value.`boxes`, buf)
     }
 }
+
+
+
+/**
+ * 커서 이동 방향.
+ */
+
+enum class CaretDirection {
+    
+    /**
+     * 한 글자 앞
+     */
+    LEFT,
+    /**
+     * 한 글자 뒤
+     */
+    RIGHT,
+    /**
+     * 한 줄 위
+     */
+    UP,
+    /**
+     * 한 줄 아래
+     */
+    DOWN,
+    /**
+     * 줄 처음
+     */
+    LINE_START,
+    /**
+     * 줄 끝
+     */
+    LINE_END;
+
+    
+
+
+    companion object
+}
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeCaretDirection: FfiConverterRustBuffer<CaretDirection> {
+    override fun read(buf: ByteBuffer) = try {
+        CaretDirection.values()[buf.getInt() - 1]
+    } catch (e: IndexOutOfBoundsException) {
+        throw RuntimeException("invalid enum value, something is very wrong!!", e)
+    }
+
+    override fun allocationSize(value: CaretDirection) = 4UL
+
+    override fun write(value: CaretDirection, buf: ByteBuffer) {
+        buf.putInt(value.ordinal + 1)
+    }
+}
+
+
 
 
 
@@ -2331,6 +3123,70 @@ public object FfiConverterTypePapyError : FfiConverterRustBuffer<PapyException> 
 /**
  * @suppress
  */
+public object FfiConverterOptionalFloat: FfiConverterRustBuffer<kotlin.Float?> {
+    override fun read(buf: ByteBuffer): kotlin.Float? {
+        if (buf.get().toInt() == 0) {
+            return null
+        }
+        return FfiConverterFloat.read(buf)
+    }
+
+    override fun allocationSize(value: kotlin.Float?): ULong {
+        if (value == null) {
+            return 1UL
+        } else {
+            return 1UL + FfiConverterFloat.allocationSize(value)
+        }
+    }
+
+    override fun write(value: kotlin.Float?, buf: ByteBuffer) {
+        if (value == null) {
+            buf.put(0)
+        } else {
+            buf.put(1)
+            FfiConverterFloat.write(value, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterOptionalBoolean: FfiConverterRustBuffer<kotlin.Boolean?> {
+    override fun read(buf: ByteBuffer): kotlin.Boolean? {
+        if (buf.get().toInt() == 0) {
+            return null
+        }
+        return FfiConverterBoolean.read(buf)
+    }
+
+    override fun allocationSize(value: kotlin.Boolean?): ULong {
+        if (value == null) {
+            return 1UL
+        } else {
+            return 1UL + FfiConverterBoolean.allocationSize(value)
+        }
+    }
+
+    override fun write(value: kotlin.Boolean?, buf: ByteBuffer) {
+        if (value == null) {
+            buf.put(0)
+        } else {
+            buf.put(1)
+            FfiConverterBoolean.write(value, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
 public object FfiConverterOptionalString: FfiConverterRustBuffer<kotlin.String?> {
     override fun read(buf: ByteBuffer): kotlin.String? {
         if (buf.get().toInt() == 0) {
@@ -2353,6 +3209,38 @@ public object FfiConverterOptionalString: FfiConverterRustBuffer<kotlin.String?>
         } else {
             buf.put(1)
             FfiConverterString.write(value, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterOptionalTypeEngineCaret: FfiConverterRustBuffer<EngineCaret?> {
+    override fun read(buf: ByteBuffer): EngineCaret? {
+        if (buf.get().toInt() == 0) {
+            return null
+        }
+        return FfiConverterTypeEngineCaret.read(buf)
+    }
+
+    override fun allocationSize(value: EngineCaret?): ULong {
+        if (value == null) {
+            return 1UL
+        } else {
+            return 1UL + FfiConverterTypeEngineCaret.allocationSize(value)
+        }
+    }
+
+    override fun write(value: EngineCaret?, buf: ByteBuffer) {
+        if (value == null) {
+            buf.put(0)
+        } else {
+            buf.put(1)
+            FfiConverterTypeEngineCaret.write(value, buf)
         }
     }
 }

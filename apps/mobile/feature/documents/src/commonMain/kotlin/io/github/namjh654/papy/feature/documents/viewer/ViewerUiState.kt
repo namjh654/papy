@@ -2,10 +2,15 @@ package io.github.namjh654.papy.feature.documents.viewer
 
 import io.github.namjh654.papy.core.common.viewmodel.UiEvent
 import io.github.namjh654.papy.core.common.viewmodel.UiState
+import io.github.namjh654.papy.feature.documents.Caret
 import io.github.namjh654.papy.feature.documents.DocumentError
 import io.github.namjh654.papy.feature.documents.OpenedDocument
+import io.github.namjh654.papy.feature.documents.PageBox
 import io.github.namjh654.papy.feature.documents.PageSizePt
 import io.github.namjh654.papy.feature.documents.ParagraphHit
+import io.github.namjh654.papy.feature.documents.TextPos
+import io.github.namjh654.papy.feature.documents.TextRange
+import io.github.namjh654.papy.feature.documents.TextStyle
 
 data class ViewerUiState(
     val name: String,
@@ -22,22 +27,46 @@ data class ViewerUiState(
     val text: PageText? = null,
     /** 옮기지 못한 요소 안내를 닫았다 */
     val lossDismissed: Boolean = false,
-    /** 편집 모드(문단을 눌러 고친다) */
+    /** 편집 모드(누르면 커서, 두 번 누르면 단어, 길게 누르면 문단 고치기) */
     val editing: Boolean = false,
-    /** 고르고 있는 문단(편집 창이 열린다) */
-    val selection: ParagraphHit? = null,
+    /** 커서(편집 모드). 선택이 있으면 선택의 움직이는 끝 */
+    val caret: Caret? = null,
+    /** 선택의 고정된 끝. null 이거나 커서와 같으면 선택 없음 */
+    val anchor: TextPos? = null,
+    /** 선택을 덮는 사각형 */
+    val selectionBoxes: List<PageBox> = emptyList(),
+    /** 커서 자리의 글자 모양(도구 막대 표시) */
+    val style: TextStyle? = null,
+    /** 누르면 선택을 그 자리까지 늘린다 */
+    val extending: Boolean = false,
+    /** 문단 고치기 창(길게 눌러 고른 문단) */
+    val paragraph: ParagraphHit? = null,
     /** 편집 뒤 쪽을 다시 그리라는 표시. 바뀔 때마다 플랫폼이 쪽을 다시 그린다 */
     val revision: Int = 0,
     /** 저장하지 않은 변경 */
     val dirty: Boolean = false,
     val canUndo: Boolean = false,
     val saving: Boolean = false,
+    /** PDF 로 바꾸는 중 */
+    val exporting: Boolean = false,
     /** 나가려는데 저장하지 않은 변경이 있다 → 저장·버리기·취소를 묻는다 */
     val confirmExit: Boolean = false,
 ) : UiState {
     val canEdit: Boolean get() = document?.canEdit == true
+    val canExportPdf: Boolean get() = document?.canExportPdf == true
     val pageCount: Int get() = document?.pageCount ?: 0
     val showLoss: Boolean get() = (document?.droppedObjects ?: 0) > 0 && !lossDismissed
+
+    /** PDF 로 내보낼 때 권하는 파일 이름 */
+    val pdfName: String get() = name.substringBeforeLast('.').ifEmpty { name } + ".pdf"
+
+    /** 선택 범위(비어 있지 않을 때만) */
+    val selection: TextRange?
+        get() {
+            val end = caret?.position ?: return null
+            val start = anchor ?: return null
+            return TextRange.of(start, end).takeUnless { it.isEmpty }
+        }
 }
 
 /** 글자 보기 창 내용. [text] 가 null 이면 읽는 중, [unavailable] 이면 이 쪽 글자를 읽을 수 없음 */
@@ -45,11 +74,17 @@ data class PageText(val page: Int, val text: String? = null, val unavailable: Bo
 
 enum class ViewerPhase { Opening, NeedsPassword, Ready, Failed }
 
+/** 도구 막대의 글자 모양 단추 */
+enum class StyleToggle { Bold, Italic, Underline, Strikethrough }
+
 sealed interface ViewerEvent : UiEvent {
     data object Saved : ViewerEvent
     data class SaveFailed(val error: DocumentError) : ViewerEvent
     /** 편집이 적용되지 않았다(문단을 찾지 못함 등) */
     data object EditFailed : ViewerEvent
+    /** PDF 를 [target] 에 썼다(iOS 는 이어서 공유·저장 창을 연다) */
+    data class Exported(val target: String) : ViewerEvent
+    data class ExportFailed(val error: DocumentError) : ViewerEvent
     /** 화면을 닫는다 */
     data object Exit : ViewerEvent
 }

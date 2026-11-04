@@ -8,18 +8,32 @@ import android.graphics.pdf.PdfRenderer
 import android.net.Uri
 import android.os.Build
 import android.os.ParcelFileDescriptor
+import io.github.namjh654.papy.feature.documents.Caret
+import io.github.namjh654.papy.feature.documents.CaretMove
 import io.github.namjh654.papy.feature.documents.DocumentEngine
 import io.github.namjh654.papy.feature.documents.DocumentError
 import io.github.namjh654.papy.feature.documents.DocumentKind
+import io.github.namjh654.papy.feature.documents.EditResult
 import io.github.namjh654.papy.feature.documents.OpenResult
 import io.github.namjh654.papy.feature.documents.OpenedDocument
 import io.github.namjh654.papy.feature.documents.PageBox
 import io.github.namjh654.papy.feature.documents.PageSizePt
 import io.github.namjh654.papy.feature.documents.ParagraphHit
+import io.github.namjh654.papy.feature.documents.TextPos
+import io.github.namjh654.papy.feature.documents.TextRange
+import io.github.namjh654.papy.feature.documents.TextStyle
+import io.github.namjh654.papy.feature.documents.UndoResult
 import java.io.File
 import java.nio.ByteBuffer
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
+import uniffi.papy_ffi.CaretDirection
+import uniffi.papy_ffi.EngineCaret
+import uniffi.papy_ffi.EngineEdit
+import uniffi.papy_ffi.EnginePosition
+import uniffi.papy_ffi.EngineRange
+import uniffi.papy_ffi.EngineTextStyle
+import uniffi.papy_ffi.PageRegion
 import uniffi.papy_ffi.PapyEngine
 import uniffi.papy_ffi.PapyException
 
@@ -199,8 +213,65 @@ class AndroidDocumentEngine(private val context: Context) : DocumentEngine {
             .getOrDefault(-1)
     }
 
-    override fun undo(session: Long): Boolean =
-        !pdfs.containsKey(session) && runCatching { rust.undo(session.toULong()) }.getOrDefault(false)
+    /** Rust 문서만 편집한다. PDF 세션이거나 실패하면 null */
+    private inline fun <T> editing(session: Long, block: (ULong) -> T): T? =
+        if (pdfs.containsKey(session)) null else runCatching { block(session.toULong()) }.getOrNull()
+
+    override fun caretAt(session: Long, page: Int, x: Float, y: Float): Caret? =
+        if (page < 0) null else editing(session) { rust.caretAtPoint(it, page.toUInt(), x, y).toCaret() }
+
+    override fun caretAtPosition(session: Long, position: TextPos): Caret? =
+        editing(session) { rust.caretAt(it, position.toEngine()).toCaret() }
+
+    override fun moveCaret(session: Long, position: TextPos, move: CaretMove, preferredX: Float): Caret? =
+        editing(session) { rust.moveCaret(it, position.toEngine(), move.toEngine(), preferredX).toCaret() }
+
+    override fun insertText(session: Long, position: TextPos, text: String): EditResult? =
+        editing(session) { rust.insertText(it, position.toEngine(), text).toResult() }
+
+    override fun deleteBackward(session: Long, position: TextPos): EditResult? =
+        editing(session) { rust.deleteBackward(it, position.toEngine()).toResult() }
+
+    override fun deleteRange(session: Long, range: TextRange): EditResult? =
+        editing(session) { rust.deleteRange(it, range.toEngine()).toResult() }
+
+    override fun selectionBoxes(session: Long, range: TextRange): List<PageBox> =
+        editing(session) { rust.selectionRegions(it, range.toEngine()).map { r -> r.toBox() } }.orEmpty()
+
+    override fun wordAt(session: Long, position: TextPos): TextRange? =
+        editing(session) { rust.wordAt(it, position.toEngine()).let { r -> TextRange(r.start.toPos(), r.end.toPos()) } }
+
+    override fun textStyle(session: Long, position: TextPos): TextStyle? =
+        editing(session) {
+            rust.textStyle(it, position.toEngine()).let { s ->
+                TextStyle(s.fontSize, s.bold, s.italic, s.underline, s.strikethrough, s.color)
+            }
+        }
+
+    override fun applyTextStyle(session: Long, range: TextRange, style: TextStyle): Int =
+        editing(session) {
+            val engineStyle = EngineTextStyle(
+                style.fontSize, style.bold, style.italic, style.underline, style.strikethrough, style.color,
+            )
+            rust.applyTextStyle(it, range.toEngine(), engineStyle).toInt()
+        } ?: -1
+
+    override fun undo(session: Long): UndoResult? =
+        editing(session) { rust.undo(it).let { u -> UndoResult(u.caret?.toCaret(), u.undoDepth.toInt()) } }
+
+    override fun exportPdf(session: Long, target: String): DocumentError? {
+        if (pdfs.containsKey(session)) return DocumentError.Unsupported
+        val bytes = try {
+            rust.export(session.toULong(), "pdf")
+        } catch (error: PapyException) {
+            return error.toDocumentError()
+        } catch (_: OutOfMemoryError) {
+            return DocumentError.TooLarge
+        } catch (_: Exception) {
+            return DocumentError.Internal
+        }
+        return write(target, bytes)
+    }
 
     override fun save(session: Long, ref: String): DocumentError? {
         if (pdfs.containsKey(session)) return DocumentError.Unsupported
@@ -211,18 +282,20 @@ class AndroidDocumentEngine(private val context: Context) : DocumentEngine {
         } catch (_: Exception) {
             return DocumentError.Internal
         }
-        return try {
-            // "wt": 파일을 비우고 처음부터 쓴다(남은 꼬리가 없게)
-            context.contentResolver.openOutputStream(Uri.parse(ref), "wt")?.use { it.write(bytes) }
-                ?: return DocumentError.ReadOnly
-            null
-        } catch (_: SecurityException) {
-            DocumentError.ReadOnly
-        } catch (_: java.io.FileNotFoundException) {
-            DocumentError.ReadOnly
-        } catch (_: Exception) {
-            DocumentError.Unreadable
-        }
+        return write(ref, bytes)
+    }
+
+    /** content URI 에 바이트를 쓴다. "wt": 파일을 비우고 처음부터 쓴다(남은 꼬리가 없게) */
+    private fun write(ref: String, bytes: ByteArray): DocumentError? = try {
+        val stream = context.contentResolver.openOutputStream(Uri.parse(ref), "wt")
+        stream?.use { it.write(bytes) }
+        if (stream == null) DocumentError.ReadOnly else null
+    } catch (_: SecurityException) {
+        DocumentError.ReadOnly
+    } catch (_: java.io.FileNotFoundException) {
+        DocumentError.ReadOnly
+    } catch (_: Exception) {
+        DocumentError.Unreadable
     }
 
     override fun close(session: Long) {
@@ -248,6 +321,21 @@ class AndroidDocumentEngine(private val context: Context) : DocumentEngine {
             target
         }.getOrNull()
     }
+}
+
+private fun TextPos.toEngine() = EnginePosition(section.toUInt(), paragraph.toUInt(), offset.toUInt())
+private fun EnginePosition.toPos() = TextPos(section.toInt(), paragraph.toInt(), offset.toInt())
+private fun TextRange.toEngine() = EngineRange(start.toEngine(), end.toEngine())
+private fun PageRegion.toBox() = PageBox(page.toInt(), x, y, width, height)
+private fun EngineCaret.toCaret() = Caret(position.toPos(), rect.toBox())
+private fun EngineEdit.toResult() = EditResult(caret.toCaret(), undoDepth.toInt())
+private fun CaretMove.toEngine() = when (this) {
+    CaretMove.Left -> CaretDirection.LEFT
+    CaretMove.Right -> CaretDirection.RIGHT
+    CaretMove.Up -> CaretDirection.UP
+    CaretMove.Down -> CaretDirection.DOWN
+    CaretMove.LineStart -> CaretDirection.LINE_START
+    CaretMove.LineEnd -> CaretDirection.LINE_END
 }
 
 private fun PapyException.toDocumentError(): DocumentError = when (this) {

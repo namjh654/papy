@@ -74,6 +74,32 @@ import io.github.namjh654.papy.component.EventEffect
 import io.github.namjh654.papy.designsystem.component.PapyButtonSize
 import io.github.namjh654.papy.designsystem.component.PapyMessageType
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.border
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import io.github.namjh654.papy.feature.documents.CaretMove
+import io.github.namjh654.papy.feature.documents.viewer.StyleToggle
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
 import androidx.compose.ui.draw.drawWithContent
@@ -90,8 +116,14 @@ import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
 
-/** 고른 문단 표시 색(반투명 파랑) */
+/** 고른 문단·선택 표시 색(반투명 파랑), 커서 색 */
 private val HIGHLIGHT = Color(0x553D5AFE)
+private val CARET = Color(0xFF3D5AFE)
+/** 숨긴 입력칸의 맨 앞 글자. 이 글자가 지워지면 "앞 글자 지우기"로 본다(입력기가 빈 칸에서는 지우기를 보내지 않는다) */
+private const val SENTINEL = "\u200B"
+private val EMPTY_INPUT = TextFieldValue(SENTINEL, selection = androidx.compose.ui.text.TextRange(1))
+/** 도구 막대 글자 색 */
+private val TEXT_COLORS = listOf("#000000" to R.string.viewer_color_black, "#e53935" to R.string.viewer_color_red, "#1e63d6" to R.string.viewer_color_blue)
 
 /** 확대 상한. 손가락을 떼고 잠시 뒤 확대 배율에 맞춰 보이는 쪽을 다시 그린다(그동안은 이전 그림을 늘려 보인다). */
 private const val MAX_ZOOM = 4f
@@ -110,6 +142,12 @@ fun ViewerScreen(ref: String, name: String, onBack: () -> Unit) {
     val saveFailed = stringResource(R.string.viewer_save_failed)
     val readOnly = stringResource(R.string.viewer_save_readonly)
     val editFailed = stringResource(R.string.viewer_edit_failed)
+    val exported = stringResource(R.string.viewer_exported)
+    val exportFailed = stringResource(R.string.viewer_export_failed)
+    // PDF 내보내기: 사용자가 저장할 곳을 고른다(Storage Access Framework)
+    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { uri ->
+        if (uri != null) viewModel.exportPdf(uri.toString())
+    }
 
     val scope = rememberCoroutineScope()
     EventEffect(viewModel.events) { event ->
@@ -119,6 +157,8 @@ fun ViewerScreen(ref: String, name: String, onBack: () -> Unit) {
                 toast.show(if (event.error == DocumentError.ReadOnly) readOnly else saveFailed, PapyMessageType.Error)
             }
             ViewerEvent.EditFailed -> scope.launch { toast.show(editFailed, PapyMessageType.Error) }
+            is ViewerEvent.Exported -> scope.launch { toast.show(exported, PapyMessageType.Success) }
+            is ViewerEvent.ExportFailed -> scope.launch { toast.show(exportFailed, PapyMessageType.Error) }
             ViewerEvent.Exit -> onBack()
         }
     }
@@ -155,13 +195,32 @@ fun ViewerScreen(ref: String, name: String, onBack: () -> Unit) {
                         )
                     }
                 }
+                if (state.canExportPdf && !state.editing) {
+                    IconButton(onClick = { exportLauncher.launch(state.pdfName) }, enabled = !state.exporting) {
+                        Icon(painterResource(R.drawable.papy_ic_send), contentDescription = stringResource(R.string.viewer_export_pdf), tint = PapyTheme.colors.onSurface)
+                    }
+                }
                 IconButton(onClick = viewModel::showText) {
                     Icon(painterResource(R.drawable.papy_ic_copy), contentDescription = stringResource(R.string.viewer_text), tint = PapyTheme.colors.onSurface)
                 }
             }
         },
     ) { padding ->
-        Box(Modifier.fillMaxSize().padding(padding)) {
+        // 숨긴 입력칸: 맨 앞 SENTINEL 뒤 글자 중 [sent] 만큼은 이미 문서에 넣었다. 입력칸을 글자마다 비우면
+        // 입력기 상태와 어긋나 글자가 겹치므로, 바뀐 만큼만 문서에 보내고 입력칸은 가끔만 비운다.
+        var input by remember { mutableStateOf(EMPTY_INPUT) }
+        var sent by remember { mutableStateOf("") }
+        val body = input.text.removePrefix(SENTINEL)
+        val composition = input.composition
+        // 입력기가 아직 조합 중인 글자(쪽 위에 띄워 보인다)
+        val pending = if (composition == null) "" else body.substring((composition.start - SENTINEL.length).coerceIn(0, body.length))
+        /** 조합 중이던 글자를 마저 넣고 입력칸을 비운다(다른 곳을 누르거나 도구를 쓰기 전에) */
+        val flush = {
+            if (pending.isNotEmpty()) viewModel.type(pending)
+            input = EMPTY_INPUT
+            sent = ""
+        }
+        Box(Modifier.fillMaxSize().padding(padding).imePadding()) {
             when (state.phase) {
                 ViewerPhase.Opening -> Column(
                     Modifier.fillMaxSize(),
@@ -173,9 +232,51 @@ fun ViewerScreen(ref: String, name: String, onBack: () -> Unit) {
                 }
                 ViewerPhase.NeedsPassword -> PasswordForm(state, viewModel::submitPassword)
                 ViewerPhase.Failed -> PapyErrorState(message = errorMessage(state.error), onRetry = viewModel::retry, modifier = Modifier.align(Alignment.Center))
-                ViewerPhase.Ready -> Pages(state, viewModel::pageVisible, viewModel::pageTapped)
+                ViewerPhase.Ready -> Pages(
+                    state = state,
+                    composing = pending.takeIf { it.isNotEmpty() },
+                    onPageVisible = viewModel::pageVisible,
+                    gestures = PageGestures(
+                        tap = { page, x, y -> flush(); viewModel.tap(page, x, y) },
+                        doubleTap = { page, x, y -> flush(); viewModel.doubleTap(page, x, y) },
+                        longPress = { page, x, y -> flush(); viewModel.longPress(page, x, y) },
+                    ),
+                )
             }
-            if (state.phase == ViewerPhase.Ready && state.editing && state.selection == null) {
+            if (state.phase == ViewerPhase.Ready && state.editing && state.caret != null) {
+                EditInput(
+                    value = input,
+                    onValue = { value ->
+                        val text = value.text
+                        if (!text.startsWith(SENTINEL)) {
+                            // 맨 앞 글자까지 지워졌다 → 넣은 글자 + 그 앞 한 글자를 지운다
+                            repeat(sent.length + 1) { viewModel.backspace() }
+                            text.replace(SENTINEL, "").takeIf { it.isNotEmpty() }?.let(viewModel::type)
+                            input = EMPTY_INPUT
+                            sent = ""
+                        } else {
+                            val all = text.removePrefix(SENTINEL)
+                            // 조합이 끝난 부분(조합 중인 글자는 아직 넣지 않는다)
+                            val stable = value.composition?.let { all.substring(0, (it.start - SENTINEL.length).coerceIn(0, all.length)) } ?: all
+                            val common = sent.commonPrefixWith(stable).length
+                            repeat(sent.length - common) { viewModel.backspace() }
+                            stable.substring(common).takeIf { it.isNotEmpty() }?.let(viewModel::type)
+                            sent = stable
+                            // 조합이 없을 때 가끔 비운다(입력칸이 한없이 길어지지 않게)
+                            if (value.composition == null && sent.length > 64) {
+                                input = EMPTY_INPUT
+                                sent = ""
+                            } else {
+                                input = value
+                            }
+                        }
+                    },
+                    onMove = { move -> flush(); viewModel.moveCaret(move) },
+                    modifier = Modifier.align(Alignment.TopStart),
+                )
+                FormatBar(state, viewModel, flush, Modifier.align(Alignment.BottomCenter))
+            }
+            if (state.phase == ViewerPhase.Ready && state.editing && state.caret == null && state.paragraph == null) {
                 Text(
                     stringResource(R.string.viewer_edit_hint),
                     style = PapyTheme.typography.bodySmall,
@@ -212,14 +313,14 @@ fun ViewerScreen(ref: String, name: String, onBack: () -> Unit) {
         }
     }
 
-    state.selection?.let { hit ->
+    state.paragraph?.let { hit ->
         var draft by remember(hit) { mutableStateOf(hit.text) }
-        PapyBottomSheet(onDismiss = viewModel::cancelSelection, title = stringResource(R.string.viewer_edit_title)) {
+        PapyBottomSheet(onDismiss = viewModel::cancelParagraph, title = stringResource(R.string.viewer_edit_title)) {
             Column(Modifier.fillMaxWidth().padding(horizontal = PapySpacing.lg, vertical = PapySpacing.sm)) {
                 PapyTextField(value = draft, onValueChange = { draft = it }, singleLine = false, minLines = 3)
                 PapyButton(
                     text = stringResource(R.string.viewer_edit_apply),
-                    onClick = { viewModel.applyEdit(draft) },
+                    onClick = { viewModel.applyParagraph(draft) },
                     modifier = Modifier.padding(top = PapySpacing.md),
                 )
             }
@@ -301,8 +402,15 @@ private fun PasswordForm(state: ViewerUiState, onSubmit: (String) -> Unit) {
     }
 }
 
+/** 편집 모드에서 쪽을 누르는 동작(쪽 번호, pt 좌표) */
+private class PageGestures(
+    val tap: (Int, Float, Float) -> Unit,
+    val doubleTap: (Int, Float, Float) -> Unit,
+    val longPress: (Int, Float, Float) -> Unit,
+)
+
 @Composable
-private fun Pages(state: ViewerUiState, onPageVisible: (Int) -> Unit, onPageTapped: (Int, Float, Float) -> Unit) {
+private fun Pages(state: ViewerUiState, composing: String?, onPageVisible: (Int) -> Unit, gestures: PageGestures) {
     val engine = koinInject<DocumentEngine>() as? AndroidDocumentEngine ?: return
     val session = state.document?.session ?: return
     val listState = rememberLazyListState()
@@ -332,12 +440,14 @@ private fun Pages(state: ViewerUiState, onPageVisible: (Int) -> Unit, onPageTapp
             state = listState,
             modifier = Modifier
                 .fillMaxSize()
-                .pointerInput(Unit) {
-                    // 두 번 누르면 확대·되돌리기
-                    detectTapGestures(onDoubleTap = {
-                        zoom = if (zoom > 1f) 1f else 2f
-                        offset = Offset.Zero
-                    })
+                .pointerInput(state.editing) {
+                    // 두 번 누르면 확대·되돌리기(편집 모드에서는 단어 고르기라 쓰지 않는다)
+                    if (!state.editing) {
+                        detectTapGestures(onDoubleTap = {
+                            zoom = if (zoom > 1f) 1f else 2f
+                            offset = Offset.Zero
+                        })
+                    }
                 }
                 .transformable(transform, lockRotationOnZoomPan = true)
                 .graphicsLayer {
@@ -358,8 +468,10 @@ private fun Pages(state: ViewerUiState, onPageVisible: (Int) -> Unit, onPageTapp
                     size = size,
                     renderWidth = renderWidth,
                     revision = state.revision,
-                    highlight = state.selection?.boxes?.filter { it.page == index }.orEmpty(),
-                    onTap = if (state.editing) { x, y -> onPageTapped(index, x, y) } else null,
+                    highlight = (state.selectionBoxes + state.paragraph?.boxes.orEmpty()).filter { it.page == index },
+                    caret = state.caret?.box?.takeIf { it.page == index && state.editing },
+                    composing = composing,
+                    gestures = if (state.editing) gestures else null,
                 )
             }
         }
@@ -387,7 +499,9 @@ private fun Page(
     renderWidth: Int,
     revision: Int,
     highlight: List<PageBox>,
-    onTap: ((Float, Float) -> Unit)?,
+    caret: PageBox?,
+    composing: String?,
+    gestures: PageGestures?,
 ) {
     // 픽셀 상한 안에서 너비를 정한다(세로로 긴 쪽은 더 작게)
     val aspect = (size.height / size.width.coerceAtLeast(1f)).coerceIn(0.1f, 10f)
@@ -404,12 +518,15 @@ private fun Page(
             .aspectRatio((size.width / size.height).coerceIn(0.1f, 10f))
             .background(Color.White)
             .then(
-                if (onTap == null) Modifier
-                else Modifier.pointerInput(onTap, size) {
+                if (gestures == null) Modifier
+                else Modifier.pointerInput(gestures, size, index) {
                     // 화면 좌표 → 쪽 좌표(pt)
-                    detectTapGestures { offset ->
-                        onTap(offset.x / this.size.width * size.width, offset.y / this.size.height * size.height)
-                    }
+                    fun pt(offset: Offset) = offset.x / this.size.width * size.width to offset.y / this.size.height * size.height
+                    detectTapGestures(
+                        onTap = { pt(it).let { (x, y) -> gestures.tap(index, x, y) } },
+                        onDoubleTap = { pt(it).let { (x, y) -> gestures.doubleTap(index, x, y) } },
+                        onLongPress = { pt(it).let { (x, y) -> gestures.longPress(index, x, y) } },
+                    )
                 },
             )
             .drawWithContent {
@@ -422,6 +539,14 @@ private fun Page(
                         size = androidx.compose.ui.geometry.Size(box.width * scale, box.height * scale),
                     )
                 }
+                caret?.let { box ->
+                    val width = 2.dp.toPx()
+                    drawRect(
+                        color = CARET,
+                        topLeft = Offset(box.x * scale - width / 2, box.y * scale),
+                        size = androidx.compose.ui.geometry.Size(width, box.height.coerceAtLeast(4f) * scale),
+                    )
+                }
             },
         contentAlignment = Alignment.Center,
     ) {
@@ -431,5 +556,128 @@ private fun Page(
             bitmap == null -> PapyLoadingIndicator()
             else -> Text(stringResource(R.string.viewer_page_failed), style = PapyTheme.typography.caption, color = Color.Gray)
         }
+        // 입력기가 조합 중인 글자: 커서 자리에 띄워 보인다(넣으면 쪽에 그려진다)
+        if (caret != null && composing != null) {
+            BoxWithConstraints(Modifier.fillMaxSize()) {
+                val scale = constraints.maxWidth / size.width
+                Text(
+                    composing,
+                    style = PapyTheme.typography.body,
+                    color = Color.Black,
+                    modifier = Modifier
+                        .offset { IntOffset((caret.x * scale).toInt(), ((caret.y + caret.height) * scale).toInt()) }
+                        .background(Color(0xFFFFF3B0))
+                        .border(1.dp, CARET)
+                        .padding(horizontal = 2.dp),
+                )
+            }
+        }
     }
 }
+
+/** 숨긴 입력칸: 키보드 글자를 받는다. 커서가 생기면 초점을 받아 키보드를 띄운다 */
+@Composable
+private fun EditInput(
+    value: TextFieldValue,
+    onValue: (TextFieldValue) -> Unit,
+    onMove: (CaretMove) -> Unit,
+    modifier: Modifier,
+) {
+    val focus = remember { FocusRequester() }
+    val keyboard = LocalSoftwareKeyboardController.current
+    LaunchedEffect(Unit) {
+        focus.requestFocus()
+        keyboard?.show()
+    }
+    BasicTextField(
+        value = value,
+        onValueChange = onValue,
+        modifier = modifier
+            .size(1.dp)
+            .graphicsLayer { alpha = 0f }
+            .focusRequester(focus)
+            .onPreviewKeyEvent { event ->
+                // 하드웨어 키보드 화살표
+                if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                val move = when (event.key) {
+                    Key.DirectionLeft -> CaretMove.Left
+                    Key.DirectionRight -> CaretMove.Right
+                    Key.DirectionUp -> CaretMove.Up
+                    Key.DirectionDown -> CaretMove.Down
+                    Key.MoveHome -> CaretMove.LineStart
+                    Key.MoveEnd -> CaretMove.LineEnd
+                    else -> return@onPreviewKeyEvent false
+                }
+                onMove(move)
+                true
+            },
+    )
+}
+
+/** 편집 도구 막대: 글자 모양·크기·색, 범위 선택, 커서 이동 */
+@Composable
+private fun FormatBar(state: ViewerUiState, viewModel: ViewerViewModel, flush: () -> Unit, modifier: Modifier) {
+    val style = state.style
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(PapyTheme.colors.surface)
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = PapySpacing.sm, vertical = PapySpacing.xs),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(PapySpacing.xs),
+    ) {
+        @Composable
+        fun Tool(label: String, description: Int, on: Boolean = false, weight: FontWeight? = null, italic: Boolean = false, decoration: TextDecoration? = null, action: () -> Unit) {
+            TextButton(
+                onClick = { flush(); action() },
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(if (on) PapyTheme.colors.primary.copy(alpha = 0.15f) else Color.Transparent),
+            ) {
+                Text(
+                    label,
+                    style = PapyTheme.typography.body,
+                    fontWeight = weight,
+                    fontStyle = if (italic) FontStyle.Italic else null,
+                    textDecoration = decoration,
+                    color = if (on) PapyTheme.colors.primary else PapyTheme.colors.onSurface,
+                    modifier = Modifier.described(description),
+                )
+            }
+        }
+        Tool("B", R.string.viewer_style_bold, on = style?.bold == true, weight = FontWeight.Bold) { viewModel.toggleStyle(StyleToggle.Bold) }
+        Tool("I", R.string.viewer_style_italic, on = style?.italic == true, italic = true) { viewModel.toggleStyle(StyleToggle.Italic) }
+        Tool("U", R.string.viewer_style_underline, on = style?.underline == true, decoration = TextDecoration.Underline) { viewModel.toggleStyle(StyleToggle.Underline) }
+        Tool("S", R.string.viewer_style_strike, on = style?.strikethrough == true, decoration = TextDecoration.LineThrough) { viewModel.toggleStyle(StyleToggle.Strikethrough) }
+        Tool("A−", R.string.viewer_font_smaller) { viewModel.changeFontSize(-1) }
+        Text(style?.fontSize?.let { "${(it * 10).toInt() / 10f}" }.orEmpty(), style = PapyTheme.typography.caption, color = PapyTheme.colors.onSurfaceVariant)
+        Tool("A+", R.string.viewer_font_larger) { viewModel.changeFontSize(1) }
+        TEXT_COLORS.forEach { (hex, label) ->
+            val description = stringResource(label)
+            Box(
+                Modifier
+                    .size(28.dp)
+                    .clip(CircleShape)
+                    .background(Color(android.graphics.Color.parseColor(hex)))
+                    .border(2.dp, if (style?.color.equals(hex, ignoreCase = true)) PapyTheme.colors.primary else Color.Transparent, CircleShape)
+                    .pointerInput(hex) { detectTapGestures { flush(); viewModel.setColor(hex) } }
+                    .described(description),
+            )
+        }
+        Tool("⇤⇥", R.string.viewer_select_extend, on = state.extending) { viewModel.toggleExtending() }
+        if (state.selection != null) Tool("✕", R.string.viewer_select_clear) { viewModel.collapseSelection() }
+        Tool("◀", R.string.viewer_caret_left) { viewModel.moveCaret(CaretMove.Left) }
+        Tool("▶", R.string.viewer_caret_right) { viewModel.moveCaret(CaretMove.Right) }
+        Tool("¶", R.string.viewer_edit_paragraph) {
+            state.caret?.box?.let { viewModel.longPress(it.page, it.x, it.y + it.height / 2) }
+        }
+    }
+}
+
+/** 화면 낭독기용 이름 */
+private fun Modifier.described(description: String) =
+    this.then(Modifier.semantics { contentDescription = description })
+
+@Composable
+private fun Modifier.described(description: Int) = described(stringResource(description))
