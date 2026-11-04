@@ -13,7 +13,9 @@ import io.github.namjh654.papy.feature.documents.DocumentError
 import io.github.namjh654.papy.feature.documents.DocumentKind
 import io.github.namjh654.papy.feature.documents.OpenResult
 import io.github.namjh654.papy.feature.documents.OpenedDocument
+import io.github.namjh654.papy.feature.documents.PageBox
 import io.github.namjh654.papy.feature.documents.PageSizePt
+import io.github.namjh654.papy.feature.documents.ParagraphHit
 import java.io.File
 import java.nio.ByteBuffer
 import java.util.concurrent.ConcurrentHashMap
@@ -77,6 +79,7 @@ class AndroidDocumentEngine(private val context: Context) : DocumentEngine {
                     pageCount = summary.pageCount.toInt(),
                     title = summary.title,
                     droppedObjects = summary.droppedObjects.toInt(),
+                    canEdit = summary.canEdit,
                 ),
             )
         } catch (error: PapyException) {
@@ -170,6 +173,56 @@ class AndroidDocumentEngine(private val context: Context) : DocumentEngine {
             }
         }
         return runCatching { rust.extractText(session.toULong(), page.toUInt()) }.getOrNull()
+    }
+
+    override fun pageCount(session: Long): Int? {
+        pdfs[session]?.let { return synchronized(it) { it.renderer.pageCount } }
+        return runCatching { rust.pageCount(session.toULong()).toInt() }.getOrNull()
+    }
+
+    override fun paragraphAt(session: Long, page: Int, x: Float, y: Float): ParagraphHit? {
+        if (pdfs.containsKey(session) || page < 0) return null
+        return runCatching {
+            val hit = rust.paragraphAt(session.toULong(), page.toUInt(), x, y)
+            ParagraphHit(
+                section = hit.section.toInt(),
+                paragraph = hit.paragraph.toInt(),
+                text = hit.text,
+                boxes = hit.boxes.map { PageBox(it.page.toInt(), it.x, it.y, it.width, it.height) },
+            )
+        }.getOrNull()
+    }
+
+    override fun replaceParagraph(session: Long, section: Int, paragraph: Int, text: String): Int {
+        if (pdfs.containsKey(session) || section < 0 || paragraph < 0) return -1
+        return runCatching { rust.replaceParagraph(session.toULong(), section.toUInt(), paragraph.toUInt(), text).toInt() }
+            .getOrDefault(-1)
+    }
+
+    override fun undo(session: Long): Boolean =
+        !pdfs.containsKey(session) && runCatching { rust.undo(session.toULong()) }.getOrDefault(false)
+
+    override fun save(session: Long, ref: String): DocumentError? {
+        if (pdfs.containsKey(session)) return DocumentError.Unsupported
+        val bytes = try {
+            rust.save(session.toULong())
+        } catch (error: PapyException) {
+            return error.toDocumentError()
+        } catch (_: Exception) {
+            return DocumentError.Internal
+        }
+        return try {
+            // "wt": 파일을 비우고 처음부터 쓴다(남은 꼬리가 없게)
+            context.contentResolver.openOutputStream(Uri.parse(ref), "wt")?.use { it.write(bytes) }
+                ?: return DocumentError.ReadOnly
+            null
+        } catch (_: SecurityException) {
+            DocumentError.ReadOnly
+        } catch (_: java.io.FileNotFoundException) {
+            DocumentError.ReadOnly
+        } catch (_: Exception) {
+            DocumentError.Unreadable
+        }
     }
 
     override fun close(session: Long) {

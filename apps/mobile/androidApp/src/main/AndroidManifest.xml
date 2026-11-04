@@ -1,17 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- 네트워크 연결 상태(오프라인 안내) — NetworkMonitor -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <!-- Android 13+ 알림 권한 (로그인 후 PushEffects 가 요청) -->
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <!-- 런타임 권한 예시(feature:permission). 앱에서 쓰지 않으면 AppPermission 항목과 함께 지운다 -->
-    <uses-permission android:name="android.permission.CAMERA" />
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-    <!-- 카메라가 없는 기기에도 설치되게 한다 -->
-    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <!-- Papy 는 문서 앱이라 알림·카메라·위치 권한을 쓰지 않는다(템플릿 예시 권한 제거, 스토어 데이터 보안 항목을 줄인다).
+         INTERNET·ACCESS_NETWORK_STATE 는 템플릿 core:data(네트워크·Firebase)가 남아 있어 둔다 — 템플릿 정리 때 함께 뺀다. -->
+    <!-- 라이브러리(Firebase·Play 서비스 등)가 합쳐 넣는 권한도 뺀다: 광고 ID·광고 측정·푸시 수신·알림·카메라·위치.
+         Papy 는 광고·추적·푸시를 쓰지 않는다(개인정보처리방침과 스토어 데이터 보안 답변이 "수집 없음"이 되게). -->
+    <uses-permission android:name="com.google.android.gms.permission.AD_ID" tools:node="remove" />
+    <uses-permission android:name="android.permission.ACCESS_ADSERVICES_ATTRIBUTION" tools:node="remove" />
+    <uses-permission android:name="android.permission.ACCESS_ADSERVICES_AD_ID" tools:node="remove" />
+    <uses-permission android:name="com.google.android.finsky.permission.BIND_GET_INSTALL_REFERRER_SERVICE" tools:node="remove" />
+    <uses-permission android:name="com.google.android.c2dm.permission.RECEIVE" tools:node="remove" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" tools:node="remove" />
+    <uses-permission android:name="android.permission.CAMERA" tools:node="remove" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" tools:node="remove" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" tools:node="remove" />
 
     <application
         android:name=".app.PapyApplication"

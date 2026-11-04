@@ -32,7 +32,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -68,11 +67,22 @@ import io.github.namjh654.papy.designsystem.token.PapySpacing
 import io.github.namjh654.papy.engine.AndroidDocumentEngine
 import io.github.namjh654.papy.feature.documents.DocumentEngine
 import io.github.namjh654.papy.feature.documents.DocumentError
+import io.github.namjh654.papy.feature.documents.PageBox
 import io.github.namjh654.papy.feature.documents.PageSizePt
+import io.github.namjh654.papy.feature.documents.viewer.ViewerEvent
+import io.github.namjh654.papy.component.EventEffect
+import io.github.namjh654.papy.designsystem.component.PapyButtonSize
+import io.github.namjh654.papy.designsystem.component.PapyMessageType
+import androidx.activity.compose.BackHandler
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.draw.drawWithContent
 import io.github.namjh654.papy.feature.documents.viewer.ViewerPhase
 import io.github.namjh654.papy.feature.documents.viewer.ViewerUiState
 import io.github.namjh654.papy.feature.documents.viewer.ViewerViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -80,25 +90,71 @@ import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
 
-/** 확대 상한. 그림은 화면 너비 × [RENDER_OVERSAMPLE] 로 그려 두고 확대는 화면에서 늘린다. */
+/** 고른 문단 표시 색(반투명 파랑) */
+private val HIGHLIGHT = Color(0x553D5AFE)
+
+/** 확대 상한. 손가락을 떼고 잠시 뒤 확대 배율에 맞춰 보이는 쪽을 다시 그린다(그동안은 이전 그림을 늘려 보인다). */
 private const val MAX_ZOOM = 4f
-private const val RENDER_OVERSAMPLE = 1.5f
-/** 쪽 그림 한 장의 최대 너비(px) — 메모리 */
-private const val MAX_RENDER_WIDTH = 2400
+private const val RENDER_OVERSAMPLE = 1.25f
+/** 쪽 그림 한 장의 최대 픽셀 수(약 48MB, RGBA) — 메모리 */
+private const val MAX_RENDER_PIXELS = 12_000_000f
+/** 확대가 멈춘 뒤 다시 그리기까지 기다리는 시간 */
+private const val RERENDER_DELAY_MS = 250L
 
 @Composable
 fun ViewerScreen(ref: String, name: String, onBack: () -> Unit) {
     val viewModel: ViewerViewModel = koinViewModel(key = ref) { parametersOf(ref, name) }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val toast = rememberPapyToastState()
+    val saved = stringResource(R.string.viewer_saved)
+    val saveFailed = stringResource(R.string.viewer_save_failed)
+    val readOnly = stringResource(R.string.viewer_save_readonly)
+    val editFailed = stringResource(R.string.viewer_edit_failed)
+
+    val scope = rememberCoroutineScope()
+    EventEffect(viewModel.events) { event ->
+        when (event) {
+            ViewerEvent.Saved -> scope.launch { toast.show(saved, PapyMessageType.Success) }
+            is ViewerEvent.SaveFailed -> scope.launch {
+                toast.show(if (event.error == DocumentError.ReadOnly) readOnly else saveFailed, PapyMessageType.Error)
+            }
+            ViewerEvent.EditFailed -> scope.launch { toast.show(editFailed, PapyMessageType.Error) }
+            ViewerEvent.Exit -> onBack()
+        }
+    }
+    // 저장하지 않은 변경이 있으면 뒤로 가기 전에 묻는다
+    BackHandler(enabled = state.dirty) { viewModel.requestExit() }
 
     PapyScaffold(
         title = name,
-        onBack = onBack,
+        onBack = viewModel::requestExit,
         toastState = toast,
         containerColor = PapyTheme.colors.backgroundGrouped,
         actions = {
             if (state.phase == ViewerPhase.Ready) {
+                if (state.editing && state.canUndo) {
+                    IconButton(onClick = viewModel::undo) {
+                        Icon(painterResource(R.drawable.papy_ic_reply), contentDescription = stringResource(R.string.viewer_undo), tint = PapyTheme.colors.onSurface)
+                    }
+                }
+                if (state.dirty) {
+                    PapyButton(
+                        text = stringResource(R.string.viewer_save),
+                        onClick = viewModel::save,
+                        size = PapyButtonSize.Small,
+                        fullWidth = false,
+                        isLoading = state.saving,
+                    )
+                }
+                if (state.canEdit) {
+                    IconButton(onClick = viewModel::toggleEditing) {
+                        Icon(
+                            painterResource(if (state.editing) R.drawable.papy_ic_check else R.drawable.papy_ic_edit),
+                            contentDescription = stringResource(if (state.editing) R.string.viewer_edit_done else R.string.viewer_edit),
+                            tint = if (state.editing) PapyTheme.colors.primary else PapyTheme.colors.onSurface,
+                        )
+                    }
+                }
                 IconButton(onClick = viewModel::showText) {
                     Icon(painterResource(R.drawable.papy_ic_copy), contentDescription = stringResource(R.string.viewer_text), tint = PapyTheme.colors.onSurface)
                 }
@@ -117,7 +173,20 @@ fun ViewerScreen(ref: String, name: String, onBack: () -> Unit) {
                 }
                 ViewerPhase.NeedsPassword -> PasswordForm(state, viewModel::submitPassword)
                 ViewerPhase.Failed -> PapyErrorState(message = errorMessage(state.error), onRetry = viewModel::retry, modifier = Modifier.align(Alignment.Center))
-                ViewerPhase.Ready -> Pages(state, viewModel::pageVisible)
+                ViewerPhase.Ready -> Pages(state, viewModel::pageVisible, viewModel::pageTapped)
+            }
+            if (state.phase == ViewerPhase.Ready && state.editing && state.selection == null) {
+                Text(
+                    stringResource(R.string.viewer_edit_hint),
+                    style = PapyTheme.typography.bodySmall,
+                    color = PapyTheme.colors.onPrimary,
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(PapySpacing.sm)
+                        .clip(RoundedCornerShape(50))
+                        .background(PapyTheme.colors.primary)
+                        .padding(horizontal = PapySpacing.md, vertical = PapySpacing.xs),
+                )
             }
             if (state.phase == ViewerPhase.Ready && state.showLoss) {
                 Row(
@@ -141,6 +210,35 @@ fun ViewerScreen(ref: String, name: String, onBack: () -> Unit) {
                 }
             }
         }
+    }
+
+    state.selection?.let { hit ->
+        var draft by remember(hit) { mutableStateOf(hit.text) }
+        PapyBottomSheet(onDismiss = viewModel::cancelSelection, title = stringResource(R.string.viewer_edit_title)) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = PapySpacing.lg, vertical = PapySpacing.sm)) {
+                PapyTextField(value = draft, onValueChange = { draft = it }, singleLine = false, minLines = 3)
+                PapyButton(
+                    text = stringResource(R.string.viewer_edit_apply),
+                    onClick = { viewModel.applyEdit(draft) },
+                    modifier = Modifier.padding(top = PapySpacing.md),
+                )
+            }
+        }
+    }
+
+    if (state.confirmExit) {
+        AlertDialog(
+            onDismissRequest = viewModel::cancelExit,
+            title = { Text(stringResource(R.string.viewer_exit_title)) },
+            text = { Text(stringResource(R.string.viewer_exit_message)) },
+            confirmButton = { TextButton(onClick = viewModel::save) { Text(stringResource(R.string.viewer_save)) } },
+            dismissButton = {
+                Row {
+                    TextButton(onClick = viewModel::cancelExit) { Text(stringResource(R.string.common_cancel)) }
+                    TextButton(onClick = viewModel::discardAndExit) { Text(stringResource(R.string.viewer_exit_discard)) }
+                }
+            },
+        )
     }
 
     state.text?.let { text ->
@@ -176,7 +274,7 @@ private fun errorMessage(error: DocumentError?): String = stringResource(
         DocumentError.Unsupported, DocumentError.PasswordRequired -> R.string.viewer_error_unsupported
         DocumentError.Invalid -> R.string.viewer_error_invalid
         DocumentError.TooLarge -> R.string.viewer_error_too_large
-        DocumentError.Internal, null -> R.string.viewer_error_internal
+        DocumentError.Internal, DocumentError.ReadOnly, null -> R.string.viewer_error_internal
     },
 )
 
@@ -204,7 +302,7 @@ private fun PasswordForm(state: ViewerUiState, onSubmit: (String) -> Unit) {
 }
 
 @Composable
-private fun Pages(state: ViewerUiState, onPageVisible: (Int) -> Unit) {
+private fun Pages(state: ViewerUiState, onPageVisible: (Int) -> Unit, onPageTapped: (Int, Float, Float) -> Unit) {
     val engine = koinInject<DocumentEngine>() as? AndroidDocumentEngine ?: return
     val session = state.document?.session ?: return
     val listState = rememberLazyListState()
@@ -218,10 +316,18 @@ private fun Pages(state: ViewerUiState, onPageVisible: (Int) -> Unit) {
     LaunchedEffect(listState) {
         snapshotFlow { listState.firstVisibleItemIndex }.distinctUntilChanged().collect(onPageVisible)
     }
+    // 그릴 배율: 확대가 멈추고 [RERENDER_DELAY_MS] 뒤의 값(손가락을 움직이는 동안 매번 다시 그리지 않는다)
+    var renderZoom by remember { mutableFloatStateOf(1f) }
+    LaunchedEffect(Unit) {
+        snapshotFlow { zoom }.distinctUntilChanged().collectLatest {
+            delay(RERENDER_DELAY_MS)
+            renderZoom = it
+        }
+    }
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val widthPx = with(LocalDensity.current) { maxWidth.toPx() }
-        val renderWidth = (widthPx * RENDER_OVERSAMPLE).toInt().coerceIn(1, MAX_RENDER_WIDTH)
+        val renderWidth = (widthPx * RENDER_OVERSAMPLE * renderZoom).toInt().coerceAtLeast(1)
         LazyColumn(
             state = listState,
             modifier = Modifier
@@ -244,7 +350,17 @@ private fun Pages(state: ViewerUiState, onPageVisible: (Int) -> Unit) {
             verticalArrangement = Arrangement.spacedBy(PapySpacing.sm),
         ) {
             itemsIndexed(state.pageSizes, key = { index, _ -> index }) { index, size ->
-                Page(engine, session, index, state.pageCount, size, renderWidth)
+                Page(
+                    engine = engine,
+                    session = session,
+                    index = index,
+                    pageCount = state.pageCount,
+                    size = size,
+                    renderWidth = renderWidth,
+                    revision = state.revision,
+                    highlight = state.selection?.boxes?.filter { it.page == index }.orEmpty(),
+                    onTap = if (state.editing) { x, y -> onPageTapped(index, x, y) } else null,
+                )
             }
         }
         Text(
@@ -262,15 +378,51 @@ private fun Pages(state: ViewerUiState, onPageVisible: (Int) -> Unit) {
 }
 
 @Composable
-private fun Page(engine: AndroidDocumentEngine, session: Long, index: Int, pageCount: Int, size: PageSizePt, renderWidth: Int) {
-    val bitmap by produceState<Result<Bitmap?>?>(initialValue = null, session, index, renderWidth) {
-        value = Result.success(withContext(Dispatchers.Default) { engine.render(session, index, renderWidth) })
+private fun Page(
+    engine: AndroidDocumentEngine,
+    session: Long,
+    index: Int,
+    pageCount: Int,
+    size: PageSizePt,
+    renderWidth: Int,
+    revision: Int,
+    highlight: List<PageBox>,
+    onTap: ((Float, Float) -> Unit)?,
+) {
+    // 픽셀 상한 안에서 너비를 정한다(세로로 긴 쪽은 더 작게)
+    val aspect = (size.height / size.width.coerceAtLeast(1f)).coerceIn(0.1f, 10f)
+    val width = minOf(renderWidth, kotlin.math.sqrt(MAX_RENDER_PIXELS / aspect).toInt()).coerceAtLeast(1)
+    // 새 너비로 다시 그리는 동안 이전 그림을 그대로 둔다(깜박이지 않게)
+    var bitmap by remember(session, index) { mutableStateOf<Result<Bitmap?>?>(null) }
+    LaunchedEffect(session, index, width, revision) {
+        val rendered = withContext(Dispatchers.Default) { engine.render(session, index, width) }
+        if (rendered != null || bitmap?.getOrNull() == null) bitmap = Result.success(rendered)
     }
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .aspectRatio((size.width / size.height).coerceIn(0.1f, 10f))
-            .background(Color.White),
+            .background(Color.White)
+            .then(
+                if (onTap == null) Modifier
+                else Modifier.pointerInput(onTap, size) {
+                    // 화면 좌표 → 쪽 좌표(pt)
+                    detectTapGestures { offset ->
+                        onTap(offset.x / this.size.width * size.width, offset.y / this.size.height * size.height)
+                    }
+                },
+            )
+            .drawWithContent {
+                drawContent()
+                val scale = this.size.width / size.width
+                highlight.forEach { box ->
+                    drawRect(
+                        color = HIGHLIGHT,
+                        topLeft = Offset(box.x * scale, box.y * scale),
+                        size = androidx.compose.ui.geometry.Size(box.width * scale, box.height * scale),
+                    )
+                }
+            },
         contentAlignment = Alignment.Center,
     ) {
         val image = bitmap?.getOrNull()

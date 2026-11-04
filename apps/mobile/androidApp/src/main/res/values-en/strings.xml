@@ -443,4 +443,19 @@
     <string name="viewer_loss">%1$d element(s) in this document, such as shapes, can\'t be shown yet.</string>
     <string name="viewer_page_failed">This page couldn\'t be drawn</string>
     <string name="common_close">Close</string>
+    <!-- 문서 편집(feature:documents) -->
+    <string name="viewer_edit">Edit</string>
+    <string name="viewer_edit_done">Done editing</string>
+    <string name="viewer_edit_hint">Tap a paragraph to edit it</string>
+    <string name="viewer_edit_title">Edit paragraph</string>
+    <string name="viewer_edit_apply">Apply</string>
+    <string name="viewer_undo">Undo</string>
+    <string name="viewer_save">Save</string>
+    <string name="viewer_saved">Saved</string>
+    <string name="viewer_save_failed">Couldn\'t save. Please try again.</string>
+    <string name="viewer_save_readonly">This file can\'t be written. Open a file from a writable location, such as Downloads.</string>
+    <string name="viewer_edit_failed">Couldn\'t edit this paragraph</string>
+    <string name="viewer_exit_title">Unsaved changes</string>
+    <string name="viewer_exit_message">Save your changes? If you don\'t, they\'ll be lost.</string>
+    <string name="viewer_exit_discard">Don\'t save</string>
 </resources>

@@ -683,9 +683,19 @@ internal object IntegrityCheckingUniffiLib {
     ): Int
     external fun uniffi_papy_ffi_checksum_method_papyengine_open(
     ): Int
+    external fun uniffi_papy_ffi_checksum_method_papyengine_page_count(
+    ): Int
     external fun uniffi_papy_ffi_checksum_method_papyengine_page_size(
     ): Int
+    external fun uniffi_papy_ffi_checksum_method_papyengine_paragraph_at(
+    ): Int
     external fun uniffi_papy_ffi_checksum_method_papyengine_render_page(
+    ): Int
+    external fun uniffi_papy_ffi_checksum_method_papyengine_replace_paragraph(
+    ): Int
+    external fun uniffi_papy_ffi_checksum_method_papyengine_save(
+    ): Int
+    external fun uniffi_papy_ffi_checksum_method_papyengine_undo(
     ): Int
     external fun uniffi_papy_ffi_checksum_constructor_papyengine_new(
     ): Int
@@ -721,10 +731,20 @@ internal object UniffiLib {
     ): RustBuffer.ByValue
     external fun uniffi_papy_ffi_fn_method_papyengine_open(`ptr`: Long,`bytes`: RustBuffer.ByValue,`password`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
+    external fun uniffi_papy_ffi_fn_method_papyengine_page_count(`ptr`: Long,`sessionId`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    ): Int
     external fun uniffi_papy_ffi_fn_method_papyengine_page_size(`ptr`: Long,`sessionId`: Long,`page`: Int,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    external fun uniffi_papy_ffi_fn_method_papyengine_paragraph_at(`ptr`: Long,`sessionId`: Long,`page`: Int,`x`: Float,`y`: Float,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     external fun uniffi_papy_ffi_fn_method_papyengine_render_page(`ptr`: Long,`sessionId`: Long,`page`: Int,`scale`: Float,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
+    external fun uniffi_papy_ffi_fn_method_papyengine_replace_paragraph(`ptr`: Long,`sessionId`: Long,`section`: Int,`paragraph`: Int,`text`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): Int
+    external fun uniffi_papy_ffi_fn_method_papyengine_save(`ptr`: Long,`sessionId`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    external fun uniffi_papy_ffi_fn_method_papyengine_undo(`ptr`: Long,`sessionId`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    ): Byte
     external fun uniffi_papy_ffi_fn_func_engine_version(uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     external fun ffi_papy_ffi_rustbuffer_alloc(`size`: Long,uniffi_out_err: UniffiRustCallStatus, 
@@ -858,10 +878,25 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if ((lib.uniffi_papy_ffi_checksum_method_papyengine_open() and 0xFFFF) != 52631) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if ((lib.uniffi_papy_ffi_checksum_method_papyengine_page_count() and 0xFFFF) != 12156) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if ((lib.uniffi_papy_ffi_checksum_method_papyengine_page_size() and 0xFFFF) != 63992) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if ((lib.uniffi_papy_ffi_checksum_method_papyengine_paragraph_at() and 0xFFFF) != 1064) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if ((lib.uniffi_papy_ffi_checksum_method_papyengine_render_page() and 0xFFFF) != 371) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if ((lib.uniffi_papy_ffi_checksum_method_papyengine_replace_paragraph() and 0xFFFF) != 30685) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if ((lib.uniffi_papy_ffi_checksum_method_papyengine_save() and 0xFFFF) != 57793) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if ((lib.uniffi_papy_ffi_checksum_method_papyengine_undo() and 0xFFFF) != 56942) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_papy_ffi_checksum_constructor_papyengine_new() and 0xFFFF) != 27607) {
@@ -1096,6 +1131,29 @@ public object FfiConverterFloat: FfiConverter<Float, Float> {
 /**
  * @suppress
  */
+public object FfiConverterBoolean: FfiConverter<Boolean, Byte> {
+    override fun lift(value: Byte): Boolean {
+        return value.toInt() != 0
+    }
+
+    override fun read(buf: ByteBuffer): Boolean {
+        return lift(buf.get())
+    }
+
+    override fun lower(value: Boolean): Byte {
+        return if (value) 1.toByte() else 0.toByte()
+    }
+
+    override fun allocationSize(value: Boolean) = 1UL
+
+    override fun write(value: Boolean, buf: ByteBuffer) {
+        buf.put(lower(value))
+    }
+}
+
+/**
+ * @suppress
+ */
 public object FfiConverterString: FfiConverter<String, RustBuffer.ByValue> {
     // Note: we don't inherit from FfiConverterRustBuffer, because we use a
     // special encoding when lowering/lifting.  We can use `RustBuffer.len` to
@@ -1286,14 +1344,40 @@ public interface PapyEngineInterface {
     fun `open`(`bytes`: kotlin.ByteArray, `password`: kotlin.String?): DocumentSummary
     
     /**
+     * 쪽 수(편집하면 바뀔 수 있다).
+     */
+    fun `pageCount`(`sessionId`: kotlin.ULong): kotlin.UInt
+    
+    /**
      * 쪽 크기(pt).
      */
     fun `pageSize`(`sessionId`: kotlin.ULong, `page`: kotlin.UInt): PageDimensions
     
     /**
+     * 쪽의 (x, y)(pt) 자리에 있는 문단. 글자가 없는 곳이면 가장 가까운 문단.
+     */
+    fun `paragraphAt`(`sessionId`: kotlin.ULong, `page`: kotlin.UInt, `x`: kotlin.Float, `y`: kotlin.Float): ParagraphAtPoint
+    
+    /**
      * 쪽을 그린다. `scale` 1.0 = 72 DPI(1pt = 1px). 흰 배경.
      */
     fun `renderPage`(`sessionId`: kotlin.ULong, `page`: kotlin.UInt, `scale`: kotlin.Float): PageImage
+    
+    /**
+     * 문단 글자를 바꾼다(문단 서식은 그대로, `\n` 은 문단 나누기).
+     * 지우기·넣기로 하므로 되돌리기 단계 수(0~2)를 돌려준다 — 되돌릴 때 그만큼 [`Self::undo`] 를 부른다.
+     */
+    fun `replaceParagraph`(`sessionId`: kotlin.ULong, `section`: kotlin.UInt, `paragraph`: kotlin.UInt, `text`: kotlin.String): kotlin.UInt
+    
+    /**
+     * 원래 형식으로 저장한 바이트(암호 문서는 같은 암호로).
+     */
+    fun `save`(`sessionId`: kotlin.ULong): kotlin.ByteArray
+    
+    /**
+     * 마지막 편집을 되돌린다. 되돌린 것이 있으면 true.
+     */
+    fun `undo`(`sessionId`: kotlin.ULong): kotlin.Boolean
     
     companion object
 }
@@ -1470,6 +1554,24 @@ open class PapyEngine: Disposable, AutoCloseable, PapyEngineInterface
 
     
     /**
+     * 쪽 수(편집하면 바뀔 수 있다).
+     */
+    @Throws(PapyException::class)override fun `pageCount`(`sessionId`: kotlin.ULong): kotlin.UInt {
+            return FfiConverterUInt.lift(
+    callWithHandle {
+    uniffiRustCallWithError(PapyException) { _status ->
+    UniffiLib.uniffi_papy_ffi_fn_method_papyengine_page_count(
+        it,
+        
+        FfiConverterULong.lower(`sessionId`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    /**
      * 쪽 크기(pt).
      */
     @Throws(PapyException::class)override fun `pageSize`(`sessionId`: kotlin.ULong, `page`: kotlin.UInt): PageDimensions {
@@ -1481,6 +1583,27 @@ open class PapyEngine: Disposable, AutoCloseable, PapyEngineInterface
         
         FfiConverterULong.lower(`sessionId`),
         FfiConverterUInt.lower(`page`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    /**
+     * 쪽의 (x, y)(pt) 자리에 있는 문단. 글자가 없는 곳이면 가장 가까운 문단.
+     */
+    @Throws(PapyException::class)override fun `paragraphAt`(`sessionId`: kotlin.ULong, `page`: kotlin.UInt, `x`: kotlin.Float, `y`: kotlin.Float): ParagraphAtPoint {
+            return FfiConverterTypeParagraphAtPoint.lift(
+    callWithHandle {
+    uniffiRustCallWithError(PapyException) { _status ->
+    UniffiLib.uniffi_papy_ffi_fn_method_papyengine_paragraph_at(
+        it,
+        
+        FfiConverterULong.lower(`sessionId`),
+        FfiConverterUInt.lower(`page`),
+        FfiConverterFloat.lower(`x`),
+        FfiConverterFloat.lower(`y`),_status)
 }
     }
     )
@@ -1501,6 +1624,64 @@ open class PapyEngine: Disposable, AutoCloseable, PapyEngineInterface
         FfiConverterULong.lower(`sessionId`),
         FfiConverterUInt.lower(`page`),
         FfiConverterFloat.lower(`scale`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    /**
+     * 문단 글자를 바꾼다(문단 서식은 그대로, `\n` 은 문단 나누기).
+     * 지우기·넣기로 하므로 되돌리기 단계 수(0~2)를 돌려준다 — 되돌릴 때 그만큼 [`Self::undo`] 를 부른다.
+     */
+    @Throws(PapyException::class)override fun `replaceParagraph`(`sessionId`: kotlin.ULong, `section`: kotlin.UInt, `paragraph`: kotlin.UInt, `text`: kotlin.String): kotlin.UInt {
+            return FfiConverterUInt.lift(
+    callWithHandle {
+    uniffiRustCallWithError(PapyException) { _status ->
+    UniffiLib.uniffi_papy_ffi_fn_method_papyengine_replace_paragraph(
+        it,
+        
+        FfiConverterULong.lower(`sessionId`),
+        FfiConverterUInt.lower(`section`),
+        FfiConverterUInt.lower(`paragraph`),
+        FfiConverterString.lower(`text`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    /**
+     * 원래 형식으로 저장한 바이트(암호 문서는 같은 암호로).
+     */
+    @Throws(PapyException::class)override fun `save`(`sessionId`: kotlin.ULong): kotlin.ByteArray {
+            return FfiConverterByteArray.lift(
+    callWithHandle {
+    uniffiRustCallWithError(PapyException) { _status ->
+    UniffiLib.uniffi_papy_ffi_fn_method_papyengine_save(
+        it,
+        
+        FfiConverterULong.lower(`sessionId`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    /**
+     * 마지막 편집을 되돌린다. 되돌린 것이 있으면 true.
+     */
+    @Throws(PapyException::class)override fun `undo`(`sessionId`: kotlin.ULong): kotlin.Boolean {
+            return FfiConverterBoolean.lift(
+    callWithHandle {
+    uniffiRustCallWithError(PapyException) { _status ->
+    UniffiLib.uniffi_papy_ffi_fn_method_papyengine_undo(
+        it,
+        
+        FfiConverterULong.lower(`sessionId`),_status)
 }
     }
     )
@@ -1575,6 +1756,11 @@ data class DocumentSummary (
      * 열 때 옮기지 못한 요소 수
      */
     var `droppedObjects`: kotlin.UInt
+    , 
+    /**
+     * 본문을 고칠 수 있는가(HWP·HWPX·DOCX)
+     */
+    var `canEdit`: kotlin.Boolean
     
 ){
     
@@ -1596,6 +1782,7 @@ public object FfiConverterTypeDocumentSummary: FfiConverterRustBuffer<DocumentSu
             FfiConverterUInt.read(buf),
             FfiConverterOptionalString.read(buf),
             FfiConverterUInt.read(buf),
+            FfiConverterBoolean.read(buf),
         )
     }
 
@@ -1604,7 +1791,8 @@ public object FfiConverterTypeDocumentSummary: FfiConverterRustBuffer<DocumentSu
             FfiConverterString.allocationSize(value.`format`) +
             FfiConverterUInt.allocationSize(value.`pageCount`) +
             FfiConverterOptionalString.allocationSize(value.`title`) +
-            FfiConverterUInt.allocationSize(value.`droppedObjects`)
+            FfiConverterUInt.allocationSize(value.`droppedObjects`) +
+            FfiConverterBoolean.allocationSize(value.`canEdit`)
     )
 
     override fun write(value: DocumentSummary, buf: ByteBuffer) {
@@ -1613,6 +1801,7 @@ public object FfiConverterTypeDocumentSummary: FfiConverterRustBuffer<DocumentSu
             FfiConverterUInt.write(value.`pageCount`, buf)
             FfiConverterOptionalString.write(value.`title`, buf)
             FfiConverterUInt.write(value.`droppedObjects`, buf)
+            FfiConverterBoolean.write(value.`canEdit`, buf)
     }
 }
 
@@ -1715,6 +1904,140 @@ public object FfiConverterTypePageImage: FfiConverterRustBuffer<PageImage> {
             FfiConverterUInt.write(value.`width`, buf)
             FfiConverterUInt.write(value.`height`, buf)
             FfiConverterByteArray.write(value.`rgba`, buf)
+    }
+}
+
+
+
+/**
+ * 쪽 위 사각형(pt, 쪽 왼쪽 위 기준).
+ */
+data class PageRegion (
+    /**
+     * 쪽(0부터)
+     */
+    var `page`: kotlin.UInt
+    , 
+    /**
+     * 왼쪽
+     */
+    var `x`: kotlin.Float
+    , 
+    /**
+     * 위
+     */
+    var `y`: kotlin.Float
+    , 
+    /**
+     * 너비
+     */
+    var `width`: kotlin.Float
+    , 
+    /**
+     * 높이
+     */
+    var `height`: kotlin.Float
+    
+){
+    
+
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypePageRegion: FfiConverterRustBuffer<PageRegion> {
+    override fun read(buf: ByteBuffer): PageRegion {
+        return PageRegion(
+            FfiConverterUInt.read(buf),
+            FfiConverterFloat.read(buf),
+            FfiConverterFloat.read(buf),
+            FfiConverterFloat.read(buf),
+            FfiConverterFloat.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: PageRegion) = (
+            FfiConverterUInt.allocationSize(value.`page`) +
+            FfiConverterFloat.allocationSize(value.`x`) +
+            FfiConverterFloat.allocationSize(value.`y`) +
+            FfiConverterFloat.allocationSize(value.`width`) +
+            FfiConverterFloat.allocationSize(value.`height`)
+    )
+
+    override fun write(value: PageRegion, buf: ByteBuffer) {
+            FfiConverterUInt.write(value.`page`, buf)
+            FfiConverterFloat.write(value.`x`, buf)
+            FfiConverterFloat.write(value.`y`, buf)
+            FfiConverterFloat.write(value.`width`, buf)
+            FfiConverterFloat.write(value.`height`, buf)
+    }
+}
+
+
+
+/**
+ * 누른 자리의 문단: 위치·글자·화면에 그릴 사각형.
+ */
+data class ParagraphAtPoint (
+    /**
+     * 구역
+     */
+    var `section`: kotlin.UInt
+    , 
+    /**
+     * 문단
+     */
+    var `paragraph`: kotlin.UInt
+    , 
+    /**
+     * 문단 글자
+     */
+    var `text`: kotlin.String
+    , 
+    /**
+     * 문단을 덮는 줄 사각형(여러 쪽에 걸칠 수 있다)
+     */
+    var `boxes`: List<PageRegion>
+    
+){
+    
+
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeParagraphAtPoint: FfiConverterRustBuffer<ParagraphAtPoint> {
+    override fun read(buf: ByteBuffer): ParagraphAtPoint {
+        return ParagraphAtPoint(
+            FfiConverterUInt.read(buf),
+            FfiConverterUInt.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterSequenceTypePageRegion.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: ParagraphAtPoint) = (
+            FfiConverterUInt.allocationSize(value.`section`) +
+            FfiConverterUInt.allocationSize(value.`paragraph`) +
+            FfiConverterString.allocationSize(value.`text`) +
+            FfiConverterSequenceTypePageRegion.allocationSize(value.`boxes`)
+    )
+
+    override fun write(value: ParagraphAtPoint, buf: ByteBuffer) {
+            FfiConverterUInt.write(value.`section`, buf)
+            FfiConverterUInt.write(value.`paragraph`, buf)
+            FfiConverterString.write(value.`text`, buf)
+            FfiConverterSequenceTypePageRegion.write(value.`boxes`, buf)
     }
 }
 
@@ -2030,6 +2353,34 @@ public object FfiConverterOptionalString: FfiConverterRustBuffer<kotlin.String?>
         } else {
             buf.put(1)
             FfiConverterString.write(value, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterSequenceTypePageRegion: FfiConverterRustBuffer<List<PageRegion>> {
+    override fun read(buf: ByteBuffer): List<PageRegion> {
+        val len = buf.getInt()
+        return List<PageRegion>(len) {
+            FfiConverterTypePageRegion.read(buf)
+        }
+    }
+
+    override fun allocationSize(value: List<PageRegion>): ULong {
+        val sizeForLength = 4UL
+        val sizeForItems = value.map { FfiConverterTypePageRegion.allocationSize(it) }.sum()
+        return sizeForLength + sizeForItems
+    }
+
+    override fun write(value: List<PageRegion>, buf: ByteBuffer) {
+        buf.putInt(value.size)
+        value.iterator().forEach {
+            FfiConverterTypePageRegion.write(it, buf)
         }
     }
 }

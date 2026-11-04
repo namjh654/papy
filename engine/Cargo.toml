@@ -32,5 +32,8 @@ missing_docs = "warn"
 all = { level = "warn", priority = -1 }
 
 [profile.release]
-# 모바일 라이브러리 크기를 줄인다(디버그 기호 제거).
+# 모바일 라이브러리 크기를 줄인다: 디버그 기호 제거, 크레이트 사이 최적화(LTO)로 쓰지 않는 코드 제거.
+# panic 은 unwind 로 둔다 — papy-hwp 가 rhwp 패닉을 catch_unwind 로 오류로 바꾼다.
 strip = "symbols"
+lto = "fat"
+codegen-units = 1

@@ -34,15 +34,16 @@ const run = (cmd, args, env = {}) =>
   execFileSync(cmd, args, { cwd: engine, stdio: ["ignore", "inherit", "inherit"], env: { ...process.env, ...env } });
 const cargo = (args, env) => run("cargo", args, env);
 
+/** 바인딩 생성용 호스트 라이브러리(디버그 빌드 — 내보낸 항목 정보만 읽는다. release 는 LTO 로 느리다) */
 function hostLibrary() {
-  cargo(["build", "--release", "-p", "papy-ffi"]);
+  cargo(["build", "-p", "papy-ffi", "--lib"]);
   const name = process.platform === "darwin" ? "libpapy_ffi.dylib" : process.platform === "win32" ? "papy_ffi.dll" : "libpapy_ffi.so";
-  return join(engine, "target", "release", name);
+  return join(engine, "target", "debug", name);
 }
 
 function bindgen(language, library, outDir, extra = []) {
   cargo([
-    "run", "--release", "-q", "-p", "papy-ffi", "--features", "bindgen", "--bin", "uniffi-bindgen", "--",
+    "run", "-q", "-p", "papy-ffi", "--features", "bindgen", "--bin", "uniffi-bindgen", "--",
     "generate", "--library", library, "--language", language, "--out-dir", outDir, "--no-format", ...extra,
   ]);
 }
@@ -98,6 +99,8 @@ function android() {
       [`CARGO_TARGET_${key}_LINKER`]: clang,
       [`CC_${target.replaceAll("-", "_")}`]: clang,
       [`AR_${target.replaceAll("-", "_")}`]: join(bin, `llvm-ar${process.platform === "win32" ? ".exe" : ""}`),
+      // Google Play: Android 15+ 대상 앱의 네이티브 라이브러리는 16KB 페이지 정렬이어야 한다.
+      [`CARGO_TARGET_${key}_RUSTFLAGS`]: "-C link-arg=-Wl,-z,max-page-size=16384",
     });
     const out = join(jniLibs, abi);
     mkdirSync(out, { recursive: true });

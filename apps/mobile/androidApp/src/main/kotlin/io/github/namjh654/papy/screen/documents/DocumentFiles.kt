@@ -26,7 +26,13 @@ fun Context.displayName(uri: Uri): String =
         }
     }.getOrNull() ?: uri.lastPathSegment?.substringAfterLast('/') ?: "document"
 
-/** 다음에 앱을 다시 켜도 최근 문서로 열 수 있게 읽기 권한을 유지한다(문서 공급자가 허락할 때만) */
+/**
+ * 다음에 앱을 다시 켜도 최근 문서로 열고 저장할 수 있게 권한을 유지한다(문서 공급자가 허락할 때만).
+ * 쓰기 권한을 주지 않는 공급자면 읽기만 유지한다(저장하면 "쓸 수 없음"으로 알린다).
+ */
 fun Context.keepReadAccess(uri: Uri) {
-    runCatching { contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+    val read = Intent.FLAG_GRANT_READ_URI_PERMISSION
+    val write = Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+    runCatching { contentResolver.takePersistableUriPermission(uri, read or write) }
+        .onFailure { runCatching { contentResolver.takePersistableUriPermission(uri, read) } }
 }

@@ -10,8 +10,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use papy_core::{
-    DocumentFormat, DocumentSource, Engine, EngineResources, ErrorCode, Limits, OpenOptions,
-    RenderRequest, SessionId,
+    CaretMotion, Document, DocumentFormat, DocumentSource, Engine, EngineResources, ErrorCode,
+    Limits, OpenOptions, RenderRequest, SaveFormat, SessionId, TextPos,
 };
 
 uniffi::setup_scaffolding!();
@@ -99,6 +99,36 @@ pub struct DocumentSummary {
     pub title: Option<String>,
     /// 열 때 옮기지 못한 요소 수
     pub dropped_objects: u32,
+    /// 본문을 고칠 수 있는가(HWP·HWPX·DOCX)
+    pub can_edit: bool,
+}
+
+/// 쪽 위 사각형(pt, 쪽 왼쪽 위 기준).
+#[derive(Debug, Clone, Copy, uniffi::Record)]
+pub struct PageRegion {
+    /// 쪽(0부터)
+    pub page: u32,
+    /// 왼쪽
+    pub x: f32,
+    /// 위
+    pub y: f32,
+    /// 너비
+    pub width: f32,
+    /// 높이
+    pub height: f32,
+}
+
+/// 누른 자리의 문단: 위치·글자·화면에 그릴 사각형.
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct ParagraphAtPoint {
+    /// 구역
+    pub section: u32,
+    /// 문단
+    pub paragraph: u32,
+    /// 문단 글자
+    pub text: String,
+    /// 문단을 덮는 줄 사각형(여러 쪽에 걸칠 수 있다)
+    pub boxes: Vec<PageRegion>,
 }
 
 /// 쪽 크기(pt).
@@ -131,6 +161,56 @@ fn session(raw: u64) -> Result<SessionId, PapyError> {
     SessionId::from_raw(raw).ok_or_else(|| PapyError::SessionNotFound {
         detail: "invalid session handle".into(),
     })
+}
+
+/// 문단 끝 위치. 다음 문단(또는 다음 구역) 처음에서 한 글자 앞으로 가면 이 문단 끝이다.
+fn paragraph_end(
+    doc: &mut dyn Document,
+    section: u32,
+    paragraph: u32,
+) -> papy_core::Result<TextPos> {
+    let same = |pos: &TextPos| pos.section == section && pos.paragraph == paragraph;
+    for next in [
+        TextPos {
+            section,
+            paragraph: paragraph + 1,
+            offset: 0,
+        },
+        TextPos {
+            section: section + 1,
+            paragraph: 0,
+            offset: 0,
+        },
+    ] {
+        if let Ok(pos) = doc.move_caret(next, CaretMotion::Left) {
+            if same(&pos) {
+                return Ok(pos);
+            }
+        }
+    }
+    let start = TextPos {
+        section,
+        paragraph,
+        offset: 0,
+    };
+    let end = doc.move_caret(start, CaretMotion::DocumentEnd)?;
+    if same(&end) {
+        Ok(end)
+    } else {
+        Err(papy_core::Error::new(
+            ErrorCode::InvalidArgument,
+            "paragraph end not found",
+        ))
+    }
+}
+
+fn save_format(format: DocumentFormat) -> Option<SaveFormat> {
+    match format {
+        DocumentFormat::Hwpx => Some(SaveFormat::Hwpx),
+        DocumentFormat::CompoundFile => Some(SaveFormat::Hwp),
+        DocumentFormat::Docx | DocumentFormat::ZipContainer => Some(SaveFormat::Docx),
+        _ => None,
+    }
 }
 
 fn format_name(format: DocumentFormat) -> &'static str {
@@ -181,6 +261,7 @@ impl PapyEngine {
                 page_count: info.page_count,
                 title: info.title,
                 dropped_objects: info.dropped_objects,
+                can_edit: info.capabilities.edit,
             }),
             Err(error) => {
                 let _ = self.engine.close(id);
@@ -222,6 +303,108 @@ impl PapyEngine {
     /// 쪽의 글자.
     pub fn extract_text(&self, session_id: u64, page: u32) -> Result<String, PapyError> {
         Ok(self.engine.extract_text(session(session_id)?, page)?)
+    }
+
+    /// 쪽 수(편집하면 바뀔 수 있다).
+    pub fn page_count(&self, session_id: u64) -> Result<u32, PapyError> {
+        Ok(self.engine.page_count(session(session_id)?)?)
+    }
+
+    /// 쪽의 (x, y)(pt) 자리에 있는 문단. 글자가 없는 곳이면 가장 가까운 문단.
+    pub fn paragraph_at(
+        &self,
+        session_id: u64,
+        page: u32,
+        x: f32,
+        y: f32,
+    ) -> Result<ParagraphAtPoint, PapyError> {
+        Ok(self.engine.edit(session(session_id)?, |doc| {
+            let pos = doc.hit_test(page, x, y)?;
+            let start = TextPos { offset: 0, ..pos };
+            let end = paragraph_end(doc, pos.section, pos.paragraph)?;
+            let text = doc.text_in_range(start, end)?;
+            let boxes = doc
+                .selection_rects(start, end)?
+                .into_iter()
+                .map(|r| PageRegion {
+                    page: r.page,
+                    x: r.x,
+                    y: r.y,
+                    width: r.width,
+                    height: r.height,
+                })
+                .collect::<Vec<_>>();
+            // 빈 문단은 커서 자리라도 보이게 한다.
+            let boxes = if boxes.is_empty() {
+                let caret = doc.caret_rect(start)?;
+                vec![PageRegion {
+                    page: caret.page,
+                    x: caret.x,
+                    y: caret.y,
+                    width: 4.0,
+                    height: caret.height,
+                }]
+            } else {
+                boxes
+            };
+            Ok(ParagraphAtPoint {
+                section: pos.section,
+                paragraph: pos.paragraph,
+                text,
+                boxes,
+            })
+        })?)
+    }
+
+    /// 문단 글자를 바꾼다(문단 서식은 그대로, `\n` 은 문단 나누기).
+    /// 지우기·넣기로 하므로 되돌리기 단계 수(0~2)를 돌려준다 — 되돌릴 때 그만큼 [`Self::undo`] 를 부른다.
+    pub fn replace_paragraph(
+        &self,
+        session_id: u64,
+        section: u32,
+        paragraph: u32,
+        text: String,
+    ) -> Result<u32, PapyError> {
+        if text.chars().count() > 100_000 {
+            return Err(PapyError::LimitExceeded {
+                detail: "paragraph text is too long".into(),
+            });
+        }
+        Ok(self.engine.edit(session(session_id)?, |doc| {
+            let start = TextPos {
+                section,
+                paragraph,
+                offset: 0,
+            };
+            let end = paragraph_end(doc, section, paragraph)?;
+            let mut steps = 0;
+            if end.offset > 0 {
+                doc.delete_range(start, end)?;
+                steps += 1;
+            }
+            if !text.is_empty() {
+                doc.insert_text(start, &text)?;
+                steps += 1;
+            }
+            Ok(steps)
+        })?)
+    }
+
+    /// 마지막 편집을 되돌린다. 되돌린 것이 있으면 true.
+    pub fn undo(&self, session_id: u64) -> Result<bool, PapyError> {
+        Ok(self
+            .engine
+            .edit(session(session_id)?, |doc| Ok(doc.undo()?.is_some()))?)
+    }
+
+    /// 원래 형식으로 저장한 바이트(암호 문서는 같은 암호로).
+    pub fn save(&self, session_id: u64) -> Result<Vec<u8>, PapyError> {
+        let id = session(session_id)?;
+        let format =
+            save_format(self.engine.info(id)?.format).ok_or_else(|| PapyError::NotImplemented {
+                detail: "this format can't be saved here".into(),
+            })?;
+        Ok(self.engine.save(id, format)?)
     }
 
     /// 문서를 닫는다. 이미 닫혔으면 아무것도 하지 않는다.

@@ -78,6 +78,11 @@ android {
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         // versionCode·versionName 은 env/common.properties (papy.android.environments 가 flavor 에 넣는다)
+        // Papy 엔진(libpapy_ffi.so)은 64비트 ARM·x86 만 만든다(scripts/build-mobile-engine.mjs).
+        // 다른 ABI(32비트 ARM 등) 기기에 설치되면 엔진이 없어 문서를 열 수 없으므로 막고, JNA 의 다른 ABI 라이브러리도 뺀다.
+        ndk {
+            abiFilters += listOf("arm64-v8a", "x86_64")
+        }
     }
     packaging {
         resources {

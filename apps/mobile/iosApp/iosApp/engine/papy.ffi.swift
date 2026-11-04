@@ -513,6 +513,30 @@ fileprivate struct FfiConverterFloat: FfiConverterPrimitive {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterBool : FfiConverter {
+    typealias FfiType = Int8
+    typealias SwiftType = Bool
+
+    public static func lift(_ value: Int8) throws -> Bool {
+        return value != 0
+    }
+
+    public static func lower(_ value: Bool) -> Int8 {
+        return value ? 1 : 0
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Bool {
+        return try lift(readInt(&buf))
+    }
+
+    public static func write(_ value: Bool, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(value))
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterString: FfiConverter {
     typealias SwiftType = String
     typealias FfiType = RustBuffer
@@ -598,14 +622,40 @@ public protocol PapyEngineProtocol: AnyObject, Sendable {
     func `open`(bytes: Data, password: String?) throws  -> DocumentSummary
     
     /**
+     * 쪽 수(편집하면 바뀔 수 있다).
+     */
+    func pageCount(sessionId: UInt64) throws  -> UInt32
+    
+    /**
      * 쪽 크기(pt).
      */
     func pageSize(sessionId: UInt64, page: UInt32) throws  -> PageDimensions
     
     /**
+     * 쪽의 (x, y)(pt) 자리에 있는 문단. 글자가 없는 곳이면 가장 가까운 문단.
+     */
+    func paragraphAt(sessionId: UInt64, page: UInt32, x: Float, y: Float) throws  -> ParagraphAtPoint
+    
+    /**
      * 쪽을 그린다. `scale` 1.0 = 72 DPI(1pt = 1px). 흰 배경.
      */
     func renderPage(sessionId: UInt64, page: UInt32, scale: Float) throws  -> PageImage
+    
+    /**
+     * 문단 글자를 바꾼다(문단 서식은 그대로, `\n` 은 문단 나누기).
+     * 지우기·넣기로 하므로 되돌리기 단계 수(0~2)를 돌려준다 — 되돌릴 때 그만큼 [`Self::undo`] 를 부른다.
+     */
+    func replaceParagraph(sessionId: UInt64, section: UInt32, paragraph: UInt32, text: String) throws  -> UInt32
+    
+    /**
+     * 원래 형식으로 저장한 바이트(암호 문서는 같은 암호로).
+     */
+    func save(sessionId: UInt64) throws  -> Data
+    
+    /**
+     * 마지막 편집을 되돌린다. 되돌린 것이 있으면 true.
+     */
+    func undo(sessionId: UInt64) throws  -> Bool
     
 }
 /**
@@ -717,6 +767,19 @@ open func `open`(bytes: Data, password: String?)throws  -> DocumentSummary  {
 }
     
     /**
+     * 쪽 수(편집하면 바뀔 수 있다).
+     */
+open func pageCount(sessionId: UInt64)throws  -> UInt32  {
+    return try  FfiConverterUInt32.lift(try rustCallWithError(FfiConverterTypePapyError_lift) {
+        uniffiCallStatus in
+    uniffi_papy_ffi_fn_method_papyengine_page_count(
+            self.uniffiCloneHandle(),
+        FfiConverterUInt64.lower(sessionId),uniffiCallStatus
+    )
+})
+}
+    
+    /**
      * 쪽 크기(pt).
      */
 open func pageSize(sessionId: UInt64, page: UInt32)throws  -> PageDimensions  {
@@ -726,6 +789,22 @@ open func pageSize(sessionId: UInt64, page: UInt32)throws  -> PageDimensions  {
             self.uniffiCloneHandle(),
         FfiConverterUInt64.lower(sessionId),
         FfiConverterUInt32.lower(page),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * 쪽의 (x, y)(pt) 자리에 있는 문단. 글자가 없는 곳이면 가장 가까운 문단.
+     */
+open func paragraphAt(sessionId: UInt64, page: UInt32, x: Float, y: Float)throws  -> ParagraphAtPoint  {
+    return try  FfiConverterTypeParagraphAtPoint_lift(try rustCallWithError(FfiConverterTypePapyError_lift) {
+        uniffiCallStatus in
+    uniffi_papy_ffi_fn_method_papyengine_paragraph_at(
+            self.uniffiCloneHandle(),
+        FfiConverterUInt64.lower(sessionId),
+        FfiConverterUInt32.lower(page),
+        FfiConverterFloat.lower(x),
+        FfiConverterFloat.lower(y),uniffiCallStatus
     )
 })
 }
@@ -741,6 +820,49 @@ open func renderPage(sessionId: UInt64, page: UInt32, scale: Float)throws  -> Pa
         FfiConverterUInt64.lower(sessionId),
         FfiConverterUInt32.lower(page),
         FfiConverterFloat.lower(scale),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * 문단 글자를 바꾼다(문단 서식은 그대로, `\n` 은 문단 나누기).
+     * 지우기·넣기로 하므로 되돌리기 단계 수(0~2)를 돌려준다 — 되돌릴 때 그만큼 [`Self::undo`] 를 부른다.
+     */
+open func replaceParagraph(sessionId: UInt64, section: UInt32, paragraph: UInt32, text: String)throws  -> UInt32  {
+    return try  FfiConverterUInt32.lift(try rustCallWithError(FfiConverterTypePapyError_lift) {
+        uniffiCallStatus in
+    uniffi_papy_ffi_fn_method_papyengine_replace_paragraph(
+            self.uniffiCloneHandle(),
+        FfiConverterUInt64.lower(sessionId),
+        FfiConverterUInt32.lower(section),
+        FfiConverterUInt32.lower(paragraph),
+        FfiConverterString.lower(text),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * 원래 형식으로 저장한 바이트(암호 문서는 같은 암호로).
+     */
+open func save(sessionId: UInt64)throws  -> Data  {
+    return try  FfiConverterData.lift(try rustCallWithError(FfiConverterTypePapyError_lift) {
+        uniffiCallStatus in
+    uniffi_papy_ffi_fn_method_papyengine_save(
+            self.uniffiCloneHandle(),
+        FfiConverterUInt64.lower(sessionId),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * 마지막 편집을 되돌린다. 되돌린 것이 있으면 true.
+     */
+open func undo(sessionId: UInt64)throws  -> Bool  {
+    return try  FfiConverterBool.lift(try rustCallWithError(FfiConverterTypePapyError_lift) {
+        uniffiCallStatus in
+    uniffi_papy_ffi_fn_method_papyengine_undo(
+            self.uniffiCloneHandle(),
+        FfiConverterUInt64.lower(sessionId),uniffiCallStatus
     )
 })
 }
@@ -817,6 +939,10 @@ public struct DocumentSummary: Equatable, Hashable {
      * 열 때 옮기지 못한 요소 수
      */
     public var droppedObjects: UInt32
+    /**
+     * 본문을 고칠 수 있는가(HWP·HWPX·DOCX)
+     */
+    public var canEdit: Bool
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -835,12 +961,16 @@ public struct DocumentSummary: Equatable, Hashable {
          */title: String?, 
         /**
          * 열 때 옮기지 못한 요소 수
-         */droppedObjects: UInt32) {
+         */droppedObjects: UInt32, 
+        /**
+         * 본문을 고칠 수 있는가(HWP·HWPX·DOCX)
+         */canEdit: Bool) {
         self.session = session
         self.format = format
         self.pageCount = pageCount
         self.title = title
         self.droppedObjects = droppedObjects
+        self.canEdit = canEdit
     }
 
     
@@ -863,7 +993,8 @@ public struct FfiConverterTypeDocumentSummary: FfiConverterRustBuffer {
                 format: FfiConverterString.read(from: &buf), 
                 pageCount: FfiConverterUInt32.read(from: &buf), 
                 title: FfiConverterOptionString.read(from: &buf), 
-                droppedObjects: FfiConverterUInt32.read(from: &buf)
+                droppedObjects: FfiConverterUInt32.read(from: &buf), 
+                canEdit: FfiConverterBool.read(from: &buf)
         )
     }
 
@@ -873,6 +1004,7 @@ public struct FfiConverterTypeDocumentSummary: FfiConverterRustBuffer {
         FfiConverterUInt32.write(value.pageCount, into: &buf)
         FfiConverterOptionString.write(value.title, into: &buf)
         FfiConverterUInt32.write(value.droppedObjects, into: &buf)
+        FfiConverterBool.write(value.canEdit, into: &buf)
     }
 }
 
@@ -1037,6 +1169,194 @@ public func FfiConverterTypePageImage_lift(_ buf: RustBuffer) throws -> PageImag
 #endif
 public func FfiConverterTypePageImage_lower(_ value: PageImage) -> RustBuffer {
     return FfiConverterTypePageImage.lower(value)
+}
+
+
+/**
+ * 쪽 위 사각형(pt, 쪽 왼쪽 위 기준).
+ */
+public struct PageRegion: Equatable, Hashable {
+    /**
+     * 쪽(0부터)
+     */
+    public var page: UInt32
+    /**
+     * 왼쪽
+     */
+    public var x: Float
+    /**
+     * 위
+     */
+    public var y: Float
+    /**
+     * 너비
+     */
+    public var width: Float
+    /**
+     * 높이
+     */
+    public var height: Float
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * 쪽(0부터)
+         */page: UInt32, 
+        /**
+         * 왼쪽
+         */x: Float, 
+        /**
+         * 위
+         */y: Float, 
+        /**
+         * 너비
+         */width: Float, 
+        /**
+         * 높이
+         */height: Float) {
+        self.page = page
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension PageRegion: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypePageRegion: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> PageRegion {
+        return
+            try PageRegion(
+                page: FfiConverterUInt32.read(from: &buf), 
+                x: FfiConverterFloat.read(from: &buf), 
+                y: FfiConverterFloat.read(from: &buf), 
+                width: FfiConverterFloat.read(from: &buf), 
+                height: FfiConverterFloat.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: PageRegion, into buf: inout [UInt8]) {
+        FfiConverterUInt32.write(value.page, into: &buf)
+        FfiConverterFloat.write(value.x, into: &buf)
+        FfiConverterFloat.write(value.y, into: &buf)
+        FfiConverterFloat.write(value.width, into: &buf)
+        FfiConverterFloat.write(value.height, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypePageRegion_lift(_ buf: RustBuffer) throws -> PageRegion {
+    return try FfiConverterTypePageRegion.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypePageRegion_lower(_ value: PageRegion) -> RustBuffer {
+    return FfiConverterTypePageRegion.lower(value)
+}
+
+
+/**
+ * 누른 자리의 문단: 위치·글자·화면에 그릴 사각형.
+ */
+public struct ParagraphAtPoint: Equatable, Hashable {
+    /**
+     * 구역
+     */
+    public var section: UInt32
+    /**
+     * 문단
+     */
+    public var paragraph: UInt32
+    /**
+     * 문단 글자
+     */
+    public var text: String
+    /**
+     * 문단을 덮는 줄 사각형(여러 쪽에 걸칠 수 있다)
+     */
+    public var boxes: [PageRegion]
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * 구역
+         */section: UInt32, 
+        /**
+         * 문단
+         */paragraph: UInt32, 
+        /**
+         * 문단 글자
+         */text: String, 
+        /**
+         * 문단을 덮는 줄 사각형(여러 쪽에 걸칠 수 있다)
+         */boxes: [PageRegion]) {
+        self.section = section
+        self.paragraph = paragraph
+        self.text = text
+        self.boxes = boxes
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension ParagraphAtPoint: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeParagraphAtPoint: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ParagraphAtPoint {
+        return
+            try ParagraphAtPoint(
+                section: FfiConverterUInt32.read(from: &buf), 
+                paragraph: FfiConverterUInt32.read(from: &buf), 
+                text: FfiConverterString.read(from: &buf), 
+                boxes: FfiConverterSequenceTypePageRegion.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: ParagraphAtPoint, into buf: inout [UInt8]) {
+        FfiConverterUInt32.write(value.section, into: &buf)
+        FfiConverterUInt32.write(value.paragraph, into: &buf)
+        FfiConverterString.write(value.text, into: &buf)
+        FfiConverterSequenceTypePageRegion.write(value.boxes, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeParagraphAtPoint_lift(_ buf: RustBuffer) throws -> ParagraphAtPoint {
+    return try FfiConverterTypeParagraphAtPoint.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeParagraphAtPoint_lower(_ value: ParagraphAtPoint) -> RustBuffer {
+    return FfiConverterTypeParagraphAtPoint.lower(value)
 }
 
 
@@ -1260,6 +1580,31 @@ fileprivate struct FfiConverterOptionString: FfiConverterRustBuffer {
         }
     }
 }
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypePageRegion: FfiConverterRustBuffer {
+    typealias SwiftType = [PageRegion]
+
+    public static func write(_ value: [PageRegion], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypePageRegion.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [PageRegion] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [PageRegion]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypePageRegion.read(from: &buf))
+        }
+        return seq
+    }
+}
 /**
  * 엔진 버전.
  */
@@ -1298,10 +1643,25 @@ private let initializationResult: InitializationResult = {
     if (uniffi_papy_ffi_checksum_method_papyengine_open() != 52631) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_papy_ffi_checksum_method_papyengine_page_count() != 12156) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_papy_ffi_checksum_method_papyengine_page_size() != 63992) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_papy_ffi_checksum_method_papyengine_paragraph_at() != 1064) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_papy_ffi_checksum_method_papyengine_render_page() != 371) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_papy_ffi_checksum_method_papyengine_replace_paragraph() != 30685) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_papy_ffi_checksum_method_papyengine_save() != 57793) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_papy_ffi_checksum_method_papyengine_undo() != 56942) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_papy_ffi_checksum_constructor_papyengine_new() != 27607) {

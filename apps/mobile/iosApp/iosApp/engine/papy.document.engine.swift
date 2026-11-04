@@ -70,7 +70,8 @@ final class PapyDocumentEngine: NSObject, DocumentEngine, @unchecked Sendable {
                 kind: kind,
                 pageCount: Int32(clamping: summary.pageCount),
                 title: summary.title,
-                droppedObjects: Int32(clamping: summary.droppedObjects)
+                droppedObjects: Int32(clamping: summary.droppedObjects),
+                canEdit: summary.canEdit
             ))
         } catch let error as PapyError {
             return OpenResult.companion.failure(error: error.documentError)
@@ -93,7 +94,7 @@ final class PapyDocumentEngine: NSObject, DocumentEngine, @unchecked Sendable {
         lock.unlock()
         let title = document.documentAttributes?[PDFDocumentAttribute.titleAttribute] as? String
         return OpenResult.companion.success(document: OpenedDocument(
-            session: session, kind: .pdf, pageCount: Int32(document.pageCount), title: title, droppedObjects: 0
+            session: session, kind: .pdf, pageCount: Int32(document.pageCount), title: title, droppedObjects: 0, canEdit: false
         ))
     }
 
@@ -121,6 +122,62 @@ final class PapyDocumentEngine: NSObject, DocumentEngine, @unchecked Sendable {
         }
         guard page >= 0 else { return nil }
         return try? rust.extractText(sessionId: UInt64(bitPattern: session), page: UInt32(page))
+    }
+
+    func pageCount(session: Int64) -> KotlinInt? {
+        if let document = pdf(session) { return KotlinInt(int: Int32(document.pageCount)) }
+        guard let count = try? rust.pageCount(sessionId: UInt64(bitPattern: session)) else { return nil }
+        return KotlinInt(int: Int32(clamping: count))
+    }
+
+    func paragraphAt(session: Int64, page: Int32, x: Float, y: Float) -> ParagraphHit? {
+        guard pdf(session) == nil, page >= 0,
+              let hit = try? rust.paragraphAt(sessionId: UInt64(bitPattern: session), page: UInt32(page), x: x, y: y)
+        else { return nil }
+        return ParagraphHit(
+            section: Int32(clamping: hit.section),
+            paragraph: Int32(clamping: hit.paragraph),
+            text: hit.text,
+            boxes: hit.boxes.map { PageBox(page: Int32(clamping: $0.page), x: $0.x, y: $0.y, width: $0.width, height: $0.height) }
+        )
+    }
+
+    func replaceParagraph(session: Int64, section: Int32, paragraph: Int32, text: String) -> Int32 {
+        guard pdf(session) == nil, section >= 0, paragraph >= 0,
+              let steps = try? rust.replaceParagraph(
+                sessionId: UInt64(bitPattern: session), section: UInt32(section), paragraph: UInt32(paragraph), text: text
+              )
+        else { return -1 }
+        return Int32(clamping: steps)
+    }
+
+    func undo(session: Int64) -> Bool {
+        guard pdf(session) == nil else { return false }
+        return (try? rust.undo(sessionId: UInt64(bitPattern: session))) ?? false
+    }
+
+    func save(session: Int64, ref: String) -> DocumentError? {
+        guard pdf(session) == nil else { return .unsupported }
+        let data: Data
+        do {
+            data = try rust.save(sessionId: UInt64(bitPattern: session))
+        } catch let error as PapyError {
+            return error.documentError
+        } catch {
+            return .internal
+        }
+        guard let bookmark = Data(base64Encoded: ref) else { return .unreadable }
+        var stale = false
+        guard let url = try? URL(resolvingBookmarkData: bookmark, bookmarkDataIsStale: &stale) else { return .unreadable }
+        let scoped = url.startAccessingSecurityScopedResource()
+        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+        // 파일 앱(iCloud 등)이 알도록 조정된 쓰기로, 한 번에 바꾼다(atomic)
+        var written = false
+        var coordinatorError: NSError?
+        NSFileCoordinator().coordinate(writingItemAt: url, options: .forReplacing, error: &coordinatorError) { target in
+            written = (try? data.write(to: target, options: .atomic)) != nil
+        }
+        return written ? nil : .readOnly
     }
 
     func close(session: Int64) {
