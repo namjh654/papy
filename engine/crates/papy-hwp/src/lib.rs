@@ -21,6 +21,7 @@ use rhwp::wasm_api::HwpDocument as Rhwp;
 mod document;
 mod notes;
 mod repair;
+mod shapes;
 
 use document::HwpDocument;
 #[cfg(test)]
@@ -182,7 +183,8 @@ impl HwpBackend {
                 let mut doc = Rhwp::create_empty();
                 doc.create_blank_document_native()?;
                 doc.paste_html_native(0, 0, 0, &html)?;
-                let dropped = notes::apply(&mut doc, &report)?;
+                let dropped =
+                    notes::apply(&mut doc, &report)? + shapes::apply(&mut doc, &report.shapes)?;
                 Ok((doc, dropped))
             })?
             .map_err(|_| {
@@ -288,6 +290,24 @@ pub(crate) fn rasterize(
 }
 
 static FALLBACK_FONT: OnceLock<std::path::PathBuf> = OnceLock::new();
+/// 화면 그리기에서 고른 기본 글꼴(sans, serif). PDF 내보내기도 같은 글꼴로 떨어지게 한다.
+static FALLBACK_FAMILIES: OnceLock<(String, String)> = OnceLock::new();
+
+/// PDF 내보내기 옵션. 앱에 넣은 한글 글꼴(모바일은 시스템에 한글 글꼴이 없을 수 있다)과
+/// 화면에서 쓰는 기본 글꼴을 그대로 쓴다.
+pub(crate) fn pdf_options() -> rhwp::renderer::pdf::PdfExportOptions {
+    let _ = svg_options();
+    let mut options = rhwp::renderer::pdf::PdfExportOptions::default();
+    if let Some(dir) = FALLBACK_FONT.get().and_then(|path| path.parent()) {
+        options.font_paths.push(dir.to_path_buf());
+    }
+    if let Some((sans, serif)) = FALLBACK_FAMILIES.get() {
+        options.fallback_sans = sans.clone();
+        options.fallback_mono = sans.clone();
+        options.fallback_serif = serif.clone();
+    }
+    options
+}
 
 const KOREAN_SANS: &[&str] = &[
     "Malgun Gothic",
@@ -349,8 +369,11 @@ fn svg_options() -> &'static usvg::Options<'static> {
             fonts.set_cursive_family(sans.clone());
             fonts.set_fantasy_family(sans.clone());
         }
-        if let Some(serif) = serif {
-            fonts.set_serif_family(serif);
+        if let Some(serif) = &serif {
+            fonts.set_serif_family(serif.clone());
+        }
+        if let (Some(sans), Some(serif)) = (&sans, &serif) {
+            let _ = FALLBACK_FAMILIES.set((sans.clone(), serif.clone()));
         }
         let mut options = usvg::Options {
             fontdb: Arc::new(fonts),

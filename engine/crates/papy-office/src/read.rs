@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use std::io::{Cursor, Read};
 
 use crate::notes::{FOOTNOTE_MARK, HeaderFooterText, Numbering, paragraph_texts, parse_footnotes};
+use crate::shapes::{DocxShape, Drawing, SHAPE_MARK};
 use papy_model::{Error, ErrorCode, Result};
 use quick_xml::Reader;
 use quick_xml::events::{BytesStart, Event};
@@ -31,6 +32,8 @@ pub struct DocxReadReport {
     pub footnotes: Vec<Vec<String>>,
     /// 옮기지 못한 각주·미주 수(표 안 각주, 미주, 첫 쪽 머리말 등).
     pub dropped_notes: usize,
+    /// 본문 도형, 본문의 [`SHAPE_MARK`] 와 같은 순서.
+    pub shapes: Vec<DocxShape>,
 }
 
 /// 그림 하나의 최대 크기, 문서 전체 그림 크기 합의 최대치.
@@ -108,13 +111,6 @@ fn read_binary(
 }
 
 /// 본문 안 그림(`<w:drawing>`) 하나: 크기(EMU)와 그림 관계 id.
-#[derive(Default)]
-struct Drawing {
-    cx: Option<f64>,
-    cy: Option<f64>,
-    embed: Option<String>,
-}
-
 fn invalid(message: &str) -> Error {
     Error::new(ErrorCode::InvalidDocument, message)
 }
@@ -445,6 +441,8 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
     let mut sections_seen = 0usize;
     let mut image_budget = MAX_TOTAL_IMAGE_BYTES;
     let mut drawing: Option<Drawing> = None;
+    // 건너뛰는 요소 깊이(mc:Fallback — 같은 내용의 옛 형식, VML)
+    let mut skip = 0usize;
 
     let mut report = DocxReadReport::default();
     let mut reader = Reader::from_str(&document);
@@ -504,7 +502,29 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
                 let (Event::Start(e) | Event::Empty(e)) = event else {
                     unreachable!()
                 };
-                match local(e.name().as_ref()) {
+                let qname = e.name();
+                let name = local(qname.as_ref());
+                if skip > 0 {
+                    if !empty {
+                        skip += 1;
+                    }
+                    continue;
+                }
+                // mc:AlternateContent 는 Choice(새 형식)만 읽는다. VML 개체(pict·object)는 옮기지 않는다.
+                if matches!(name, "Fallback" | "pict" | "object") {
+                    if name != "Fallback" {
+                        report.dropped_drawings += 1;
+                    }
+                    if !empty {
+                        skip = 1;
+                    }
+                    continue;
+                }
+                if let Some(current) = drawing.as_mut() {
+                    current.start(name, &e, empty);
+                    continue;
+                }
+                match name {
                     "p" if empty => out(&mut body, &mut cell, "<p></p>"),
                     "p" => {
                         in_para = true;
@@ -584,18 +604,7 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
                         para_html.push_str("<br>");
                     }
                     "drawing" if !empty => drawing = Some(Drawing::default()),
-                    "extent" if drawing.is_some() => {
-                        if let Some(current) = drawing.as_mut() {
-                            current.cx = attr(&e, "cx").and_then(|v| v.parse().ok());
-                            current.cy = attr(&e, "cy").and_then(|v| v.parse().ok());
-                        }
-                    }
-                    "blip" if drawing.is_some() => {
-                        if let Some(current) = drawing.as_mut() {
-                            current.embed = current.embed.take().or_else(|| attr(&e, "embed"));
-                        }
-                    }
-                    "drawing" | "pict" | "object" => report.dropped_drawings += 1,
+                    "drawing" => report.dropped_drawings += 1,
                     "tbl" => {
                         if tables.len() >= MAX_TABLE_DEPTH {
                             return Err(Error::new(
@@ -631,6 +640,34 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
                     _ => {}
                 }
             }
+            Event::Text(_) | Event::GeneralRef(_) if skip > 0 => {}
+            Event::Text(text) if drawing.is_some() => {
+                if let Some(current) = drawing.as_mut() {
+                    current.text(&text.xml10_content());
+                }
+            }
+            Event::GeneralRef(reference) if drawing.is_some() => {
+                let ch = match reference.resolve_char_ref() {
+                    Ok(Some(ch)) => Some(ch),
+                    _ => match reference.into_inner().as_ref() {
+                        "amp" => Some('&'),
+                        "lt" => Some('<'),
+                        "gt" => Some('>'),
+                        "quot" => Some('"'),
+                        "apos" => Some('\''),
+                        _ => None,
+                    },
+                };
+                if let (Some(current), Some(ch)) = (drawing.as_mut(), ch) {
+                    current.text(&ch.to_string());
+                }
+            }
+            Event::End(_) if skip > 0 => skip -= 1,
+            Event::End(e) if drawing.is_some() && local(e.name().as_ref()) != "drawing" => {
+                if let Some(current) = drawing.as_mut() {
+                    current.end(local(e.name().as_ref()));
+                }
+            }
             Event::Text(text) if in_text => {
                 run_text.push_str(&escape(&text.xml10_content()));
             }
@@ -653,6 +690,31 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
             Event::End(e) => match local(e.name().as_ref()) {
                 "drawing" => {
                     let Some(done) = drawing.take() else { continue };
+                    if !done.is_picture() {
+                        flush(
+                            &mut para_html,
+                            &mut run_text,
+                            &run,
+                            &para_style.0,
+                            &defaults,
+                        );
+                        match done.into_shape() {
+                            // 표 안 도형은 rhwp 에 넣을 자리가 없어 글상자 글자만 남긴다.
+                            Some(shape) if cell.is_empty() && in_para => {
+                                para_html.push(SHAPE_MARK);
+                                report.shapes.push(shape);
+                            }
+                            Some(shape) => {
+                                for text in shape.text.iter().filter(|t| !t.is_empty()) {
+                                    para_html.push_str(&escape(text));
+                                    para_html.push(' ');
+                                }
+                                report.dropped_drawings += 1;
+                            }
+                            None => report.dropped_drawings += 1,
+                        }
+                        continue;
+                    }
                     let image = done
                         .embed
                         .as_ref()

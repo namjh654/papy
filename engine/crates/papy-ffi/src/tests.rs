@@ -109,10 +109,10 @@ fn tap_edit_undo_and_save_a_paragraph() {
         .unwrap();
     assert_eq!(again.paragraph, 0);
 
-    let steps = engine
+    let depth = engine
         .replace_paragraph(doc.session, 0, 0, "바꾼 글".into())
         .unwrap();
-    assert_eq!(steps, 2);
+    assert_eq!(depth, 2);
     let text = engine.extract_text(doc.session, 0).unwrap();
     assert!(
         text.contains("바꾼 글") && text.contains("둘째 문단") && !text.contains("첫 문단입니다"),
@@ -138,10 +138,15 @@ fn tap_edit_undo_and_save_a_paragraph() {
         "{text}"
     );
 
-    // 되돌리기: 단계 수만큼 부르면 처음으로
-    for _ in 0..(2 + steps) {
-        assert!(engine.undo(doc.session).unwrap());
+    // 되돌리기: 남은 단계가 0 이 될 때까지 부르면 처음으로
+    let mut left = engine.undo_depth(doc.session).unwrap();
+    assert!(left >= 3);
+    while left > 0 {
+        let undo = engine.undo(doc.session).unwrap();
+        assert_eq!(undo.undo_depth, left - 1);
+        left = undo.undo_depth;
     }
+    assert!(engine.undo(doc.session).unwrap().caret.is_none());
     let text = engine.extract_text(doc.session, 0).unwrap();
     assert!(
         text.contains("첫 문단입니다") && !text.contains("새 문단"),
@@ -153,4 +158,185 @@ fn tap_edit_undo_and_save_a_paragraph() {
             .replace_paragraph(doc.session, 0, 99, "x".into())
             .is_err()
     );
+}
+
+#[test]
+fn replacing_a_paragraph_keeps_untouched_character_styles() {
+    let engine = PapyEngine::new(None);
+    let doc = engine
+        .open(docx_paragraphs(&["굵은 글 보통"]), None)
+        .unwrap();
+    let pos = |offset| EnginePosition {
+        section: 0,
+        paragraph: 0,
+        offset,
+    };
+    let bold = EngineTextStyle {
+        bold: Some(true),
+        ..EngineTextStyle::default()
+    };
+    // "굵은" 을 굵게
+    engine
+        .apply_text_style(
+            doc.session,
+            EngineRange {
+                start: pos(0),
+                end: pos(2),
+            },
+            bold,
+        )
+        .unwrap();
+    assert_eq!(
+        engine.text_style(doc.session, pos(1)).unwrap().bold,
+        Some(true)
+    );
+    // 뒤쪽만 고친다: 앞의 굵은 글자는 그대로 굵다
+    engine
+        .replace_paragraph(doc.session, 0, 0, "굵은 글 고침".into())
+        .unwrap();
+    assert_eq!(
+        engine.text_style(doc.session, pos(1)).unwrap().bold,
+        Some(true)
+    );
+    assert_eq!(
+        engine.text_style(doc.session, pos(7)).unwrap().bold,
+        Some(false)
+    );
+    let text = engine.extract_text(doc.session, 0).unwrap();
+    assert!(text.contains("굵은 글 고침"), "{text}");
+}
+
+#[test]
+fn cursor_typing_deleting_and_moving() {
+    let engine = PapyEngine::new(None);
+    let doc = engine
+        .open(docx_paragraphs(&["가나다", "라마"]), None)
+        .unwrap();
+    let start = engine.caret_at_point(doc.session, 0, 0.0, 0.0).unwrap();
+    assert_eq!(start.position.paragraph, 0);
+    let end = engine
+        .move_caret(doc.session, start.position, CaretDirection::LineEnd, 0.0)
+        .unwrap();
+    assert_eq!(end.position.offset, 3);
+    // 이어 친 글자는 되돌리기 한 단계
+    let typed = engine
+        .insert_text(doc.session, end.position, "라".into())
+        .unwrap();
+    let typed = engine
+        .insert_text(doc.session, typed.caret.position, "바".into())
+        .unwrap();
+    assert_eq!(typed.undo_depth, 1);
+    assert_eq!(typed.caret.position.offset, 5);
+    assert!(typed.caret.rect.height > 0.0);
+    let deleted = engine
+        .delete_backward(doc.session, typed.caret.position)
+        .unwrap();
+    assert_eq!(deleted.caret.position.offset, 4);
+    // 다음 줄로
+    let down = engine
+        .move_caret(
+            doc.session,
+            deleted.caret.position,
+            CaretDirection::Down,
+            deleted.caret.rect.x,
+        )
+        .unwrap();
+    assert_eq!(down.position.paragraph, 1);
+    // 문단 처음에서 지우면 앞 문단과 합친다
+    let line_start = engine
+        .move_caret(doc.session, down.position, CaretDirection::LineStart, 0.0)
+        .unwrap();
+    let merged = engine
+        .delete_backward(doc.session, line_start.position)
+        .unwrap();
+    assert_eq!(merged.caret.position.paragraph, 0);
+    let all = EngineRange {
+        start: EnginePosition {
+            section: 0,
+            paragraph: 0,
+            offset: 0,
+        },
+        end: EnginePosition {
+            section: 0,
+            paragraph: 0,
+            offset: 6,
+        },
+    };
+    assert_eq!(
+        engine.text_in_range(doc.session, all).unwrap(),
+        "가나다라라마"
+    );
+    assert!(
+        !engine
+            .selection_regions(doc.session, all)
+            .unwrap()
+            .is_empty()
+    );
+    // 범위 지우기
+    let cut = engine
+        .delete_range(
+            doc.session,
+            EngineRange {
+                start: all.start,
+                end: EnginePosition {
+                    offset: 3,
+                    ..all.start
+                },
+            },
+        )
+        .unwrap();
+    assert_eq!(cut.caret.position.offset, 0);
+    assert!(
+        engine
+            .extract_text(doc.session, 0)
+            .unwrap()
+            .starts_with("라라마")
+    );
+}
+
+#[test]
+fn word_selection_and_style_validation() {
+    let engine = PapyEngine::new(None);
+    let doc = engine
+        .open(docx_paragraphs(&["hello 세계 ok"]), None)
+        .unwrap();
+    let pos = EnginePosition {
+        section: 0,
+        paragraph: 0,
+        offset: 7,
+    };
+    let word = engine.word_at(doc.session, pos).unwrap();
+    assert_eq!((word.start.offset, word.end.offset), (6, 8));
+    let bad = EngineTextStyle {
+        color: Some("red".into()),
+        ..EngineTextStyle::default()
+    };
+    assert!(engine.apply_text_style(doc.session, word, bad).is_err());
+    let red = EngineTextStyle {
+        color: Some("#ff0000".into()),
+        font_size: Some(20.0),
+        ..EngineTextStyle::default()
+    };
+    engine.apply_text_style(doc.session, word, red).unwrap();
+    let style = engine.text_style(doc.session, word.end).unwrap();
+    assert_eq!(style.color.as_deref(), Some("#ff0000"));
+    assert_eq!(style.font_size, Some(20.0));
+}
+
+#[test]
+fn exports_pdf_with_korean_text() {
+    let engine = PapyEngine::new(None);
+    let doc = engine
+        .open(docx_paragraphs(&["한글 PDF 변환"]), None)
+        .unwrap();
+    let pdf = engine.export(doc.session, "pdf".into()).unwrap();
+    assert!(pdf.starts_with(b"%PDF-"));
+    // 글꼴이 들어갔다(글자가 빠지지 않았다)
+    assert!(
+        pdf.windows(9).any(|w| w == b"/FontFile"),
+        "no embedded font"
+    );
+    assert!(engine.export(doc.session, "xyz".into()).is_err());
+    // 작업 문서는 그대로
+    assert!(engine.save(doc.session).is_ok());
 }

@@ -13,6 +13,8 @@ use rhwp::model::footnote::Footnote;
 use rhwp::model::header_footer::HeaderFooterApply;
 use rhwp::model::image::Picture;
 use rhwp::model::paragraph::Paragraph;
+use rhwp::model::shape::{HorzRelTo, ShapeObject, TextWrap, VertRelTo};
+use rhwp::model::style::FillType;
 use rhwp::model::style::{Alignment, LineSpacingType, UnderlineType};
 use rhwp::model::table::Table;
 
@@ -77,6 +79,114 @@ fn write_picture(out: &mut String, media: &mut Media, picture: &Picture) {
         out,
         r#"<w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="{cx}" cy="{cy}"/><wp:docPr id="{id}" name="Picture {id}"/><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="{id}" name="Picture {id}"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="{rel}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="{cx}" cy="{cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>"#
     );
+}
+
+/// 도형(사각형·타원·선, 글상자 포함) → `wps:wsp`. 다른 도형(묶음·다각형 등)은 옮기지 않는다.
+fn write_shape(
+    out: &mut String,
+    info: &DocInfo,
+    media: &mut Media,
+    shape: &ShapeObject,
+    depth: usize,
+) -> Result<()> {
+    let (geometry, flip_h, flip_v) = match shape {
+        ShapeObject::Rectangle(rect) if rect.round_rate > 0 => ("roundRect", false, false),
+        ShapeObject::Rectangle(_) => ("rect", false, false),
+        ShapeObject::Ellipse(_) => ("ellipse", false, false),
+        ShapeObject::Line(line) => ("line", line.start.x > line.end.x, line.start.y > line.end.y),
+        _ => return Ok(()),
+    };
+    let Some(drawing) = shape.drawing() else {
+        return Ok(());
+    };
+    let common = shape.common();
+    media.next_object += 1;
+    let id = media.next_object;
+    let (cx, cy) = (emu(common.width), emu(common.height));
+    let solid = |color: u32| {
+        rgb(color).map_or_else(
+            || "<a:noFill/>".to_owned(),
+            |hex| format!(r#"<a:solidFill><a:srgbClr val="{hex}"/></a:solidFill>"#),
+        )
+    };
+    let fill = match (&drawing.fill.fill_type, &drawing.fill.solid) {
+        (FillType::Solid, Some(solid_fill)) if geometry != "line" => {
+            solid(solid_fill.background_color)
+        }
+        _ => "<a:noFill/>".to_owned(),
+    };
+    let border = &drawing.border_line;
+    let line = if border.attr & 0x3F == 0 {
+        "<a:ln><a:noFill/></a:ln>".to_owned()
+    } else {
+        format!(
+            r#"<a:ln w="{}">{}</a:ln>"#,
+            emu(u32::try_from(border.width.max(0)).unwrap_or(0)),
+            solid(border.color)
+        )
+    };
+    let flips = format!(
+        "{}{}",
+        if flip_h { r#" flipH="1""# } else { "" },
+        if flip_v { r#" flipV="1""# } else { "" }
+    );
+    let mut text = String::new();
+    if let Some(text_box) = &drawing.text_box {
+        text.push_str("<wps:txbx><w:txbxContent>");
+        for paragraph in &text_box.paragraphs {
+            write_paragraph(&mut text, info, media, paragraph, depth + 1)?;
+        }
+        if text_box.paragraphs.is_empty() {
+            text.push_str("<w:p/>");
+        }
+        text.push_str("</w:txbxContent></wps:txbx>");
+    }
+    let text_box_flag = if drawing.text_box.is_some() {
+        r#" txBox="1""#
+    } else {
+        ""
+    };
+    let graphic = format!(
+        r#"<wp:docPr id="{id}" name="Shape {id}"/><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.microsoft.com/office/word/2010/wordprocessingShape"><wps:wsp><wps:cNvSpPr{text_box_flag}/><wps:spPr><a:xfrm{flips}><a:off x="0" y="0"/><a:ext cx="{cx}" cy="{cy}"/></a:xfrm><a:prstGeom prst="{geometry}"><a:avLst/></a:prstGeom>{fill}{line}</wps:spPr>{text}<wps:bodyPr/></wps:wsp></a:graphicData></a:graphic>"#
+    );
+    out.push_str("<w:r><w:drawing>");
+    if common.treat_as_char {
+        let _ = write!(
+            out,
+            r#"<wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="{cx}" cy="{cy}"/>{graphic}</wp:inline>"#
+        );
+    } else {
+        let horizontal = match common.horz_rel_to {
+            HorzRelTo::Paper => "page",
+            HorzRelTo::Page => "margin",
+            HorzRelTo::Column => "column",
+            _ => "character",
+        };
+        let vertical = match common.vert_rel_to {
+            VertRelTo::Paper => "page",
+            VertRelTo::Page => "margin",
+            _ => "paragraph",
+        };
+        let behind = matches!(common.text_wrap, TextWrap::BehindText);
+        let wrap = match common.text_wrap {
+            TextWrap::Square => r#"<wp:wrapSquare wrapText="bothSides"/>"#,
+            TextWrap::TopAndBottom => "<wp:wrapTopAndBottom/>",
+            TextWrap::Tight | TextWrap::Through => {
+                r#"<wp:wrapTight wrapText="bothSides"><wp:wrapPolygon edited="0"><wp:start x="0" y="0"/><wp:lineTo x="0" y="21600"/><wp:lineTo x="21600" y="21600"/><wp:lineTo x="21600" y="0"/><wp:lineTo x="0" y="0"/></wp:wrapPolygon></wp:wrapTight>"#
+            }
+            _ => "<wp:wrapNone/>",
+        };
+        let _ = write!(
+            out,
+            r#"<wp:anchor distT="0" distB="0" distL="0" distR="0" simplePos="0" relativeHeight="{}" behindDoc="{}" locked="0" layoutInCell="1" allowOverlap="1"><wp:simplePos x="0" y="0"/><wp:positionH relativeFrom="{horizontal}"><wp:posOffset>{}</wp:posOffset></wp:positionH><wp:positionV relativeFrom="{vertical}"><wp:posOffset>{}</wp:posOffset></wp:positionV><wp:extent cx="{cx}" cy="{cy}"/><wp:effectExtent l="0" t="0" r="0" b="0"/>{wrap}{graphic}</wp:anchor>"#,
+            u32::try_from(common.z_order.max(0)).unwrap_or(0) + 1,
+            u8::from(behind),
+            emu(common.horizontal_offset),
+            emu(common.vertical_offset),
+        );
+    }
+    out.push_str("</w:drawing></w:r>");
+    Ok(())
 }
 
 fn xml_escape(text: &str) -> String {
@@ -331,8 +441,12 @@ fn write_paragraph_with(
     }
     // 그림은 문단 끝에 글자처럼 놓는다(rhwp 의 그림 문단은 대개 그림 하나뿐이다).
     for control in &paragraph.controls {
-        if let Control::Picture(picture) = control {
-            write_picture(out, media, picture);
+        match control {
+            Control::Picture(picture) => write_picture(out, media, picture),
+            Control::Shape(shape) if depth < MAX_DEPTH => {
+                write_shape(out, info, media, shape, depth)?
+            }
+            _ => {}
         }
     }
     out.push_str("</w:p>");
@@ -530,7 +644,7 @@ fn rels_xml(media: &Media, extra: &[Part], styles: bool) -> String {
 const STYLES: &str = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:docDefaults><w:rPrDefault><w:rPr><w:sz w:val="20"/><w:lang w:val="ko-KR" w:eastAsia="ko-KR"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:after="0" w:line="240" w:lineRule="auto"/></w:pPr></w:pPrDefault></w:docDefaults><w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/></w:style></w:styles>"#;
 
-const NAMESPACES: &str = r#"xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing""#;
+const NAMESPACES: &str = r#"xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape""#;
 
 /// 첫 구역의 머리말·꼬리말을 부분으로 쓰고 sectPr 참조를 돌려준다. 같은 종류·쪽은 처음 것만.
 fn header_footer_parts(

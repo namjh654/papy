@@ -399,7 +399,12 @@ impl Document for HwpDocument {
                 }
                 None => self.read("save HWP", |doc| doc.export_hwp_native()),
             },
-            SaveFormat::Pdf => self.read("export PDF", |doc| doc.render_document_pdf_native()),
+            SaveFormat::Pdf => {
+                let options = crate::pdf_options();
+                self.read("export PDF", |doc| {
+                    doc.render_document_pdf_native_with_options(&options)
+                })
+            }
             SaveFormat::Docx => {
                 self.check()?;
                 guard(|| papy_office::docx_from_document(self.doc.document()))?
@@ -765,6 +770,10 @@ impl Document for HwpDocument {
         let redo = self.restore(step)?;
         self.redo.push(redo);
         Ok(Some(EditOutcome { caret }))
+    }
+
+    fn undo_depth(&self) -> usize {
+        self.undo.len()
     }
 
     fn redo(&mut self) -> Result<Option<EditOutcome>> {
