@@ -858,3 +858,186 @@ fn docx_unsupported_drawings_are_counted() {
     let text = doc.extract_text(0).unwrap();
     assert!(text.contains("칸 안 상자"), "{text:?}");
 }
+
+// ---- 표·그림 ----
+
+fn table_of(doc: &mut Box<dyn Document>) -> papy_model::PageObject {
+    doc.page_objects(0)
+        .unwrap()
+        .into_iter()
+        .find(|o| o.kind == papy_model::ObjectKind::Table)
+        .expect("table on page")
+}
+
+#[test]
+fn tables_cells_rows_and_merge() {
+    use papy_model::{CaretMotion, HitTarget, TableOp};
+    let mut doc = editable(1);
+    let depth = doc.undo_depth();
+    doc.insert_table(pos(0, 0), 2, 3).unwrap();
+    let table = table_of(&mut doc);
+    assert_eq!((table.rows, table.cols, table.cells.len()), (2, 3, 6));
+    // 둘째 칸 가운데를 누르면 그 칸 안
+    let cell = table
+        .cells
+        .iter()
+        .find(|c| c.row == 0 && c.col == 1)
+        .unwrap();
+    let hit = doc
+        .hit_test_target(
+            0,
+            cell.rect.x + cell.rect.width / 2.0,
+            cell.rect.y + cell.rect.height / 2.0,
+        )
+        .unwrap();
+    let HitTarget::Cell(at) = hit else {
+        panic!("expected a cell, got {hit:?}")
+    };
+    assert_eq!(at.cell, cell.cell);
+    assert_eq!(at.control, table.object.control);
+    // 칸 안에 치고, 줄 나누고, 지운다
+    let after = doc.cell_insert_text(at, "칸").unwrap();
+    let after = doc.cell_insert_text(after, "글").unwrap();
+    assert_eq!(after.offset, 2);
+    let rect = doc.cell_caret_rect(after).unwrap();
+    assert!(
+        rect.x >= cell.rect.x && rect.height > 0.0,
+        "{rect:?} in {:?}",
+        cell.rect
+    );
+    let split = doc.cell_insert_text(after, "\nX").unwrap();
+    assert_eq!((split.cell_paragraph, split.offset), (1, 1));
+    let back = doc.cell_delete_backward(split).unwrap();
+    let joined = doc.cell_delete_backward(back).unwrap();
+    assert_eq!((joined.cell_paragraph, joined.offset), (0, 2));
+    assert_eq!(
+        doc.cell_move_caret(joined, CaretMotion::Left)
+            .unwrap()
+            .offset,
+        1
+    );
+    assert!(
+        all_text(&mut doc).contains("칸글"),
+        "{}",
+        all_text(&mut doc)
+    );
+    // 행 넣기 → 3행, 열 지우기 → 2열, 칸 합치기
+    let object = table.object;
+    doc.edit_table(
+        object,
+        TableOp::InsertRow {
+            row: 1,
+            below: true,
+        },
+    )
+    .unwrap();
+    assert_eq!(table_of(&mut doc).rows, 3);
+    doc.edit_table(object, TableOp::DeleteColumn { col: 2 })
+        .unwrap();
+    assert_eq!(table_of(&mut doc).cols, 2);
+    doc.edit_table(
+        object,
+        TableOp::InsertColumn {
+            col: 0,
+            right: false,
+        },
+    )
+    .unwrap();
+    assert_eq!(table_of(&mut doc).cols, 3);
+    doc.edit_table(
+        object,
+        TableOp::Merge {
+            start_row: 2,
+            start_col: 0,
+            end_row: 2,
+            end_col: 1,
+        },
+    )
+    .unwrap();
+    let merged = table_of(&mut doc);
+    assert!(
+        merged.cells.iter().any(|c| c.row == 2 && c.col_span == 2),
+        "{:?}",
+        merged.cells
+    );
+    doc.edit_table(object, TableOp::DeleteRow { row: 2 })
+        .unwrap();
+    assert_eq!(table_of(&mut doc).rows, 2);
+    // 저장해도 표와 칸 글자가 남는다
+    for format in [SaveFormat::Hwpx, SaveFormat::Hwp, SaveFormat::Docx] {
+        assert!(!doc.save(format).unwrap().is_empty());
+    }
+    // 표 지우기 → 되돌리기로 표가 돌아온다
+    doc.delete_object(object, papy_model::ObjectKind::Table)
+        .unwrap();
+    assert!(doc.page_objects(0).unwrap().is_empty());
+    doc.undo().unwrap();
+    assert_eq!(table_of(&mut doc).rows, 2);
+    // 처음까지 되돌리면 표가 없다
+    while doc.undo_depth() > depth {
+        doc.undo().unwrap();
+    }
+    assert!(doc.page_objects(0).unwrap().is_empty());
+    // 잘못된 크기
+    assert!(doc.insert_table(pos(0, 0), 0, 3).is_err());
+}
+
+#[test]
+fn pictures_insert_resize_delete() {
+    let mut doc = editable(1);
+    doc.insert_picture(pos(0, 0), RED_PNG, 120.0, 60.0).unwrap();
+    let picture = doc
+        .page_objects(0)
+        .unwrap()
+        .into_iter()
+        .find(|o| o.kind == papy_model::ObjectKind::Picture)
+        .expect("picture on page");
+    assert!(
+        (picture.rect.width - 120.0).abs() < 2.0 && (picture.rect.height - 60.0).abs() < 2.0,
+        "{:?}",
+        picture.rect
+    );
+    // 빨간 그림이 그려진다
+    let page = doc.render_page(0, &RenderRequest::with_scale(1.0)).unwrap();
+    let red = page
+        .pixels
+        .chunks_exact(4)
+        .filter(|p| p[0] > 200 && p[1] < 60 && p[2] < 60)
+        .count();
+    assert!(red > 3_000, "red pixels {red}");
+    doc.resize_picture(picture.object, 60.0, 30.0).unwrap();
+    let resized = doc
+        .page_objects(0)
+        .unwrap()
+        .into_iter()
+        .find(|o| o.kind == papy_model::ObjectKind::Picture)
+        .unwrap();
+    assert!(
+        (resized.rect.width - 60.0).abs() < 2.0,
+        "{:?}",
+        resized.rect
+    );
+    // 저장 → 다시 열어도 그림이 있다
+    let hwpx = doc.save(SaveFormat::Hwpx).unwrap();
+    let mut again = open(HwpBackend::hwpx(), hwpx, &options()).unwrap();
+    assert!(
+        again
+            .page_objects(0)
+            .unwrap()
+            .iter()
+            .any(|o| o.kind == papy_model::ObjectKind::Picture)
+    );
+    doc.delete_object(resized.object, papy_model::ObjectKind::Picture)
+        .unwrap();
+    assert!(
+        doc.page_objects(0)
+            .unwrap()
+            .iter()
+            .all(|o| o.kind != papy_model::ObjectKind::Picture)
+    );
+    // 그림이 아닌 바이트
+    assert!(
+        doc.insert_picture(pos(0, 0), b"not an image", 10.0, 10.0)
+            .is_err()
+    );
+}

@@ -130,6 +130,128 @@ pub struct TextPos {
     pub offset: u32,
 }
 
+/// 표 칸(또는 글상자) 안의 위치. 본문 문단 [`paragraph`](Self::paragraph) 의 [`control`](Self::control) 번째
+/// 개체(표·글상자)의 [`cell`](Self::cell) 번째 칸, 그 안 [`cell_paragraph`](Self::cell_paragraph) 문단의 글자 위치.
+/// 칸 안의 표(중첩)는 아직 다루지 않는다.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub struct CellPos {
+    /// 구역.
+    pub section: u32,
+    /// 표를 가진 본문 문단.
+    pub paragraph: u32,
+    /// 문단 안 개체 번호.
+    pub control: u32,
+    /// 칸 번호(글상자는 0).
+    pub cell: u32,
+    /// 칸 안 문단.
+    pub cell_paragraph: u32,
+    /// 칸 문단 안 글자 위치.
+    pub offset: u32,
+}
+
+/// 쪽을 누른 자리: 본문 또는 표 칸(글상자) 안.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HitTarget {
+    /// 본문.
+    Body(TextPos),
+    /// 표 칸·글상자 안.
+    Cell(CellPos),
+}
+
+/// 문서 안 개체(표·그림·도형)를 가리킨다: 본문 문단과 그 안 개체 번호.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ObjectRef {
+    /// 구역.
+    pub section: u32,
+    /// 개체를 가진 본문 문단.
+    pub paragraph: u32,
+    /// 문단 안 개체 번호.
+    pub control: u32,
+}
+
+/// 쪽 위 개체의 종류.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ObjectKind {
+    /// 표.
+    Table,
+    /// 그림.
+    Picture,
+}
+
+/// 표 칸 하나의 자리.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct TableCellBox {
+    /// 칸 번호.
+    pub cell: u32,
+    /// 행·열(0부터).
+    pub row: u32,
+    /// 열.
+    pub col: u32,
+    /// 합친 행 수.
+    pub row_span: u32,
+    /// 합친 열 수.
+    pub col_span: u32,
+    /// 칸 사각형.
+    pub rect: PageRect,
+}
+
+/// 쪽에 그려진 개체(표·그림): 고를 때 쓴다.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PageObject {
+    /// 종류.
+    pub kind: ObjectKind,
+    /// 가리키는 개체.
+    pub object: ObjectRef,
+    /// 쪽 위 사각형.
+    pub rect: PageRect,
+    /// 표의 행 수(그림은 0).
+    pub rows: u32,
+    /// 표의 열 수.
+    pub cols: u32,
+    /// 표 칸(그림은 비어 있음).
+    pub cells: Vec<TableCellBox>,
+}
+
+/// 표 고치기.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TableOp {
+    /// 행 넣기(`below` 면 아래에).
+    InsertRow {
+        /// 기준 행.
+        row: u32,
+        /// 아래에 넣는다.
+        below: bool,
+    },
+    /// 열 넣기(`right` 면 오른쪽에).
+    InsertColumn {
+        /// 기준 열.
+        col: u32,
+        /// 오른쪽에 넣는다.
+        right: bool,
+    },
+    /// 행 지우기.
+    DeleteRow {
+        /// 지울 행.
+        row: u32,
+    },
+    /// 열 지우기.
+    DeleteColumn {
+        /// 지울 열.
+        col: u32,
+    },
+    /// 칸 합치기(양 끝 포함).
+    Merge {
+        /// 처음 행.
+        start_row: u32,
+        /// 처음 열.
+        start_col: u32,
+        /// 끝 행.
+        end_row: u32,
+        /// 끝 열.
+        end_col: u32,
+    },
+}
+
 /// 쪽 위 사각형(pt, 쪽 왼쪽 위 기준).
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct PageRect {

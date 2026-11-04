@@ -22,9 +22,10 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 pub use papy_model::{
-    Alignment, Annotation, Capabilities, CaretMotion, CharFormat, DocumentFormat, DocumentInfo,
-    EditOutcome, Error, ErrorCode, MarkupKind, OutlineItem, PageOp, PageRect, PageSize, ParaFormat,
-    Result, SaveFormat, TextPos,
+    Alignment, Annotation, Capabilities, CaretMotion, CellPos, CharFormat, DocumentFormat,
+    DocumentInfo, EditOutcome, Error, ErrorCode, HitTarget, MarkupKind, ObjectKind, ObjectRef,
+    OutlineItem, PageObject, PageOp, PageRect, PageSize, ParaFormat, Result, SaveFormat,
+    TableCellBox, TableOp, TextPos,
 };
 pub use papy_render::{
     BackendOpenOptions, Bitmap, CancelToken, Document, FormatBackend, RenderRequest, Source,

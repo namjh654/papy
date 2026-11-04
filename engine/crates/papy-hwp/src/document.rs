@@ -4,8 +4,9 @@
 //! 되돌리기는 rhwp 문서 스냅샷으로 한다. 이어 치는 글자는 한 단계로 묶는다.
 
 use papy_model::{
-    Alignment, CaretMotion, CharFormat, DocumentInfo, EditOutcome, Error, ErrorCode, PageRect,
-    PageSize, ParaFormat, Result, SaveFormat, TextPos,
+    Alignment, CaretMotion, CellPos, CharFormat, DocumentInfo, EditOutcome, Error, ErrorCode,
+    HitTarget, ObjectKind, ObjectRef, PageObject, PageRect, PageSize, ParaFormat, Result,
+    SaveFormat, TableCellBox, TableOp, TextPos,
 };
 use papy_render::{Bitmap, Document, RenderRequest};
 use rhwp::wasm_api::HwpDocument as Rhwp;
@@ -36,6 +37,8 @@ pub(crate) struct HwpDocument {
     redo: Vec<Step>,
     /// 직전 입력이 끝난 위치와 그 단계에 묶인 글자 수. 여기서 이어 치면 새 단계를 만들지 않는다.
     typing: Option<(TextPos, u32)>,
+    /// 칸 안에서 이어 친 글자(위와 같다).
+    cell_typing: Option<(CellPos, u32)>,
     /// rhwp 가 패닉한 뒤에는 내부 상태를 믿을 수 없으니 더 부르지 않는다.
     broken: bool,
 }
@@ -68,6 +71,7 @@ impl HwpDocument {
             undo: Vec::new(),
             redo: Vec::new(),
             typing: None,
+            cell_typing: None,
             broken: false,
         }
     }
@@ -152,6 +156,7 @@ impl HwpDocument {
             self.doc.discard_snapshot_native(step.snapshot);
         }
         self.typing = None;
+        self.cell_typing = None;
     }
 
     fn paragraph_len(&mut self, section: u32, paragraph: u32) -> Result<u32> {
@@ -260,11 +265,190 @@ impl HwpDocument {
         }
         self.refresh();
         self.typing = None;
+        self.cell_typing = None;
         Ok(Step {
             snapshot: current,
             caret: from.caret,
         })
     }
+}
+
+impl HwpDocument {
+    fn cell_len(&mut self, pos: CellPos) -> Result<u32> {
+        self.read("read cell", |doc| {
+            doc.get_cell_paragraph_length_native(
+                pos.section as usize,
+                pos.paragraph as usize,
+                pos.control as usize,
+                pos.cell as usize,
+                pos.cell_paragraph as usize,
+            )
+        })
+        .map(|len| len as u32)
+    }
+
+    fn cell_paragraphs(&mut self, pos: CellPos) -> Result<u32> {
+        self.read("read cell", |doc| {
+            doc.get_cell_paragraph_count_native(
+                pos.section as usize,
+                pos.paragraph as usize,
+                pos.control as usize,
+                pos.cell as usize,
+            )
+        })
+        .map(|count| count as u32)
+    }
+
+    fn validate_cell(&mut self, pos: CellPos) -> Result<()> {
+        if pos.cell_paragraph < self.cell_paragraphs(pos)? && pos.offset <= self.cell_len(pos)? {
+            Ok(())
+        } else {
+            Err(Error::new(
+                ErrorCode::InvalidArgument,
+                "position is outside the cell",
+            ))
+        }
+    }
+
+    /// 칸 안 편집 단계를 시작한다(이어 친 글자는 한 단계로 묶는다).
+    fn begin_cell_step(&mut self, pos: CellPos, added: Option<u32>) {
+        if let (Some(added), Some((last, count))) = (added, self.cell_typing) {
+            if last == pos && count + added <= MAX_COALESCE {
+                return;
+            }
+        }
+        self.begin_step(
+            TextPos {
+                section: pos.section,
+                paragraph: pos.paragraph,
+                offset: 0,
+            },
+            None,
+        );
+    }
+
+    /// 표·그림 고치기 공통: 편집 단계를 열고 쓰기 호출을 한다.
+    fn object_step<T>(
+        &mut self,
+        at: ObjectRef,
+        what: &str,
+        f: impl FnOnce(&mut Rhwp) -> std::result::Result<T, rhwp::HwpError>,
+    ) -> Result<T> {
+        self.begin_step(
+            TextPos {
+                section: at.section,
+                paragraph: at.paragraph,
+                offset: 0,
+            },
+            None,
+        );
+        self.write(what, f)
+    }
+}
+
+/// 그림 형식(확장자). rhwp 가 넣을 수 있는 것만.
+fn image_extension(bytes: &[u8]) -> Option<&'static str> {
+    if bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
+        Some("png")
+    } else if bytes.starts_with(&[0xFF, 0xD8, 0xFF]) {
+        Some("jpg")
+    } else if bytes.starts_with(b"GIF8") {
+        Some("gif")
+    } else if bytes.starts_with(b"BM") {
+        Some("bmp")
+    } else {
+        None
+    }
+}
+
+/// pt → HWPUNIT(1/7200 인치)
+fn hwpunit(pt: f32) -> u32 {
+    (pt.max(1.0) * 100.0).round().min(u32::MAX as f32) as u32
+}
+
+fn parse_rect_px(value: &Value) -> Option<PageRect> {
+    Some(PageRect {
+        page: 0,
+        x: float(value, "x")? * PT_PER_PX,
+        y: float(value, "y")? * PT_PER_PX,
+        width: float(value, "w")? * PT_PER_PX,
+        height: float(value, "h")? * PT_PER_PX,
+    })
+}
+
+/// `get_page_control_layout_native` 의 본문 표·그림(머리말·칸 안 개체는 뺀다).
+fn parse_objects(value: &Value, page: u32) -> Vec<PageObject> {
+    let Some(controls) = value.get("controls").and_then(Value::as_array) else {
+        return Vec::new();
+    };
+    controls
+        .iter()
+        .filter_map(|control| {
+            let kind = match control.get("type")?.as_str()? {
+                "table" => ObjectKind::Table,
+                "image" => ObjectKind::Picture,
+                _ => return None,
+            };
+            if control.get("headerFooter").is_some() || control.get("cellIdx").is_some() {
+                return None;
+            }
+            let object = ObjectRef {
+                section: uint(control, "secIdx")?,
+                paragraph: uint(control, "paraIdx")?,
+                control: uint(control, "controlIdx")?,
+            };
+            let rect = PageRect {
+                page,
+                ..parse_rect_px(control)?
+            };
+            let cells = control
+                .get("cells")
+                .and_then(Value::as_array)
+                .map(|cells| {
+                    cells
+                        .iter()
+                        .filter_map(|cell| {
+                            Some(TableCellBox {
+                                cell: uint(cell, "cellIdx")?,
+                                row: uint(cell, "row")?,
+                                col: uint(cell, "col")?,
+                                row_span: uint(cell, "rowSpan").unwrap_or(1),
+                                col_span: uint(cell, "colSpan").unwrap_or(1),
+                                rect: PageRect {
+                                    page,
+                                    ..parse_rect_px(cell)?
+                                },
+                            })
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+            Some(PageObject {
+                kind,
+                object,
+                rect,
+                rows: uint(control, "rowCount").unwrap_or(0),
+                cols: uint(control, "colCount").unwrap_or(0),
+                cells,
+            })
+        })
+        .collect()
+}
+
+/// 칸(글상자) 안을 누른 결과. 중첩 표 안이면 None(바깥 본문으로 간다).
+fn parse_cell(value: &Value) -> Option<CellPos> {
+    let path = value.get("cellPath")?.as_array()?;
+    if path.len() != 1 {
+        return None;
+    }
+    Some(CellPos {
+        section: uint(value, "sectionIndex")?,
+        paragraph: uint(value, "parentParaIndex")?,
+        control: uint(value, "controlIndex")?,
+        cell: uint(value, "cellIndex")?,
+        cell_paragraph: uint(value, "cellParaIndex")?,
+        offset: uint(value, "charOffset").unwrap_or(0),
+    })
 }
 
 fn parse_pos(value: &Value) -> Option<TextPos> {
@@ -770,6 +954,297 @@ impl Document for HwpDocument {
         let redo = self.restore(step)?;
         self.redo.push(redo);
         Ok(Some(EditOutcome { caret }))
+    }
+
+    fn hit_test_target(&mut self, page: u32, x: f32, y: f32) -> Result<HitTarget> {
+        let reply = self.read("hit test", |doc| {
+            doc.hit_test_native(page, (x / PT_PER_PX) as f64, (y / PT_PER_PX) as f64)
+        })?;
+        let value = json(&reply)?;
+        if let Some(cell) = parse_cell(&value) {
+            return Ok(HitTarget::Cell(cell));
+        }
+        parse_pos(&value)
+            .map(HitTarget::Body)
+            .ok_or_else(|| engine_error("hit test"))
+    }
+
+    fn cell_caret_rect(&mut self, pos: CellPos) -> Result<PageRect> {
+        let reply = self.read("locate caret", |doc| {
+            doc.get_cursor_rect_in_cell_native(
+                pos.section as usize,
+                pos.paragraph as usize,
+                pos.control as usize,
+                pos.cell as usize,
+                pos.cell_paragraph as usize,
+                pos.offset as usize,
+            )
+        })?;
+        parse_rect(&json(&reply)?).ok_or_else(|| engine_error("locate caret"))
+    }
+
+    fn cell_move_caret(&mut self, pos: CellPos, motion: CaretMotion) -> Result<CellPos> {
+        match motion {
+            CaretMotion::Left if pos.offset > 0 => Ok(CellPos {
+                offset: pos.offset - 1,
+                ..pos
+            }),
+            CaretMotion::Left if pos.cell_paragraph > 0 => {
+                let previous = CellPos {
+                    cell_paragraph: pos.cell_paragraph - 1,
+                    offset: 0,
+                    ..pos
+                };
+                Ok(CellPos {
+                    offset: self.cell_len(previous)?,
+                    ..previous
+                })
+            }
+            CaretMotion::Right if pos.offset < self.cell_len(pos)? => Ok(CellPos {
+                offset: pos.offset + 1,
+                ..pos
+            }),
+            CaretMotion::Right if pos.cell_paragraph + 1 < self.cell_paragraphs(pos)? => {
+                Ok(CellPos {
+                    cell_paragraph: pos.cell_paragraph + 1,
+                    offset: 0,
+                    ..pos
+                })
+            }
+            _ => Ok(pos),
+        }
+    }
+
+    fn cell_insert_text(&mut self, pos: CellPos, text: &str) -> Result<CellPos> {
+        self.validate_cell(pos)?;
+        let added = text.chars().count() as u32;
+        let plain = !text.contains('\n') && !text.contains(' ');
+        self.begin_cell_step(pos, plain.then_some(added));
+        let mut caret = pos;
+        for (index, line) in text.split('\n').enumerate() {
+            if index > 0 {
+                let at = caret;
+                self.write("split paragraph", |doc| {
+                    doc.split_paragraph_in_cell_native(
+                        at.section as usize,
+                        at.paragraph as usize,
+                        at.control as usize,
+                        at.cell as usize,
+                        at.cell_paragraph as usize,
+                        at.offset as usize,
+                        None,
+                    )
+                })?;
+                caret.cell_paragraph += 1;
+                caret.offset = 0;
+            }
+            let line = line.trim_end_matches('\r');
+            if line.is_empty() {
+                continue;
+            }
+            let at = caret;
+            self.write("insert text", |doc| {
+                doc.insert_text_in_cell_native(
+                    at.section as usize,
+                    at.paragraph as usize,
+                    at.control as usize,
+                    at.cell as usize,
+                    at.cell_paragraph as usize,
+                    at.offset as usize,
+                    line,
+                )
+            })?;
+            caret.offset += line.chars().count() as u32;
+        }
+        self.cell_typing = match (plain, self.cell_typing.take()) {
+            (true, Some((_, count))) => Some((caret, count + added)),
+            (true, None) => Some((caret, added)),
+            (false, _) => None,
+        };
+        Ok(caret)
+    }
+
+    fn cell_delete_backward(&mut self, pos: CellPos) -> Result<CellPos> {
+        self.validate_cell(pos)?;
+        if pos.offset > 0 {
+            self.begin_cell_step(pos, None);
+            self.write("delete", |doc| {
+                doc.delete_text_in_cell_native(
+                    pos.section as usize,
+                    pos.paragraph as usize,
+                    pos.control as usize,
+                    pos.cell as usize,
+                    pos.cell_paragraph as usize,
+                    pos.offset as usize - 1,
+                    1,
+                )
+            })?;
+            return Ok(CellPos {
+                offset: pos.offset - 1,
+                ..pos
+            });
+        }
+        if pos.cell_paragraph == 0 {
+            return Ok(pos);
+        }
+        let previous = CellPos {
+            cell_paragraph: pos.cell_paragraph - 1,
+            offset: 0,
+            ..pos
+        };
+        let joined_at = self.cell_len(previous)?;
+        self.begin_cell_step(pos, None);
+        self.write("merge paragraphs", |doc| {
+            doc.merge_paragraph_in_cell_native(
+                pos.section as usize,
+                pos.paragraph as usize,
+                pos.control as usize,
+                pos.cell as usize,
+                pos.cell_paragraph as usize,
+            )
+        })?;
+        Ok(CellPos {
+            offset: joined_at,
+            ..previous
+        })
+    }
+
+    fn page_objects(&mut self, page: u32) -> Result<Vec<PageObject>> {
+        let reply = self.read("read objects", |doc| {
+            doc.get_page_control_layout_native(page)
+        })?;
+        Ok(parse_objects(&json(&reply)?, page))
+    }
+
+    fn insert_table(&mut self, pos: TextPos, rows: u32, cols: u32) -> Result<()> {
+        if !(1..=100).contains(&rows) || !(1..=50).contains(&cols) {
+            return Err(Error::new(
+                ErrorCode::InvalidArgument,
+                "table size out of range",
+            ));
+        }
+        self.validate(pos)?;
+        self.begin_step(pos, None);
+        self.write("insert table", |doc| {
+            doc.create_table_native(
+                pos.section as usize,
+                pos.paragraph as usize,
+                pos.offset as usize,
+                rows as u16,
+                cols as u16,
+            )
+        })?;
+        Ok(())
+    }
+
+    fn edit_table(&mut self, table: ObjectRef, op: TableOp) -> Result<()> {
+        let (s, p, c) = (
+            table.section as usize,
+            table.paragraph as usize,
+            table.control as usize,
+        );
+        let narrow = |v: u32| u16::try_from(v).unwrap_or(u16::MAX);
+        self.object_step(table, "edit table", |doc| match op {
+            TableOp::InsertRow { row, below } => {
+                doc.insert_table_row_native(s, p, c, narrow(row), below)
+            }
+            TableOp::InsertColumn { col, right } => {
+                doc.insert_table_column_native(s, p, c, narrow(col), right)
+            }
+            TableOp::DeleteRow { row } => doc.delete_table_row_native(s, p, c, narrow(row)),
+            TableOp::DeleteColumn { col } => doc.delete_table_column_native(s, p, c, narrow(col)),
+            TableOp::Merge {
+                start_row,
+                start_col,
+                end_row,
+                end_col,
+            } => doc.merge_table_cells_native(
+                s,
+                p,
+                c,
+                narrow(start_row.min(end_row)),
+                narrow(start_col.min(end_col)),
+                narrow(start_row.max(end_row)),
+                narrow(start_col.max(end_col)),
+            ),
+        })?;
+        Ok(())
+    }
+
+    fn insert_picture(
+        &mut self,
+        pos: TextPos,
+        image: &[u8],
+        width: f32,
+        height: f32,
+    ) -> Result<()> {
+        let extension = image_extension(image).ok_or_else(|| {
+            Error::new(
+                ErrorCode::UnsupportedFormat,
+                "only PNG, JPEG, GIF and BMP pictures can be inserted",
+            )
+        })?;
+        if !(width.is_finite() && height.is_finite() && width > 0.0 && height > 0.0) {
+            return Err(Error::new(
+                ErrorCode::InvalidArgument,
+                "invalid picture size",
+            ));
+        }
+        self.validate(pos)?;
+        self.begin_step(pos, None);
+        // 원래 픽셀 크기를 모르면 보이는 크기(96 DPI)로 둔다.
+        let (px_w, px_h) = ((width / PT_PER_PX) as u32, (height / PT_PER_PX) as u32);
+        self.write("insert picture", |doc| {
+            doc.insert_picture_native(
+                pos.section as usize,
+                pos.paragraph as usize,
+                pos.offset as usize,
+                &[],
+                image,
+                hwpunit(width),
+                hwpunit(height),
+                px_w.max(1),
+                px_h.max(1),
+                extension,
+                "",
+                None,
+                None,
+            )
+        })?;
+        Ok(())
+    }
+
+    fn resize_picture(&mut self, picture: ObjectRef, width: f32, height: f32) -> Result<()> {
+        if !(width.is_finite() && height.is_finite() && width > 0.0 && height > 0.0) {
+            return Err(Error::new(
+                ErrorCode::InvalidArgument,
+                "invalid picture size",
+            ));
+        }
+        let props =
+            serde_json::json!({ "width": hwpunit(width), "height": hwpunit(height) }).to_string();
+        self.object_step(picture, "resize picture", |doc| {
+            doc.set_picture_properties_native(
+                picture.section as usize,
+                picture.paragraph as usize,
+                picture.control as usize,
+                &props,
+            )
+        })?;
+        Ok(())
+    }
+
+    fn delete_object(&mut self, object: ObjectRef, kind: ObjectKind) -> Result<()> {
+        let (s, p, c) = (
+            object.section as usize,
+            object.paragraph as usize,
+            object.control as usize,
+        );
+        self.object_step(object, "delete object", |doc| match kind {
+            ObjectKind::Table => doc.delete_table_control_native(s, p, c),
+            ObjectKind::Picture => doc.delete_picture_control_native(s, p, c),
+        })?;
+        Ok(())
     }
 
     fn undo_depth(&self) -> usize {

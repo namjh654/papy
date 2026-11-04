@@ -11,8 +11,9 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use papy_model::{
-    Annotation, CaretMotion, CharFormat, DocumentFormat, DocumentInfo, EditOutcome, Error,
-    ErrorCode, OutlineItem, PageOp, PageRect, PageSize, ParaFormat, Result, SaveFormat, TextPos,
+    Annotation, CaretMotion, CellPos, CharFormat, DocumentFormat, DocumentInfo, EditOutcome, Error,
+    ErrorCode, HitTarget, ObjectRef, OutlineItem, PageObject, PageOp, PageRect, PageSize,
+    ParaFormat, Result, SaveFormat, TableOp, TextPos,
 };
 
 /// 렌더링 결과. RGBA 8비트, 알파는 premultiplied 가 아님, 행 사이 여백 없음(`stride == width * 4`).
@@ -293,6 +294,69 @@ pub trait Document: Send {
     /// 셀 때 편집 전후의 값을 비교한다.
     fn undo_depth(&self) -> usize {
         0
+    }
+
+    // ---- 표 칸·글상자 안 편집, 표·그림 고치기. `capabilities.edit` 가 참일 때만 부른다. ----
+
+    /// 쪽 위 점에 가장 가까운 위치(표 칸·글상자 안이면 칸 위치). 기본은 본문만 본다.
+    fn hit_test_target(&mut self, page: u32, x: f32, y: f32) -> Result<HitTarget> {
+        self.hit_test(page, x, y).map(HitTarget::Body)
+    }
+
+    /// 칸 안 커서 사각형.
+    fn cell_caret_rect(&mut self, _pos: CellPos) -> Result<PageRect> {
+        Err(not_supported("cell editing"))
+    }
+
+    /// 칸 안에서 한 글자 앞·뒤로(칸 안 문단 사이만 오간다). `Left`·`Right` 만.
+    fn cell_move_caret(&mut self, _pos: CellPos, _motion: CaretMotion) -> Result<CellPos> {
+        Err(not_supported("cell editing"))
+    }
+
+    /// 칸 안에 글자를 넣는다(`\n` 은 칸 안 문단 나누기). 커서 위치를 돌려준다.
+    fn cell_insert_text(&mut self, _pos: CellPos, _text: &str) -> Result<CellPos> {
+        Err(not_supported("cell editing"))
+    }
+
+    /// 칸 안에서 커서 앞 글자를 지운다(칸 문단 처음이면 앞 칸 문단과 합친다).
+    fn cell_delete_backward(&mut self, _pos: CellPos) -> Result<CellPos> {
+        Err(not_supported("cell editing"))
+    }
+
+    /// 쪽에 그려진 표·그림.
+    fn page_objects(&mut self, _page: u32) -> Result<Vec<PageObject>> {
+        Ok(Vec::new())
+    }
+
+    /// 본문 위치에 `rows`×`cols` 표를 넣는다.
+    fn insert_table(&mut self, _pos: TextPos, _rows: u32, _cols: u32) -> Result<()> {
+        Err(not_supported("tables"))
+    }
+
+    /// 표를 고친다.
+    fn edit_table(&mut self, _table: ObjectRef, _op: TableOp) -> Result<()> {
+        Err(not_supported("tables"))
+    }
+
+    /// 본문 위치에 그림(PNG·JPEG·GIF·BMP)을 글자처럼 넣는다. 크기는 pt.
+    fn insert_picture(
+        &mut self,
+        _pos: TextPos,
+        _image: &[u8],
+        _width: f32,
+        _height: f32,
+    ) -> Result<()> {
+        Err(not_supported("pictures"))
+    }
+
+    /// 그림 크기를 바꾼다(pt).
+    fn resize_picture(&mut self, _picture: ObjectRef, _width: f32, _height: f32) -> Result<()> {
+        Err(not_supported("pictures"))
+    }
+
+    /// 표·그림을 지운다.
+    fn delete_object(&mut self, _object: ObjectRef, _kind: papy_model::ObjectKind) -> Result<()> {
+        Err(not_supported("objects"))
     }
 }
 

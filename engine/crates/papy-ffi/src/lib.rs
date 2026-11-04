@@ -10,8 +10,9 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use papy_core::{
-    CaretMotion, CharFormat, Document, DocumentFormat, DocumentSource, Engine, EngineResources,
-    ErrorCode, Limits, OpenOptions, PageRect, RenderRequest, SaveFormat, SessionId, TextPos,
+    CaretMotion, CellPos, CharFormat, Document, DocumentFormat, DocumentSource, Engine,
+    EngineResources, ErrorCode, HitTarget, Limits, ObjectKind, ObjectRef, OpenOptions, PageRect,
+    RenderRequest, SaveFormat, SessionId, TableOp, TextPos,
 };
 
 uniffi::setup_scaffolding!();
@@ -159,8 +160,21 @@ pub struct EnginePosition {
     pub section: u32,
     /// 문단
     pub paragraph: u32,
-    /// 문단 안 글자 위치
+    /// 문단 안 글자 위치(칸 안이면 칸 문단 안 위치)
     pub offset: u32,
+    /// 표 칸·글상자 안이면 그 칸(`paragraph` 는 표를 가진 본문 문단)
+    pub cell: Option<EngineCell>,
+}
+
+/// 표 칸·글상자: 본문 문단 안 개체 번호, 칸 번호, 칸 안 문단.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Record)]
+pub struct EngineCell {
+    /// 문단 안 개체(표·글상자) 번호
+    pub control: u32,
+    /// 칸 번호(글상자는 0)
+    pub cell: u32,
+    /// 칸 안 문단
+    pub cell_paragraph: u32,
 }
 
 impl From<TextPos> for EnginePosition {
@@ -169,8 +183,51 @@ impl From<TextPos> for EnginePosition {
             section: pos.section,
             paragraph: pos.paragraph,
             offset: pos.offset,
+            cell: None,
         }
     }
+}
+
+impl From<CellPos> for EnginePosition {
+    fn from(pos: CellPos) -> Self {
+        Self {
+            section: pos.section,
+            paragraph: pos.paragraph,
+            offset: pos.offset,
+            cell: Some(EngineCell {
+                control: pos.control,
+                cell: pos.cell,
+                cell_paragraph: pos.cell_paragraph,
+            }),
+        }
+    }
+}
+
+impl EnginePosition {
+    /// 칸 안 위치면 `Err(CellPos)`, 본문이면 `Ok(TextPos)`
+    fn split(self) -> std::result::Result<TextPos, CellPos> {
+        match self.cell {
+            None => Ok(TextPos::from(self)),
+            Some(cell) => Err(CellPos {
+                section: self.section,
+                paragraph: self.paragraph,
+                control: cell.control,
+                cell: cell.cell,
+                cell_paragraph: cell.cell_paragraph,
+                offset: self.offset,
+            }),
+        }
+    }
+}
+
+/// 본문 위치만 받는 기능(선택·글자 모양 등). 칸 안이면 아직 안 된다.
+fn body(position: EnginePosition) -> papy_core::Result<TextPos> {
+    position.split().map_err(|_| {
+        papy_core::Error::new(
+            ErrorCode::NotImplemented,
+            "not supported inside table cells yet",
+        )
+    })
 }
 
 impl From<EnginePosition> for TextPos {
@@ -265,6 +322,142 @@ pub struct EngineUndo {
     pub undo_depth: u32,
 }
 
+/// 쪽 위 개체 종류.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum EngineObjectKind {
+    /// 표
+    Table,
+    /// 그림
+    Picture,
+}
+
+/// 문서 안 개체(본문 문단과 그 안 개체 번호).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Record)]
+pub struct EngineObjectRef {
+    /// 구역
+    pub section: u32,
+    /// 개체를 가진 본문 문단
+    pub paragraph: u32,
+    /// 문단 안 개체 번호
+    pub control: u32,
+}
+
+impl From<EngineObjectRef> for ObjectRef {
+    fn from(o: EngineObjectRef) -> Self {
+        Self {
+            section: o.section,
+            paragraph: o.paragraph,
+            control: o.control,
+        }
+    }
+}
+
+/// 표 칸 자리.
+#[derive(Debug, Clone, Copy, uniffi::Record)]
+pub struct EngineTableCell {
+    /// 칸 번호
+    pub cell: u32,
+    /// 행
+    pub row: u32,
+    /// 열
+    pub col: u32,
+    /// 합친 행 수
+    pub row_span: u32,
+    /// 합친 열 수
+    pub col_span: u32,
+    /// 칸 사각형(pt)
+    pub rect: PageRegion,
+}
+
+/// 쪽에 그려진 표·그림.
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct EngineObject {
+    /// 종류
+    pub kind: EngineObjectKind,
+    /// 가리키는 개체
+    pub object: EngineObjectRef,
+    /// 쪽 위 사각형(pt)
+    pub rect: PageRegion,
+    /// 표 행 수(그림은 0)
+    pub rows: u32,
+    /// 표 열 수
+    pub cols: u32,
+    /// 표 칸
+    pub cells: Vec<EngineTableCell>,
+}
+
+/// 표 고치기.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum EngineTableOp {
+    /// 행 넣기
+    InsertRow {
+        /// 기준 행
+        row: u32,
+        /// 아래에
+        below: bool,
+    },
+    /// 열 넣기
+    InsertColumn {
+        /// 기준 열
+        col: u32,
+        /// 오른쪽에
+        right: bool,
+    },
+    /// 행 지우기
+    DeleteRow {
+        /// 행
+        row: u32,
+    },
+    /// 열 지우기
+    DeleteColumn {
+        /// 열
+        col: u32,
+    },
+    /// 칸 합치기(양 끝 포함)
+    Merge {
+        /// 처음 행
+        start_row: u32,
+        /// 처음 열
+        start_col: u32,
+        /// 끝 행
+        end_row: u32,
+        /// 끝 열
+        end_col: u32,
+    },
+}
+
+impl From<EngineTableOp> for TableOp {
+    fn from(op: EngineTableOp) -> Self {
+        match op {
+            EngineTableOp::InsertRow { row, below } => TableOp::InsertRow { row, below },
+            EngineTableOp::InsertColumn { col, right } => TableOp::InsertColumn { col, right },
+            EngineTableOp::DeleteRow { row } => TableOp::DeleteRow { row },
+            EngineTableOp::DeleteColumn { col } => TableOp::DeleteColumn { col },
+            EngineTableOp::Merge {
+                start_row,
+                start_col,
+                end_row,
+                end_col,
+            } => TableOp::Merge {
+                start_row,
+                start_col,
+                end_row,
+                end_col,
+            },
+        }
+    }
+}
+
+fn object_kind(kind: EngineObjectKind) -> ObjectKind {
+    match kind {
+        EngineObjectKind::Table => ObjectKind::Table,
+        EngineObjectKind::Picture => ObjectKind::Picture,
+    }
+}
+
+/// 그림 한 장의 최대 크기
+const MAX_PICTURE_BYTES: usize = 32 * 1024 * 1024;
+
 /// 한 번에 넣을 수 있는 글자 수 상한.
 const MAX_INSERT_CHARS: usize = 100_000;
 
@@ -272,6 +465,27 @@ fn too_long() -> PapyError {
     PapyError::LimitExceeded {
         detail: "text is too long".into(),
     }
+}
+
+fn cell_caret(doc: &mut dyn Document, pos: CellPos) -> papy_core::Result<EngineCaret> {
+    Ok(EngineCaret {
+        position: pos.into(),
+        rect: doc.cell_caret_rect(pos)?.into(),
+    })
+}
+
+fn any_caret(doc: &mut dyn Document, position: EnginePosition) -> papy_core::Result<EngineCaret> {
+    match position.split() {
+        Ok(pos) => caret(doc, pos),
+        Err(cell) => cell_caret(doc, cell),
+    }
+}
+
+fn cell_edit_result(doc: &mut dyn Document, pos: CellPos) -> papy_core::Result<EngineEdit> {
+    Ok(EngineEdit {
+        caret: cell_caret(doc, pos)?,
+        undo_depth: depth(doc),
+    })
 }
 
 fn caret(doc: &mut dyn Document, pos: TextPos) -> papy_core::Result<EngineCaret> {
@@ -568,8 +782,10 @@ impl PapyEngine {
         y: f32,
     ) -> Result<EngineCaret, PapyError> {
         Ok(self.engine.edit(session(session_id)?, |doc| {
-            let pos = doc.hit_test(page, x, y)?;
-            caret(doc, pos)
+            match doc.hit_test_target(page, x, y)? {
+                HitTarget::Body(pos) => caret(doc, pos),
+                HitTarget::Cell(cell) => cell_caret(doc, cell),
+            }
         })?)
     }
 
@@ -581,7 +797,7 @@ impl PapyEngine {
     ) -> Result<EngineCaret, PapyError> {
         Ok(self
             .engine
-            .edit(session(session_id)?, |doc| caret(doc, position.into()))?)
+            .edit(session(session_id)?, |doc| any_caret(doc, position))?)
     }
 
     /// 커서를 옮긴다. `preferred_x` 는 위·아래로 옮길 때 지킬 가로 위치(pt).
@@ -593,7 +809,18 @@ impl PapyEngine {
         preferred_x: f32,
     ) -> Result<EngineCaret, PapyError> {
         Ok(self.engine.edit(session(session_id)?, |doc| {
-            let pos = TextPos::from(position);
+            let pos = match position.split() {
+                Ok(pos) => pos,
+                // 칸 안: 왼쪽·오른쪽만(위·아래·줄 끝은 제자리)
+                Err(cell) => {
+                    let moved = match direction {
+                        CaretDirection::Left => doc.cell_move_caret(cell, CaretMotion::Left)?,
+                        CaretDirection::Right => doc.cell_move_caret(cell, CaretMotion::Right)?,
+                        _ => cell,
+                    };
+                    return cell_caret(doc, moved);
+                }
+            };
             let moved = match direction {
                 CaretDirection::Left => doc.move_caret(pos, CaretMotion::Left)?,
                 CaretDirection::Right => doc.move_caret(pos, CaretMotion::Right)?,
@@ -616,10 +843,18 @@ impl PapyEngine {
         if text.chars().count() > MAX_INSERT_CHARS {
             return Err(too_long());
         }
-        Ok(self.engine.edit(session(session_id)?, |doc| {
-            let outcome = doc.insert_text(position.into(), &text)?;
-            edit_result(doc, outcome.caret)
-        })?)
+        Ok(self
+            .engine
+            .edit(session(session_id)?, |doc| match position.split() {
+                Ok(pos) => {
+                    let outcome = doc.insert_text(pos, &text)?;
+                    edit_result(doc, outcome.caret)
+                }
+                Err(cell) => {
+                    let at = doc.cell_insert_text(cell, &text)?;
+                    cell_edit_result(doc, at)
+                }
+            })?)
     }
 
     /// 커서 앞 글자를 지운다(문단 처음이면 앞 문단과 합친다).
@@ -628,10 +863,18 @@ impl PapyEngine {
         session_id: u64,
         position: EnginePosition,
     ) -> Result<EngineEdit, PapyError> {
-        Ok(self.engine.edit(session(session_id)?, |doc| {
-            let outcome = doc.delete_backward(position.into())?;
-            edit_result(doc, outcome.caret)
-        })?)
+        Ok(self
+            .engine
+            .edit(session(session_id)?, |doc| match position.split() {
+                Ok(pos) => {
+                    let outcome = doc.delete_backward(pos)?;
+                    edit_result(doc, outcome.caret)
+                }
+                Err(cell) => {
+                    let at = doc.cell_delete_backward(cell)?;
+                    cell_edit_result(doc, at)
+                }
+            })?)
     }
 
     /// 범위를 지운다(문단을 넘으면 합친다). 같은 구역 안이어야 한다.
@@ -641,7 +884,7 @@ impl PapyEngine {
         range: EngineRange,
     ) -> Result<EngineEdit, PapyError> {
         Ok(self.engine.edit(session(session_id)?, |doc| {
-            let outcome = doc.delete_range(range.start.into(), range.end.into())?;
+            let outcome = doc.delete_range(body(range.start)?, body(range.end)?)?;
             edit_result(doc, outcome.caret)
         })?)
     }
@@ -654,7 +897,7 @@ impl PapyEngine {
     ) -> Result<Vec<PageRegion>, PapyError> {
         Ok(self.engine.edit(session(session_id)?, |doc| {
             Ok(doc
-                .selection_rects(range.start.into(), range.end.into())?
+                .selection_rects(body(range.start)?, body(range.end)?)?
                 .into_iter()
                 .map(PageRegion::from)
                 .collect())
@@ -664,7 +907,7 @@ impl PapyEngine {
     /// 범위의 글자(문단 사이는 `\n`).
     pub fn text_in_range(&self, session_id: u64, range: EngineRange) -> Result<String, PapyError> {
         Ok(self.engine.edit(session(session_id)?, |doc| {
-            doc.text_in_range(range.start.into(), range.end.into())
+            doc.text_in_range(body(range.start)?, body(range.end)?)
         })?)
     }
 
@@ -675,7 +918,13 @@ impl PapyEngine {
         position: EnginePosition,
     ) -> Result<EngineRange, PapyError> {
         Ok(self.engine.edit(session(session_id)?, |doc| {
-            let pos = TextPos::from(position);
+            // 칸 안은 아직 단어를 고르지 않는다(빈 범위 = 커서만)
+            let Ok(pos) = position.split() else {
+                return Ok(EngineRange {
+                    start: position,
+                    end: position,
+                });
+            };
             let start = TextPos { offset: 0, ..pos };
             let end = paragraph_end(doc, pos.section, pos.paragraph)?;
             let chars: Vec<char> = doc.text_in_range(start, end)?.chars().collect();
@@ -706,7 +955,7 @@ impl PapyEngine {
         position: EnginePosition,
     ) -> Result<EngineTextStyle, PapyError> {
         Ok(self.engine.edit(session(session_id)?, |doc| {
-            let format = doc.char_format(position.into())?;
+            let format = doc.char_format(body(position)?)?;
             Ok(EngineTextStyle {
                 font_size: format.font_size,
                 bold: format.bold,
@@ -750,7 +999,7 @@ impl PapyEngine {
                 strikethrough: style.strikethrough,
                 color: style.color.clone(),
             };
-            doc.apply_char_format(range.start.into(), range.end.into(), &format)?;
+            doc.apply_char_format(body(range.start)?, body(range.end)?, &format)?;
             Ok(depth(doc))
         })?)
     }
@@ -774,6 +1023,116 @@ impl PapyEngine {
         Ok(self
             .engine
             .edit(session(session_id)?, |doc| Ok(depth(doc)))?)
+    }
+
+    /// 쪽에 그려진 표·그림(본문 것만).
+    pub fn page_objects(&self, session_id: u64, page: u32) -> Result<Vec<EngineObject>, PapyError> {
+        Ok(self.engine.edit(session(session_id)?, |doc| {
+            Ok(doc
+                .page_objects(page)?
+                .into_iter()
+                .map(|o| EngineObject {
+                    kind: match o.kind {
+                        ObjectKind::Table => EngineObjectKind::Table,
+                        _ => EngineObjectKind::Picture,
+                    },
+                    object: EngineObjectRef {
+                        section: o.object.section,
+                        paragraph: o.object.paragraph,
+                        control: o.object.control,
+                    },
+                    rect: o.rect.into(),
+                    rows: o.rows,
+                    cols: o.cols,
+                    cells: o
+                        .cells
+                        .into_iter()
+                        .map(|c| EngineTableCell {
+                            cell: c.cell,
+                            row: c.row,
+                            col: c.col,
+                            row_span: c.row_span,
+                            col_span: c.col_span,
+                            rect: c.rect.into(),
+                        })
+                        .collect(),
+                })
+                .collect())
+        })?)
+    }
+
+    /// 본문 위치에 표를 넣는다. 편집 뒤 되돌리기 단계 수.
+    pub fn insert_table(
+        &self,
+        session_id: u64,
+        position: EnginePosition,
+        rows: u32,
+        cols: u32,
+    ) -> Result<u32, PapyError> {
+        Ok(self.engine.edit(session(session_id)?, |doc| {
+            doc.insert_table(body(position)?, rows, cols)?;
+            Ok(depth(doc))
+        })?)
+    }
+
+    /// 표를 고친다(행·열 넣기·지우기, 칸 합치기). 편집 뒤 되돌리기 단계 수.
+    pub fn edit_table(
+        &self,
+        session_id: u64,
+        table: EngineObjectRef,
+        op: EngineTableOp,
+    ) -> Result<u32, PapyError> {
+        Ok(self.engine.edit(session(session_id)?, |doc| {
+            doc.edit_table(table.into(), op.into())?;
+            Ok(depth(doc))
+        })?)
+    }
+
+    /// 본문 위치에 그림(PNG·JPEG·GIF·BMP)을 글자처럼 넣는다. 크기는 pt.
+    pub fn insert_picture(
+        &self,
+        session_id: u64,
+        position: EnginePosition,
+        image: Vec<u8>,
+        width: f32,
+        height: f32,
+    ) -> Result<u32, PapyError> {
+        if image.len() > MAX_PICTURE_BYTES {
+            return Err(PapyError::LimitExceeded {
+                detail: "picture is too large".into(),
+            });
+        }
+        Ok(self.engine.edit(session(session_id)?, |doc| {
+            doc.insert_picture(body(position)?, &image, width, height)?;
+            Ok(depth(doc))
+        })?)
+    }
+
+    /// 그림 크기를 바꾼다(pt).
+    pub fn resize_picture(
+        &self,
+        session_id: u64,
+        picture: EngineObjectRef,
+        width: f32,
+        height: f32,
+    ) -> Result<u32, PapyError> {
+        Ok(self.engine.edit(session(session_id)?, |doc| {
+            doc.resize_picture(picture.into(), width, height)?;
+            Ok(depth(doc))
+        })?)
+    }
+
+    /// 표·그림을 지운다.
+    pub fn delete_object(
+        &self,
+        session_id: u64,
+        object: EngineObjectRef,
+        kind: EngineObjectKind,
+    ) -> Result<u32, PapyError> {
+        Ok(self.engine.edit(session(session_id)?, |doc| {
+            doc.delete_object(object.into(), object_kind(kind))?;
+            Ok(depth(doc))
+        })?)
     }
 
     /// 다른 형식으로 내보낸 바이트. `extension`: "pdf" | "hwpx" | "hwp" | "docx" | "txt".

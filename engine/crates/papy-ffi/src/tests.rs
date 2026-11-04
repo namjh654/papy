@@ -170,6 +170,7 @@ fn replacing_a_paragraph_keeps_untouched_character_styles() {
         section: 0,
         paragraph: 0,
         offset,
+        cell: None,
     };
     let bold = EngineTextStyle {
         bold: Some(true),
@@ -255,11 +256,13 @@ fn cursor_typing_deleting_and_moving() {
             section: 0,
             paragraph: 0,
             offset: 0,
+            cell: None,
         },
         end: EnginePosition {
             section: 0,
             paragraph: 0,
             offset: 6,
+            cell: None,
         },
     };
     assert_eq!(
@@ -304,6 +307,7 @@ fn word_selection_and_style_validation() {
         section: 0,
         paragraph: 0,
         offset: 7,
+        cell: None,
     };
     let word = engine.word_at(doc.session, pos).unwrap();
     assert_eq!((word.start.offset, word.end.offset), (6, 8));
@@ -339,4 +343,127 @@ fn exports_pdf_with_korean_text() {
     assert!(engine.export(doc.session, "xyz".into()).is_err());
     // 작업 문서는 그대로
     assert!(engine.save(doc.session).is_ok());
+}
+
+const RED_PNG: &[u8] = &[
+    0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
+    0x00, 0x00, 0x00, 0x28, 0x00, 0x00, 0x00, 0x14, 0x08, 0x02, 0x00, 0x00, 0x00, 0x70, 0x24, 0xE8,
+    0xEC, 0x00, 0x00, 0x00, 0x23, 0x49, 0x44, 0x41, 0x54, 0x78, 0xDA, 0xED, 0xCD, 0xB1, 0x0D, 0x00,
+    0x00, 0x08, 0xC0, 0xA0, 0xFE, 0xFF, 0xB4, 0x9E, 0xE1, 0x20, 0x09, 0x3B, 0x4D, 0x9D, 0x48, 0x2C,
+    0x16, 0x8B, 0xC5, 0x62, 0xB1, 0xF8, 0x4F, 0xBC, 0x7D, 0xFA, 0x1D, 0x0E, 0xA2, 0x1E, 0x87, 0x3D,
+    0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82,
+];
+
+#[test]
+fn tables_and_pictures_through_the_bridge() {
+    let engine = PapyEngine::new(None);
+    let doc = engine
+        .open(docx_paragraphs(&["표 앞", "표 뒤"]), None)
+        .unwrap();
+    let start = EnginePosition {
+        section: 0,
+        paragraph: 0,
+        offset: 0,
+        cell: None,
+    };
+    let depth = engine.insert_table(doc.session, start, 2, 2).unwrap();
+    assert!(depth >= 1);
+    let objects = engine.page_objects(doc.session, 0).unwrap();
+    let table = objects
+        .iter()
+        .find(|o| o.kind == EngineObjectKind::Table)
+        .expect("table");
+    assert_eq!((table.rows, table.cols, table.cells.len()), (2, 2, 4));
+    // 칸을 눌러 커서를 놓고 글자를 넣는다
+    let cell = table
+        .cells
+        .iter()
+        .find(|c| c.row == 1 && c.col == 1)
+        .unwrap();
+    let caret = engine
+        .caret_at_point(
+            doc.session,
+            0,
+            cell.rect.x + cell.rect.width / 2.0,
+            cell.rect.y + cell.rect.height / 2.0,
+        )
+        .unwrap();
+    let inside = caret.position.cell.expect("caret inside a cell");
+    assert_eq!(inside.cell, cell.cell);
+    let typed = engine
+        .insert_text(doc.session, caret.position, "칸 글자".into())
+        .unwrap();
+    assert_eq!(typed.caret.position.offset, 4);
+    assert!(typed.caret.position.cell.is_some());
+    let back = engine
+        .delete_backward(doc.session, typed.caret.position)
+        .unwrap();
+    assert_eq!(back.caret.position.offset, 3);
+    let left = engine
+        .move_caret(doc.session, back.caret.position, CaretDirection::Left, 0.0)
+        .unwrap();
+    assert_eq!(left.position.offset, 2);
+    // 칸 안에서는 단어 고르기·글자 모양이 아직 안 된다(빈 범위·오류)
+    let word = engine.word_at(doc.session, left.position).unwrap();
+    assert_eq!(word.start, word.end);
+    assert!(engine.text_style(doc.session, left.position).is_err());
+    // 표 고치기
+    engine
+        .edit_table(
+            doc.session,
+            table.object,
+            EngineTableOp::InsertRow {
+                row: 1,
+                below: true,
+            },
+        )
+        .unwrap();
+    let rows = |engine: &PapyEngine| {
+        engine
+            .page_objects(doc.session, 0)
+            .unwrap()
+            .into_iter()
+            .find(|o| o.kind == EngineObjectKind::Table)
+            .map(|t| t.rows)
+    };
+    assert_eq!(rows(&engine), Some(3));
+    // 저장하면 칸 글자가 DOCX 에 남는다
+    let saved = engine.save(doc.session).unwrap();
+    let reopened = engine.open(saved, None).unwrap();
+    assert!(
+        engine
+            .extract_text(reopened.session, 0)
+            .unwrap()
+            .contains("칸 글")
+    );
+    // 그림 넣기 → 크기 → 지우기
+    engine
+        .insert_picture(doc.session, start, RED_PNG.to_vec(), 80.0, 40.0)
+        .unwrap();
+    let picture = engine
+        .page_objects(doc.session, 0)
+        .unwrap()
+        .into_iter()
+        .find(|o| o.kind == EngineObjectKind::Picture)
+        .expect("picture");
+    assert!(
+        (picture.rect.width - 80.0).abs() < 2.0,
+        "{:?}",
+        picture.rect
+    );
+    engine
+        .resize_picture(doc.session, picture.object, 40.0, 20.0)
+        .unwrap();
+    engine
+        .delete_object(doc.session, picture.object, EngineObjectKind::Picture)
+        .unwrap();
+    engine
+        .delete_object(doc.session, table.object, EngineObjectKind::Table)
+        .unwrap();
+    assert!(engine.page_objects(doc.session, 0).unwrap().is_empty());
+    assert!(
+        engine
+            .insert_picture(doc.session, start, b"nope".to_vec(), 10.0, 10.0)
+            .is_err()
+    );
 }
