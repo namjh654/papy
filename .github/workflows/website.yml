@@ -10,7 +10,7 @@ on:
 permissions:
   contents: read
 
-# 배포는 Vercel 이 main push 마다 한다(website/README.md). 여기서는 빌드만 검증한다.
+# 여기서는 빌드만 검증한다. 운영 배포는 Vercel CLI 로 한다(website/README.md "배포").
 jobs:
   build:
     runs-on: ubuntu-latest
