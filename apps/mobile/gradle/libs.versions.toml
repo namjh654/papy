@@ -1,4 +1,6 @@
 [versions]
+# UniFFI Kotlin 바인딩이 Rust 엔진(libpapy_ffi.so)을 부를 때 쓴다(Apache-2.0/LGPL-2.1 중 Apache-2.0)
+jna = "5.19.1"
 agp = "9.3.1"
 android-compileSdk = "37"
 android-minSdk = "24"
@@ -39,6 +41,7 @@ firebase-crashlytics-plugin = "3.0.8"
 kover = "0.9.11"
 
 [libraries]
+jna = { module = "net.java.dev.jna:jna", version.ref = "jna" }
 # --- Shared (KMP Common) Dependencies ---
 
 coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }

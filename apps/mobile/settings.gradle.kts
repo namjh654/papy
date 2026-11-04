@@ -14,6 +14,7 @@ include(":feature:inbox")
 include(":feature:search")
 include(":feature:chat")
 include(":feature:community")
+include(":feature:documents")
 
 rootProject.name = "papykmp"
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")

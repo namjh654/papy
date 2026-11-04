@@ -1,6 +1,7 @@
 package io.github.namjh654.papy.di
 
 import io.github.namjh654.papy.core.data.platform.PlatformServices
+import io.github.namjh654.papy.feature.documents.DocumentEngine
 
 object IOSAppKoin {
 
@@ -16,5 +17,10 @@ object IOSAppKoin {
      */
     fun initialize(services: PlatformServices) {
         initKoin(services = services)
+    }
+
+    /** 문서 엔진(Swift 구현)을 넣는다. initialize 다음에 한 번 */
+    fun registerDocumentEngine(engine: DocumentEngine) {
+        io.github.namjh654.papy.di.registerDocumentEngine(engine)
     }
 }

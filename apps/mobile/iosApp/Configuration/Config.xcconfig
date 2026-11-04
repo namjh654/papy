@@ -14,3 +14,12 @@ PRODUCT_NAME=Papy
 PRODUCT_BUNDLE_IDENTIFIER=io.github.namjh654.papy$(BUNDLE_ID_SUFFIX)
 
 // 버전(MARKETING_VERSION·CURRENT_PROJECT_VERSION)은 env/common.properties 의 app.versionName·app.versionCode → Env.generated.xcconfig
+
+// Papy 엔진(Rust, UniFFI) — scripts/build-mobile-engine.mjs ios 가 Frameworks/PapyFFI.xcframework 를 만든다(git 제외).
+// Swift 바인딩(iosApp/engine/papy.ffi.swift)이 C 모듈 papy_ffiFFI 를 쓴다.
+PAPY_FFI = $(SRCROOT)/Frameworks/PapyFFI.xcframework
+PAPY_FFI_SLICE[sdk=iphoneos*] = ios-arm64
+PAPY_FFI_SLICE[sdk=iphonesimulator*] = ios-arm64-simulator
+LIBRARY_SEARCH_PATHS = $(inherited) $(PAPY_FFI)/$(PAPY_FFI_SLICE)
+SWIFT_INCLUDE_PATHS = $(inherited) $(PAPY_FFI)/$(PAPY_FFI_SLICE)/Headers
+OTHER_LDFLAGS = $(inherited) -lpapy_ffi

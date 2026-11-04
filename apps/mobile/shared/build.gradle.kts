@@ -21,6 +21,7 @@ val exported = listOf(
     ":feature:search",
     ":feature:chat",
     ":feature:community",
+    ":feature:documents",
 )
 
 skie {

@@ -415,4 +415,32 @@
     <string name="file_no_app">No app can open this file</string>
     <string name="file_saved_caption">%1$s · Saved</string>
     <string name="file_download_failed_short">Couldn\'t download · Tap to retry</string>
+    <!-- 문서(feature:documents) -->
+    <string name="documents_title">Documents</string>
+    <string name="documents_description">View PDF, Hangul and Word documents on this device, no internet needed.</string>
+    <string name="documents_open">Open document</string>
+    <string name="documents_recent">Recent documents</string>
+    <string name="documents_empty">No recent documents</string>
+    <string name="documents_empty_message">Tap Open document to choose a PDF, HWP, HWPX or DOCX file.</string>
+    <string name="documents_clear">Clear list</string>
+    <string name="documents_remove">Remove from list</string>
+    <string name="viewer_opening">Opening document…</string>
+    <string name="viewer_password_title">Password-protected document</string>
+    <string name="viewer_password_message">Enter the password to open %1$s.</string>
+    <string name="viewer_password_wrong">That password isn\'t right. Please try again.</string>
+    <string name="viewer_password_open">Open</string>
+    <string name="viewer_error_unreadable">The file can\'t be read. It may have been deleted or access was removed.</string>
+    <string name="viewer_error_unsupported">This document isn\'t supported. Papy opens PDF, HWP, HWPX and DOCX.</string>
+    <string name="viewer_error_invalid">The document is damaged or not in a valid format.</string>
+    <string name="viewer_error_too_large">The document is too large to open on this device.</string>
+    <string name="viewer_error_internal">Something went wrong while opening the document.</string>
+    <string name="viewer_page_indicator">%1$d / %2$d</string>
+    <string name="viewer_text">View text</string>
+    <string name="viewer_text_title">Text on page %1$d</string>
+    <string name="viewer_text_unavailable">There\'s no readable text on this page. It may be a scanned image.</string>
+    <string name="viewer_text_copy">Copy</string>
+    <string name="viewer_text_copied">Copied</string>
+    <string name="viewer_loss">%1$d element(s) in this document, such as shapes, can\'t be shown yet.</string>
+    <string name="viewer_page_failed">This page couldn\'t be drawn</string>
+    <string name="common_close">Close</string>
 </resources>

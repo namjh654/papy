@@ -41,6 +41,19 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="papy" />
             </intent-filter>
+            <!-- 다른 앱에서 문서를 "Papy 로 열기" (MainActivity.handleIntent → IncomingDocuments) -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="content" />
+                <data android:mimeType="application/pdf" />
+                <data android:mimeType="application/x-hwp" />
+                <data android:mimeType="application/haansofthwp" />
+                <data android:mimeType="application/vnd.hancom.hwp" />
+                <data android:mimeType="application/hwp+zip" />
+                <data android:mimeType="application/vnd.hancom.hwpx" />
+                <data android:mimeType="application/vnd.openxmlformats-officedocument.wordprocessingml.document" />
+            </intent-filter>
         </activity>
 
         <!-- 카카오 로그인 리다이렉트(kakao{앱 키}://oauth, DEC-119). env social.kakao.appKey 가 없으면 꺼진다 -->

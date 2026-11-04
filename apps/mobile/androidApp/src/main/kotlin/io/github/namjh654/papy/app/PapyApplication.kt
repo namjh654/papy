@@ -2,6 +2,8 @@ package io.github.namjh654.papy.app
 
 import android.app.Application
 import io.github.namjh654.papy.di.initAndroidKoin
+import io.github.namjh654.papy.di.registerDocumentEngine
+import io.github.namjh654.papy.engine.AndroidDocumentEngine
 import io.github.namjh654.papy.core.data.platform.PlatformServices
 import io.github.namjh654.papy.core.data.settings.AppSettingsRepository
 import io.github.namjh654.papy.core.data.push.PushManager
@@ -40,6 +42,9 @@ class PapyApplication : Application() {
                 socialAuth = AndroidSocialAuthProvider(this),
             ),
         )
+
+        // 문서 엔진: Rust(HWP·HWPX·DOCX) + PdfRenderer(PDF)
+        registerDocumentEngine(AndroidDocumentEngine(this))
 
         (pushProvider as? FcmPushProvider)?.start(GlobalContext.get().get<PushManager>())
 

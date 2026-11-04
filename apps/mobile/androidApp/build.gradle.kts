@@ -54,6 +54,9 @@ dependencies {
     // 앱 잠금: 생체 인증·기기 암호(26-1, DEC-134) — MainActivity 는 FragmentActivity
     implementation(libs.androidx.biometric)
 
+    // Papy 엔진(Rust, UniFFI) — Android 는 aar(네이티브 libjnidispatch 포함)
+    implementation(libs.jna) { artifact { type = "aar" } }
+
     // Koin Android & Compose
     implementation(libs.koin.android)
     implementation(libs.koin.androidx.compose)

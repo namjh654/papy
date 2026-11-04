@@ -13,10 +13,14 @@ import io.github.namjh654.papy.feature.inbox.di.inboxModule
 import io.github.namjh654.papy.feature.search.di.searchModule
 import io.github.namjh654.papy.feature.chat.di.chatModule
 import io.github.namjh654.papy.feature.community.di.communityModule
+import io.github.namjh654.papy.feature.documents.DocumentEngine
+import io.github.namjh654.papy.feature.documents.di.documentsModule
 import org.koin.core.Koin
+import org.koin.core.context.loadKoinModules
 import org.koin.core.context.startKoin
 import org.koin.core.module.Module
 import org.koin.dsl.KoinAppDeclaration
+import org.koin.dsl.module
 
 /** 앱 전체 Koin 모듈 목록. 새 feature 를 추가하면 그 feature 의 Koin 모듈을 한 줄 추가한다. */
 fun appModules(
@@ -33,6 +37,7 @@ fun appModules(
     searchModule,
     chatModule,
     communityModule,
+    documentsModule,
 )
 
 /**
@@ -50,4 +55,12 @@ fun initKoin(
         appDeclaration()
         modules(appModules(services))
     }.koin
+}
+
+/**
+ * 플랫폼 문서 엔진을 넣는다(initKoin 다음에 한 번). Android: Rust 엔진 + PdfRenderer, iOS: Swift 구현.
+ * Swift: `IOSAppKoin.shared.registerDocumentEngine(engine: PapyDocumentEngine())`
+ */
+fun registerDocumentEngine(engine: DocumentEngine) {
+    loadKoinModules(module { single<DocumentEngine> { engine } })
 }

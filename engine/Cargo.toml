@@ -21,6 +21,8 @@ papy-office = { path = "crates/papy-office" }
 papy-core = { path = "crates/papy-core" }
 # HWP/HWPX 엔진(MIT). `node scripts/fetch-rhwp.mjs` 로 받는다 — crates.io 에 없고 저장소가 수 GB 라 git 의존성 대신 쓴다.
 rhwp = { path = "vendor/rhwp", default-features = false }
+# Kotlin·Swift 바인딩 생성(MPL-2.0). 모바일 연결: docs/decisions/0006-mobile-bridge.md
+uniffi = "0.32"
 
 [workspace.lints.rust]
 unsafe_op_in_unsafe_fn = "deny"
@@ -28,3 +30,7 @@ missing_docs = "warn"
 
 [workspace.lints.clippy]
 all = { level = "warn", priority = -1 }
+
+[profile.release]
+# 모바일 라이브러리 크기를 줄인다(디버그 기호 제거).
+strip = "symbols"

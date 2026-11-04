@@ -35,6 +35,8 @@ import io.github.namjh654.papy.feature.community.blocked.BlockedUsersViewModel
 import io.github.namjh654.papy.feature.community.detail.PostDetailViewModel
 import io.github.namjh654.papy.feature.community.editor.PostEditorViewModel
 import io.github.namjh654.papy.feature.community.user.UserProfileViewModel
+import io.github.namjh654.papy.feature.documents.DocumentsViewModel
+import io.github.namjh654.papy.feature.documents.viewer.ViewerViewModel
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.usePinned
@@ -75,6 +77,12 @@ object IOSAppGraph : KoinComponent {
         if (size == 0) return ByteArray(0)
         return ByteArray(size).apply { usePinned { memcpy(it.addressOf(0), data.bytes, data.length) } }
     }
+
+    /** 첫 화면: 최근 문서 */
+    fun documentsViewModel(): DocumentsViewModel = get()
+
+    /** 문서 보기. [ref] 는 보안 범위 북마크(base64), [name] 은 파일 이름 */
+    fun viewerViewModel(ref: String, name: String): ViewerViewModel = get { parametersOf(ref, name) }
 
     fun splashViewModel(): SplashViewModel = get()
 

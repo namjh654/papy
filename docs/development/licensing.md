@@ -39,6 +39,7 @@
 | 범위 | 내용 |
 |---|---|
 | 엔진 (`engine/`) | PDFium 사전 빌드(BSD-3-Clause + Apache-2.0, 서드파티 고지 18개 — 받은 폴더의 `LICENSE`·`licenses/`), `pdfium-render` 0.9.5(MIT OR Apache-2.0), rhwp v0.8.7(MIT, 고지 `THIRD_PARTY_LICENSES.md`), resvg 0.45.1(Apache-2.0 OR MIT), Noto Sans KR Regular(OFL-1.1, rhwp 저장소 `ttfs/opensource` — PDF 텍스트 상자에 넣고 HWP 대체 글꼴로 씀. OFL 은 글꼴 단독 판매만 금지하고 소프트웨어와 함께 배포·문서에 넣는 것을 허용). rhwp+resvg 전이 의존성 235개 전부 허용형(MIT·Apache·BSD·Zlib·Unicode-3.0·0BSD·CC0·BSL-1.0 등), GPL/AGPL/MPL 없음 (`cargo tree --format {l}`, 2026-11-03). |
+| 모바일 (`papy-ffi`, `apps/mobile`) | Rust 전이 의존성 281개(Android 대상, 2026-11-04): GPL/AGPL/LGPL 없음. 약한 copyleft 는 UniFFI 0.32(MPL-2.0, `uniffi*` crate 7개, 수정 없이 사용 — 파일 단위 조건). Kotlin 쪽 JNA 5.19.1(Apache-2.0 OR LGPL-2.1 → Apache-2.0 선택). PDF 는 운영체제 렌더러라 PDFium 을 넣지 않는다. 앱 화면의 라이선스 고지는 모바일 배포 전에 넣는다(ADR 0006). |
 | 데스크톱 Rust (`src-tauri`) | 전이 포함 402 crate. GPL/AGPL 없음(PolyForm NC 와 결합 가능). 대부분 MIT/Apache-2.0 계열. 약한 copyleft: MPL-2.0 5개(`cssparser`, `cssparser-macros`, `dtoa-short`, `option-ext`, `selectors` — Tauri/wry 경유, 파일 단위 copyleft). |
 | JS 직접 의존성 | react·react-dom·vite·@vitejs/plugin-react·@types/react: MIT / typescript: Apache-2.0 / @tauri-apps/*: Apache-2.0 OR MIT |
 | 모바일 | 템플릿 의존성(Ktor, Koin, SKIE, Firebase, 소셜 로그인 SDK 등) 미검토 — 모바일 단계 시작 시 정리 |

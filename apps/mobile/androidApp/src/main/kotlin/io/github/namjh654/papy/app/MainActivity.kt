@@ -31,7 +31,9 @@ import io.github.namjh654.papy.core.data.permission.AndroidPermissionController
 import io.github.namjh654.papy.core.data.permission.PermissionController
 import io.github.namjh654.papy.core.data.push.PushManager
 import io.github.namjh654.papy.core.data.settings.AppSettingsRepository
-import io.github.namjh654.papy.navigation.AndroidNavHost
+import io.github.namjh654.papy.screen.documents.DocumentsNavHost
+import io.github.namjh654.papy.screen.documents.IncomingDocuments
+import io.github.namjh654.papy.screen.documents.displayName
 import io.github.namjh654.papy.push.pushData
 import kotlinx.coroutines.runBlocking
 import org.koin.android.ext.android.inject
@@ -101,7 +103,8 @@ class MainActivity : FragmentActivity() {
                     CaptureProtection()
                     // 앱 잠금(26-1): 잠겨 있으면 화면 전체를 덮는다
                     AppLockGate {
-                        AndroidNavHost()
+                        // 문서 앱 흐름(최근 문서 → 보기). 템플릿의 로그인·탭 흐름(AndroidNavHost)은 코드만 남겨 둔다(ADR 0006).
+                        DocumentsNavHost()
                     }
                 }
             }
@@ -116,6 +119,12 @@ class MainActivity : FragmentActivity() {
 
     /** 외부 링크(papy://notice/3) 또는 알림 탭(extras) → PushManager.pendingDeepLink → 루트가 메인에서 연다 */
     private fun handleIntent(intent: Intent) {
+        // 다른 앱에서 "Papy 로 열기"
+        if (intent.action == Intent.ACTION_VIEW && intent.data?.scheme == "content") {
+            val uri = intent.data ?: return
+            IncomingDocuments.offer(uri, displayName(uri))
+            return
+        }
         intent.dataString?.let(pushManager::openLink) ?: pushManager.onNotificationOpened(intent.pushData())
     }
 }
