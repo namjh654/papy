@@ -34,6 +34,17 @@ pub struct DocxReadReport {
     pub dropped_notes: usize,
     /// 본문 도형, 본문의 [`SHAPE_MARK`] 와 같은 순서.
     pub shapes: Vec<DocxShape>,
+    /// 본문 제목 문단(스타일·문단의 개요 수준이 있는 것), 문서 순서. 목차로 쓴다. 표 안 문단은 넣지 않는다.
+    pub headings: Vec<DocxHeading>,
+}
+
+/// 제목 문단 하나.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DocxHeading {
+    /// 개요 수준(1부터). Word 의 "제목 1" 이 1 이다.
+    pub level: u8,
+    /// 문단 글자(번호 글자는 빼고, 앞뒤 공백 없이).
+    pub text: String,
 }
 
 /// 그림 하나의 최대 크기, 문서 전체 그림 크기 합의 최대치.
@@ -203,6 +214,22 @@ struct ParaStyle {
     based_on: Option<String>,
     run: RunProps,
     align: Option<String>,
+    /// 개요 수준(0부터, `w:outlineLvl` 또는 이름이 "heading N"). 9 는 본문이다.
+    outline: Option<u8>,
+}
+
+/// `w:outlineLvl` 값. 0~8 만 제목이고 9 는 본문이다.
+fn outline_level(element: &BytesStart) -> Option<u8> {
+    attr(element, "val")
+        .and_then(|v| v.parse::<u8>().ok())
+        .filter(|&level| level <= 9)
+}
+
+/// 기본 스타일 이름("heading 1" 등)의 개요 수준.
+fn heading_name_level(name: &str) -> Option<u8> {
+    let rest = name.trim().to_ascii_lowercase();
+    let level: u8 = rest.strip_prefix("heading")?.trim().parse().ok()?;
+    (1..=9).contains(&level).then(|| level - 1)
 }
 
 pub(crate) fn local(name: &str) -> &str {
@@ -291,6 +318,17 @@ fn parse_styles(xml: &str) -> (RunProps, HashMap<String, ParaStyle>) {
                         style.align = attr(&e, "val");
                     }
                 }
+                "name" if !in_rpr => {
+                    if let Some((_, style)) = current.as_mut() {
+                        let level = attr(&e, "val").and_then(|n| heading_name_level(&n));
+                        style.outline = style.outline.or(level);
+                    }
+                }
+                "outlineLvl" if !in_rpr => {
+                    if let Some((_, style)) = current.as_mut() {
+                        style.outline = outline_level(&e);
+                    }
+                }
                 "rPr" => in_rpr = true,
                 _ if in_rpr => {
                     if in_defaults {
@@ -317,8 +355,11 @@ fn parse_styles(xml: &str) -> (RunProps, HashMap<String, ParaStyle>) {
     (defaults, styles)
 }
 
-/// 스타일 상속을 풀어 (글자 서식, 정렬) 을 돌려준다.
-fn resolve_style(styles: &HashMap<String, ParaStyle>, id: &str) -> (RunProps, Option<String>) {
+/// 스타일 상속을 풀어 (글자 서식, 정렬, 개요 수준) 을 돌려준다.
+fn resolve_style(
+    styles: &HashMap<String, ParaStyle>,
+    id: &str,
+) -> (RunProps, Option<String>, Option<u8>) {
     let mut chain = Vec::new();
     let mut next = Some(id.to_string());
     while let Some(id) = next {
@@ -331,11 +372,13 @@ fn resolve_style(styles: &HashMap<String, ParaStyle>, id: &str) -> (RunProps, Op
     }
     let mut run = RunProps::default();
     let mut align = None;
+    let mut outline = None;
     for style in chain.iter().rev() {
         run = style.run.over(&run);
         align = style.align.clone().or(align);
+        outline = style.outline.or(outline);
     }
-    (run, align)
+    (run, align, outline)
 }
 
 fn escape(text: &str) -> String {
@@ -459,8 +502,11 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
 
     let mut para_html = String::new();
     let mut in_para = false;
-    let mut para_style: (RunProps, Option<String>) = (RunProps::default(), None);
+    let mut para_style: (RunProps, Option<String>, Option<u8>) = (RunProps::default(), None, None);
     let mut para_align: Option<String> = None;
+    // 문단에 직접 준 개요 수준(스타일 것보다 앞선다)과 문단 글자(목차용, 이스케이프 전).
+    let mut para_outline: Option<u8> = None;
+    let mut para_plain = String::new();
     let mut in_ppr = false;
     let mut in_tbl_borders = false;
     let mut run = RunProps::default();
@@ -536,8 +582,10 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
                     "p" => {
                         in_para = true;
                         para_html.clear();
-                        para_style = (RunProps::default(), None);
+                        para_style = (RunProps::default(), None, None);
                         para_align = None;
+                        para_outline = None;
+                        para_plain.clear();
                         list_item = false;
                         num_id = None;
                         ilvl = 0;
@@ -569,6 +617,7 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
                         }
                     }
                     "jc" if in_ppr && !in_rpr => para_align = attr(&e, "val"),
+                    "outlineLvl" if in_ppr && !in_rpr => para_outline = outline_level(&e),
                     "numPr" if in_ppr => {
                         list_item = true;
                         in_numpr = !empty;
@@ -698,21 +747,25 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
                 }
             }
             Event::Text(text) if in_text => {
-                run_text.push_str(&escape(&text.xml10_content()));
+                let text = text.xml10_content();
+                para_plain.push_str(&text);
+                run_text.push_str(&escape(&text));
             }
             Event::GeneralRef(reference) if in_text => {
                 // &amp; 등 문자 참조
                 if let Ok(Some(ch)) = reference.resolve_char_ref() {
+                    para_plain.push(ch);
                     run_text.push_str(&escape(&ch.to_string()));
                 } else {
-                    let ch = match reference.into_inner().as_ref() {
-                        "amp" => "&amp;",
-                        "lt" => "&lt;",
-                        "gt" => "&gt;",
-                        "quot" => "&quot;",
-                        "apos" => "'",
-                        _ => "",
+                    let (plain, ch) = match reference.into_inner().as_ref() {
+                        "amp" => ("&", "&amp;"),
+                        "lt" => ("<", "&lt;"),
+                        "gt" => (">", "&gt;"),
+                        "quot" => ("\"", "&quot;"),
+                        "apos" => ("'", "'"),
+                        _ => ("", ""),
                     };
+                    para_plain.push_str(plain);
                     run_text.push_str(ch);
                 }
             }
@@ -812,6 +865,14 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
                         .unwrap_or_default();
                     let html = format!("<p{style}>{label}{para_html}</p>");
                     out(&mut body, &mut cell, &html);
+                    let level = para_outline.or(para_style.2).filter(|&level| level < 9);
+                    let text = para_plain.trim();
+                    if let (Some(level), true, false) = (level, cell.is_empty(), text.is_empty()) {
+                        report.headings.push(DocxHeading {
+                            level: level + 1,
+                            text: text.to_owned(),
+                        });
+                    }
                 }
                 "tc" => {
                     if let (Some(Some(done)), Some(table)) = (cell.pop(), tables.last_mut()) {

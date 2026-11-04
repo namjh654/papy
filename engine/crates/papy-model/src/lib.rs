@@ -436,6 +436,21 @@ pub struct EditOutcome {
     pub caret: TextPos,
 }
 
+/// 문서에서 찾은 글자 하나. 앞뒤 글자를 조금 붙여 목록에 보여 줄 수 있게 한다.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TextMatch {
+    /// 쪽(0부터).
+    pub page: u32,
+    /// 이 쪽에서 몇 번째로 찾은 것인가(0부터). 화면에서 같은 쪽의 찾은 자리를 차례로 고를 때 쓴다.
+    pub index: u32,
+    /// 찾은 글자 앞 몇 글자(줄바꿈은 공백으로).
+    pub before: String,
+    /// 찾은 글자(문서에 있는 그대로, 대소문자 포함).
+    pub matched: String,
+    /// 찾은 글자 뒤 몇 글자.
+    pub after: String,
+}
+
 /// 목차 항목.
 #[derive(Debug, Clone, PartialEq)]
 pub struct OutlineItem {

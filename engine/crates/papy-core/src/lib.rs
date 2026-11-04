@@ -25,7 +25,7 @@ pub use papy_model::{
     Alignment, Annotation, Capabilities, CaretMotion, CellPos, CharFormat, DocumentFormat,
     DocumentInfo, EditOutcome, Error, ErrorCode, HitTarget, MarkupKind, ObjectKind, ObjectRef,
     OutlineItem, PageObject, PageOp, PageRect, PageSize, ParaFormat, Result, SaveFormat,
-    TableCellBox, TableOp, TextPos,
+    TableCellBox, TableOp, TextMatch, TextPos,
 };
 pub use papy_render::{
     BackendOpenOptions, Bitmap, CancelToken, Document, FormatBackend, RenderRequest, Source,
@@ -350,6 +350,39 @@ impl Engine {
         self.with_page(id, page, |doc| doc.extract_text(page))
     }
 
+    /// 문서 글자에서 `query` 를 찾는다. 대소문자·공백 종류는 가리지 않는다. 쪽 순서대로 `max` 개까지 돌려준다.
+    ///
+    /// 쪽마다 세션 잠금을 풀었다 잡으므로, 긴 문서를 찾는 동안에도 같은 문서의 쪽 그리기가 끼어들 수 있다.
+    /// 찾는 사이 문서가 편집되면(쪽 수가 줄면) 남은 쪽은 건너뛴다. `cancel` 로 멈출 수 있다.
+    pub fn find_text(
+        &self,
+        id: SessionId,
+        query: &str,
+        max: usize,
+        cancel: &CancelToken,
+    ) -> Result<Vec<TextMatch>> {
+        let session = self.session(id)?;
+        let mut out = Vec::new();
+        let Some(query) = search::fold_query(query) else {
+            return Ok(out);
+        };
+        let pages = lock(&session.document).info().page_count;
+        for page in 0..pages {
+            cancel.check()?;
+            let text = {
+                let mut doc = lock(&session.document);
+                if page >= doc.info().page_count {
+                    break;
+                }
+                doc.extract_text(page)?
+            };
+            if !search::find_in_page(page, &text, &query, &mut out, max) {
+                break;
+            }
+        }
+        Ok(out)
+    }
+
     /// 목차.
     pub fn outline(&self, id: SessionId) -> Result<Vec<OutlineItem>> {
         let session = self.session(id)?;
@@ -490,6 +523,8 @@ fn lock<T: ?Sized>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
+
+mod search;
 
 #[cfg(test)]
 mod tests;

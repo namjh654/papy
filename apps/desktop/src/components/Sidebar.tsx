@@ -1,5 +1,15 @@
 import { useEffect, useRef, useState } from "react";
-import { extractText, outline as loadOutline, type OpenedDocument, type OutlineItem } from "../engine";
+import {
+  ErrorCode,
+  EngineError,
+  extractText,
+  findText,
+  MAX_MATCHES,
+  outline as loadOutline,
+  type OpenedDocument,
+  type OutlineItem,
+  type TextMatch,
+} from "../engine";
 import type { RenderQueue } from "../renderQueue";
 import { Icon } from "./Icon";
 import { PageCanvas } from "./PageCanvas";
@@ -7,7 +17,7 @@ import { t } from "../i18n";
 
 const THUMB_WIDTH = 112;
 
-type Tab = "thumbs" | "outline" | "text";
+type Tab = "thumbs" | "outline" | "find" | "text";
 
 interface Props {
   doc: OpenedDocument;
@@ -22,14 +32,29 @@ export function Sidebar({ doc, current, queue, onGoTo, revision }: Props) {
   const [tab, setTab] = useState<Tab>("thumbs");
   const [items, setItems] = useState<OutlineItem[]>([]);
 
+  // 편집하면 제목이 바뀌거나 쪽이 밀리므로 다시 읽는다.
   useEffect(() => {
-    setItems([]);
-    if (doc.hasOutline) loadOutline(doc.id).then(setItems, () => setItems([]));
-  }, [doc]);
+    if (!doc.hasOutline) {
+      setItems([]);
+      return;
+    }
+    let alive = true;
+    const timer = setTimeout(() => {
+      loadOutline(doc.id).then(
+        (value) => alive && setItems(value),
+        () => alive && setItems([]),
+      );
+    }, 300);
+    return () => {
+      alive = false;
+      clearTimeout(timer);
+    };
+  }, [doc, revision]);
 
   const tabs: [Tab, string, boolean][] = [
     ["thumbs", t.sidebar.pages, true],
     ["outline", t.sidebar.outline, items.length > 0],
+    ["find", t.sidebar.find, doc.canExtractText],
     ["text", t.sidebar.text, doc.canExtractText],
   ];
 
@@ -47,6 +72,7 @@ export function Sidebar({ doc, current, queue, onGoTo, revision }: Props) {
       <div className="sidebar-body">
         {tab === "thumbs" && <Thumbnails doc={doc} current={current} queue={queue} onGoTo={onGoTo} revision={revision} />}
         {tab === "outline" && <OutlineTree items={items} current={current} onGoTo={onGoTo} />}
+        {tab === "find" && <Find doc={doc} current={current} onGoTo={onGoTo} revision={revision} />}
         {tab === "text" && <PageText doc={doc} page={current} revision={revision} />}
       </div>
     </aside>
@@ -148,6 +174,96 @@ function OutlineNode({ item, current, onGoTo }: { item: OutlineItem; current: nu
       </div>
       {hasChildren && open && <OutlineTree items={item.children} current={current} onGoTo={onGoTo} />}
     </li>
+  );
+}
+
+function Find({ doc, current, onGoTo, revision }: { doc: OpenedDocument; current: number; onGoTo(page: number): void; revision: number }) {
+  const [query, setQuery] = useState("");
+  const [matches, setMatches] = useState<TextMatch[] | null>([]);
+  const [chosen, setChosen] = useState(-1);
+  const input = useRef<HTMLInputElement>(null);
+
+  useEffect(() => input.current?.focus(), []);
+
+  useEffect(() => {
+    setChosen(-1);
+    if (query.trim() === "") {
+      setMatches([]);
+      return;
+    }
+    let alive = true;
+    setMatches(null);
+    // 글자를 칠 때마다 찾지 않도록 잠시 기다린다. 새 찾기는 엔진에서 앞 것을 멈춘다.
+    const timer = setTimeout(() => {
+      findText(doc.id, query).then(
+        (value) => alive && setMatches(value),
+        (error) => {
+          if (alive && !(error instanceof EngineError && error.code === ErrorCode.Cancelled)) setMatches([]);
+        },
+      );
+    }, 250);
+    return () => {
+      alive = false;
+      clearTimeout(timer);
+    };
+  }, [doc, query, revision]);
+
+  const choose = (index: number) => {
+    if (!matches || matches.length === 0) return;
+    const next = (index + matches.length) % Math.min(matches.length, MAX_MATCHES);
+    const target = matches[next];
+    if (!target) return;
+    setChosen(next);
+    onGoTo(target.page);
+  };
+
+  const shown = matches?.slice(0, MAX_MATCHES) ?? [];
+  const more = (matches?.length ?? 0) > MAX_MATCHES;
+  return (
+    <div className="find">
+      <div className="find-box">
+        <input
+          ref={input}
+          type="search"
+          value={query}
+          placeholder={t.sidebar.findPlaceholder}
+          aria-label={t.sidebar.findPlaceholder}
+          onChange={(event) => setQuery(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              choose(chosen + (event.shiftKey ? -1 : 1));
+            }
+          }}
+        />
+      </div>
+      {query.trim() !== "" && (
+        <div className="find-status" aria-live="polite">
+          {matches === null ? t.sidebar.searching : shown.length === 0 ? t.sidebar.noMatch : t.sidebar.matchCount(shown.length, more)}
+        </div>
+      )}
+      <ul className="find-list">
+        {shown.map((match, index) => (
+          <li key={index}>
+            <button
+              className={index === chosen ? "active" : ""}
+              aria-current={match.page === current ? "page" : undefined}
+              onClick={() => {
+                setChosen(index);
+                onGoTo(match.page);
+              }}
+            >
+              <span className="find-page">{t.sidebar.matchPage(match.page + 1)}</span>
+              <span className="find-snippet">
+                {match.before}
+                <mark>{match.matched}</mark>
+                {match.after}
+              </span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 

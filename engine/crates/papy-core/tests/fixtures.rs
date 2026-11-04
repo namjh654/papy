@@ -36,6 +36,11 @@ fn hwp3_opens_view_only() {
         .unwrap();
     assert!(bitmap.width > 0 && bitmap.height > 0);
     assert!(engine.extract_text(id, 1).unwrap().contains("통 계 카 드"));
+    // 찾기: 공백 종류를 가리지 않고 쪽 번호를 돌려준다.
+    let hits = engine
+        .find_text(id, "통 계  카 드", 50, &papy_core::CancelToken::new())
+        .unwrap();
+    assert!(hits.iter().any(|hit| hit.page == 1), "{hits:?}");
 
     for format in [SaveFormat::Hwp, SaveFormat::Hwpx, SaveFormat::Docx] {
         let error = engine.save(id, format).unwrap_err();

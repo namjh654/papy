@@ -5,9 +5,10 @@
 
 use papy_model::{
     Alignment, CaretMotion, CellPos, CharFormat, DocumentInfo, EditOutcome, Error, ErrorCode,
-    HitTarget, ObjectKind, ObjectRef, PageObject, PageRect, PageSize, ParaFormat, Result,
-    SaveFormat, TableCellBox, TableOp, TextPos,
+    HitTarget, ObjectKind, ObjectRef, OutlineItem, PageObject, PageRect, PageSize, ParaFormat,
+    Result, SaveFormat, TableCellBox, TableOp, TextPos,
 };
+use papy_office::DocxHeading;
 use papy_render::{Bitmap, Document, RenderRequest};
 use rhwp::wasm_api::HwpDocument as Rhwp;
 use serde_json::Value;
@@ -39,6 +40,8 @@ pub(crate) struct HwpDocument {
     typing: Option<(TextPos, u32)>,
     /// 칸 안에서 이어 친 글자(위와 같다).
     cell_typing: Option<(CellPos, u32)>,
+    /// DOCX 에서 읽은 제목 문단. rhwp 문서에는 개요 속성이 없어서 목차를 이것으로 만든다.
+    headings: Vec<DocxHeading>,
     /// rhwp 가 패닉한 뒤에는 내부 상태를 믿을 수 없으니 더 부르지 않는다.
     broken: bool,
 }
@@ -72,8 +75,84 @@ impl HwpDocument {
             redo: Vec::new(),
             typing: None,
             cell_typing: None,
+            headings: Vec::new(),
             broken: false,
         }
+    }
+
+    /// DOCX 제목 문단을 목차로 쓴다.
+    pub(crate) fn with_headings(mut self, headings: Vec<DocxHeading>) -> Self {
+        self.headings = headings;
+        self
+    }
+
+    /// HWP·HWPX 목차: 문단 모양이 개요인 문단(한글의 "개요 1~7"). 번호는 화면에 그려지는 그대로 붙인다.
+    fn hwp_outline(&mut self) -> Result<Vec<(u8, String, Option<u32>)>> {
+        let reply = self.read("read outline", |doc| doc.get_outline_navigation_native())?;
+        let value = json(&reply)?;
+        let items = value
+            .get("outline")
+            .and_then(Value::as_array)
+            .map(Vec::as_slice)
+            .unwrap_or_default();
+        Ok(items
+            .iter()
+            .filter_map(|item| {
+                let level = uint(item, "level")?.clamp(1, 7) as u8;
+                let number = item.get("number").and_then(Value::as_str).unwrap_or("");
+                let title = item.get("title").and_then(Value::as_str)?.trim();
+                let label = match (number.trim(), title) {
+                    (_, "") => return None,
+                    ("", title) => title.to_owned(),
+                    (number, title) => format!("{number} {title}"),
+                };
+                // rhwp 쪽 번호는 1부터이고 0 은 자리를 모르는 것이다.
+                let page = uint(item, "page").and_then(|page| page.checked_sub(1));
+                Some((level, label, page))
+            })
+            .collect())
+    }
+
+    /// DOCX 에서 읽은 제목을 지금 본문 문단(첫 구역)과 차례로 맞춘다: (문단, 수준).
+    /// 글자로 맞추므로 편집 뒤에도 맞고, 제목 글자를 지우면 목록에서 빠진다.
+    fn heading_paragraphs(&self) -> Vec<(usize, u8)> {
+        let Some(section) = self.doc.document().sections.first() else {
+            return Vec::new();
+        };
+        let mut out = Vec::new();
+        let mut next = 0;
+        for heading in &self.headings {
+            let found = section.paragraphs[next..]
+                .iter()
+                .position(|p| p.text.contains(heading.text.as_str()))
+                .map(|i| next + i);
+            if let Some(paragraph) = found {
+                next = paragraph + 1;
+                out.push((paragraph, heading.level));
+            }
+        }
+        out
+    }
+
+    /// DOCX 목차: 제목 문단마다 커서 자리로 쪽을 찾는다.
+    fn docx_outline(&mut self) -> Result<Vec<(u8, String, Option<u32>)>> {
+        self.check()?;
+        let mut out = Vec::new();
+        for (paragraph, level) in self.heading_paragraphs() {
+            let page = self
+                .read("locate heading", |doc| {
+                    doc.get_cursor_rect_native(0, paragraph, 0)
+                })
+                .ok()
+                .and_then(|reply| json(&reply).ok())
+                .and_then(|value| uint(&value, "pageIndex"));
+            let title = self.doc.document().sections[0].paragraphs[paragraph]
+                .text
+                .trim()
+                .to_owned();
+            out.push((level, title, page));
+        }
+        Ok(out)
     }
 
     fn check(&self) -> Result<()> {
@@ -716,6 +795,32 @@ fn char_format_json(format: &CharFormat, font_ids: Option<[i32; 7]>) -> String {
     Value::Object(props).to_string()
 }
 
+/// (수준, 제목, 쪽) 목록을 수준에 따라 나무로 만든다. 수준이 건너뛰면(1 → 3) 바로 위 항목 아래에 둔다.
+pub(crate) fn outline_tree(flat: Vec<(u8, String, Option<u32>)>) -> Vec<OutlineItem> {
+    fn insert(items: &mut Vec<OutlineItem>, depth: usize, item: OutlineItem) {
+        match items.last_mut() {
+            Some(last) if depth > 0 => insert(&mut last.children, depth - 1, item),
+            _ => items.push(item),
+        }
+    }
+    let mut roots = Vec::new();
+    // 열려 있는 조상들의 수준.
+    let mut stack: Vec<u8> = Vec::new();
+    for (level, title, page) in flat {
+        while stack.last().is_some_and(|&open| open >= level) {
+            stack.pop();
+        }
+        let item = OutlineItem {
+            title,
+            page,
+            children: Vec::new(),
+        };
+        insert(&mut roots, stack.len(), item);
+        stack.push(level);
+    }
+    roots
+}
+
 fn alignment_name(alignment: Alignment) -> &'static str {
     match alignment {
         Alignment::Left => "left",
@@ -772,6 +877,15 @@ impl Document for HwpDocument {
         self.read("extract text", |doc| doc.extract_page_text_native(page))
     }
 
+    fn outline(&mut self) -> Result<Vec<OutlineItem>> {
+        let flat = if self.headings.is_empty() {
+            self.hwp_outline()?
+        } else {
+            self.docx_outline()?
+        };
+        Ok(outline_tree(flat))
+    }
+
     fn save(&mut self, format: SaveFormat) -> Result<Vec<u8>> {
         let password = self.password.clone();
         match format {
@@ -793,7 +907,14 @@ impl Document for HwpDocument {
             }
             SaveFormat::Docx => {
                 self.check()?;
-                guard(|| papy_office::docx_from_document(self.doc.document()))?
+                let outline = self
+                    .heading_paragraphs()
+                    .into_iter()
+                    .map(|(paragraph, level)| ((0, paragraph), level))
+                    .collect();
+                guard(|| {
+                    papy_office::docx_from_document_with_outline(self.doc.document(), &outline)
+                })?
             }
             SaveFormat::Text => {
                 let mut text = String::new();

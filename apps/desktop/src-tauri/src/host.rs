@@ -4,9 +4,9 @@
 use std::path::PathBuf;
 
 use papy_core::{
-    Alignment, Annotation, CaretMotion, CharFormat, Document, DocumentSource, Engine, Error,
-    ErrorCode, MarkupKind, OpenOptions, OutlineItem, PageOp, PageRect, ParaFormat, RenderRequest,
-    SaveFormat, SessionId, TextPos,
+    Alignment, Annotation, CancelToken, CaretMotion, CharFormat, Document, DocumentSource, Engine,
+    Error, ErrorCode, MarkupKind, OpenOptions, OutlineItem, PageOp, PageRect, ParaFormat,
+    RenderRequest, SaveFormat, SessionId, TextPos,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -668,6 +668,38 @@ pub fn save(engine: &Engine, id: u64, path: PathBuf) -> papy_core::Result<()> {
         let _ = std::fs::remove_file(&temp);
         Error::from(error)
     })
+}
+
+/// 찾은 글자 하나.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TextMatchDto {
+    page: u32,
+    before: String,
+    matched: String,
+    after: String,
+}
+
+/// 찾기 결과 상한. 넘으면 앱이 "더 있음"을 보인다.
+pub const MAX_MATCHES: usize = 500;
+
+/// 문서 글자 찾기. `cancel` 은 다음 찾기가 시작되면 앞 것을 멈추는 데 쓴다.
+pub fn find_text(
+    engine: &Engine,
+    id: u64,
+    query: &str,
+    cancel: &CancelToken,
+) -> papy_core::Result<Vec<TextMatchDto>> {
+    Ok(engine
+        .find_text(session(id)?, query, MAX_MATCHES + 1, cancel)?
+        .into_iter()
+        .map(|hit| TextMatchDto {
+            page: hit.page,
+            before: hit.before,
+            matched: hit.matched,
+            after: hit.after,
+        })
+        .collect())
 }
 
 /// 목차.

@@ -22,10 +22,10 @@ engine.close(id)?;
 | `get_page_count` | `Engine::page_count` | |
 | `render_page` | `Engine::render_page(id, page, &RenderRequest)` | 배율·배경·취소 토큰 |
 | `extract_text` | `Engine::extract_text(id, page)` | 페이지 단위. 범위는 호출자가 반복 |
-| `search_text` | 미구현 | PDF PoC 에서 엔진 기능(검색 vs 추출 후 검색) 비교 후 결정 |
-| `get_outline` | `Engine::outline` | |
+| `search_text` | `Engine::find_text(id, query, max, &CancelToken) -> Vec<TextMatch>` | 쪽마다 꺼낸 글자에서 찾는다(모든 형식이 같은 규칙). 대소문자·공백 종류 무시, 앞뒤 글자 붙임. 쪽마다 잠금을 풀어 그리기와 번갈아 돈다 |
+| `get_outline` | `Engine::outline` | PDF 책갈피, HWP/HWPX 개요 문단(번호 포함), DOCX 제목 스타일·`w:outlineLvl` |
 | `close_document` | `Engine::close` | |
-| `save_document` | 미구현 | 편집 단계. `Capabilities::save` 로 지원 여부 표시 |
+| `save_document` | `Engine::save(id, SaveFormat)` | `Capabilities::save_formats` 로 지원 형식 표시 |
 
 ## 규칙
 

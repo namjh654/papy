@@ -165,6 +165,12 @@ export const ko = {
     copy: "복사",
     reading: "읽는 중…",
     noText: "이 쪽에는 추출할 텍스트가 없습니다. 스캔한 이미지일 수 있습니다.",
+    find: "찾기",
+    findPlaceholder: "문서에서 찾기",
+    searching: "찾는 중…",
+    noMatch: "찾는 글자가 없습니다.",
+    matchCount: (n: number, more: boolean) => (more ? `${n}개 넘게 찾음` : `${n}개 찾음`),
+    matchPage: (n: number) => `${n}쪽`,
   },
 };
 

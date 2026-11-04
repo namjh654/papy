@@ -658,6 +658,12 @@ public protocol PapyEngineProtocol: AnyObject, Sendable {
     func extractText(sessionId: UInt64, page: UInt32) throws  -> String
     
     /**
+     * 문서에서 글자를 찾는다(대소문자·공백 종류는 가리지 않는다). 쪽 순서로 `max` 개까지.
+     * 찾는 동안 다시 부르면 앞의 찾기는 빈 목록으로 끝난다(글자를 칠 때마다 불러도 된다).
+     */
+    func findText(sessionId: UInt64, query: String, max: UInt32) throws  -> [TextHit]
+    
+    /**
      * 본문 위치에 그림(PNG·JPEG·GIF·BMP)을 글자처럼 넣는다. 크기는 pt.
      */
     func insertPicture(sessionId: UInt64, position: EnginePosition, image: Data, width: Float, height: Float) throws  -> UInt32
@@ -681,6 +687,11 @@ public protocol PapyEngineProtocol: AnyObject, Sendable {
      * 바이트로 문서를 연다.
      */
     func `open`(bytes: Data, password: String?) throws  -> DocumentSummary
+    
+    /**
+     * 목차(HWP·HWPX 는 개요 문단, DOCX 는 제목 스타일). 없으면 빈 목록.
+     */
+    func outline(sessionId: UInt64) throws  -> [OutlineEntry]
     
     /**
      * 쪽 수(편집하면 바뀔 수 있다).
@@ -967,6 +978,22 @@ open func extractText(sessionId: UInt64, page: UInt32)throws  -> String  {
 }
     
     /**
+     * 문서에서 글자를 찾는다(대소문자·공백 종류는 가리지 않는다). 쪽 순서로 `max` 개까지.
+     * 찾는 동안 다시 부르면 앞의 찾기는 빈 목록으로 끝난다(글자를 칠 때마다 불러도 된다).
+     */
+open func findText(sessionId: UInt64, query: String, max: UInt32)throws  -> [TextHit]  {
+    return try  FfiConverterSequenceTypeTextHit.lift(try rustCallWithError(FfiConverterTypePapyError_lift) {
+        uniffiCallStatus in
+    uniffi_papy_ffi_fn_method_papyengine_find_text(
+            self.uniffiCloneHandle(),
+        FfiConverterUInt64.lower(sessionId),
+        FfiConverterString.lower(query),
+        FfiConverterUInt32.lower(max),uniffiCallStatus
+    )
+})
+}
+    
+    /**
      * 본문 위치에 그림(PNG·JPEG·GIF·BMP)을 글자처럼 넣는다. 크기는 pt.
      */
 open func insertPicture(sessionId: UInt64, position: EnginePosition, image: Data, width: Float, height: Float)throws  -> UInt32  {
@@ -1040,6 +1067,19 @@ open func `open`(bytes: Data, password: String?)throws  -> DocumentSummary  {
             self.uniffiCloneHandle(),
         FfiConverterData.lower(bytes),
         FfiConverterOptionString.lower(password),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * 목차(HWP·HWPX 는 개요 문단, DOCX 는 제목 스타일). 없으면 빈 목록.
+     */
+open func outline(sessionId: UInt64)throws  -> [OutlineEntry]  {
+    return try  FfiConverterSequenceTypeOutlineEntry.lift(try rustCallWithError(FfiConverterTypePapyError_lift) {
+        uniffiCallStatus in
+    uniffi_papy_ffi_fn_method_papyengine_outline(
+            self.uniffiCloneHandle(),
+        FfiConverterUInt64.lower(sessionId),uniffiCallStatus
     )
 })
 }
@@ -2253,6 +2293,85 @@ public func FfiConverterTypeEngineUndo_lower(_ value: EngineUndo) -> RustBuffer 
 
 
 /**
+ * 목차 항목 하나. 나무를 앞에서부터 차례로 편 목록이라 `depth` 로 들여쓴다.
+ */
+public struct OutlineEntry: Equatable, Hashable {
+    /**
+     * 제목(번호 포함)
+     */
+    public var title: String
+    /**
+     * 이동할 쪽(0부터). 모르면 없음
+     */
+    public var page: UInt32?
+    /**
+     * 깊이(0 이 맨 위)
+     */
+    public var depth: UInt32
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * 제목(번호 포함)
+         */title: String, 
+        /**
+         * 이동할 쪽(0부터). 모르면 없음
+         */page: UInt32?, 
+        /**
+         * 깊이(0 이 맨 위)
+         */depth: UInt32) {
+        self.title = title
+        self.page = page
+        self.depth = depth
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension OutlineEntry: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeOutlineEntry: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> OutlineEntry {
+        return
+            try OutlineEntry(
+                title: FfiConverterString.read(from: &buf), 
+                page: FfiConverterOptionUInt32.read(from: &buf), 
+                depth: FfiConverterUInt32.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: OutlineEntry, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.title, into: &buf)
+        FfiConverterOptionUInt32.write(value.page, into: &buf)
+        FfiConverterUInt32.write(value.depth, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeOutlineEntry_lift(_ buf: RustBuffer) throws -> OutlineEntry {
+    return try FfiConverterTypeOutlineEntry.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeOutlineEntry_lower(_ value: OutlineEntry) -> RustBuffer {
+    return FfiConverterTypeOutlineEntry.lower(value)
+}
+
+
+/**
  * 쪽 크기(pt).
  */
 public struct PageDimensions: Equatable, Hashable {
@@ -2585,6 +2704,95 @@ public func FfiConverterTypeParagraphAtPoint_lift(_ buf: RustBuffer) throws -> P
 #endif
 public func FfiConverterTypeParagraphAtPoint_lower(_ value: ParagraphAtPoint) -> RustBuffer {
     return FfiConverterTypeParagraphAtPoint.lower(value)
+}
+
+
+/**
+ * 찾은 글자 하나.
+ */
+public struct TextHit: Equatable, Hashable {
+    /**
+     * 쪽(0부터)
+     */
+    public var page: UInt32
+    /**
+     * 찾은 글자 앞 몇 글자
+     */
+    public var before: String
+    /**
+     * 찾은 글자(문서에 있는 그대로)
+     */
+    public var matched: String
+    /**
+     * 찾은 글자 뒤 몇 글자
+     */
+    public var after: String
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * 쪽(0부터)
+         */page: UInt32, 
+        /**
+         * 찾은 글자 앞 몇 글자
+         */before: String, 
+        /**
+         * 찾은 글자(문서에 있는 그대로)
+         */matched: String, 
+        /**
+         * 찾은 글자 뒤 몇 글자
+         */after: String) {
+        self.page = page
+        self.before = before
+        self.matched = matched
+        self.after = after
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension TextHit: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeTextHit: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> TextHit {
+        return
+            try TextHit(
+                page: FfiConverterUInt32.read(from: &buf), 
+                before: FfiConverterString.read(from: &buf), 
+                matched: FfiConverterString.read(from: &buf), 
+                after: FfiConverterString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: TextHit, into buf: inout [UInt8]) {
+        FfiConverterUInt32.write(value.page, into: &buf)
+        FfiConverterString.write(value.before, into: &buf)
+        FfiConverterString.write(value.matched, into: &buf)
+        FfiConverterString.write(value.after, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeTextHit_lift(_ buf: RustBuffer) throws -> TextHit {
+    return try FfiConverterTypeTextHit.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeTextHit_lower(_ value: TextHit) -> RustBuffer {
+    return FfiConverterTypeTextHit.lower(value)
 }
 
 
@@ -3133,6 +3341,30 @@ public func FfiConverterTypePapyError_lower(_ value: PapyError) -> RustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterOptionUInt32: FfiConverterRustBuffer {
+    typealias SwiftType = UInt32?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterUInt32.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterUInt32.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterOptionFloat: FfiConverterRustBuffer {
     typealias SwiftType = Float?
 
@@ -3303,6 +3535,31 @@ fileprivate struct FfiConverterSequenceTypeEngineTableCell: FfiConverterRustBuff
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterSequenceTypeOutlineEntry: FfiConverterRustBuffer {
+    typealias SwiftType = [OutlineEntry]
+
+    public static func write(_ value: [OutlineEntry], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeOutlineEntry.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [OutlineEntry] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [OutlineEntry]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeOutlineEntry.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterSequenceTypePageRegion: FfiConverterRustBuffer {
     typealias SwiftType = [PageRegion]
 
@@ -3320,6 +3577,31 @@ fileprivate struct FfiConverterSequenceTypePageRegion: FfiConverterRustBuffer {
         seq.reserveCapacity(Int(len))
         for _ in 0 ..< len {
             seq.append(try FfiConverterTypePageRegion.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeTextHit: FfiConverterRustBuffer {
+    typealias SwiftType = [TextHit]
+
+    public static func write(_ value: [TextHit], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeTextHit.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [TextHit] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [TextHit]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeTextHit.read(from: &buf))
         }
         return seq
     }
@@ -3383,6 +3665,9 @@ private let initializationResult: InitializationResult = {
     if (uniffi_papy_ffi_checksum_method_papyengine_extract_text() != 8103) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_papy_ffi_checksum_method_papyengine_find_text() != 42756) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_papy_ffi_checksum_method_papyengine_insert_picture() != 14461) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -3396,6 +3681,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_papy_ffi_checksum_method_papyengine_open() != 52631) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_papy_ffi_checksum_method_papyengine_outline() != 40559) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_papy_ffi_checksum_method_papyengine_page_count() != 12156) {

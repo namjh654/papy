@@ -7,12 +7,12 @@
 
 use std::ffi::{CStr, c_char};
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use papy_core::{
-    CaretMotion, CellPos, CharFormat, Document, DocumentFormat, DocumentSource, Engine,
-    EngineResources, ErrorCode, HitTarget, Limits, ObjectKind, ObjectRef, OpenOptions, PageRect,
-    RenderRequest, SaveFormat, SessionId, TableOp, TextPos,
+    CancelToken, CaretMotion, CellPos, CharFormat, Document, DocumentFormat, DocumentSource,
+    Engine, EngineResources, ErrorCode, HitTarget, Limits, ObjectKind, ObjectRef, OpenOptions,
+    PageRect, RenderRequest, SaveFormat, SessionId, TableOp, TextPos,
 };
 
 uniffi::setup_scaffolding!();
@@ -544,10 +544,47 @@ fn common_ends(old: &[char], new: &[char]) -> (usize, usize) {
     (prefix, suffix)
 }
 
+/// 목차 항목 하나. 나무를 앞에서부터 차례로 편 목록이라 `depth` 로 들여쓴다.
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+pub struct OutlineEntry {
+    /// 제목(번호 포함)
+    pub title: String,
+    /// 이동할 쪽(0부터). 모르면 없음
+    pub page: Option<u32>,
+    /// 깊이(0 이 맨 위)
+    pub depth: u32,
+}
+
+/// 찾은 글자 하나.
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+pub struct TextHit {
+    /// 쪽(0부터)
+    pub page: u32,
+    /// 찾은 글자 앞 몇 글자
+    pub before: String,
+    /// 찾은 글자(문서에 있는 그대로)
+    pub matched: String,
+    /// 찾은 글자 뒤 몇 글자
+    pub after: String,
+}
+
+fn flatten_outline(items: Vec<papy_core::OutlineItem>, depth: u32, out: &mut Vec<OutlineEntry>) {
+    for item in items {
+        out.push(OutlineEntry {
+            title: item.title,
+            page: item.page,
+            depth,
+        });
+        flatten_outline(item.children, depth + 1, out);
+    }
+}
+
 /// 문서 엔진. 앱에 하나만 두고 여러 스레드에서 불러도 된다.
 #[derive(uniffi::Object)]
 pub struct PapyEngine {
     engine: Engine,
+    /// 진행 중인 찾기. 새 찾기가 오면 앞 것을 멈춘다.
+    search: Mutex<CancelToken>,
 }
 
 fn session(raw: u64) -> Result<SessionId, PapyError> {
@@ -631,7 +668,10 @@ impl PapyEngine {
         );
         // 글꼴 목록은 처음 한 번만 만든다 — 한글 글꼴을 등록한 다음에 미리 읽는다.
         papy_core::warm_up();
-        Arc::new(Self { engine })
+        Arc::new(Self {
+            engine,
+            search: Mutex::new(CancelToken::new()),
+        })
     }
 
     /// 바이트로 문서를 연다.
@@ -696,6 +736,46 @@ impl PapyEngine {
     /// 쪽의 글자.
     pub fn extract_text(&self, session_id: u64, page: u32) -> Result<String, PapyError> {
         Ok(self.engine.extract_text(session(session_id)?, page)?)
+    }
+
+    /// 목차(HWP·HWPX 는 개요 문단, DOCX 는 제목 스타일). 없으면 빈 목록.
+    pub fn outline(&self, session_id: u64) -> Result<Vec<OutlineEntry>, PapyError> {
+        let mut out = Vec::new();
+        flatten_outline(self.engine.outline(session(session_id)?)?, 0, &mut out);
+        Ok(out)
+    }
+
+    /// 문서에서 글자를 찾는다(대소문자·공백 종류는 가리지 않는다). 쪽 순서로 `max` 개까지.
+    /// 찾는 동안 다시 부르면 앞의 찾기는 빈 목록으로 끝난다(글자를 칠 때마다 불러도 된다).
+    pub fn find_text(
+        &self,
+        session_id: u64,
+        query: String,
+        max: u32,
+    ) -> Result<Vec<TextHit>, PapyError> {
+        let id = session(session_id)?;
+        let cancel = CancelToken::new();
+        let previous = std::mem::replace(
+            &mut *self
+                .search
+                .lock()
+                .unwrap_or_else(|poison| poison.into_inner()),
+            cancel.clone(),
+        );
+        previous.cancel();
+        match self.engine.find_text(id, &query, max as usize, &cancel) {
+            Ok(hits) => Ok(hits
+                .into_iter()
+                .map(|hit| TextHit {
+                    page: hit.page,
+                    before: hit.before,
+                    matched: hit.matched,
+                    after: hit.after,
+                })
+                .collect()),
+            Err(error) if error.code == ErrorCode::Cancelled => Ok(Vec::new()),
+            Err(error) => Err(error.into()),
+        }
     }
 
     /// 쪽 수(편집하면 바뀔 수 있다).

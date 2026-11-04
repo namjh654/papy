@@ -49,6 +49,8 @@ struct Outcome {
     open: Duration,
     render: Duration,
     slowest_page: Duration,
+    /// 목차 항목 수.
+    outline: usize,
     note: String,
 }
 
@@ -121,7 +123,9 @@ fn corpus_opens_renders_and_extracts() {
     let mut golden = BTreeMap::new();
     let mut total_pages = 0;
     let mut roundtrip_diffs = 0;
+    let mut with_outline = 0;
     for (i, outcome) in &results {
+        with_outline += usize::from(outcome.outline > 0);
         let name = &names[*i];
         eprintln!(
             "{name}: {}쪽 · 열기 {} ms · 그리기 {} ms (가장 느린 쪽 {} ms){}",
@@ -149,7 +153,7 @@ fn corpus_opens_renders_and_extracts() {
         eprintln!("  {} ms · {pages}쪽 · {name}", time.as_millis());
     }
     eprintln!(
-        "\n문서 {}개 · {total_pages}쪽 · {} ms (동시 {jobs}){}",
+        "\n문서 {}개 · {total_pages}쪽 · 목차 있는 문서 {with_outline}개 · {} ms (동시 {jobs}){}",
         results.len(),
         started.elapsed().as_millis(),
         if roundtrip {
@@ -186,6 +190,7 @@ impl Outcome {
             open: Duration::ZERO,
             render: Duration::ZERO,
             slowest_page: Duration::ZERO,
+            outline: 0,
             note: String::new(),
         }
     }
@@ -253,6 +258,37 @@ fn check(engine: &Engine, path: &Path, mode: RenderMode, roundtrip: bool) -> Out
             Err(error) => outcome
                 .failures
                 .push(format!("{page}쪽 글 꺼내기 실패 {:?}", error.code)),
+        }
+    }
+    // 목차: 오류 없이 나오고 가리키는 쪽이 문서 안에 있어야 한다(기준값에는 넣지 않는다).
+    if info.capabilities.outline {
+        fn walk(items: &[papy_core::OutlineItem], pages: u32, bad: &mut usize, count: &mut usize) {
+            for item in items {
+                *count += 1;
+                if item.page.is_some_and(|page| page >= pages) {
+                    *bad += 1;
+                }
+                walk(&item.children, pages, bad, count);
+            }
+        }
+        let t = Instant::now();
+        let result = engine.outline(id);
+        let took = t.elapsed();
+        if took.as_millis() >= 100 {
+            outcome.note += &format!(" · 목차 {} ms", took.as_millis());
+        }
+        match result {
+            Ok(items) => {
+                let (mut bad, mut count) = (0, 0);
+                walk(&items, info.page_count, &mut bad, &mut count);
+                if bad > 0 {
+                    outcome
+                        .failures
+                        .push(format!("목차 {bad}개가 없는 쪽을 가리킴"));
+                }
+                outcome.outline = count;
+            }
+            Err(error) => outcome.failures.push(format!("목차 실패 {:?}", error.code)),
         }
     }
     outcome.render = t1.elapsed();

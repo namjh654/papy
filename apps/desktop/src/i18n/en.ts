@@ -166,5 +166,11 @@ export const en: Messages = {
     copy: "Copy",
     reading: "Reading…",
     noText: "There's no text to extract on this page. It may be a scanned image.",
+    find: "Find",
+    findPlaceholder: "Find in document",
+    searching: "Searching…",
+    noMatch: "No matches.",
+    matchCount: (n, more) => (more ? `More than ${n} matches` : `${n} ${n === 1 ? "match" : "matches"}`),
+    matchPage: (n) => `p. ${n}`,
   },
 };

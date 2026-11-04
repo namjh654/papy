@@ -697,6 +697,8 @@ internal object IntegrityCheckingUniffiLib {
     ): Int
     external fun uniffi_papy_ffi_checksum_method_papyengine_extract_text(
     ): Int
+    external fun uniffi_papy_ffi_checksum_method_papyengine_find_text(
+    ): Int
     external fun uniffi_papy_ffi_checksum_method_papyengine_insert_picture(
     ): Int
     external fun uniffi_papy_ffi_checksum_method_papyengine_insert_table(
@@ -706,6 +708,8 @@ internal object IntegrityCheckingUniffiLib {
     external fun uniffi_papy_ffi_checksum_method_papyengine_move_caret(
     ): Int
     external fun uniffi_papy_ffi_checksum_method_papyengine_open(
+    ): Int
+    external fun uniffi_papy_ffi_checksum_method_papyengine_outline(
     ): Int
     external fun uniffi_papy_ffi_checksum_method_papyengine_page_count(
     ): Int
@@ -783,6 +787,8 @@ internal object UniffiLib {
     ): RustBuffer.ByValue
     external fun uniffi_papy_ffi_fn_method_papyengine_extract_text(`ptr`: Long,`sessionId`: Long,`page`: Int,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
+    external fun uniffi_papy_ffi_fn_method_papyengine_find_text(`ptr`: Long,`sessionId`: Long,`query`: RustBuffer.ByValue,`max`: Int,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
     external fun uniffi_papy_ffi_fn_method_papyengine_insert_picture(`ptr`: Long,`sessionId`: Long,`position`: RustBuffer.ByValue,`image`: RustBuffer.ByValue,`width`: Float,`height`: Float,uniffi_out_err: UniffiRustCallStatus, 
     ): Int
     external fun uniffi_papy_ffi_fn_method_papyengine_insert_table(`ptr`: Long,`sessionId`: Long,`position`: RustBuffer.ByValue,`rows`: Int,`cols`: Int,uniffi_out_err: UniffiRustCallStatus, 
@@ -792,6 +798,8 @@ internal object UniffiLib {
     external fun uniffi_papy_ffi_fn_method_papyengine_move_caret(`ptr`: Long,`sessionId`: Long,`position`: RustBuffer.ByValue,`direction`: RustBuffer.ByValue,`preferredX`: Float,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     external fun uniffi_papy_ffi_fn_method_papyengine_open(`ptr`: Long,`bytes`: RustBuffer.ByValue,`password`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    external fun uniffi_papy_ffi_fn_method_papyengine_outline(`ptr`: Long,`sessionId`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     external fun uniffi_papy_ffi_fn_method_papyengine_page_count(`ptr`: Long,`sessionId`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Int
@@ -975,6 +983,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if ((lib.uniffi_papy_ffi_checksum_method_papyengine_extract_text() and 0xFFFF) != 8103) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if ((lib.uniffi_papy_ffi_checksum_method_papyengine_find_text() and 0xFFFF) != 42756) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if ((lib.uniffi_papy_ffi_checksum_method_papyengine_insert_picture() and 0xFFFF) != 14461) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -988,6 +999,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_papy_ffi_checksum_method_papyengine_open() and 0xFFFF) != 52631) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if ((lib.uniffi_papy_ffi_checksum_method_papyengine_outline() and 0xFFFF) != 40559) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_papy_ffi_checksum_method_papyengine_page_count() and 0xFFFF) != 12156) {
@@ -1513,6 +1527,12 @@ public interface PapyEngineInterface {
     fun `extractText`(`sessionId`: kotlin.ULong, `page`: kotlin.UInt): kotlin.String
     
     /**
+     * 문서에서 글자를 찾는다(대소문자·공백 종류는 가리지 않는다). 쪽 순서로 `max` 개까지.
+     * 찾는 동안 다시 부르면 앞의 찾기는 빈 목록으로 끝난다(글자를 칠 때마다 불러도 된다).
+     */
+    fun `findText`(`sessionId`: kotlin.ULong, `query`: kotlin.String, `max`: kotlin.UInt): List<TextHit>
+    
+    /**
      * 본문 위치에 그림(PNG·JPEG·GIF·BMP)을 글자처럼 넣는다. 크기는 pt.
      */
     fun `insertPicture`(`sessionId`: kotlin.ULong, `position`: EnginePosition, `image`: kotlin.ByteArray, `width`: kotlin.Float, `height`: kotlin.Float): kotlin.UInt
@@ -1536,6 +1556,11 @@ public interface PapyEngineInterface {
      * 바이트로 문서를 연다.
      */
     fun `open`(`bytes`: kotlin.ByteArray, `password`: kotlin.String?): DocumentSummary
+    
+    /**
+     * 목차(HWP·HWPX 는 개요 문단, DOCX 는 제목 스타일). 없으면 빈 목록.
+     */
+    fun `outline`(`sessionId`: kotlin.ULong): List<OutlineEntry>
     
     /**
      * 쪽 수(편집하면 바뀔 수 있다).
@@ -1922,6 +1947,27 @@ open class PapyEngine: Disposable, AutoCloseable, PapyEngineInterface
 
     
     /**
+     * 문서에서 글자를 찾는다(대소문자·공백 종류는 가리지 않는다). 쪽 순서로 `max` 개까지.
+     * 찾는 동안 다시 부르면 앞의 찾기는 빈 목록으로 끝난다(글자를 칠 때마다 불러도 된다).
+     */
+    @Throws(PapyException::class)override fun `findText`(`sessionId`: kotlin.ULong, `query`: kotlin.String, `max`: kotlin.UInt): List<TextHit> {
+            return FfiConverterSequenceTypeTextHit.lift(
+    callWithHandle {
+    uniffiRustCallWithError(PapyException) { _status ->
+    UniffiLib.uniffi_papy_ffi_fn_method_papyengine_find_text(
+        it,
+        
+        FfiConverterULong.lower(`sessionId`),
+        FfiConverterString.lower(`query`),
+        FfiConverterUInt.lower(`max`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    /**
      * 본문 위치에 그림(PNG·JPEG·GIF·BMP)을 글자처럼 넣는다. 크기는 pt.
      */
     @Throws(PapyException::class)override fun `insertPicture`(`sessionId`: kotlin.ULong, `position`: EnginePosition, `image`: kotlin.ByteArray, `width`: kotlin.Float, `height`: kotlin.Float): kotlin.UInt {
@@ -2017,6 +2063,24 @@ open class PapyEngine: Disposable, AutoCloseable, PapyEngineInterface
         
         FfiConverterByteArray.lower(`bytes`),
         FfiConverterOptionalString.lower(`password`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    /**
+     * 목차(HWP·HWPX 는 개요 문단, DOCX 는 제목 스타일). 없으면 빈 목록.
+     */
+    @Throws(PapyException::class)override fun `outline`(`sessionId`: kotlin.ULong): List<OutlineEntry> {
+            return FfiConverterSequenceTypeOutlineEntry.lift(
+    callWithHandle {
+    uniffiRustCallWithError(PapyException) { _status ->
+    UniffiLib.uniffi_papy_ffi_fn_method_papyengine_outline(
+        it,
+        
+        FfiConverterULong.lower(`sessionId`),_status)
 }
     }
     )
@@ -3012,6 +3076,61 @@ public object FfiConverterTypeEngineUndo: FfiConverterRustBuffer<EngineUndo> {
 
 
 /**
+ * 목차 항목 하나. 나무를 앞에서부터 차례로 편 목록이라 `depth` 로 들여쓴다.
+ */
+data class OutlineEntry (
+    /**
+     * 제목(번호 포함)
+     */
+    var `title`: kotlin.String
+    , 
+    /**
+     * 이동할 쪽(0부터). 모르면 없음
+     */
+    var `page`: kotlin.UInt?
+    , 
+    /**
+     * 깊이(0 이 맨 위)
+     */
+    var `depth`: kotlin.UInt
+    
+){
+    
+
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeOutlineEntry: FfiConverterRustBuffer<OutlineEntry> {
+    override fun read(buf: ByteBuffer): OutlineEntry {
+        return OutlineEntry(
+            FfiConverterString.read(buf),
+            FfiConverterOptionalUInt.read(buf),
+            FfiConverterUInt.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: OutlineEntry) = (
+            FfiConverterString.allocationSize(value.`title`) +
+            FfiConverterOptionalUInt.allocationSize(value.`page`) +
+            FfiConverterUInt.allocationSize(value.`depth`)
+    )
+
+    override fun write(value: OutlineEntry, buf: ByteBuffer) {
+            FfiConverterString.write(value.`title`, buf)
+            FfiConverterOptionalUInt.write(value.`page`, buf)
+            FfiConverterUInt.write(value.`depth`, buf)
+    }
+}
+
+
+
+/**
  * 쪽 크기(pt).
  */
 data class PageDimensions (
@@ -3242,6 +3361,69 @@ public object FfiConverterTypeParagraphAtPoint: FfiConverterRustBuffer<Paragraph
             FfiConverterUInt.write(value.`paragraph`, buf)
             FfiConverterString.write(value.`text`, buf)
             FfiConverterSequenceTypePageRegion.write(value.`boxes`, buf)
+    }
+}
+
+
+
+/**
+ * 찾은 글자 하나.
+ */
+data class TextHit (
+    /**
+     * 쪽(0부터)
+     */
+    var `page`: kotlin.UInt
+    , 
+    /**
+     * 찾은 글자 앞 몇 글자
+     */
+    var `before`: kotlin.String
+    , 
+    /**
+     * 찾은 글자(문서에 있는 그대로)
+     */
+    var `matched`: kotlin.String
+    , 
+    /**
+     * 찾은 글자 뒤 몇 글자
+     */
+    var `after`: kotlin.String
+    
+){
+    
+
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeTextHit: FfiConverterRustBuffer<TextHit> {
+    override fun read(buf: ByteBuffer): TextHit {
+        return TextHit(
+            FfiConverterUInt.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: TextHit) = (
+            FfiConverterUInt.allocationSize(value.`page`) +
+            FfiConverterString.allocationSize(value.`before`) +
+            FfiConverterString.allocationSize(value.`matched`) +
+            FfiConverterString.allocationSize(value.`after`)
+    )
+
+    override fun write(value: TextHit, buf: ByteBuffer) {
+            FfiConverterUInt.write(value.`page`, buf)
+            FfiConverterString.write(value.`before`, buf)
+            FfiConverterString.write(value.`matched`, buf)
+            FfiConverterString.write(value.`after`, buf)
     }
 }
 
@@ -3860,6 +4042,38 @@ public object FfiConverterTypePapyError : FfiConverterRustBuffer<PapyException> 
 /**
  * @suppress
  */
+public object FfiConverterOptionalUInt: FfiConverterRustBuffer<kotlin.UInt?> {
+    override fun read(buf: ByteBuffer): kotlin.UInt? {
+        if (buf.get().toInt() == 0) {
+            return null
+        }
+        return FfiConverterUInt.read(buf)
+    }
+
+    override fun allocationSize(value: kotlin.UInt?): ULong {
+        if (value == null) {
+            return 1UL
+        } else {
+            return 1UL + FfiConverterUInt.allocationSize(value)
+        }
+    }
+
+    override fun write(value: kotlin.UInt?, buf: ByteBuffer) {
+        if (value == null) {
+            buf.put(0)
+        } else {
+            buf.put(1)
+            FfiConverterUInt.write(value, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
 public object FfiConverterOptionalFloat: FfiConverterRustBuffer<kotlin.Float?> {
     override fun read(buf: ByteBuffer): kotlin.Float? {
         if (buf.get().toInt() == 0) {
@@ -4076,6 +4290,34 @@ public object FfiConverterSequenceTypeEngineTableCell: FfiConverterRustBuffer<Li
 /**
  * @suppress
  */
+public object FfiConverterSequenceTypeOutlineEntry: FfiConverterRustBuffer<List<OutlineEntry>> {
+    override fun read(buf: ByteBuffer): List<OutlineEntry> {
+        val len = buf.getInt()
+        return List<OutlineEntry>(len) {
+            FfiConverterTypeOutlineEntry.read(buf)
+        }
+    }
+
+    override fun allocationSize(value: List<OutlineEntry>): ULong {
+        val sizeForLength = 4UL
+        val sizeForItems = value.map { FfiConverterTypeOutlineEntry.allocationSize(it) }.sum()
+        return sizeForLength + sizeForItems
+    }
+
+    override fun write(value: List<OutlineEntry>, buf: ByteBuffer) {
+        buf.putInt(value.size)
+        value.iterator().forEach {
+            FfiConverterTypeOutlineEntry.write(it, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
 public object FfiConverterSequenceTypePageRegion: FfiConverterRustBuffer<List<PageRegion>> {
     override fun read(buf: ByteBuffer): List<PageRegion> {
         val len = buf.getInt()
@@ -4094,6 +4336,34 @@ public object FfiConverterSequenceTypePageRegion: FfiConverterRustBuffer<List<Pa
         buf.putInt(value.size)
         value.iterator().forEach {
             FfiConverterTypePageRegion.write(it, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterSequenceTypeTextHit: FfiConverterRustBuffer<List<TextHit>> {
+    override fun read(buf: ByteBuffer): List<TextHit> {
+        val len = buf.getInt()
+        return List<TextHit>(len) {
+            FfiConverterTypeTextHit.read(buf)
+        }
+    }
+
+    override fun allocationSize(value: List<TextHit>): ULong {
+        val sizeForLength = 4UL
+        val sizeForItems = value.map { FfiConverterTypeTextHit.allocationSize(it) }.sum()
+        return sizeForLength + sizeForItems
+    }
+
+    override fun write(value: List<TextHit>, buf: ByteBuffer) {
+        buf.putInt(value.size)
+        value.iterator().forEach {
+            FfiConverterTypeTextHit.write(it, buf)
         }
     }
 }

@@ -15,9 +15,9 @@ mod shapes;
 mod write;
 
 pub use notes::{FOOTNOTE_MARK, HeaderFooterText};
-pub use read::{DocxReadReport, docx_to_html, is_docx};
+pub use read::{DocxHeading, DocxReadReport, docx_to_html, is_docx};
 pub use shapes::{DocxShape, Relative, SHAPE_MARK, ShapeKind, Wrap};
-pub use write::docx_from_document;
+pub use write::{docx_from_document, docx_from_document_with_outline};
 
 #[cfg(test)]
 mod tests;

@@ -547,3 +547,48 @@ fn paragraph_edit_keeps_inline_picture() {
         .unwrap();
     assert_eq!(pictures(&engine), 0);
 }
+
+#[test]
+fn outline_and_find_text() {
+    let engine = PapyEngine::new(None);
+    let doc = engine
+        .open(
+            docx_body(
+                r#"<w:p><w:pPr><w:outlineLvl w:val="0"/></w:pPr><w:r><w:t>머리 장</w:t></w:r></w:p><w:p><w:pPr><w:outlineLvl w:val="1"/></w:pPr><w:r><w:t>작은 절</w:t></w:r></w:p><w:p><w:r><w:t>본문에 Papy 와 papy</w:t></w:r></w:p>"#,
+            ),
+            None,
+        )
+        .unwrap();
+    let outline = engine.outline(doc.session).unwrap();
+    assert_eq!(
+        outline,
+        [
+            OutlineEntry {
+                title: "머리 장".into(),
+                page: Some(0),
+                depth: 0
+            },
+            OutlineEntry {
+                title: "작은 절".into(),
+                page: Some(0),
+                depth: 1
+            },
+        ]
+    );
+    let hits = engine.find_text(doc.session, "PAPY".into(), 10).unwrap();
+    assert_eq!(hits.len(), 2);
+    assert_eq!((hits[0].page, hits[0].matched.as_str()), (0, "Papy"));
+    assert_eq!(hits[0].before, "본문에 ");
+    assert_eq!(
+        engine
+            .find_text(doc.session, "papy".into(), 1)
+            .unwrap()
+            .len(),
+        1
+    );
+    engine.close(doc.session);
+    assert!(matches!(
+        engine.find_text(doc.session, "x".into(), 1),
+        Err(PapyError::SessionNotFound { .. })
+    ));
+}

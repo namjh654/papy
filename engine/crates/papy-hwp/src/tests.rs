@@ -1376,3 +1376,139 @@ fn hwpx_without_leading_stored_mimetype_opens() {
         assert!(doc.extract_text(1).unwrap().contains("Papy 쪽 2"), "{what}");
     }
 }
+
+/// 개요 문단(한글 기본 스타일 "개요 1"·"개요 2")을 가진 HWP 문서. 셋째 문단은 둘째 쪽에 있다.
+fn outlined(hwpx: bool) -> Vec<u8> {
+    let mut core = DocumentCore::new_empty();
+    core.create_blank_document_native().unwrap();
+    let style = |core: &DocumentCore, name: &str| {
+        core.document()
+            .doc_info
+            .styles
+            .iter()
+            .position(|s| s.local_name == name)
+            .unwrap_or_else(|| panic!("빈 문서에 {name} 스타일이 없다"))
+    };
+    let lines = ["서론", "배경", "본문 글", "본론"];
+    for (i, line) in lines.iter().enumerate() {
+        if i > 0 {
+            let prev = lines[i - 1].chars().count();
+            if i == 3 {
+                core.insert_page_break_native(0, i - 1, prev).unwrap();
+            } else {
+                core.split_paragraph_native(0, i - 1, prev, None).unwrap();
+            }
+        }
+        core.insert_text_native(0, i, 0, line).unwrap();
+    }
+    let (h1, h2) = (style(&core, "개요 1"), style(&core, "개요 2"));
+    core.apply_style_native(0, 0, h1).unwrap();
+    core.apply_style_native(0, 1, h2).unwrap();
+    core.apply_style_native(0, 3, h1).unwrap();
+    if hwpx {
+        core.export_hwpx_native().unwrap()
+    } else {
+        core.export_hwp_native().unwrap()
+    }
+}
+
+#[test]
+fn hwp_outline_follows_outline_paragraphs() {
+    for (backend, bytes) in [
+        (HwpBackend::hwp(), outlined(false)),
+        (HwpBackend::hwpx(), outlined(true)),
+    ] {
+        let mut doc = open(backend, bytes, &options()).unwrap();
+        assert!(doc.info().capabilities.outline);
+        let outline = doc.outline().unwrap();
+        assert_eq!(outline.len(), 2, "{outline:?}");
+        assert!(outline[0].title.ends_with("서론"), "{outline:?}");
+        assert_eq!(outline[0].page, Some(0));
+        assert_eq!(outline[0].children.len(), 1, "{outline:?}");
+        assert!(outline[0].children[0].title.ends_with("배경"));
+        assert!(outline[1].title.ends_with("본론"), "{outline:?}");
+        assert_eq!(outline[1].page, Some(1));
+        // 번호는 화면에 그려지는 그대로 앞에 붙는다("1. 서론" 등).
+        assert_ne!(outline[0].title, "서론", "{outline:?}");
+    }
+}
+
+#[test]
+fn plain_hwp_has_empty_outline() {
+    let mut doc = open(HwpBackend::hwp(), sample(2, false, None), &options()).unwrap();
+    assert!(doc.outline().unwrap().is_empty());
+}
+
+fn docx_with_headings() -> Vec<u8> {
+    use std::io::Write;
+    let styles = r#"<w:styles xmlns:w="w"><w:style w:type="paragraph" w:styleId="Heading1"><w:name w:val="heading 1"/></w:style><w:style w:type="paragraph" w:styleId="Heading2"><w:name w:val="heading 2"/><w:basedOn w:val="Heading1"/></w:style><w:style w:type="paragraph" w:styleId="Custom"><w:name w:val="내 제목"/><w:pPr><w:outlineLvl w:val="0"/></w:pPr></w:style></w:styles>"#;
+    let document = r#"<w:document xmlns:w="w"><w:body><w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>첫 장</w:t></w:r></w:p><w:p><w:r><w:t>본문 &amp; 글</w:t></w:r></w:p><w:p><w:pPr><w:pStyle w:val="Heading2"/></w:pPr><w:r><w:t>첫 절</w:t></w:r></w:p><w:tbl><w:tr><w:tc><w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>표 안 제목</w:t></w:r></w:p></w:tc></w:tr></w:tbl><w:p><w:r><w:br w:type="page"/></w:r></w:p><w:p><w:pPr><w:pStyle w:val="Custom"/></w:pPr><w:r><w:t>둘째 장</w:t></w:r></w:p><w:p><w:pPr><w:pStyle w:val="Heading1"/><w:outlineLvl w:val="9"/></w:pPr><w:r><w:t>본문으로 바꾼 제목</w:t></w:r></w:p></w:body></w:document>"#;
+    let mut buffer = std::io::Cursor::new(Vec::new());
+    let mut zip = zip::ZipWriter::new(&mut buffer);
+    let options = zip::write::SimpleFileOptions::default();
+    for (name, bytes) in [
+        ("[Content_Types].xml", &b"<Types/>"[..]),
+        ("word/document.xml", document.as_bytes()),
+        ("word/styles.xml", styles.as_bytes()),
+    ] {
+        zip.start_file(name, options).unwrap();
+        zip.write_all(bytes).unwrap();
+    }
+    zip.finish().unwrap();
+    buffer.into_inner()
+}
+
+#[test]
+fn docx_outline_uses_heading_styles() {
+    let mut doc = open(HwpBackend::docx(), docx_with_headings(), &options()).unwrap();
+    assert!(doc.info().capabilities.outline);
+    let outline = doc.outline().unwrap();
+    let titles: Vec<_> = outline.iter().map(|item| item.title.as_str()).collect();
+    assert_eq!(titles, ["첫 장", "둘째 장"], "{outline:?}");
+    assert_eq!(outline[0].page, Some(0));
+    assert_eq!(outline[0].children.len(), 1);
+    assert_eq!(outline[0].children[0].title, "첫 절");
+    assert_eq!(
+        outline[1].page,
+        Some(doc.info().page_count - 1),
+        "{outline:?}"
+    );
+
+    // DOCX 로 저장해도 제목 수준이 남는다.
+    let saved = doc.save(SaveFormat::Docx).unwrap();
+    let mut reopened = open(HwpBackend::docx(), saved, &options()).unwrap();
+    assert_eq!(reopened.outline().unwrap(), outline);
+}
+
+#[test]
+fn hwp_outline_survives_docx_export() {
+    let mut doc = open(HwpBackend::hwp(), outlined(false), &options()).unwrap();
+    let docx = doc.save(SaveFormat::Docx).unwrap();
+    let mut reopened = open(HwpBackend::docx(), docx, &options()).unwrap();
+    let outline = reopened.outline().unwrap();
+    assert_eq!(outline.len(), 2, "{outline:?}");
+    assert!(outline[0].title.ends_with("서론"), "{outline:?}");
+    assert!(
+        outline[0].children[0].title.ends_with("배경"),
+        "{outline:?}"
+    );
+    assert!(outline[1].title.ends_with("본론"), "{outline:?}");
+}
+
+#[test]
+fn outline_tree_nests_by_level() {
+    use crate::document::outline_tree;
+    let flat = vec![
+        (1, "가".to_owned(), Some(0)),
+        (3, "가-1".to_owned(), Some(0)),
+        (2, "가-2".to_owned(), None),
+        (1, "나".to_owned(), Some(2)),
+        (2, "나-1".to_owned(), Some(3)),
+    ];
+    let tree = outline_tree(flat);
+    assert_eq!(tree.len(), 2);
+    let first: Vec<_> = tree[0].children.iter().map(|c| c.title.as_str()).collect();
+    assert_eq!(first, ["가-1", "가-2"]);
+    assert_eq!(tree[1].children[0].title, "나-1");
+    assert_eq!(tree[1].page, Some(2));
+}

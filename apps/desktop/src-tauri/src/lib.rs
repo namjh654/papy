@@ -10,8 +10,8 @@ pub mod host;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
-use host::{EditOp, OpenedDocument, OutlineDto, PageSizeDto};
-use papy_core::{Engine, EngineResources, Error, ErrorCode, Limits};
+use host::{EditOp, OpenedDocument, OutlineDto, PageSizeDto, TextMatchDto};
+use papy_core::{CancelToken, Engine, EngineResources, Error, ErrorCode, Limits};
 use serde::Serialize;
 use serde_json::Value;
 use tauri::{Emitter, Manager, State, ipc::Response};
@@ -22,6 +22,8 @@ struct AppState {
     pending_opens: Mutex<Vec<String>>,
     /// 번들된 라이선스 고지 폴더(`resources/licenses`).
     licenses: PathBuf,
+    /// 진행 중인 찾기. 새 찾기가 오면 앞 것을 멈춘다(글자를 칠 때마다 찾는다).
+    search: Mutex<CancelToken>,
 }
 
 /// Papy 가 여는 확장자. 파일 연결 인자에서 이것만 받는다.
@@ -138,6 +140,27 @@ async fn render_page(
 async fn extract_text(state: State<'_, AppState>, id: u64, page: u32) -> CommandResult<String> {
     blocking(&state, move |engine| {
         engine.extract_text(host::session(id)?, page)
+    })
+    .await
+}
+
+#[tauri::command]
+async fn find_text(
+    state: State<'_, AppState>,
+    id: u64,
+    query: String,
+) -> CommandResult<Vec<TextMatchDto>> {
+    let cancel = CancelToken::new();
+    let previous = std::mem::replace(
+        &mut *state
+            .search
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner()),
+        cancel.clone(),
+    );
+    previous.cancel();
+    blocking(&state, move |engine| {
+        host::find_text(engine, id, &query, &cancel)
     })
     .await
 }
@@ -291,6 +314,7 @@ pub fn run() {
                 engine: Arc::new(engine),
                 pending_opens: Mutex::new(Vec::new()),
                 licenses: resource(app, Path::new("licenses")),
+                search: Mutex::new(CancelToken::new()),
             });
             // Windows·Linux: 파일을 더블클릭하면 경로가 실행 인자로 온다.
             let args: Vec<PathBuf> = std::env::args_os().skip(1).map(PathBuf::from).collect();
@@ -305,6 +329,7 @@ pub fn run() {
             render_page,
             extract_text,
             outline,
+            find_text,
             close_document,
             edit,
             page_layout,

@@ -209,6 +209,21 @@ export function extractText(id: number, page: number): Promise<string> {
   return call("extract_text", { id, page });
 }
 
+export interface TextMatch {
+  page: number;
+  before: string;
+  matched: string;
+  after: string;
+}
+
+/** 찾기 결과 상한(host::MAX_MATCHES). 결과가 이보다 많으면 더 있다는 뜻이다. */
+export const MAX_MATCHES = 500;
+
+/** 문서 글자 찾기. 새로 부르면 앞의 찾기는 `Cancelled` 오류로 끝난다. */
+export function findText(id: number, query: string): Promise<TextMatch[]> {
+  return call("find_text", { id, query });
+}
+
 export function outline(id: number): Promise<OutlineItem[]> {
   return call("outline", { id });
 }

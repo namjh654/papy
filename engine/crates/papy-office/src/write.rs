@@ -2,6 +2,7 @@
 //! 쪽 크기와 여백·그림(PNG·JPEG·GIF·BMP, 글자처럼 놓기)을 옮긴다. 단위: HWPUNIT(1/7200 인치) → twip(1/1440 인치) 은 5 로,
 //! EMU(1/914400 인치) 는 127 을 곱한다.
 
+use std::collections::HashMap;
 use std::fmt::Write as _;
 use std::io::{Cursor, Write};
 
@@ -15,7 +16,7 @@ use rhwp::model::image::Picture;
 use rhwp::model::paragraph::Paragraph;
 use rhwp::model::shape::{HorzRelTo, ShapeObject, TextWrap, VertRelTo};
 use rhwp::model::style::FillType;
-use rhwp::model::style::{Alignment, LineSpacingType, UnderlineType};
+use rhwp::model::style::{Alignment, HeadType, LineSpacingType, UnderlineType};
 use rhwp::model::table::Table;
 
 /// 표 중첩 상한(순환·과도한 중첩 방어).
@@ -307,6 +308,14 @@ fn para_props(info: &DocInfo, paragraph: &Paragraph) -> String {
             twips(right / 2)
         );
     }
+    // 한글 개요 문단 → Word 개요 수준(탐색 창·목차에 나온다).
+    if shape.head_type == HeadType::Outline {
+        let _ = write!(
+            props,
+            r#"<w:outlineLvl w:val="{}"/>"#,
+            shape.para_level.min(8)
+        );
+    }
     props.push_str("</w:pPr>");
     props
 }
@@ -360,6 +369,26 @@ fn write_inline(
         _ => {}
     }
     Ok(())
+}
+
+/// `body[start..]` 의 첫 문단 속성에 개요 수준(1부터)을 넣는다. 이미 있으면 그대로 둔다.
+fn set_outline_level(body: &mut String, start: usize, level: u8) {
+    let value = level.saturating_sub(1).min(8);
+    let tag = format!(r#"<w:outlineLvl w:val="{value}"/>"#);
+    let head = start + "<w:p>".len();
+    if !body[start..].starts_with("<w:p>") {
+        return;
+    }
+    if !body[head..].starts_with("<w:pPr>") {
+        body.insert_str(head, &format!("<w:pPr>{tag}</w:pPr>"));
+        return;
+    }
+    let Some(end) = body[head..].find("</w:pPr>").map(|i| head + i) else {
+        return;
+    };
+    if !body[head..end].contains("<w:outlineLvl") {
+        body.insert_str(end, &tag);
+    }
 }
 
 /// 문단 하나와 그 안의 표.
@@ -731,6 +760,15 @@ fn header_footer_parts(
 
 /// rhwp 문서를 DOCX 바이트로 쓴다.
 pub fn docx_from_document(document: &Document) -> Result<Vec<u8>> {
+    docx_from_document_with_outline(document, &HashMap::new())
+}
+
+/// [`docx_from_document`] 와 같되, 본문 문단 `(구역, 문단)` 에 개요 수준(1부터)을 붙인다.
+/// DOCX 에서 연 문서는 rhwp 문단에 개요 속성이 없어서, 읽을 때 찾은 제목을 이것으로 되살린다.
+pub fn docx_from_document_with_outline(
+    document: &Document,
+    outline: &HashMap<(usize, usize), u8>,
+) -> Result<Vec<u8>> {
     let info = &document.doc_info;
     let mut media = Media {
         contents: &document.bin_data_content,
@@ -739,9 +777,13 @@ pub fn docx_from_document(document: &Document) -> Result<Vec<u8>> {
         footnotes: Vec::new(),
     };
     let mut body = String::new();
-    for section in &document.sections {
-        for paragraph in &section.paragraphs {
+    for (section_index, section) in document.sections.iter().enumerate() {
+        for (paragraph_index, paragraph) in section.paragraphs.iter().enumerate() {
+            let start = body.len();
             write_paragraph(&mut body, info, &mut media, paragraph, 0)?;
+            if let Some(&level) = outline.get(&(section_index, paragraph_index)) {
+                set_outline_level(&mut body, start, level);
+            }
         }
     }
     let mut extra: Vec<Part> = Vec::new();

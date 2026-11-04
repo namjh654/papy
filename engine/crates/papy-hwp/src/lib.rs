@@ -185,6 +185,7 @@ impl HwpBackend {
                 extract_text: true,
                 save: true,
                 edit: !hwp3,
+                outline: true,
                 save_formats,
                 ..Capabilities::default()
             },
@@ -240,6 +241,7 @@ impl HwpBackend {
                 extract_text: true,
                 save: true,
                 edit: true,
+                outline: !report.headings.is_empty(),
                 save_formats: vec![
                     SaveFormat::Docx,
                     SaveFormat::Hwpx,
@@ -250,7 +252,9 @@ impl HwpBackend {
                 ..Capabilities::default()
             },
         };
-        Ok(Box::new(HwpDocument::new(doc, info, None)))
+        Ok(Box::new(
+            HwpDocument::new(doc, info, None).with_headings(report.headings),
+        ))
     }
 }
 

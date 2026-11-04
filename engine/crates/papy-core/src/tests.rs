@@ -366,3 +366,28 @@ fn session_ids_are_never_reused() {
     assert_eq!(SessionId::from_raw(b.get()), Some(b));
     assert_eq!(SessionId::from_raw(0), None);
 }
+
+#[test]
+fn find_text_walks_pages_in_order() {
+    let engine = fake_engine(Limits::default());
+    let id = engine.open(pdf(12), OpenOptions::default()).unwrap();
+    let none = CancelToken::new();
+    // "page 1", "page 10", "page 11" 에 "page 1" 이 들어 있다.
+    let hits = engine.find_text(id, "PAGE 1", 100, &none).unwrap();
+    let pages: Vec<u32> = hits.iter().map(|hit| hit.page).collect();
+    assert_eq!(pages, [1, 10, 11]);
+    assert_eq!(hits[1].after, "0");
+    assert_eq!(engine.find_text(id, "page", 5, &none).unwrap().len(), 5);
+    assert!(engine.find_text(id, "  ", 100, &none).unwrap().is_empty());
+
+    let cancelled = CancelToken::new();
+    cancelled.cancel();
+    assert_eq!(
+        engine
+            .find_text(id, "page", 100, &cancelled)
+            .unwrap_err()
+            .code,
+        ErrorCode::Cancelled
+    );
+    engine.close(id).unwrap();
+}
