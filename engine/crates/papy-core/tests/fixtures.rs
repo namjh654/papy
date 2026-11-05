@@ -58,3 +58,61 @@ fn hwp3_opens_view_only() {
     );
     engine.close(id).unwrap();
 }
+
+/// 옛 Word(.doc): 열고, 첫 쪽 머리말을 감추고, 병합 칸 표를 옮기고, DOCX·PDF 로 내보낸다.
+#[test]
+fn word97_doc_opens_and_converts() {
+    let engine = Engine::new(Limits::default());
+    let id = engine
+        .open(
+            DocumentSource::Path(fixture("poi/DiffFirstPageHeadFoot.doc")),
+            OpenOptions::default(),
+        )
+        .unwrap();
+    let info = engine.info(id).unwrap();
+    assert_eq!(info.format, DocumentFormat::Doc);
+    assert_eq!(info.page_count, 2);
+    assert!(info.capabilities.edit);
+    assert!(info.capabilities.save_formats.contains(&SaveFormat::Docx));
+    let first = engine.extract_text(id, 0).unwrap();
+    assert!(
+        first.starts_with("This is a sample word document."),
+        "{first:?}"
+    );
+    // 첫 쪽은 기본 머리말·꼬리말을 감춘다(첫 쪽용은 따로 없어 빠진 것으로 센다).
+    assert!(!first.contains("Mid header"), "{first:?}");
+    let second = engine.extract_text(id, 1).unwrap();
+    for part in ["Mid header", "This is page two.", "Footer Middle"] {
+        assert!(second.contains(part), "{part}: {second:?}");
+    }
+    let docx = engine.save(id, SaveFormat::Docx).unwrap();
+    let reopened = engine
+        .open(DocumentSource::Bytes(docx.into()), OpenOptions::default())
+        .unwrap();
+    assert_eq!(engine.info(reopened).unwrap().page_count, 2);
+    assert!(
+        !engine
+            .extract_text(reopened, 0)
+            .unwrap()
+            .contains("Mid header")
+    );
+    assert!(
+        engine
+            .save(id, SaveFormat::Pdf)
+            .unwrap()
+            .starts_with(b"%PDF-")
+    );
+
+    let table = engine
+        .open(
+            DocumentSource::Path(fixture("poi/table-merges.doc")),
+            OpenOptions::default(),
+        )
+        .unwrap();
+    let info = engine.info(table).unwrap();
+    assert_eq!((info.page_count, info.dropped_objects), (1, 0));
+    let text = engine.extract_text(table, 0).unwrap();
+    for cell in ["A", "F", "G", "K"] {
+        assert!(text.lines().any(|line| line == cell), "{cell}: {text:?}");
+    }
+}

@@ -69,7 +69,19 @@ GitHub Actions 에서는 `corpus` 워크플로를 손으로 실행한다(macOS, 
   전후 두 번 돌려 diff). 상대 경로는 저장소 루트 기준.
 - 출력: 문서마다 열기·그리기 시간, 목차 항목 수, 그리지 못한 개체(차트·OLE 자리표시, 데이터 없는 그림) 수. 끝에 **첫 쪽 표시 시간**
   (열기 + 첫 쪽 그리기, 배율 1)의 형식별 중앙값·90%·99%·최대. 시간은 `PAPY_CORPUS_JOBS=1` 로 잰다.
-- 문서 모음에 DOCX 가 없다. DOCX 는 아직 엔진 테스트(생성 문서)로만 본다 — 공개 라이선스 DOCX 모음을 찾아 넣을 것.
+- `PAPY_CORPUS_PDF=1`: PDF 가 아닌 문서를 모두 PDF 로 내보내 `%PDF-` 로 시작하는지 본다(실패는 실패로 센다). 끝에 형식별
+  문서 수·쪽 수·쪽당 평균 시간을 찍는다.
+
+### Apache POI Word 문서 모음 (손으로 실행)
+
+```bash
+node scripts/fetch-corpus.mjs poi   # Apache POI test-data/document 의 .doc·.docx 290개(Apache-2.0) → tests/corpus/poi-documents/
+cd engine && PAPY_CORPUS=tests/corpus/poi-documents PAPY_CORPUS_GOLDEN=tests/corpus/poi-documents.golden.tsv \
+  PAPY_CORPUS_RENDER=first cargo test --release -p papy-core --test corpus -- --ignored --nocapture
+```
+
+`node scripts/fetch-corpus.mjs` 는 인자가 없으면 모든 모음(rhwp, poi)을 받는다. POI 커밋은 스크립트에 고정한다(`7f4d3685`).
+기준값은 `tests/corpus/poi-documents.golden.tsv`. 일부러 망가뜨린 문서·Word 6/95·암호 문서는 정해진 오류 코드로 기록된다.
 
 ### 기록
 
@@ -77,6 +89,8 @@ GitHub Actions 에서는 `corpus` 워크플로를 손으로 실행한다(macOS, 
 |---|---|---|
 | 2026-11-03 | rhwp v0.8.7 `samples/` 13개(HWP 12·HWPX 1, 224쪽) — macOS Apple Silicon, release | 실패 0. 대부분 쪽당 약 0.1초, 가장 느린 쪽 0.34초. 115쪽 문서 열기 0.57초·전체 그리기 11.7초 |
 | 2026-11-04 (3) | 같은 모음, 모든 쪽 + 저장 왕복, 동시 12 — rhwp 표 조판 패치 뒤 | 실패 0, 기준값 같음, 저장 왕복 차이 0. 4분 49초 → **1분 28초**. 쪽마다 픽셀 해시가 패치 전후 같다 |
+| 2026-11-05 | Apache POI `test-data/document` 290개(DOC 159·DOCX 131), 첫 쪽만 + 저장 왕복, 동시 12 | 실패 0. DOC 131개 열림(못 연 28개: Word 6/95 14·손상/CFB 아님 11·암호 3). 첫 쪽 표시 시간 중앙값 DOC 15 ms·DOCX 8 ms. 149쪽 DOC 열기 3.6 → 1.35초(쪽 나누기 한 번에 적용) |
+| 2026-11-05 (2) | rhwp 샘플 1,205개 + POI 290개, 첫 쪽만 + PDF 내보내기(`PAPY_CORPUS_PDF=1`), 동시 12 | 고치기 전 실패 17개(끝이 잘린 PNG 하나 때문에 문서 전체 `InvalidImage`) → 그 그림만 빼고 **실패 0**(1,447개 내보냄). 쪽당 PDF 시간 약 700 → **50 ms**, rhwp 샘플 전체 952 → 91초. 215쪽 HWP 단독 30 → 6.2초(글꼴 파일 매핑·글꼴 DB 재사용·글꼴 고르기 기억, 결과 바이트 같음). rhwp 기준값 그대로. POI 기준값은 bug65649.docx 하나 바뀜(한 문단에 쪽 나누기가 둘이면 두 번째 표시 글자가 남던 것을 고침) |
 | 2026-11-04 (2) | 같은 모음, 첫 쪽만, 동시 1 | 실패 0. **첫 쪽 표시 시간**(ms, 중앙값·90%·99%·최대): HWPX 16·56·140·870, HWP 19·80·624·67,029, PDF 3·17·26·81, 전체 15·69·234. 목차 있는 문서 25개(목차 읽기는 모두 0.1초 미만). 그리지 못한 개체가 있는 문서 37개 — 모두 그림 데이터가 없는 그림(결재 문서 서명 칸 등, 빈 그림 자리로 그려진다), 차트·OLE 자리표시는 0 |
 | 2026-11-04 (2) | 무작위 손상 50,000번 × 시드 3개 + 20,000번, 장시간 반복 300번 | 실패·시간 초과 0(가장 느린 것 58 ms). rhwp 패닉 1종(`get_page_info_native`, 구역 없는 문서에서 범위 밖 색인)이 나오지만 엔진이 잡아 오류로 돌린다 — 업스트림에 알릴 것. 장시간: 메모리 46.7→57.2 MB 에서 멈춤(160번째 이후 그대로, 누수 없음) |
 | 2026-11-04 | rhwp v0.8.7 `samples/` 전체 1,268개(HWP·HWPX·PDF 63, 16,320쪽) — macOS Apple Silicon, release, 동시 12, 모든 쪽 + 저장 왕복 | 실패 0, 4분 49초. 처음 돌렸을 때 HWPX 61개(`mimetype` 압축·뒤·없음)와 HWP 3.x 27개를 "지원하지 않는 형식"으로 거절했다 → 고쳐서 암호 문서 3개 말고 모두 열린다. 저장 왕복에서 글이 바뀌는 문서 13개(모두 HWP 3.x, 아래) |

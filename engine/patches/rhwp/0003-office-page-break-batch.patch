@@ -1,0 +1,79 @@
+Papy 패치: DOCX·DOC 변환에서 쪽 나누기 표시를 한 번에 적용하는 함수를 더한다.
+
+rhwp v0.8.7(1a76570e). 새 함수만 더하고 기존 동작은 바꾸지 않는다.
+- `apply_page_break_marks_native(section, mark)`: 표시 글자를 지우고 그 문단 앞에서 쪽을 나눈 뒤 구역을 한 번만
+  다시 짠다. 문단마다 `delete_text_native`·`mark_page_break_at_paragraph_start_native` 를 부르면 그때마다 다시 짜서
+  쪽 나누기 69개인 149쪽 DOC 열기가 3.6초 걸렸다(→ 1.35초).
+
+--- a/src/document_core/commands/text_editing.rs
++++ b/src/document_core/commands/text_editing.rs
+@@ -3951,6 +3951,69 @@
+         )))
+     }
+ 
++    /// [Papy] 구역 문단의 `mark` 글자를 모두 지우고, 그 글자가 있던 문단(첫 문단 제외) 앞에서
++    /// 쪽을 나눈다. 문단마다 `delete_text_native`·`mark_page_break_at_paragraph_start_native` 를
++    /// 부르면 그때마다 구역을 다시 짜서 쪽 나누기가 많은 문서에서 느리다. 여기서는 한 번만 짠다.
++    /// 바꾼 문단 수를 돌려준다.
++    pub fn apply_page_break_marks_native(
++        &mut self,
++        section_idx: usize,
++        mark: char,
++    ) -> Result<usize, HwpError> {
++        use crate::model::paragraph::ColumnBreakType;
++        let section = self.document.sections.get(section_idx).ok_or_else(|| {
++            HwpError::RenderError(format!("구역 인덱스 {} 범위 초과", section_idx))
++        })?;
++        let changed: Vec<usize> = section
++            .paragraphs
++            .iter()
++            .enumerate()
++            .filter(|(_, para)| para.text.contains(mark))
++            .map(|(idx, _)| idx)
++            .collect();
++        let Some(&first) = changed.first() else {
++            return Ok(0);
++        };
++        let stored_end_for_reset = crate::renderer::composer::paragraph_flow_end(
++            &self.document.sections[section_idx].paragraphs[first],
++        );
++        self.document.sections[section_idx].raw_stream = None;
++        for &para_idx in &changed {
++            let para = &mut self.document.sections[section_idx].paragraphs[para_idx];
++            while let Some(offset) = para.text.chars().position(|c| c == mark) {
++                para.delete_text_at(offset, 1);
++            }
++            if para_idx > 0 {
++                para.column_type = ColumnBreakType::Page;
++                para.raw_break_type |= 0x04;
++                para.page_break_synthesized = false;
++            }
++        }
++        for &para_idx in &changed {
++            self.reflow_paragraph(section_idx, para_idx);
++        }
++        let doc_hwp3_layout = self.document.layout_profile().hwp3_layout();
++        crate::renderer::composer::recalculate_section_vpos(
++            &mut self.document.sections[section_idx].paragraphs,
++            first,
++            None,
++            stored_end_for_reset,
++            &self.styles,
++            self.dpi,
++            doc_hwp3_layout,
++        );
++        self.recompose_section(section_idx);
++        self.paginate_if_needed();
++        self.invalidate_page_tree_cache();
++        for &para_idx in &changed {
++            self.event_log.push(DocumentEvent::ParaFormatChanged {
++                section: section_idx,
++                para: para_idx,
++            });
++        }
++        Ok(changed.len())
++    }
++
+     /// CLI/MCP의 문단 앞 쪽 나눔 속성 설정. Ctrl+Enter의 문단 분할과 구분한다.
+     /// 기존 텍스트/문단을 보존하고 다른 break 축과 명시적 저장 여부를 함께 갱신한다.
+     /// 이미 같은 명시적 속성이 있으면 false를 반환한다.

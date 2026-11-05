@@ -52,6 +52,7 @@
                 <data android:mimeType="application/hwp+zip" />
                 <data android:mimeType="application/vnd.hancom.hwpx" />
                 <data android:mimeType="application/vnd.openxmlformats-officedocument.wordprocessingml.document" />
+                <data android:mimeType="application/msword" />
             </intent-filter>
         </activity>
     </application>

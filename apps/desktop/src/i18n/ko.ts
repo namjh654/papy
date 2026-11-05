@@ -39,15 +39,15 @@ export const ko = {
         .join(" "),
     dropped: (count: number) =>
       `이 문서의 요소 ${count}개(차트, 묶음 안 그림, 표 안 각주 등)는 아직 옮기지 못해 보이지 않습니다. 저장하면 빠진 채로 저장되니 원본은 따로 두세요.`,
-    openFilter: "문서 (PDF, HWP, HWPX, DOCX)",
+    openFilter: "문서 (PDF, HWP, HWPX, DOCX, DOC)",
     studioApplied: "고급 편집 내용을 반영했습니다. 저장하면 파일에 씁니다.",
-    onlySupported: "PDF, HWP, HWPX, DOCX 파일만 열 수 있습니다.",
+    onlySupported: "PDF, HWP, HWPX, DOCX, DOC 파일만 열 수 있습니다.",
     opening: "문서를 여는 중…",
     dropHere: "여기에 놓으면 문서를 엽니다",
   },
   errors: {
     io: "파일을 읽을 수 없습니다. 파일이 옮겨졌거나 지워졌는지 확인해 주세요.",
-    unsupported: "지원하지 않는 형식입니다. PDF, HWP, HWPX, DOCX 문서를 열 수 있습니다.",
+    unsupported: "지원하지 않는 형식입니다. PDF, HWP, HWPX, DOCX, DOC 문서를 열 수 있습니다.",
     invalid: "문서가 손상됐거나 형식이 올바르지 않아 열 수 없습니다.",
     password: "암호가 필요하거나 암호가 맞지 않습니다.",
     notSupported: "이 문서에서는 아직 지원하지 않는 기능입니다.",
@@ -151,7 +151,7 @@ export const ko = {
     exportAs: "다른 형식으로 내보내기",
   },
   welcome: {
-    lead: "PDF·한글(HWP·HWPX)·Word(DOCX) 문서를 인터넷 없이 열고 편집합니다.",
+    lead: "PDF·한글(HWP·HWPX)·Word(DOCX·DOC) 문서를 인터넷 없이 열고 편집합니다.",
     open: "문서 열기",
     dropHint: "또는 파일을 이 창으로 끌어다 놓으세요 ·",
     recent: "최근 문서",

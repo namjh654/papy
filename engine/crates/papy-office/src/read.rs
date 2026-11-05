@@ -7,10 +7,10 @@ use std::collections::HashMap;
 use std::io::{Cursor, Read};
 
 use crate::notes::{
-    ENDNOTE_MARK, FOOTNOTE_MARK, HeaderFooterText, Numbering, paragraph_texts, parse_endnotes,
-    parse_footnotes,
+    ENDNOTE_MARK, FOOTNOTE_MARK, HeaderFooterText, Numbering, PAGE_BREAK_MARK, paragraph_texts,
+    parse_endnotes, parse_footnotes,
 };
-use crate::shapes::{DocxShape, Drawing, SHAPE_MARK};
+use crate::shapes::{DocxShape, Drawing, Pending, SHAPE_MARK, ShapeImage};
 use papy_model::{Error, ErrorCode, Result};
 use quick_xml::Reader;
 use quick_xml::events::{BytesStart, Event};
@@ -41,6 +41,9 @@ pub struct DocxReadReport {
     pub shapes: Vec<DocxShape>,
     /// 본문 제목 문단(스타일·문단의 개요 수준이 있는 것), 문서 순서. 목차로 쓴다. 표 안 문단은 넣지 않는다.
     pub headings: Vec<DocxHeading>,
+    /// 첫 쪽에서 감출 (머리말, 꼬리말). 첫 구역이 "첫 쪽 다르게"(`w:titlePg`)일 때 켠다.
+    /// rhwp 에는 첫 쪽 전용 머리말 자리가 없어, 첫 쪽에서는 기본 머리말을 감추고 첫 쪽 것의 글자는 옮기지 않는다.
+    pub hide_first_page: (bool, bool),
 }
 
 /// 제목 문단 하나.
@@ -402,6 +405,8 @@ struct TableBuild {
 
 struct CellBuild {
     span: usize,
+    /// 칸 너비(pt, `w:tcW` 의 dxa)
+    width: Option<f32>,
     /// None: 병합 없음, Some(true): 병합 시작, Some(false): 위 칸에 이어짐
     vmerge: Option<bool>,
     html: String,
@@ -446,9 +451,17 @@ impl TableBuild {
                     }
                 }
                 html.push_str("<td");
+                let mut style = String::new();
                 if self.bordered {
                     // rhwp 붙여넣기는 칸 CSS 로만 테두리를 읽는다(Word 기본 0.5pt 검정).
-                    html.push_str(" style=\"border:0.5pt solid #000000\"");
+                    style.push_str("border:0.5pt solid #000000;");
+                }
+                if let (Some(width), 1) = (cell.width, cell.span) {
+                    // rhwp 는 병합하지 않은 칸의 너비로 열 너비를 정한다.
+                    style.push_str(&format!("width:{width:.1}pt;"));
+                }
+                if !style.is_empty() {
+                    html.push_str(&format!(" style=\"{style}\""));
                 }
                 if cell.span > 1 {
                     html.push_str(&format!(" colspan=\"{}\"", cell.span));
@@ -468,6 +481,41 @@ impl TableBuild {
         }
         html.push_str("</table>");
         html
+    }
+}
+
+/// 도형 자리 그림(묶음 안 그림, 차트)의 내용. 그림 형식을 모르거나 차트에 그릴 값이 없으면 None.
+fn resolve_image(
+    archive: &mut zip::ZipArchive<Cursor<&[u8]>>,
+    rels: &HashMap<String, String>,
+    pending: &Pending,
+    shape: &DocxShape,
+    image_budget: &mut u64,
+) -> Result<Option<ShapeImage>> {
+    let (Pending::Image(id) | Pending::Chart(id)) = pending;
+    let Some(path) = rels.get(id).filter(|path| !path.is_empty()) else {
+        return Ok(None);
+    };
+    match pending {
+        Pending::Image(_) => {
+            let image = read_binary(archive, path, MAX_IMAGE_BYTES.min(*image_budget))
+                .filter(|bytes| image_mime(bytes).is_some());
+            if let Some(bytes) = &image {
+                *image_budget = image_budget.saturating_sub(bytes.len() as u64);
+            }
+            Ok(image.map(ShapeImage::Raster))
+        }
+        Pending::Chart(_) => {
+            let Some(xml) = read_part(archive, path)? else {
+                return Ok(None);
+            };
+            Ok(crate::chart::parse(&xml).map(|chart| {
+                ShapeImage::Svg(chart.to_svg(
+                    shape.width as f64 / EMU_PER_PX,
+                    shape.height as f64 / EMU_PER_PX,
+                ))
+            }))
+        }
     }
 }
 
@@ -496,6 +544,7 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
     // 머리말·꼬리말 참조: (머리말인가, 종류, 관계 id). 첫 구역 것을 쓴다.
     let mut header_refs: Vec<(bool, String, String)> = Vec::new();
     let mut sections_seen = 0usize;
+    let mut title_page = false;
     let mut image_budget = MAX_TOTAL_IMAGE_BYTES;
     let mut drawing: Option<Drawing> = None;
     // 건너뛰는 요소 깊이(mc:Fallback — 같은 내용의 옛 형식, VML)
@@ -515,6 +564,7 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
     // 문단에 직접 준 개요 수준(스타일 것보다 앞선다)과 문단 글자(목차용, 이스케이프 전).
     let mut para_outline: Option<u8> = None;
     let mut para_plain = String::new();
+    let mut page_break_before = false;
     let mut in_ppr = false;
     let mut in_tbl_borders = false;
     let mut run = RunProps::default();
@@ -593,6 +643,7 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
                         para_style = (RunProps::default(), None, None);
                         para_align = None;
                         para_outline = None;
+                        page_break_before = false;
                         para_plain.clear();
                         list_item = false;
                         num_id = None;
@@ -635,6 +686,7 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
                         ilvl = attr(&e, "val").and_then(|v| v.parse().ok()).unwrap_or(0)
                     }
                     "sectPr" if !empty => sections_seen += 1,
+                    "titlePg" if sections_seen == 1 => title_page = toggle(&e),
                     kind @ ("headerReference" | "footerReference") if sections_seen == 1 => {
                         if let (Some(kind_attr), Some(id)) = (attr(&e, "type"), attr(&e, "id")) {
                             header_refs.push((kind == "headerReference", kind_attr, id));
@@ -654,8 +706,8 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
                             (&endnotes, ENDNOTE_MARK, &mut report.endnotes)
                         };
                         match attr(&e, "id").and_then(|id| notes.get(&id)) {
-                            // 표 안 각주·미주는 rhwp 에 넣을 자리가 없어 옮기지 않는다.
-                            Some(note) if cell.is_empty() => {
+                            // 표 안 각주·미주는 papy-hwp 가 본문에서 만들어 칸으로 옮긴다(겹친 표 안은 빼고).
+                            Some(note) if tables.len() <= 1 => {
                                 para_html.push(mark);
                                 out.push(note.clone());
                             }
@@ -687,8 +739,15 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
                             &para_style.0,
                             &defaults,
                         );
-                        para_html.push_str("<br>");
+                        if attr(&e, "type").as_deref() == Some("page") && cell.is_empty() {
+                            // 쪽 나누기: 문단을 끊고 뒤 문단 앞에서 쪽을 나눈다.
+                            para_html.push_str("</p><p>");
+                            para_html.push(PAGE_BREAK_MARK);
+                        } else {
+                            para_html.push_str("<br>");
+                        }
                     }
+                    "pageBreakBefore" if in_ppr && toggle(&e) => page_break_before = true,
                     "drawing" if !empty => drawing = Some(Drawing::default()),
                     "drawing" => report.dropped_drawings += 1,
                     "tbl" => {
@@ -710,9 +769,19 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
                     }
                     "tc" => cell.push(Some(CellBuild {
                         span: 1,
+                        width: None,
                         vmerge: None,
                         html: String::new(),
                     })),
+                    "tcW" => {
+                        if let Some(Some(current)) = cell.last_mut() {
+                            current.width = (attr(&e, "type").as_deref() == Some("dxa"))
+                                .then(|| attr(&e, "w").and_then(|v| v.parse::<f32>().ok()))
+                                .flatten()
+                                .filter(|w| *w > 0.0)
+                                .map(|w| w / 20.0);
+                        }
+                    }
                     "gridSpan" => {
                         if let Some(Some(current)) = cell.last_mut() {
                             current.span = attr(&e, "val")
@@ -793,7 +862,21 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
                         );
                         let (shapes, dropped) = done.into_shapes();
                         report.dropped_drawings += dropped;
-                        for shape in shapes {
+                        for mut shape in shapes {
+                            // 묶음 안 그림·차트: 관계를 풀어 그림 내용을 채운다. 못 풀면 빠진 것으로 센다.
+                            if let Some(pending) = shape.pending.take() {
+                                shape.image = resolve_image(
+                                    &mut archive,
+                                    &rels,
+                                    &pending,
+                                    &shape,
+                                    &mut image_budget,
+                                )?;
+                                if shape.image.is_none() {
+                                    report.dropped_drawings += 1;
+                                    continue;
+                                }
+                            }
                             if cell.is_empty() && in_para {
                                 para_html.push(SHAPE_MARK);
                                 report.shapes.push(shape);
@@ -874,7 +957,12 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
                     let label = label
                         .map(|label| format!("{} ", escape(&label)))
                         .unwrap_or_default();
-                    let html = format!("<p{style}>{label}{para_html}</p>");
+                    let mark = if page_break_before && cell.is_empty() {
+                        PAGE_BREAK_MARK.to_string()
+                    } else {
+                        String::new()
+                    };
+                    let html = format!("<p{style}>{mark}{label}{para_html}</p>");
                     out(&mut body, &mut cell, &html);
                     let level = para_outline.or(para_style.2).filter(|&level| level < 9);
                     let text = para_plain.trim();
@@ -903,18 +991,22 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
             _ => {}
         }
     }
-    // 머리말·꼬리말: 짝수 쪽 것이 있으면 기본(default)은 홀수 쪽이다. 첫 쪽 것은 rhwp 에 맞는 자리가 없다.
+    // 머리말·꼬리말: 짝수 쪽 것이 있으면 기본(default)은 홀수 쪽이다. 첫 쪽 것은 rhwp 에 맞는 자리가 없어
+    // 첫 쪽에서 기본 것을 감추고(Word 도 첫 쪽 것이 없으면 아무것도 안 보인다), 글자가 있으면 빠진 것으로 센다.
+    // 짝수 쪽 것은 설정(evenAndOddHeaders)이 켜졌을 때만 쓴다. 꺼져 있으면 Word 는 모든 쪽에 기본 것을 쓴다.
+    let even_and_odd = read_part(&mut archive, "word/settings.xml")?.is_some_and(|xml| {
+        xml.split("<w:evenAndOddHeaders")
+            .nth(1)
+            .is_some_and(|rest| {
+                let tag = &rest[..rest.find('>').unwrap_or(rest.len())];
+                !(tag.contains("\"0\"") || tag.contains("\"false\"") || tag.contains("\"off\""))
+            })
+    });
+    if !even_and_odd {
+        header_refs.retain(|(_, kind, _)| kind != "even");
+    }
     let has_even = header_refs.iter().any(|(_, kind, _)| kind == "even");
     for (is_header, kind, id) in header_refs {
-        let apply_to = match kind.as_str() {
-            "default" if has_even => 2,
-            "default" => 0,
-            "even" => 1,
-            _ => {
-                report.dropped_notes += 1;
-                continue;
-            }
-        };
         let Some(path) = rels.get(&id).filter(|path| !path.is_empty()) else {
             continue;
         };
@@ -922,7 +1014,20 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
             continue;
         };
         let paragraphs = paragraph_texts(&xml);
-        if paragraphs.iter().all(|p| p.trim().is_empty()) {
+        let blank = paragraphs.iter().all(|p| p.trim().is_empty());
+        let apply_to = match kind.as_str() {
+            "default" if has_even => 2,
+            "default" => 0,
+            "even" => 1,
+            "first" => {
+                if title_page && !blank {
+                    report.dropped_notes += 1;
+                }
+                continue;
+            }
+            _ => continue,
+        };
+        if blank {
             continue;
         }
         let target = if is_header {
@@ -936,6 +1041,9 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
                 paragraphs,
             });
         }
+    }
+    if title_page {
+        report.hide_first_page = (!report.headers.is_empty(), !report.footers.is_empty());
     }
     Ok((format!("<html><body>{body}</body></html>"), report))
 }

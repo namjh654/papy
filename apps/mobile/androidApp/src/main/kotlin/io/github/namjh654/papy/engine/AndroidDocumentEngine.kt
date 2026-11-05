@@ -100,6 +100,7 @@ class AndroidDocumentEngine(private val context: Context) : DocumentEngine {
             val kind = when (summary.format) {
                 "hwp" -> DocumentKind.Hwp
                 "hwpx" -> DocumentKind.Hwpx
+                "doc" -> DocumentKind.Doc
                 else -> DocumentKind.Docx
             }
             OpenResult.success(

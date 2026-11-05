@@ -148,4 +148,5 @@ private fun DocumentKind.label() = when (this) {
     DocumentKind.Hwp -> "HWP"
     DocumentKind.Hwpx -> "HWPX"
     DocumentKind.Docx -> "DOCX"
+    DocumentKind.Doc -> "DOC"
 }

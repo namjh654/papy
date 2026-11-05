@@ -1360,7 +1360,7 @@ public struct DocumentSummary: Equatable, Hashable {
      */
     public var session: UInt64
     /**
-     * 형식: "hwp" | "hwpx" | "docx"
+     * 형식: "hwp" | "hwpx" | "docx" | "doc"
      */
     public var format: String
     /**
@@ -1376,7 +1376,7 @@ public struct DocumentSummary: Equatable, Hashable {
      */
     public var droppedObjects: UInt32
     /**
-     * 본문을 고칠 수 있는가(HWP·HWPX·DOCX)
+     * 본문을 고칠 수 있는가(HWP·HWPX·DOCX. DOC 는 보기 전용)
      */
     public var canEdit: Bool
 
@@ -1387,7 +1387,7 @@ public struct DocumentSummary: Equatable, Hashable {
          * 문서 핸들(닫을 때까지 유효)
          */session: UInt64, 
         /**
-         * 형식: "hwp" | "hwpx" | "docx"
+         * 형식: "hwp" | "hwpx" | "docx" | "doc"
          */format: String, 
         /**
          * 쪽 수
@@ -1399,7 +1399,7 @@ public struct DocumentSummary: Equatable, Hashable {
          * 열 때 옮기지 못한 요소 수
          */droppedObjects: UInt32, 
         /**
-         * 본문을 고칠 수 있는가(HWP·HWPX·DOCX)
+         * 본문을 고칠 수 있는가(HWP·HWPX·DOCX. DOC 는 보기 전용)
          */canEdit: Bool) {
         self.session = session
         self.format = format

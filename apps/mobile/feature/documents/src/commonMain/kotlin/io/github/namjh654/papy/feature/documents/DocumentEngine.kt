@@ -106,7 +106,7 @@ interface DocumentEngine {
     fun close(session: Long)
 }
 
-enum class DocumentKind { Pdf, Hwp, Hwpx, Docx }
+enum class DocumentKind { Pdf, Hwp, Hwpx, Docx, Doc }
 
 /** 열기 실패 이유. 화면 문구는 플랫폼 문자열 리소스가 고른다. */
 enum class DocumentError {

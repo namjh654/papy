@@ -1180,7 +1180,7 @@ checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
 
 [[package]]
 name = "papy-core"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "papy-hwp",
  "papy-model",
@@ -1192,7 +1192,7 @@ dependencies = [
 
 [[package]]
 name = "papy-ffi"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "papy-core",
  "uniffi",
@@ -1201,7 +1201,7 @@ dependencies = [
 
 [[package]]
 name = "papy-hwp"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "papy-model",
  "papy-office",
@@ -1214,13 +1214,14 @@ dependencies = [
 
 [[package]]
 name = "papy-model"
-version = "0.2.0"
+version = "0.3.0"
 
 [[package]]
 name = "papy-office"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "base64 0.23.1",
+ "cfb",
  "papy-model",
  "quick-xml",
  "rhwp",
@@ -1229,7 +1230,7 @@ dependencies = [
 
 [[package]]
 name = "papy-pdf"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "papy-model",
  "papy-render",
@@ -1238,7 +1239,7 @@ dependencies = [
 
 [[package]]
 name = "papy-render"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "papy-model",
 ]

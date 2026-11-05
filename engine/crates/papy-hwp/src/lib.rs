@@ -96,7 +96,8 @@ impl HwpBackend {
         }
     }
 
-    /// HWP 5.x(OLE 복합 문서)·HWP 3.x 어댑터. 다른 CFB 문서(구형 DOC 등)는 `UnsupportedFormat` 으로 거절한다.
+    /// HWP 5.x(OLE 복합 문서)·HWP 3.x·구형 Word(DOC) 어댑터. DOC 는 DOCX 처럼 rhwp 문서로 바꿔 연다.
+    /// 다른 CFB 문서(XLS·PPT 등)는 `UnsupportedFormat` 으로 거절한다.
     pub fn hwp() -> Self {
         Self {
             format: DocumentFormat::CompoundFile,
@@ -138,6 +139,10 @@ impl FormatBackend for HwpBackend {
                 return Self::hwpx().open_hwp(bytes, options);
             }
             return self.open_docx(bytes, options);
+        }
+        if self.format == DocumentFormat::CompoundFile && papy_office::is_doc(bytes) {
+            let (html, report) = papy_office::doc_to_html(bytes)?;
+            return open_converted(bytes, &html, report, DocumentFormat::Doc, options);
         }
         self.open_hwp(bytes, options)
     }
@@ -207,55 +212,102 @@ impl HwpBackend {
             ));
         }
         let (html, report) = papy_office::docx_to_html(bytes)?;
-        options.cancel.check()?;
-        let (doc, dropped_notes) =
-            guard(|| -> std::result::Result<(Rhwp, usize), rhwp::HwpError> {
-                let mut doc = Rhwp::create_empty();
-                doc.create_blank_document_native()?;
-                doc.paste_html_native(0, 0, 0, &html)?;
-                let dropped =
-                    notes::apply(&mut doc, &report)? + shapes::apply(&mut doc, &report.shapes)?;
-                Ok((doc, dropped))
-            })?
-            .map_err(|_| {
-                Error::new(
-                    ErrorCode::InvalidDocument,
-                    "could not convert the DOCX document",
-                )
-            })?;
-        let page_count = doc.page_count();
-        if page_count > options.max_pages {
-            return Err(Error::new(ErrorCode::LimitExceeded, "too many pages"));
-        }
-        let info = DocumentInfo {
-            format: DocumentFormat::Docx,
-            page_count,
-            byte_size: bytes.len() as u64,
-            title: None,
-            dropped_objects: u32::try_from(
-                report.dropped_drawings + report.dropped_notes + dropped_notes,
-            )
-            .unwrap_or(u32::MAX),
-            capabilities: Capabilities {
-                render: true,
-                extract_text: true,
-                save: true,
-                edit: true,
-                outline: !report.headings.is_empty(),
-                save_formats: vec![
-                    SaveFormat::Docx,
-                    SaveFormat::Hwpx,
-                    SaveFormat::Hwp,
-                    SaveFormat::Pdf,
-                    SaveFormat::Text,
-                ],
-                ..Capabilities::default()
-            },
-        };
-        Ok(Box::new(
-            HwpDocument::new(doc, info, None).with_headings(report.headings),
-        ))
+        open_converted(bytes, &html, report, DocumentFormat::Docx, options)
     }
+}
+
+/// DOCX·DOC 에서 만든 HTML 을 붙여넣고 머리말·각주·도형을 넣어 rhwp 문서로 연다.
+/// 붙여넣은 표는 글자처럼 취급·나누지 않음이라 쪽보다 긴 행이 잘린다. Word 처럼 문단 기준
+/// 자리차지 표로 바꾸고 칸 안에서도 쪽을 나눈다.
+fn split_tables_across_pages(doc: &mut Rhwp) -> std::result::Result<(), rhwp::HwpError> {
+    let tables: Vec<(usize, usize)> = doc
+        .document()
+        .sections
+        .first()
+        .into_iter()
+        .flat_map(|section| section.paragraphs.iter().enumerate())
+        .flat_map(|(para, paragraph)| {
+            paragraph
+                .controls
+                .iter()
+                .enumerate()
+                .filter(|(_, control)| matches!(control, rhwp::model::control::Control::Table(_)))
+                .map(move |(control, _)| (para, control))
+        })
+        .collect();
+    for (para, control) in tables {
+        doc.set_table_properties_native(
+            0,
+            para,
+            control,
+            r#"{"treatAsChar":false,"textWrap":"TopAndBottom","vertRelTo":"Para","horzRelTo":"Para","pageBreak":1}"#,
+        )?;
+    }
+    Ok(())
+}
+
+fn open_converted(
+    bytes: &[u8],
+    html: &str,
+    report: papy_office::DocxReadReport,
+    format: DocumentFormat,
+    options: &BackendOpenOptions,
+) -> Result<Box<dyn Document>> {
+    options.cancel.check()?;
+    let (doc, dropped_notes) = guard(|| -> std::result::Result<(Rhwp, usize), rhwp::HwpError> {
+        let mut doc = Rhwp::create_empty();
+        doc.create_blank_document_native()?;
+        doc.paste_html_native(0, 0, 0, html)?;
+        split_tables_across_pages(&mut doc)?;
+        // 붙여넣은 표 칸은 한 줄로만 잡혀 있다. 칸 너비로 다시 나눠 긴 글이 잘리지 않게 한다.
+        doc.reflow_table_cells_native(0)?;
+        let dropped = notes::apply(&mut doc, &report)? + shapes::apply(&mut doc, &report.shapes)?;
+        Ok((doc, dropped))
+    })?
+    .map_err(|_| {
+        Error::new(
+            ErrorCode::InvalidDocument,
+            if format == DocumentFormat::Doc {
+                "could not convert the Word document"
+            } else {
+                "could not convert the DOCX document"
+            },
+        )
+    })?;
+    let page_count = doc.page_count();
+    if page_count > options.max_pages {
+        return Err(Error::new(ErrorCode::LimitExceeded, "too many pages"));
+    }
+    // DOC 는 다시 쓰지 않는다(DOCX·HWPX·HWP·PDF 로 저장한다).
+    let save_formats = vec![
+        SaveFormat::Docx,
+        SaveFormat::Hwpx,
+        SaveFormat::Hwp,
+        SaveFormat::Pdf,
+        SaveFormat::Text,
+    ];
+    let info = DocumentInfo {
+        format,
+        page_count,
+        byte_size: bytes.len() as u64,
+        title: None,
+        dropped_objects: u32::try_from(
+            report.dropped_drawings + report.dropped_notes + dropped_notes,
+        )
+        .unwrap_or(u32::MAX),
+        capabilities: Capabilities {
+            render: true,
+            extract_text: true,
+            save: true,
+            edit: true,
+            outline: !report.headings.is_empty(),
+            save_formats,
+            ..Capabilities::default()
+        },
+    };
+    Ok(Box::new(
+        HwpDocument::new(doc, info, None).with_headings(report.headings),
+    ))
 }
 
 /// rhwp 오류를 분류한다. 원문은 버린다.
@@ -317,6 +369,20 @@ pub(crate) fn rasterize(
         height,
         pixels,
     })
+}
+
+/// SVG 를 흰 바탕 PNG 로 그린다(DOCX 차트 그림).
+pub(crate) fn svg_to_png(svg: &str, width: u32, height: u32) -> Result<Vec<u8>> {
+    let bitmap = rasterize(svg, width, height, true)?;
+    let pixmap = tiny_skia::Pixmap::from_vec(
+        bitmap.pixels,
+        tiny_skia::IntSize::from_wh(width, height)
+            .ok_or_else(|| Error::new(ErrorCode::LimitExceeded, "chart bitmap too large"))?,
+    )
+    .ok_or_else(|| Error::new(ErrorCode::Internal, "chart bitmap"))?;
+    pixmap
+        .encode_png()
+        .map_err(|_| Error::new(ErrorCode::Internal, "chart image encoding failed"))
 }
 
 /// 글꼴 파일을 한 번만 메모리에 매핑해 두고 계속 쓴다.

@@ -291,7 +291,13 @@ fn para_props(info: &DocInfo, paragraph: &Paragraph) -> String {
         Alignment::Distribute => "distribute",
         Alignment::Justify | Alignment::Split => "both",
     };
-    let mut props = format!(r#"<w:pPr><w:jc w:val="{jc}"/>"#);
+    // 쪽 나누기(문단 앞). 스키마 순서상 jc 보다 앞에 둔다.
+    let page_break = if paragraph.column_type == rhwp::model::paragraph::ColumnBreakType::Page {
+        "<w:pageBreakBefore/>"
+    } else {
+        ""
+    };
+    let mut props = format!(r#"<w:pPr>{page_break}<w:jc w:val="{jc}"/>"#);
     if shape.line_spacing_type == LineSpacingType::Percent && shape.line_spacing > 0 {
         // 100% = 240
         let line = shape.line_spacing * 240 / 100;
@@ -616,7 +622,7 @@ fn write_table(
     Ok(())
 }
 
-fn section_props(document: &Document, references: &str) -> String {
+fn section_props(document: &Document, references: &str, title_page: &str) -> String {
     let Some(page) = document.sections.first().map(|s| &s.section_def.page_def) else {
         return String::new();
     };
@@ -633,7 +639,7 @@ fn section_props(document: &Document, references: &str) -> String {
         ""
     };
     format!(
-        r#"<w:sectPr>{references}<w:pgSz w:w="{width}" w:h="{height}"{orient}/><w:pgMar w:top="{}" w:right="{}" w:bottom="{}" w:left="{}" w:header="{}" w:footer="{}" w:gutter="{}"/></w:sectPr>"#,
+        r#"<w:sectPr>{references}<w:pgSz w:w="{width}" w:h="{height}"{orient}/><w:pgMar w:top="{}" w:right="{}" w:bottom="{}" w:left="{}" w:header="{}" w:footer="{}" w:gutter="{}"/>{title_page}</w:sectPr>"#,
         twips(page.margin_top + page.margin_header),
         twips(page.margin_right),
         twips(page.margin_bottom + page.margin_footer),
@@ -707,12 +713,13 @@ fn header_footer_parts(
     document: &Document,
     media: &mut Media,
     parts: &mut Vec<Part>,
-) -> Result<String> {
+) -> Result<(String, &'static str)> {
     let info = &document.doc_info;
     let mut seen: Vec<(bool, &'static str)> = Vec::new();
     let mut references = (String::new(), String::new());
+    let mut defaults: [Option<String>; 2] = [None, None];
     let Some(section) = document.sections.first() else {
-        return Ok(String::new());
+        return Ok((String::new(), ""));
     };
     for control in section.paragraphs.iter().flat_map(|p| &p.controls) {
         let (is_header, apply, paragraphs) = match control {
@@ -747,6 +754,9 @@ fn header_footer_parts(
         let _ = write!(xml, "</w:{tag}>");
         let rel = format!("rIdPart{index}");
         let reference = format!(r#"<w:{name}Reference w:type="{kind}" r:id="{rel}"/>"#);
+        if kind == "default" {
+            defaults[usize::from(!is_header)] = Some(rel.clone());
+        }
         // sectPr 안에서는 머리말 참조가 꼬리말 참조보다 앞에 온다.
         if is_header {
             &mut references.0
@@ -772,7 +782,33 @@ fn header_footer_parts(
             ),
         });
     }
-    Ok(references.0 + &references.1)
+    // 첫 쪽 감추기: titlePg 로 첫 쪽 머리말·꼬리말을 비우고, 감추지 않은 쪽은 기본 것을 첫 쪽에도 건다.
+    let hide = section
+        .paragraphs
+        .first()
+        .into_iter()
+        .flat_map(|p| &p.controls)
+        .find_map(|c| match c {
+            Control::PageHide(h) => Some([h.hide_header, h.hide_footer]),
+            _ => None,
+        })
+        .unwrap_or_default();
+    let mut title_page = "";
+    if hide.iter().any(|&h| h) {
+        title_page = "<w:titlePg/>";
+        for (side, name) in [(0, "header"), (1, "footer")] {
+            if let (false, Some(rel)) = (hide[side], &defaults[side]) {
+                let reference = format!(r#"<w:{name}Reference w:type="first" r:id="{rel}"/>"#);
+                if side == 0 {
+                    &mut references.0
+                } else {
+                    &mut references.1
+                }
+                .push_str(&reference);
+            }
+        }
+    }
+    Ok((references.0 + &references.1, title_page))
 }
 
 /// rhwp 문서를 DOCX 바이트로 쓴다.
@@ -805,7 +841,7 @@ pub fn docx_from_document_with_outline(
         }
     }
     let mut extra: Vec<Part> = Vec::new();
-    let references = header_footer_parts(document, &mut media, &mut extra)?;
+    let (references, title_page) = header_footer_parts(document, &mut media, &mut extra)?;
     for (notes, tag, kind, rel) in [
         (&media.footnotes, "footnote", "footnotes", "rIdFootnotes"),
         (&media.endnotes, "endnote", "endnotes", "rIdEndnotes"),
@@ -831,7 +867,7 @@ pub fn docx_from_document_with_outline(
     let xml = format!(
         r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document {NAMESPACES}><w:body>{body}{}</w:body></w:document>"#,
-        section_props(document, &references)
+        section_props(document, &references, title_page)
     );
 
     let mut buffer = Cursor::new(Vec::new());

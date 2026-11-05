@@ -245,13 +245,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tap Open document to choose a PDF, HWP, HWPX or DOCX file."
+            "value" : "Tap Open document to choose a PDF, HWP, HWPX, DOCX or DOC file."
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "문서 열기를 눌러 PDF·HWP·HWPX·DOCX 파일을 고르세요."
+            "value" : "문서 열기를 눌러 PDF·HWP·HWPX·DOCX·DOC 파일을 고르세요."
           }
         }
       }
@@ -1231,13 +1231,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "This document isn't supported. Papy opens PDF, HWP, HWPX and DOCX."
+            "value" : "This document isn't supported. Papy opens PDF, HWP, HWPX, DOCX and DOC."
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "지원하지 않는 문서입니다. PDF·HWP·HWPX·DOCX 를 열 수 있습니다."
+            "value" : "지원하지 않는 문서입니다. PDF·HWP·HWPX·DOCX·DOC 를 열 수 있습니다."
           }
         }
       }

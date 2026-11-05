@@ -10,5 +10,5 @@
 | [0004](0004-hwp-engine.md) | HWP/HWPX 엔진: rhwp | 승인 (2026-11-03) |
 | [0005](0005-rhwp-studio-editor.md) | HWP/HWPX 편집기: rhwp-studio 도입 검토 | 승인 (2026-11-03) |
 | [0006](0006-mobile-bridge.md) | 모바일 엔진 연결: UniFFI, PDF 는 운영체제 렌더러 | 승인 (2026-11-04) |
-| [0007](0007-xlsx-pptx.md) | XLSX·PPTX 지원 방식(PPTX 는 쪽 변환, XLSX 는 시트 모델·조각 그리기) | 제안 |
+| [0007](0007-xlsx-pptx.md) | XLSX·PPTX 지원 방식(PPTX 는 쪽 변환, XLSX 는 시트 모델·조각 그리기) | 보류 |
 | — | 프로젝트 라이선스: PolyForm Noncommercial 1.0.0 | 승인 (2026-11-03, [licensing.md](../development/licensing.md)) |

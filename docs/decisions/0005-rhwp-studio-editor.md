@@ -59,3 +59,19 @@ SDK(`@rhwp/editor`)는 `apps/desktop/src/vendor/rhwp-editor/` 에 들여왔다. 
 - 한글 입력기 조합 입력(사람이 직접), 큰 문서의 메모리
 - IPC: 편집 결과가 JSON 숫자 배열로 올 수 있어 호스트가 둘 다 받는다. 큰 문서에서 느리면 임시 파일·채널로 바꾼다
 - 업스트림에 `tauri:` 허용을 제안해 패치를 없앤다
+
+## 점검 (2026-11-05, macOS · Apple Silicon)
+
+데스크톱 창 대신 개발 서버(`vite`, `http://localhost`)와 헤드리스 Chrome(CDP)으로 앱과 같은 SDK·studio 를 띄워 확인했다.
+
+| 확인 항목 | 결과 |
+|---|---|
+| 부팅 | 0.13~0.22초, 명령 191개 |
+| 넣기·내보내기 | rhwp 샘플 HWP 3개·HWPX 1개: 넣기 0.3~0.8초, HWP·HWPX 내보내기 10 ms 안팎, 내보낸 것을 다시 넣어도 쪽 수 같음 |
+| 실제 입력 | 표 칸 두 곳을 눌러 글자 입력(`Input.insertText`) → `dirty`·`changeSeq 2` → `table:insert-row-below` → HWP·HWPX 내보내기 → **네이티브 엔진으로 다시 열어 두 글자와 새 행 확인** |
+| 앱과 같은 입력 | 앱은 엔진이 내보낸 HWP 를 studio 에 넣는다. 엔진이 만든 HWP 5개(HWPX·HWP·215쪽 보고서·DOC·DOCX 에서 바꾼 것) 모두 studio 에서 같은 쪽 수로 열리고 다시 내보내도 같음(215쪽 65MB 넣기 3.2초) |
+
+주의
+- studio 는 고친 내용이 남은 채로 페이지를 떠나면 확인 창(`beforeunload`)을 띄운다. 앱은 studio 를 열 때마다 새로 띄우고
+  취소할 때 Papy 의 확인 창으로 먼저 묻기 때문에 문제없다. 같은 studio 에 문서를 바꿔 넣을 때는 `loadFile(…, { skipUnsavedGuard: true })` 가 필요하다.
+- Windows·Linux 실제 창, 한글 입력기 조합 입력은 여전히 사람이 확인해야 한다.

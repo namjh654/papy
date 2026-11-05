@@ -14,6 +14,7 @@ val DOCUMENT_MIME_TYPES = arrayOf(
     "application/hwp+zip",
     "application/vnd.hancom.hwpx",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/msword",
     // 많은 파일 앱이 HWP·HWPX 를 형식 없이(octet-stream) 알린다
     "application/octet-stream",
 )

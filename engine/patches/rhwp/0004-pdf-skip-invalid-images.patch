@@ -1,0 +1,80 @@
+Papy 패치: PDF 내보내기에서 읽을 수 없는 그림 하나 때문에 문서 전체가 실패하지 않게 한다.
+
+rhwp v0.8.7(1a76570e). svg2pdf 는 끝이 잘린 PNG 같은 그림을 만나면 `InvalidImage` 로 문서 전체를 실패시킨다
+(rhwp 샘플 16개·POI 문서 1개). 그런 쪽만 PNG·JPEG 를 미리 디코드해 보는 리졸버로 다시 파싱해 그 그림만 뺀다.
+다른 쪽·정상 문서의 결과는 같다.
+
+--- a/src/renderer/pdf.rs
++++ b/src/renderer/pdf.rs
+@@ -1202,6 +1202,25 @@
+     }
+ }
+ 
++/// [Papy] 읽을 수 없는 PNG·JPEG 를 빼는 리졸버. svg2pdf 는 그림 하나를 못 읽으면 문서 전체를
++/// `InvalidImage` 로 실패시킨다(끝이 잘린 PNG 등). 그런 쪽만 이것으로 다시 파싱해 그림을 뺀다.
++#[cfg(not(target_arch = "wasm32"))]
++fn pdf_image_href_resolver_dropping_invalid() -> usvg::ImageHrefResolver<'static> {
++    let base = pdf_image_href_resolver();
++    usvg::ImageHrefResolver {
++        resolve_data: Box::new(move |mime, data, opts| {
++            if matches!(mime, "image/png" | "image/jpeg" | "image/jpg")
++                && image::load_from_memory(&data).is_err()
++            {
++                eprintln!("경고: PDF 변환 중 읽을 수 없는 그림({mime})을 뺍니다.");
++                return None;
++            }
++            (base.resolve_data)(mime, data, opts)
++        }),
++        resolve_string: usvg::ImageHrefResolver::default_string_resolver(),
++    }
++}
++
+ /// 페이지별 `to_chunk` 를 주입할 수 있는 PDF 변환.
+ ///
+ /// #3773: `SubsetError` 는 경고로 강등하고 나머지 페이지를 계속한다.
+@@ -1267,6 +1286,8 @@
+         PDF_FONT_FALLBACK_INDEX_MAX_FACE_SLOTS,
+     );
+     options.image_href_resolver = pdf_image_href_resolver();
++    // [Papy] 읽을 수 없는 그림이 있는 쪽만 다시 파싱할 때 쓴다(처음 필요할 때 만든다).
++    let mut strict_options: Option<usvg::Options> = None;
+ 
+     let mut alloc = Ref::new(1);
+     let catalog_ref = alloc.bump();
+@@ -1303,9 +1324,33 @@
+         // [Task #2264] 텍스트 임베드(폰트 서브셋)가 PDF 변환 메모리의 지배항이다.
+         // `embed_text=false` 면 글리프를 path 로 변환해 서브셋 경로를 통째로 건너뛴다.
+         // [#3773] SubsetError 는 페이지 단위로 격리한다.
+-        let Some((chunk, svg_ref)) =
+-            convert_page_chunk(&tree, export_options.embed_text, page_index, &mut to_chunk)?
+-        else {
++        let (tree, converted) =
++            match convert_page_chunk(&tree, export_options.embed_text, page_index, &mut to_chunk) {
++                Err(error) if error.contains("InvalidImage") => {
++                    let strict = strict_options.get_or_insert_with(|| {
++                        let mut strict = usvg::Options::default();
++                        strict.fontdb = options.fontdb.clone();
++                        strict.font_resolver.select_fallback =
++                            pdf_font_fallback_selector_with_limits(
++                                PDF_FONT_FALLBACK_INDEX_MAX_CHARS,
++                                PDF_FONT_FALLBACK_INDEX_MAX_FACE_SLOTS,
++                            );
++                        strict.image_href_resolver = pdf_image_href_resolver_dropping_invalid();
++                        strict
++                    });
++                    let (tree, _) = parse_svg_with_synthetic_italic(&svg_with_bold, strict)
++                        .map_err(|e| format!("SVG 파싱 실패: {}", e))?;
++                    let converted = convert_page_chunk(
++                        &tree,
++                        export_options.embed_text,
++                        page_index,
++                        &mut to_chunk,
++                    )?;
++                    (tree, converted)
++                }
++                other => (tree, other?),
++            };
++        let Some((chunk, svg_ref)) = converted else {
+             continue;
+         };
+ 

@@ -92,7 +92,7 @@ impl From<papy_core::Error> for PapyError {
 pub struct DocumentSummary {
     /// 문서 핸들(닫을 때까지 유효)
     pub session: u64,
-    /// 형식: "hwp" | "hwpx" | "docx"
+    /// 형식: "hwp" | "hwpx" | "docx" | "doc"
     pub format: String,
     /// 쪽 수
     pub page_count: u32,
@@ -100,7 +100,7 @@ pub struct DocumentSummary {
     pub title: Option<String>,
     /// 열 때 옮기지 못한 요소 수
     pub dropped_objects: u32,
-    /// 본문을 고칠 수 있는가(HWP·HWPX·DOCX)
+    /// 본문을 고칠 수 있는가(HWP·HWPX·DOCX. DOC 는 보기 전용)
     pub can_edit: bool,
 }
 
@@ -658,6 +658,7 @@ fn format_name(format: DocumentFormat) -> &'static str {
         DocumentFormat::Hwpx => "hwpx",
         DocumentFormat::CompoundFile => "hwp",
         DocumentFormat::Docx | DocumentFormat::ZipContainer => "docx",
+        DocumentFormat::Doc => "doc",
         _ => "unknown",
     }
 }
@@ -703,7 +704,8 @@ impl PapyEngine {
                 page_count: info.page_count,
                 title: info.title,
                 dropped_objects: info.dropped_objects,
-                can_edit: info.capabilities.edit,
+                // 같은 형식으로 다시 쓸 수 없는 문서(옛 Word .doc)는 보기·내보내기만 한다.
+                can_edit: info.capabilities.edit && save_format(info.format).is_some(),
             }),
             Err(error) => {
                 let _ = self.engine.close(id);

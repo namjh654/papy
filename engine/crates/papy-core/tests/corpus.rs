@@ -15,6 +15,7 @@
 //! - `PAPY_CORPUS_RENDER`: `all`(기본, 모든 쪽) · `first`(첫 쪽만) · `none`(그리지 않음).
 //! - `PAPY_CORPUS_ROUNDTRIP=1`: 문서를 같은 형식으로 저장한 뒤 다시 열어 쪽 수·글이 같은지 본다(PDF·보기 전용 HWP 3.x 제외).
 //!   다시 열기 실패는 실패로, 쪽 수·글 차이는 개수만 출력한다(rhwp 쓰기가 줄 정보를 바꿀 수 있다).
+//! - `PAPY_CORPUS_PDF=1`: PDF 가 아닌 문서를 PDF 로 내보내 본다(`%PDF-` 로 시작하는지, 걸린 시간). 실패는 실패로 센다.
 //! - `PAPY_CORPUS_JOBS`: 동시에 여는 문서 수(기본: CPU 수). 시간을 잴 때는 1 로 둔다.
 //! - `PAPY_CORPUS_PIXELS=파일`: 그린 쪽마다 픽셀 해시를 쓴다. 조판 엔진을 고칠 때 전후 두 번 돌려 diff 한다.
 //! - `PAPY_PDFIUM_LIBRARY`: PDFium 라이브러리 경로. 없으면 PDF 는 건너뛴다(기준값 비교에서도 뺀다).
@@ -46,6 +47,8 @@ struct Outcome {
     golden: Option<String>,
     failures: Vec<String>,
     roundtrip_diff: bool,
+    /// PDF 로 내보낸 시간(`PAPY_CORPUS_PDF=1` 이고 내보낼 수 있을 때).
+    pdf: Option<Duration>,
     pages: u32,
     open: Duration,
     render: Duration,
@@ -177,6 +180,7 @@ fn corpus_opens_renders_and_extracts() {
     );
 
     first_page_report(&results);
+    pdf_report(&results);
     // 조판 엔진을 고칠 때 그림이 그대로인지 보려고 쪽마다 픽셀 해시를 쓴다(두 번 돌려 diff).
     if let Some(path) = std::env::var_os("PAPY_CORPUS_PIXELS").map(repo_path) {
         let mut out = String::new();
@@ -212,6 +216,7 @@ impl Outcome {
             golden: None,
             failures: vec![message],
             roundtrip_diff: false,
+            pdf: None,
             pages: 0,
             open: Duration::ZERO,
             render: Duration::ZERO,
@@ -224,6 +229,31 @@ impl Outcome {
             format: "",
             note: String::new(),
         }
+    }
+}
+
+/// PDF 내보내기 시간(쪽당)을 형식별로 보인다.
+fn pdf_report(results: &BTreeMap<usize, Outcome>) {
+    let mut by_format: BTreeMap<&str, (usize, u32, Duration, Duration)> = BTreeMap::new();
+    for outcome in results.values() {
+        if let Some(time) = outcome.pdf {
+            let entry = by_format.entry(outcome.format).or_default();
+            entry.0 += 1;
+            entry.1 += outcome.pages;
+            entry.2 += time;
+            entry.3 = entry.3.max(time);
+        }
+    }
+    if by_format.is_empty() {
+        return;
+    }
+    eprintln!("\nPDF 내보내기: 형식 · 문서 수 · 쪽 수 · 쪽당 평균 ms · 가장 오래 걸린 문서 ms");
+    for (format, (docs, pages, total, max)) in by_format {
+        eprintln!(
+            "  {format} · {docs} · {pages} · {:.1} · {}",
+            total.as_secs_f64() * 1000.0 / f64::from(pages.max(1)),
+            max.as_millis()
+        );
     }
 }
 
@@ -392,6 +422,22 @@ fn check(engine: &Engine, path: &Path, mode: RenderMode, roundtrip: bool) -> Out
         info.dropped_objects,
     ));
 
+    if std::env::var("PAPY_CORPUS_PDF").is_ok_and(|v| v == "1")
+        && info.format != DocumentFormat::Pdf
+        && info.capabilities.save_formats.contains(&SaveFormat::Pdf)
+    {
+        let started = Instant::now();
+        match engine.save(id, SaveFormat::Pdf) {
+            Ok(bytes) if bytes.starts_with(b"%PDF-") => outcome.pdf = Some(started.elapsed()),
+            Ok(_) => outcome
+                .failures
+                .push("PDF 내보내기: %PDF- 로 시작하지 않음".into()),
+            Err(error) => outcome
+                .failures
+                .push(format!("PDF 내보내기 실패 {:?}", error.code)),
+        }
+    }
+
     if roundtrip
         && let Some(format) = same_format(info.format)
             .filter(|format| info.capabilities.save_formats.contains(format))
@@ -506,7 +552,7 @@ impl Fnv {
 
 fn extension(path: &Path) -> Option<&'static str> {
     let ext = path.extension()?.to_str()?.to_ascii_lowercase();
-    ["pdf", "hwp", "hwpx", "docx"]
+    ["pdf", "hwp", "hwpx", "docx", "doc"]
         .into_iter()
         .find(|known| *known == ext)
 }

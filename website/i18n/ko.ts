@@ -21,7 +21,7 @@ export const ko: Messages = {
     home: {
       title: "Papy (페이피) — 무료·오프라인 PDF·HWP·DOCX 문서 편집기",
       description:
-        "Papy(페이피)는 PDF·한글(HWP/HWPX)·Word(DOCX) 문서를 보고 편집하는 소스 공개 문서 앱으로, 개인·비상업 용도는 무료입니다. 보기·편집 모드 전환, 저장·형식 변환을 회원가입·광고·서버 업로드 없이 내 컴퓨터에서 합니다. Windows·macOS·Linux.",
+        "Papy(페이피)는 PDF·한글(HWP/HWPX)·Word(DOCX·DOC) 문서를 보고 편집하는 소스 공개 문서 앱으로, 개인·비상업 용도는 무료입니다. 보기·편집 모드 전환, 저장·형식 변환을 회원가입·광고·서버 업로드 없이 내 컴퓨터에서 합니다. Windows·macOS·Linux.",
       nav: "소개",
     },
     download: {

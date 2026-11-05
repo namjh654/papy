@@ -13,6 +13,8 @@ use crate::read::{attr, local};
 pub const FOOTNOTE_MARK: char = '\u{E0F1}';
 /// 본문 문단 안 미주 자리 표시(각주와 같은 방식).
 pub const ENDNOTE_MARK: char = '\u{E0F3}';
+/// 문단 맨 앞의 쪽 나누기 표시(사용자 영역 글자). papy-hwp 가 지우고 그 문단 앞에서 쪽을 나눈다.
+pub const PAGE_BREAK_MARK: char = '\u{E0F4}';
 
 /// 머리말·꼬리말 하나.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
