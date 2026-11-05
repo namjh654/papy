@@ -8,7 +8,7 @@ use std::io::{Cursor, Write};
 
 use papy_model::{Error, ErrorCode, Result};
 use rhwp::model::bin_data::BinDataContent;
-use rhwp::model::control::Control;
+use rhwp::model::control::{Control, Equation, FormObject, FormType};
 use rhwp::model::document::{DocInfo, Document};
 use rhwp::model::header_footer::HeaderFooterApply;
 use rhwp::model::image::Picture;
@@ -22,11 +22,15 @@ use rhwp::model::table::Table;
 /// 표 중첩 상한(순환·과도한 중첩 방어).
 const MAX_DEPTH: usize = 16;
 
+/// 수식을 PNG 그림으로 그리는 함수(없으면 수식 스크립트를 글로 넣는다).
+pub type EquationRenderer<'a> = &'a dyn Fn(&Equation) -> Option<Vec<u8>>;
+
 /// 문서에 넣을 그림 파일(word/media/…)과 관계 id.
 struct Media<'a> {
     contents: &'a [BinDataContent],
-    /// (bin_data_id, 파일 이름, 확장자, 바이트)
-    files: Vec<(u16, String, &'static str, Vec<u8>)>,
+    /// (bin_data_id — 만든 그림은 None, 파일 이름, 확장자, 바이트)
+    files: Vec<(Option<u16>, String, &'static str, Vec<u8>)>,
+    render_equation: Option<EquationRenderer<'a>>,
     /// 그림 개체 번호(docPr id)
     next_object: u32,
     /// 각주 본문 XML(`<w:footnote>` 안쪽). 각주 id 는 순서 + 1.
@@ -38,7 +42,11 @@ struct Media<'a> {
 impl Media<'_> {
     /// 그림을 등록하고 관계 id 를 돌려준다. 같은 그림은 한 번만 넣는다. Word 가 못 읽는 형식이면 None.
     fn add(&mut self, bin_data_id: u16) -> Option<String> {
-        if let Some(index) = self.files.iter().position(|file| file.0 == bin_data_id) {
+        if let Some(index) = self
+            .files
+            .iter()
+            .position(|file| file.0 == Some(bin_data_id))
+        {
             return Some(format!("rIdImg{}", index + 1));
         }
         let content = self
@@ -46,6 +54,21 @@ impl Media<'_> {
             .iter()
             .find(|content| content.id == bin_data_id)?;
         let bytes = content.data.load();
+        self.push(Some(bin_data_id), bytes)
+    }
+
+    /// 만든 그림(수식 등)을 넣는다.
+    fn add_bytes(&mut self, bytes: Vec<u8>) -> Option<String> {
+        self.push(None, bytes)
+    }
+
+    fn push(&mut self, bin_data_id: Option<u16>, mut bytes: Vec<u8>) -> Option<String> {
+        // BMP 는 압축이 없어 문서가 수십 MB 가 된다. PNG 로 바꿔 넣는다(실패하면 그대로).
+        if crate::read::image_mime(&bytes) == Some("image/bmp") {
+            if let Some(png) = bmp_to_png(&bytes) {
+                bytes = png;
+            }
+        }
         let extension = crate::read::image_mime(&bytes).map(|mime| match mime {
             "image/png" => "png",
             "image/jpeg" => "jpeg",
@@ -63,6 +86,18 @@ impl Media<'_> {
     }
 }
 
+#[cfg(test)]
+pub(crate) fn bmp_to_png_for_test(bmp: &[u8]) -> Option<Vec<u8>> {
+    bmp_to_png(bmp)
+}
+
+fn bmp_to_png(bmp: &[u8]) -> Option<Vec<u8>> {
+    let image = image::load_from_memory_with_format(bmp, image::ImageFormat::Bmp).ok()?;
+    let mut png = Cursor::new(Vec::new());
+    image.write_to(&mut png, image::ImageFormat::Png).ok()?;
+    Some(png.into_inner())
+}
+
 /// HWPUNIT → EMU
 fn emu(hwpunit: u32) -> u64 {
     u64::from(hwpunit) * 127
@@ -72,15 +107,38 @@ fn write_picture(out: &mut String, media: &mut Media, picture: &Picture) {
     let Some(rel) = media.add(picture.image_attr.bin_data_id) else {
         return;
     };
+    write_inline_image(
+        out,
+        media,
+        &rel,
+        picture.common.width,
+        picture.common.height,
+        0,
+    );
+}
+
+/// 글자처럼 놓는 그림 런(관계 id 는 이미 등록한 것). `lower` 만큼(HWPUNIT) 글줄 기준선 아래로 내린다.
+fn write_inline_image(
+    out: &mut String,
+    media: &mut Media,
+    rel: &str,
+    width: u32,
+    height: u32,
+    lower: u32,
+) {
     media.next_object += 1;
     let id = media.next_object;
-    let (cx, cy) = (
-        emu(picture.common.width.max(1)),
-        emu(picture.common.height.max(1)),
-    );
+    let (cx, cy) = (emu(width.max(1)), emu(height.max(1)));
+    // 반 포인트 = 100 HWPUNIT
+    let position = lower / 100;
+    let run_props = if position > 0 {
+        format!(r#"<w:rPr><w:position w:val="-{position}"/></w:rPr>"#)
+    } else {
+        String::new()
+    };
     let _ = write!(
         out,
-        r#"<w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="{cx}" cy="{cy}"/><wp:docPr id="{id}" name="Picture {id}"/><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="{id}" name="Picture {id}"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="{rel}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="{cx}" cy="{cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>"#
+        r#"<w:r>{run_props}<w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="{cx}" cy="{cy}"/><wp:docPr id="{id}" name="Picture {id}"/><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="{id}" name="Picture {id}"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="{rel}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="{cx}" cy="{cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>"#
     );
 }
 
@@ -190,6 +248,54 @@ fn write_shape(
     }
     out.push_str("</w:drawing></w:r>");
     Ok(())
+}
+
+/// 수식 → 그림(그릴 수 없으면 수식 스크립트 글).
+fn write_equation(out: &mut String, media: &mut Media, equation: &Equation) {
+    let png = media.render_equation.and_then(|render| render(equation));
+    if let Some(rel) = png.and_then(|png| media.add_bytes(png)) {
+        // 기준선은 위에서 높이의 baseline% 자리. 그 아래 부분만큼 내린다.
+        let height = equation.common.height;
+        let baseline = u32::try_from(equation.baseline.clamp(0, 100)).unwrap_or(0);
+        let lower = if baseline == 0 {
+            0
+        } else {
+            height.saturating_mul(100 - baseline) / 100
+        };
+        write_inline_image(out, media, &rel, equation.common.width, height, lower);
+        return;
+    }
+    let script = equation.script.trim();
+    if !script.is_empty() {
+        let _ = write!(
+            out,
+            r#"<w:r><w:t xml:space="preserve">{}</w:t></w:r>"#,
+            xml_escape(script)
+        );
+    }
+}
+
+/// 양식 개체 → 글. 선택 상자·라디오 단추는 표시 글자(☑ ☐ ◉ ○)와 캡션, 단추는 [캡션], 입력·목록 상자는 내용.
+fn write_form(out: &mut String, form: &FormObject) {
+    let checked = form.value != 0;
+    let text = match form.form_type {
+        FormType::CheckBox => format!("{} {}", if checked { '☑' } else { '☐' }, form.caption),
+        FormType::RadioButton => format!("{} {}", if checked { '◉' } else { '○' }, form.caption),
+        FormType::PushButton => format!("[{}]", form.caption),
+        _ => form.text.clone(),
+    };
+    let text = text.trim_end();
+    if text.is_empty() {
+        return;
+    }
+    let color = rgb(form.fore_color)
+        .map(|hex| format!(r#"<w:rPr><w:color w:val="{hex}"/></w:rPr>"#))
+        .unwrap_or_default();
+    let _ = write!(
+        out,
+        r#"<w:r>{color}<w:t xml:space="preserve">{}</w:t></w:r>"#,
+        xml_escape(text)
+    );
 }
 
 fn xml_escape(text: &str) -> String {
@@ -386,6 +492,8 @@ fn write_inline(
         Control::Endnote(note) => write_note(out, info, media, &note.paragraphs, true, depth)?,
         Control::Picture(picture) => write_picture(out, media, picture),
         Control::Shape(shape) if depth < MAX_DEPTH => write_shape(out, info, media, shape, depth)?,
+        Control::Equation(equation) => write_equation(out, media, equation),
+        Control::Form(form) => write_form(out, form),
         _ => {}
     }
     Ok(())
@@ -447,6 +555,8 @@ fn write_paragraph_with(
                     | Control::Endnote(_)
                     | Control::Picture(_)
                     | Control::Shape(_)
+                    | Control::Equation(_)
+                    | Control::Form(_)
             )
         })
         .collect();
@@ -638,8 +748,24 @@ fn section_props(document: &Document, references: &str, title_page: &str) -> Str
     } else {
         ""
     };
+    // 다단: 첫 구역의 단 정의(같은 너비로 본다).
+    let columns = document
+        .sections
+        .first()
+        .into_iter()
+        .flat_map(|s| s.paragraphs.iter().take(1))
+        .flat_map(|p| &p.controls)
+        .find_map(|c| match c {
+            Control::ColumnDef(def) if def.column_count > 1 => Some(format!(
+                r#"<w:cols w:num="{}" w:space="{}"/>"#,
+                def.column_count.min(16),
+                twips(u32::try_from(def.spacing.max(0)).unwrap_or(0))
+            )),
+            _ => None,
+        })
+        .unwrap_or_default();
     format!(
-        r#"<w:sectPr>{references}<w:pgSz w:w="{width}" w:h="{height}"{orient}/><w:pgMar w:top="{}" w:right="{}" w:bottom="{}" w:left="{}" w:header="{}" w:footer="{}" w:gutter="{}"/>{title_page}</w:sectPr>"#,
+        r#"<w:sectPr>{references}<w:pgSz w:w="{width}" w:h="{height}"{orient}/><w:pgMar w:top="{}" w:right="{}" w:bottom="{}" w:left="{}" w:header="{}" w:footer="{}" w:gutter="{}"/>{columns}{title_page}</w:sectPr>"#,
         twips(page.margin_top + page.margin_header),
         twips(page.margin_right),
         twips(page.margin_bottom + page.margin_footer),
@@ -822,10 +948,20 @@ pub fn docx_from_document_with_outline(
     document: &Document,
     outline: &HashMap<(usize, usize), u8>,
 ) -> Result<Vec<u8>> {
+    docx_from_document_with(document, outline, None)
+}
+
+/// [`docx_from_document_with_outline`] 에 더해, 수식을 `render_equation` 이 그린 PNG 그림으로 넣는다.
+pub fn docx_from_document_with(
+    document: &Document,
+    outline: &HashMap<(usize, usize), u8>,
+    render_equation: Option<EquationRenderer<'_>>,
+) -> Result<Vec<u8>> {
     let info = &document.doc_info;
     let mut media = Media {
         contents: &document.bin_data_content,
         files: Vec::new(),
+        render_equation,
         next_object: 0,
         footnotes: Vec::new(),
         endnotes: Vec::new(),

@@ -378,7 +378,13 @@ fn save_in_every_format() {
             "{format:?}"
         );
     }
-    assert!(doc.save(SaveFormat::Pdf).unwrap().starts_with(b"%PDF-"));
+    let pdf = doc.save(SaveFormat::Pdf).unwrap();
+    assert!(pdf.starts_with(b"%PDF-"));
+    // 쪽 그림은 0.75 배율로 둔다(1/w 배율이면 PDFium 이 글을 꺼내지 못한다, rhwp 패치 0006).
+    assert!(
+        pdf.windows(26).any(|w| w == b"/Matrix [0.75 0 0 0.75 0 0"),
+        "쪽 그림 배율"
+    );
     let text = String::from_utf8(doc.save(SaveFormat::Text).unwrap()).unwrap();
     assert!(text.starts_with("저장됨 Papy 쪽 1"));
 }
@@ -1871,4 +1877,44 @@ fn docx_first_page_hide_and_even_headers_survive_save() {
     assert!(zip_text(&saved, "word/document.xml").contains("<w:titlePg/>"));
     let mut reopened = open(HwpBackend::docx(), saved, &options()).unwrap();
     check(&mut reopened);
+}
+
+#[test]
+fn docx_page_setup_and_columns_are_applied() {
+    let document = r#"<w:document xmlns:w="w"><w:body><w:p><w:r><w:t>가로 두 단</w:t></w:r></w:p><w:sectPr><w:pgSz w:w="16838" w:h="11906"/><w:pgMar w:top="1000" w:right="800" w:bottom="900" w:left="700" w:header="400" w:footer="300" w:gutter="0"/><w:cols w:num="2" w:space="425"/></w:sectPr></w:body></w:document>"#;
+    let bytes = zip_parts(&[
+        ("[Content_Types].xml", "<Types/>"),
+        ("word/document.xml", document),
+    ]);
+    let mut doc = open(HwpBackend::docx(), bytes, &options()).unwrap();
+    let size = doc.page_size(0).unwrap();
+    // 16838 × 11906 twip = 841.9 × 595.3 pt
+    assert!(
+        (size.width - 841.9).abs() < 1.0 && (size.height - 595.3).abs() < 1.0,
+        "{size:?}"
+    );
+    let saved = doc.save(SaveFormat::Docx).unwrap();
+    let xml = zip_text(&saved, "word/document.xml");
+    assert!(
+        xml.contains(r#"<w:pgSz w:w="16838" w:h="11906" w:orient="landscape"/>"#),
+        "{xml}"
+    );
+    assert!(xml.contains(r#"<w:pgMar w:top="1000" w:right="800" w:bottom="900" w:left="700" w:header="400" w:footer="300""#), "{xml}");
+    assert!(
+        xml.contains(r#"<w:cols w:num="2" w:space="425"/>"#),
+        "{xml}"
+    );
+}
+
+#[test]
+fn equations_render_to_png() {
+    let equation = rhwp::model::control::Equation {
+        script: "x = {-b +- sqrt {b^2 - 4ac}} over {2a}".into(),
+        font_size: 1000,
+        ..Default::default()
+    };
+    let png = crate::equation_png(&equation).expect("수식 그림");
+    assert!(png.starts_with(b"\x89PNG"));
+    let empty = rhwp::model::control::Equation::default();
+    assert!(crate::equation_png(&empty).is_none());
 }

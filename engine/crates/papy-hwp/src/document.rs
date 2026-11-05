@@ -950,7 +950,11 @@ impl Document for HwpDocument {
                     .map(|(paragraph, level)| ((0, paragraph), level))
                     .collect();
                 guard(|| {
-                    papy_office::docx_from_document_with_outline(self.doc.document(), &outline)
+                    papy_office::docx_from_document_with(
+                        self.doc.document(),
+                        &outline,
+                        Some(&|equation| crate::equation_png(equation)),
+                    )
                 })?
             }
             SaveFormat::Text => {

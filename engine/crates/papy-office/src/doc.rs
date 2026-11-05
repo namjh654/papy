@@ -1469,7 +1469,10 @@ pub fn doc_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
         let (a, b) = (*hdd.get(k)?, *hdd.get(k + 1)?);
         (b > a).then_some((hdd_start + a, hdd_start + b))
     };
-    let title_page = first_section_title_page(&word, &table, pair(6));
+    let title_page = title_page(&section_sprms(&word, &table, pair(6), 0));
+    // rhwp 문서는 구역 하나라서 글이 가장 긴 구역의 쪽 설정을 쓴다(표지 구역만 여백이 큰 문서 등).
+    let longest = longest_section(&table, pair(6));
+    report.page = page_setup(&section_sprms(&word, &table, pair(6), longest));
     let even = story(6).map(|(a, b)| reader.story_paragraphs(a, b));
     let has_even = even.as_ref().is_some_and(|p| !p.is_empty());
     for (k, is_header, kind) in [
@@ -1512,29 +1515,112 @@ pub fn doc_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
     Ok((format!("<html><body>{}</body></html>", body.html), report))
 }
 
-/// 첫 구역이 "첫 쪽 다르게"(sprmSFTitlePage)인가.
-fn first_section_title_page(word: &[u8], table: &[u8], (fc, lcb): (u32, u32)) -> bool {
+/// 글자 범위(CP)가 가장 긴 구역 번호(같으면 앞 구역).
+fn longest_section(table: &[u8], (fc, lcb): (u32, u32)) -> usize {
     let Some(plc) = table.get(fc as usize..(fc as usize).saturating_add(lcb as usize)) else {
-        return false;
+        return 0;
     };
     if plc.len() < 4 + 4 + 12 {
-        return false;
+        return 0;
     }
     let n = (plc.len() - 4) / 16;
+    (0..n)
+        .map(|i| {
+            let (a, b) = (u32_at(plc, i * 4), u32_at(plc, (i + 1) * 4));
+            (i, b.zip(a).map_or(0, |(b, a)| b.saturating_sub(a)))
+        })
+        .rev()
+        .max_by_key(|&(_, len)| len)
+        .map_or(0, |(i, _)| i)
+}
+
+/// `index` 번째 구역의 구역 속성(SEPX) sprm 목록. 없으면 빈 목록(모두 기본값).
+fn section_sprms(
+    word: &[u8],
+    table: &[u8],
+    (fc, lcb): (u32, u32),
+    index: usize,
+) -> Vec<(u16, Vec<u8>)> {
+    let Some(plc) = table.get(fc as usize..(fc as usize).saturating_add(lcb as usize)) else {
+        return Vec::new();
+    };
+    if plc.len() < 4 + 4 + 12 {
+        return Vec::new();
+    }
+    let n = (plc.len() - 4) / 16;
+    if index >= n {
+        return Vec::new();
+    }
     // SED: fn(2) fcSepx(4) fnMpr(2) fcMpr(4)
-    let Some(fc_sepx) = u32_at(plc, (n + 1) * 4 + 2) else {
-        return false;
+    let Some(fc_sepx) = u32_at(plc, (n + 1) * 4 + index * 12 + 2) else {
+        return Vec::new();
     };
     if fc_sepx == 0xFFFF_FFFF {
-        return false;
+        return Vec::new();
     }
     let Some(cb) = u16_at(word, fc_sepx as usize).map(usize::from) else {
-        return false;
+        return Vec::new();
     };
     let Some(grpprl) = word.get(fc_sepx as usize + 2..fc_sepx as usize + 2 + cb) else {
-        return false;
+        return Vec::new();
     };
     sprms(grpprl)
-        .iter()
+        .into_iter()
+        .map(|(sprm, op)| (sprm, op.to_vec()))
+        .collect()
+}
+
+/// 첫 구역이 "첫 쪽 다르게"(sprmSFTitlePage)인가.
+fn title_page(sep: &[(u16, Vec<u8>)]) -> bool {
+    sep.iter()
         .any(|(sprm, op)| *sprm == 0x300A && op.first().is_some_and(|&b| b != 0))
+}
+
+/// 구역의 쪽 크기·여백·다단. 정하지 않은 값은 Word 97 기본값(Letter, 좌우 1.25 인치, 위아래 1 인치).
+fn page_setup(sep: &[(u16, Vec<u8>)]) -> Option<crate::read::PageSetup> {
+    let mut page = crate::read::WordPage {
+        width: 12240,
+        height: 15840,
+        top: 1440,
+        bottom: 1440,
+        left: 1800,
+        right: 1800,
+        header: 720,
+        footer: 720,
+        gutter: 0,
+        columns: 1,
+        column_gap: 720,
+    };
+    for (sprm, op) in sep {
+        let unsigned = || {
+            op.get(..2)
+                .map(|b| i64::from(u16::from_le_bytes([b[0], b[1]])))
+        };
+        let signed = || {
+            op.get(..2)
+                .map(|b| i64::from(i16::from_le_bytes([b[0], b[1]])))
+        };
+        let value = match sprm {
+            0xB01F | 0xB020 | 0xB021 | 0xB022 | 0xB017 | 0xB018 | 0xB025 | 0x500B => unsigned(),
+            0x9023 | 0x9024 | 0x900C => signed(),
+            _ => None,
+        };
+        let Some(value) = value else { continue };
+        match sprm {
+            0xB01F => page.width = value,
+            0xB020 => page.height = value,
+            0xB021 => page.left = value,
+            0xB022 => page.right = value,
+            0x9023 => page.top = value,
+            0x9024 => page.bottom = value,
+            0xB017 => page.header = value,
+            0xB018 => page.footer = value,
+            0xB025 => page.gutter = value,
+            // 단 수 - 1
+            0x500B => page.columns = value + 1,
+            0x900C => page.column_gap = value,
+            _ => {}
+        }
+    }
+    page.to_setup()
 }

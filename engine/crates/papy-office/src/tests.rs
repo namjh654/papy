@@ -340,3 +340,97 @@ fn group_shapes_are_unpacked() {
     assert_eq!(line.vertical, (Relative::Paragraph, 600_000));
     assert_eq!(line.line, Some(0x00FF00));
 }
+
+/// 문서 XML 부분을 글로 꺼낸다.
+fn part_text(bytes: &[u8], name: &str) -> String {
+    let mut archive = zip::ZipArchive::new(Cursor::new(bytes)).unwrap();
+    let mut xml = String::new();
+    std::io::Read::read_to_string(&mut archive.by_name(name).unwrap(), &mut xml).unwrap();
+    xml
+}
+
+#[test]
+fn forms_and_equations_are_written() {
+    use rhwp::model::control::{Control, Equation, FormObject, FormType};
+    let mut core = rhwp::document_core::DocumentCore::new_empty();
+    core.create_blank_document_native().unwrap();
+    core.insert_text_native(0, 0, 0, "양식").unwrap();
+    let mut document = core.document().clone();
+    let paragraph = &mut document.sections[0].paragraphs[0];
+    let check = FormObject {
+        form_type: FormType::CheckBox,
+        caption: "동의함".into(),
+        value: 1,
+        ..FormObject::default()
+    };
+    let mut equation = Equation {
+        script: "1 over 2".into(),
+        ..Equation::default()
+    };
+    equation.common.width = 2000;
+    equation.common.height = 3000;
+    equation.baseline = 70;
+    for control in [
+        Control::Form(Box::new(check)),
+        Control::Equation(Box::new(equation)),
+    ] {
+        paragraph.controls.push(control);
+    }
+    // 그림을 못 그리면 수식 스크립트를 글로 넣는다.
+    let plain = docx_from_document(&document).unwrap();
+    let xml = part_text(&plain, "word/document.xml");
+    assert!(xml.contains("☑ 동의함"), "{xml}");
+    assert!(xml.contains("1 over 2"), "{xml}");
+    // 그리는 함수가 있으면 그림으로 넣고, 기준선 아래 부분(30%)만큼 내린다.
+    let render = |_: &Equation| Some(PNG_1X1.to_vec());
+    let pictured =
+        docx_from_document_with(&document, &std::collections::HashMap::new(), Some(&render))
+            .unwrap();
+    let xml = part_text(&pictured, "word/document.xml");
+    assert!(
+        !xml.contains("1 over 2") && xml.contains("<wp:inline"),
+        "{xml}"
+    );
+    assert!(xml.contains(r#"<w:position w:val="-9"/>"#), "{xml}");
+    assert!(part_text(&pictured, "word/_rels/document.xml.rels").contains("media/image1.png"));
+}
+
+#[test]
+fn page_setup_is_read_from_the_longest_section() {
+    // 첫 구역(문단 하나)은 아래 여백이 큰 표지, 둘째 구역(문단 둘)이 본문: 가로 A4, 2단.
+    let document = format!(
+        r#"<w:document {NS}><w:body><w:p><w:pPr><w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1440" w:right="1440" w:bottom="10000" w:left="1440" w:header="720" w:footer="720" w:gutter="0"/></w:sectPr></w:pPr></w:p><w:p/><w:p/><w:sectPr><w:pgSz w:w="16838" w:h="11906" w:orient="landscape"/><w:pgMar w:top="1000" w:right="800" w:bottom="900" w:left="700" w:header="400" w:footer="300" w:gutter="0"/><w:cols w:num="2" w:space="425"/></w:sectPr></w:body></w:document>"#
+    );
+    let (_, report) = docx_to_html(&docx(&document, None)).unwrap();
+    let page = report.page.expect("쪽 설정");
+    assert_eq!((page.width, page.height), (16838 * 5, 11906 * 5));
+    assert_eq!((page.margin_left, page.margin_right), (700 * 5, 800 * 5));
+    // Word 위 여백 1000 = 머리말 자리 400 + 본문 여백 600
+    assert_eq!((page.margin_header, page.margin_top), (400 * 5, 600 * 5));
+    assert_eq!((page.margin_footer, page.margin_bottom), (300 * 5, 600 * 5));
+    assert_eq!((page.columns, page.column_gap), (2, 425 * 5));
+    // 이상한 값(본문이 남지 않는 여백)은 버린다.
+    let broken = format!(
+        r#"<w:document {NS}><w:body><w:p/><w:sectPr><w:pgSz w:w="2000" w:h="2000"/><w:pgMar w:top="900" w:right="900" w:bottom="900" w:left="900"/></w:sectPr></w:body></w:document>"#
+    );
+    assert_eq!(docx_to_html(&docx(&broken, None)).unwrap().1.page, None);
+}
+
+#[test]
+fn bmp_pictures_become_png() {
+    // 2×1 BMP(24비트)
+    let mut bmp = Vec::new();
+    bmp.extend_from_slice(b"BM");
+    bmp.extend_from_slice(&(54u32 + 8).to_le_bytes());
+    bmp.extend_from_slice(&[0; 4]);
+    bmp.extend_from_slice(&54u32.to_le_bytes());
+    bmp.extend_from_slice(&40u32.to_le_bytes());
+    bmp.extend_from_slice(&2i32.to_le_bytes());
+    bmp.extend_from_slice(&1i32.to_le_bytes());
+    bmp.extend_from_slice(&1u16.to_le_bytes());
+    bmp.extend_from_slice(&24u16.to_le_bytes());
+    bmp.extend_from_slice(&[0; 24]);
+    bmp.extend_from_slice(&[0, 0, 255, 255, 0, 0, 0, 0]);
+    let png = super::write::bmp_to_png_for_test(&bmp).expect("PNG");
+    assert!(png.starts_with(b"\x89PNG"));
+}

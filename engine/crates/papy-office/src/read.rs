@@ -44,6 +44,87 @@ pub struct DocxReadReport {
     /// 첫 쪽에서 감출 (머리말, 꼬리말). 첫 구역이 "첫 쪽 다르게"(`w:titlePg`)일 때 켠다.
     /// rhwp 에는 첫 쪽 전용 머리말 자리가 없어, 첫 쪽에서는 기본 머리말을 감추고 첫 쪽 것의 글자는 옮기지 않는다.
     pub hide_first_page: (bool, bool),
+    /// 첫 구역의 쪽 크기·여백·다단(`w:pgSz`·`w:pgMar`·`w:cols`). 없거나 이상하면 None(빈 문서 기본값을 쓴다).
+    pub page: Option<PageSetup>,
+}
+
+/// 쪽 설정(HWPUNIT). 머리말·꼬리말 여백은 HWP 방식이다(본문 위·아래 여백에 더해지는 머리말·꼬리말 자리).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PageSetup {
+    /// 쪽 너비
+    pub width: u32,
+    /// 쪽 높이
+    pub height: u32,
+    /// 왼쪽 여백
+    pub margin_left: u32,
+    /// 오른쪽 여백
+    pub margin_right: u32,
+    /// 위 여백(머리말 자리 뺀 것)
+    pub margin_top: u32,
+    /// 아래 여백(꼬리말 자리 뺀 것)
+    pub margin_bottom: u32,
+    /// 머리말 자리
+    pub margin_header: u32,
+    /// 꼬리말 자리
+    pub margin_footer: u32,
+    /// 제본 여백
+    pub margin_gutter: u32,
+    /// 단 수(1 이면 다단 아님)
+    pub columns: u16,
+    /// 단 사이 간격
+    pub column_gap: u32,
+}
+
+/// Word 쪽 설정(twip, 1/1440 인치).
+#[derive(Debug, Clone, Copy, Default)]
+pub(crate) struct WordPage {
+    pub width: i64,
+    pub height: i64,
+    pub top: i64,
+    pub bottom: i64,
+    pub left: i64,
+    pub right: i64,
+    pub header: i64,
+    pub footer: i64,
+    pub gutter: i64,
+    pub columns: i64,
+    pub column_gap: i64,
+}
+
+impl WordPage {
+    /// HWP 쪽 설정으로. Word 는 쪽 끝에서 머리말·본문까지를 재고, HWP 는 본문 여백 + 머리말 자리로 잰다.
+    pub(crate) fn to_setup(self) -> Option<PageSetup> {
+        let hwp = |twip: i64| u32::try_from(twip.max(0) * 5).ok();
+        let (top, bottom) = (self.top.abs(), self.bottom.abs());
+        let header = self.header.clamp(0, top);
+        let footer = self.footer.clamp(0, bottom);
+        let usable_width = self.width - self.left - self.right - self.gutter;
+        let usable_height = self.height - top - bottom;
+        // 1 인치보다 작은 쪽, 본문이 반 인치도 안 남는 여백, 22 인치(Word 상한)보다 큰 쪽은 버린다.
+        if !(1440..=31680).contains(&self.width)
+            || !(1440..=31680).contains(&self.height)
+            || usable_width < 720
+            || usable_height < 720
+            || self.left < 0
+            || self.right < 0
+        {
+            return None;
+        }
+        let columns = self.columns.clamp(1, 16) as u16;
+        Some(PageSetup {
+            width: hwp(self.width)?,
+            height: hwp(self.height)?,
+            margin_left: hwp(self.left)?,
+            margin_right: hwp(self.right)?,
+            margin_top: hwp(top - header)?,
+            margin_bottom: hwp(bottom - footer)?,
+            margin_header: hwp(header)?,
+            margin_footer: hwp(footer)?,
+            margin_gutter: hwp(self.gutter)?,
+            columns,
+            column_gap: hwp(self.column_gap.clamp(0, usable_width / 2))?,
+        })
+    }
 }
 
 /// 제목 문단 하나.
@@ -545,6 +626,24 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
     let mut header_refs: Vec<(bool, String, String)> = Vec::new();
     let mut sections_seen = 0usize;
     let mut title_page = false;
+    // 구역마다 쪽 설정과 문단 수. rhwp 문서는 구역 하나라서 문단이 가장 많은 구역의 쪽 설정을 쓴다
+    // (표지 구역만 여백이 큰 문서 등). 정하지 않은 값은 Word 기본값(Letter, 여백 1 인치, 머리말 0.5 인치).
+    const WORD_PAGE: WordPage = WordPage {
+        width: 12240,
+        height: 15840,
+        top: 1440,
+        bottom: 1440,
+        left: 1440,
+        right: 1440,
+        header: 720,
+        footer: 720,
+        gutter: 0,
+        columns: 1,
+        column_gap: 720,
+    };
+    let mut page = WORD_PAGE;
+    let mut section_pages: Vec<(WordPage, usize)> = Vec::new();
+    let (mut paragraphs, mut section_start) = (0usize, 0usize);
     let mut image_budget = MAX_TOTAL_IMAGE_BYTES;
     let mut drawing: Option<Drawing> = None;
     // 건너뛰는 요소 깊이(mc:Fallback — 같은 내용의 옛 형식, VML)
@@ -636,8 +735,12 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
                     continue;
                 }
                 match name {
-                    "p" if empty => out(&mut body, &mut cell, "<p></p>"),
+                    "p" if empty => {
+                        paragraphs += 1;
+                        out(&mut body, &mut cell, "<p></p>");
+                    }
                     "p" => {
+                        paragraphs += 1;
                         in_para = true;
                         para_html.clear();
                         para_style = (RunProps::default(), None, None);
@@ -685,8 +788,45 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
                     "ilvl" if in_numpr => {
                         ilvl = attr(&e, "val").and_then(|v| v.parse().ok()).unwrap_or(0)
                     }
-                    "sectPr" if !empty => sections_seen += 1,
+                    "sectPr" => {
+                        page = WORD_PAGE;
+                        if empty {
+                            section_pages.push((page, paragraphs - section_start));
+                            section_start = paragraphs;
+                        } else {
+                            sections_seen += 1;
+                        }
+                    }
                     "titlePg" if sections_seen == 1 => title_page = toggle(&e),
+                    "pgSz" => {
+                        let v = |k| attr(&e, k).and_then(|v| v.parse::<f64>().ok());
+                        if let (Some(w), Some(h)) = (v("w"), v("h")) {
+                            (page.width, page.height) = (w as i64, h as i64);
+                        }
+                    }
+                    "pgMar" => {
+                        let v = |k| attr(&e, k).and_then(|v| v.parse::<f64>().ok());
+                        for (key, field) in [
+                            ("top", &mut page.top),
+                            ("bottom", &mut page.bottom),
+                            ("left", &mut page.left),
+                            ("right", &mut page.right),
+                            ("header", &mut page.header),
+                            ("footer", &mut page.footer),
+                            ("gutter", &mut page.gutter),
+                        ] {
+                            if let Some(value) = v(key) {
+                                *field = value as i64;
+                            }
+                        }
+                    }
+                    "cols" => {
+                        let v = |k| attr(&e, k).and_then(|v| v.parse::<f64>().ok());
+                        page.columns = v("num").map_or(1, |n| n as i64);
+                        if let Some(gap) = v("space") {
+                            page.column_gap = gap as i64;
+                        }
+                    }
                     kind @ ("headerReference" | "footerReference") if sections_seen == 1 => {
                         if let (Some(kind_attr), Some(id)) = (attr(&e, "type"), attr(&e, "id")) {
                             header_refs.push((kind == "headerReference", kind_attr, id));
@@ -850,6 +990,10 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
                 }
             }
             Event::End(e) => match local(e.name().as_ref()) {
+                "sectPr" => {
+                    section_pages.push((page, paragraphs - section_start));
+                    section_start = paragraphs;
+                }
                 "drawing" => {
                     let Some(done) = drawing.take() else { continue };
                     if !done.is_picture() {
@@ -991,6 +1135,12 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
             _ => {}
         }
     }
+    // 문단이 가장 많은 구역(같으면 앞 구역).
+    report.page = section_pages
+        .iter()
+        .rev()
+        .max_by_key(|(_, count)| *count)
+        .and_then(|(page, _)| page.to_setup());
     // 머리말·꼬리말: 짝수 쪽 것이 있으면 기본(default)은 홀수 쪽이다. 첫 쪽 것은 rhwp 에 맞는 자리가 없어
     // 첫 쪽에서 기본 것을 감추고(Word 도 첫 쪽 것이 없으면 아무것도 안 보인다), 글자가 있으면 빠진 것으로 센다.
     // 짝수 쪽 것은 설정(evenAndOddHeaders)이 켜졌을 때만 쓴다. 꺼져 있으면 Word 는 모든 쪽에 기본 것을 쓴다.
