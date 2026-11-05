@@ -8,7 +8,7 @@ use std::io::{Cursor, Write};
 
 use papy_model::{Error, ErrorCode, Result};
 use rhwp::model::bin_data::BinDataContent;
-use rhwp::model::control::Control;
+use rhwp::model::control::{Control, Equation, FormObject, FormType};
 use rhwp::model::document::{DocInfo, Document};
 use rhwp::model::header_footer::HeaderFooterApply;
 use rhwp::model::image::Picture;
@@ -22,11 +22,15 @@ use rhwp::model::table::Table;
 /// 표 중첩 상한(순환·과도한 중첩 방어).
 const MAX_DEPTH: usize = 16;
 
+/// 수식을 PNG 그림으로 그리는 함수(없으면 수식 스크립트를 글로 넣는다).
+pub type EquationRenderer<'a> = &'a dyn Fn(&Equation) -> Option<Vec<u8>>;
+
 /// 문서에 넣을 그림 파일(word/media/…)과 관계 id.
 struct Media<'a> {
     contents: &'a [BinDataContent],
-    /// (bin_data_id, 파일 이름, 확장자, 바이트)
-    files: Vec<(u16, String, &'static str, Vec<u8>)>,
+    /// (bin_data_id — 만든 그림은 None, 파일 이름, 확장자, 바이트)
+    files: Vec<(Option<u16>, String, &'static str, Vec<u8>)>,
+    render_equation: Option<EquationRenderer<'a>>,
     /// 그림 개체 번호(docPr id)
     next_object: u32,
     /// 각주 본문 XML(`<w:footnote>` 안쪽). 각주 id 는 순서 + 1.
@@ -38,7 +42,11 @@ struct Media<'a> {
 impl Media<'_> {
     /// 그림을 등록하고 관계 id 를 돌려준다. 같은 그림은 한 번만 넣는다. Word 가 못 읽는 형식이면 None.
     fn add(&mut self, bin_data_id: u16) -> Option<String> {
-        if let Some(index) = self.files.iter().position(|file| file.0 == bin_data_id) {
+        if let Some(index) = self
+            .files
+            .iter()
+            .position(|file| file.0 == Some(bin_data_id))
+        {
             return Some(format!("rIdImg{}", index + 1));
         }
         let content = self
@@ -46,6 +54,21 @@ impl Media<'_> {
             .iter()
             .find(|content| content.id == bin_data_id)?;
         let bytes = content.data.load();
+        self.push(Some(bin_data_id), bytes)
+    }
+
+    /// 만든 그림(수식 등)을 넣는다.
+    fn add_bytes(&mut self, bytes: Vec<u8>) -> Option<String> {
+        self.push(None, bytes)
+    }
+
+    fn push(&mut self, bin_data_id: Option<u16>, mut bytes: Vec<u8>) -> Option<String> {
+        // BMP 는 압축이 없어 문서가 수십 MB 가 된다. PNG 로 바꿔 넣는다(실패하면 그대로).
+        if crate::read::image_mime(&bytes) == Some("image/bmp") {
+            if let Some(png) = bmp_to_png(&bytes) {
+                bytes = png;
+            }
+        }
         let extension = crate::read::image_mime(&bytes).map(|mime| match mime {
             "image/png" => "png",
             "image/jpeg" => "jpeg",
@@ -63,6 +86,18 @@ impl Media<'_> {
     }
 }
 
+#[cfg(test)]
+pub(crate) fn bmp_to_png_for_test(bmp: &[u8]) -> Option<Vec<u8>> {
+    bmp_to_png(bmp)
+}
+
+fn bmp_to_png(bmp: &[u8]) -> Option<Vec<u8>> {
+    let image = image::load_from_memory_with_format(bmp, image::ImageFormat::Bmp).ok()?;
+    let mut png = Cursor::new(Vec::new());
+    image.write_to(&mut png, image::ImageFormat::Png).ok()?;
+    Some(png.into_inner())
+}
+
 /// HWPUNIT → EMU
 fn emu(hwpunit: u32) -> u64 {
     u64::from(hwpunit) * 127
@@ -72,86 +107,73 @@ fn write_picture(out: &mut String, media: &mut Media, picture: &Picture) {
     let Some(rel) = media.add(picture.image_attr.bin_data_id) else {
         return;
     };
+    if picture.common.treat_as_char {
+        write_inline_image(
+            out,
+            media,
+            &rel,
+            picture.common.width,
+            picture.common.height,
+            0,
+        );
+        return;
+    }
+    // 떠 있는 그림: 도형과 같은 자리(기준·위치·글 배치)에 놓는다.
     media.next_object += 1;
     let id = media.next_object;
     let (cx, cy) = (
         emu(picture.common.width.max(1)),
         emu(picture.common.height.max(1)),
     );
+    let graphic = format!(
+        r#"<wp:docPr id="{id}" name="Picture {id}"/><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">{}</a:graphicData></a:graphic>"#,
+        pic_xml(id, &rel, (0, 0, cx, cy))
+    );
+    write_drawing(out, &picture.common, cx, cy, &graphic);
+}
+
+/// `pic:pic`(관계 id 는 이미 등록한 것). 상자는 EMU (x, y, 너비, 높이).
+fn pic_xml(id: u32, rel: &str, (x, y, cx, cy): (i64, i64, u64, u64)) -> String {
+    format!(
+        r#"<pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="{id}" name="Picture {id}"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="{rel}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="{x}" y="{y}"/><a:ext cx="{cx}" cy="{cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic>"#
+    )
+}
+
+/// 글자처럼 놓는 그림 런(관계 id 는 이미 등록한 것). `lower` 만큼(HWPUNIT) 글줄 기준선 아래로 내린다.
+fn write_inline_image(
+    out: &mut String,
+    media: &mut Media,
+    rel: &str,
+    width: u32,
+    height: u32,
+    lower: u32,
+) {
+    media.next_object += 1;
+    let id = media.next_object;
+    let (cx, cy) = (emu(width.max(1)), emu(height.max(1)));
+    // 반 포인트 = 100 HWPUNIT
+    let position = lower / 100;
+    let run_props = if position > 0 {
+        format!(r#"<w:rPr><w:position w:val="-{position}"/></w:rPr>"#)
+    } else {
+        String::new()
+    };
     let _ = write!(
         out,
-        r#"<w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="{cx}" cy="{cy}"/><wp:docPr id="{id}" name="Picture {id}"/><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="{id}" name="Picture {id}"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="{rel}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="{cx}" cy="{cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>"#
+        r#"<w:r>{run_props}<w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="{cx}" cy="{cy}"/><wp:docPr id="{id}" name="Picture {id}"/><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">{}</a:graphicData></a:graphic></wp:inline></w:drawing></w:r>"#,
+        pic_xml(id, rel, (0, 0, cx, cy))
     );
 }
 
-/// 도형(사각형·타원·선, 글상자 포함) → `wps:wsp`. 다른 도형(묶음·다각형 등)은 옮기지 않는다.
-fn write_shape(
+/// 그리기 런: 글자처럼이면 `wp:inline`, 아니면 기준·위치·글 배치를 지킨 `wp:anchor`.
+/// `graphic` 은 `wp:docPr` 와 `a:graphic`.
+fn write_drawing(
     out: &mut String,
-    info: &DocInfo,
-    media: &mut Media,
-    shape: &ShapeObject,
-    depth: usize,
-) -> Result<()> {
-    let (geometry, flip_h, flip_v) = match shape {
-        ShapeObject::Rectangle(rect) if rect.round_rate > 0 => ("roundRect", false, false),
-        ShapeObject::Rectangle(_) => ("rect", false, false),
-        ShapeObject::Ellipse(_) => ("ellipse", false, false),
-        ShapeObject::Line(line) => ("line", line.start.x > line.end.x, line.start.y > line.end.y),
-        _ => return Ok(()),
-    };
-    let Some(drawing) = shape.drawing() else {
-        return Ok(());
-    };
-    let common = shape.common();
-    media.next_object += 1;
-    let id = media.next_object;
-    let (cx, cy) = (emu(common.width), emu(common.height));
-    let solid = |color: u32| {
-        rgb(color).map_or_else(
-            || "<a:noFill/>".to_owned(),
-            |hex| format!(r#"<a:solidFill><a:srgbClr val="{hex}"/></a:solidFill>"#),
-        )
-    };
-    let fill = match (&drawing.fill.fill_type, &drawing.fill.solid) {
-        (FillType::Solid, Some(solid_fill)) if geometry != "line" => {
-            solid(solid_fill.background_color)
-        }
-        _ => "<a:noFill/>".to_owned(),
-    };
-    let border = &drawing.border_line;
-    let line = if border.attr & 0x3F == 0 {
-        "<a:ln><a:noFill/></a:ln>".to_owned()
-    } else {
-        format!(
-            r#"<a:ln w="{}">{}</a:ln>"#,
-            emu(u32::try_from(border.width.max(0)).unwrap_or(0)),
-            solid(border.color)
-        )
-    };
-    let flips = format!(
-        "{}{}",
-        if flip_h { r#" flipH="1""# } else { "" },
-        if flip_v { r#" flipV="1""# } else { "" }
-    );
-    let mut text = String::new();
-    if let Some(text_box) = &drawing.text_box {
-        text.push_str("<wps:txbx><w:txbxContent>");
-        for paragraph in &text_box.paragraphs {
-            write_paragraph(&mut text, info, media, paragraph, depth + 1)?;
-        }
-        if text_box.paragraphs.is_empty() {
-            text.push_str("<w:p/>");
-        }
-        text.push_str("</w:txbxContent></wps:txbx>");
-    }
-    let text_box_flag = if drawing.text_box.is_some() {
-        r#" txBox="1""#
-    } else {
-        ""
-    };
-    let graphic = format!(
-        r#"<wp:docPr id="{id}" name="Shape {id}"/><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.microsoft.com/office/word/2010/wordprocessingShape"><wps:wsp><wps:cNvSpPr{text_box_flag}/><wps:spPr><a:xfrm{flips}><a:off x="0" y="0"/><a:ext cx="{cx}" cy="{cy}"/></a:xfrm><a:prstGeom prst="{geometry}"><a:avLst/></a:prstGeom>{fill}{line}</wps:spPr>{text}<wps:bodyPr/></wps:wsp></a:graphicData></a:graphic>"#
-    );
+    common: &rhwp::model::shape::CommonObjAttr,
+    cx: u64,
+    cy: u64,
+    graphic: &str,
+) {
     out.push_str("<w:r><w:drawing>");
     if common.treat_as_char {
         let _ = write!(
@@ -189,7 +211,348 @@ fn write_shape(
         );
     }
     out.push_str("</w:drawing></w:r>");
+}
+
+/// 도형 모양: 정해진 모양(`a:prstGeom`) 또는 꼭짓점 경로(`a:custGeom`). 그릴 수 없는 개체는 None.
+fn geometry_xml(shape: &ShapeObject) -> Option<(String, bool, bool)> {
+    let preset = |name: &str| format!(r#"<a:prstGeom prst="{name}"><a:avLst/></a:prstGeom>"#);
+    let attr = shape.shape_attr();
+    let (w, h) = (
+        i64::from(attr.original_width.max(1)),
+        i64::from(attr.original_height.max(1)),
+    );
+    // 경로 좌표는 개체 원래 크기(original) 기준이고, Word 가 상자 크기에 맞춰 늘인다.
+    let path = |commands: String, closed: bool| {
+        format!(
+            r#"<a:custGeom><a:avLst/><a:gdLst/><a:ahLst/><a:cxnLst/><a:rect l="0" t="0" r="r" b="b"/><a:pathLst><a:path w="{w}" h="{h}">{commands}{}</a:path></a:pathLst></a:custGeom>"#,
+            if closed { "<a:close/>" } else { "" }
+        )
+    };
+    let pt = |x: i64, y: i64| format!(r#"<a:pt x="{}" y="{}"/>"#, x.clamp(0, w), y.clamp(0, h));
+    match shape {
+        ShapeObject::Rectangle(rect) if rect.round_rate > 0 => {
+            Some((preset("roundRect"), false, false))
+        }
+        ShapeObject::Rectangle(_) => Some((preset("rect"), false, false)),
+        ShapeObject::Ellipse(_) => Some((preset("ellipse"), false, false)),
+        ShapeObject::Line(line) => Some((
+            preset("line"),
+            line.start.x > line.end.x,
+            line.start.y > line.end.y,
+        )),
+        ShapeObject::Polygon(polygon) if polygon.points.len() >= 2 => {
+            let mut commands = String::new();
+            for (i, p) in polygon.points.iter().enumerate() {
+                let tag = if i == 0 { "moveTo" } else { "lnTo" };
+                let _ = write!(
+                    commands,
+                    "<a:{tag}>{}</a:{tag}>",
+                    pt(i64::from(p.x), i64::from(p.y))
+                );
+            }
+            // 처음과 끝 점이 같으면 닫힌 다각형.
+            let closed = polygon.points.len() > 2
+                && polygon.points.first().map(|p| (p.x, p.y))
+                    == polygon.points.last().map(|p| (p.x, p.y));
+            Some((path(commands, closed), false, false))
+        }
+        ShapeObject::Curve(curve) if curve.points.len() >= 2 => {
+            let p = |i: usize| pt(i64::from(curve.points[i].x), i64::from(curve.points[i].y));
+            let mut commands = format!("<a:moveTo>{}</a:moveTo>", p(0));
+            let (mut i, mut segment) = (1, 0);
+            while i < curve.points.len() {
+                if curve.segment_types.get(segment) == Some(&1) && i + 2 < curve.points.len() {
+                    let _ = write!(
+                        commands,
+                        "<a:cubicBezTo>{}{}{}</a:cubicBezTo>",
+                        p(i),
+                        p(i + 1),
+                        p(i + 2)
+                    );
+                    i += 3;
+                } else {
+                    let _ = write!(commands, "<a:lnTo>{}</a:lnTo>", p(i));
+                    i += 1;
+                }
+                segment += 1;
+            }
+            Some((path(commands, false), false, false))
+        }
+        ShapeObject::Arc(arc) => {
+            // 축 정렬 타원의 호를 짧은 선분들로 그린다(rhwp 그리기와 같은 방향·각도).
+            let (cx, cy) = (f64::from(arc.center.x), f64::from(arc.center.y));
+            let (dx1, dy1) = (f64::from(arc.axis1.x) - cx, f64::from(arc.axis1.y) - cy);
+            let (dx2, dy2) = (f64::from(arc.axis2.x) - cx, f64::from(arc.axis2.y) - cy);
+            let (r1, r2) = (dx1.hypot(dy1), dx2.hypot(dy2));
+            if r1 < 1.0 || r2 < 1.0 {
+                return None;
+            }
+            let (a1, a2) = (dy1.atan2(dx1), dy2.atan2(dx2));
+            let near = |a: f64, b: f64| (a - b).abs() < 0.3;
+            let half_pi = std::f64::consts::FRAC_PI_2;
+            let (rx, ry) = if near(a1.abs(), half_pi) && a2.abs() < 0.3 {
+                (r2, r1)
+            } else if a1.abs() < 0.3 && near(a2.abs(), half_pi) {
+                (r1, r2)
+            } else {
+                (r1.max(r2), r1.min(r2))
+            };
+            let mut sweep = a1 - a2;
+            if sweep < 0.0 {
+                sweep += 2.0 * std::f64::consts::PI;
+            }
+            let steps = 24;
+            let mut commands = String::new();
+            for step in 0..=steps {
+                let angle = a1 - sweep * f64::from(step) / f64::from(steps);
+                let (x, y) = (cx + rx * angle.cos(), cy + ry * angle.sin());
+                let tag = if step == 0 { "moveTo" } else { "lnTo" };
+                let _ = write!(
+                    commands,
+                    "<a:{tag}>{}</a:{tag}>",
+                    pt(x.round() as i64, y.round() as i64)
+                );
+            }
+            match arc.arc_type {
+                // 부채꼴: 가운데로 이어 닫는다.
+                1 => {
+                    let _ = write!(commands, "<a:lnTo>{}</a:lnTo>", pt(cx as i64, cy as i64));
+                    Some((path(commands, true), false, false))
+                }
+                // 활꼴
+                2 => Some((path(commands, true), false, false)),
+                _ => Some((path(commands, false), false, false)),
+            }
+        }
+        _ => None,
+    }
+}
+
+/// 도형 하나 → `wps:wsp`. 상자는 EMU (x, y, 너비, 높이). `in_group` 이면 묶음 안 도형(이름 요소가 필요하다).
+fn wsp_xml(
+    info: &DocInfo,
+    media: &mut Media,
+    shape: &ShapeObject,
+    id: u32,
+    (x, y, cx, cy): (i64, i64, u64, u64),
+    depth: usize,
+    in_group: bool,
+) -> Result<Option<String>> {
+    let Some((geometry, flip_h, flip_v)) = geometry_xml(shape) else {
+        return Ok(None);
+    };
+    let Some(drawing) = shape.drawing() else {
+        return Ok(None);
+    };
+    let open_path = matches!(shape, ShapeObject::Line(_) | ShapeObject::Curve(_))
+        || matches!(shape, ShapeObject::Arc(arc) if arc.arc_type == 0);
+    let solid = |color: u32| {
+        rgb(color).map_or_else(
+            || "<a:noFill/>".to_owned(),
+            |hex| format!(r#"<a:solidFill><a:srgbClr val="{hex}"/></a:solidFill>"#),
+        )
+    };
+    let fill = match (&drawing.fill.fill_type, &drawing.fill.solid) {
+        (FillType::Solid, Some(solid_fill)) if !open_path => solid(solid_fill.background_color),
+        _ => "<a:noFill/>".to_owned(),
+    };
+    let border = &drawing.border_line;
+    let line = if border.attr & 0x3F == 0 {
+        "<a:ln><a:noFill/></a:ln>".to_owned()
+    } else {
+        format!(
+            r#"<a:ln w="{}">{}</a:ln>"#,
+            emu(u32::try_from(border.width.max(0)).unwrap_or(0)),
+            solid(border.color)
+        )
+    };
+    let flips = format!(
+        "{}{}",
+        if flip_h { r#" flipH="1""# } else { "" },
+        if flip_v { r#" flipV="1""# } else { "" }
+    );
+    let mut text = String::new();
+    if let Some(text_box) = &drawing.text_box {
+        text.push_str("<wps:txbx><w:txbxContent>");
+        for paragraph in &text_box.paragraphs {
+            write_paragraph(&mut text, info, media, paragraph, depth + 1)?;
+        }
+        if text_box.paragraphs.is_empty() {
+            text.push_str("<w:p/>");
+        }
+        text.push_str("</w:txbxContent></wps:txbx>");
+    }
+    let text_box_flag = if drawing.text_box.is_some() {
+        r#" txBox="1""#
+    } else {
+        ""
+    };
+    let name = if in_group {
+        format!(r#"<wps:cNvPr id="{id}" name="Shape {id}"/>"#)
+    } else {
+        String::new()
+    };
+    Ok(Some(format!(
+        r#"<wps:wsp>{name}<wps:cNvSpPr{text_box_flag}/><wps:spPr><a:xfrm{flips}><a:off x="{x}" y="{y}"/><a:ext cx="{cx}" cy="{cy}"/></a:xfrm>{geometry}{fill}{line}</wps:spPr>{text}<wps:bodyPr/></wps:wsp>"#
+    )))
+}
+
+/// 묶음 안 개체 하나와 맨 바깥 묶음 좌표(HWPUNIT)의 상자 (x, y, 너비, 높이).
+type GroupLeaf<'s> = (&'s ShapeObject, (f64, f64, f64, f64));
+
+/// 묶음 안 개체들을 맨 바깥 묶음 좌표(HWPUNIT)로 편다. rhwp 가 읽을 때 합성해 둔 변환(render_*)을 쓴다.
+/// 회전·기울임은 둘러싼 상자로 근사한다.
+fn group_leaves<'s>(
+    group: &'s rhwp::model::shape::GroupShape,
+    out: &mut Vec<GroupLeaf<'s>>,
+    depth: usize,
+) {
+    if depth > MAX_DEPTH {
+        return;
+    }
+    for child in &group.children {
+        if let ShapeObject::Group(inner) = child {
+            group_leaves(inner, out, depth + 1);
+            continue;
+        }
+        let a = child.shape_attr();
+        let (w, h) = (f64::from(a.original_width), f64::from(a.original_height));
+        let corners = [(0.0, 0.0), (w, 0.0), (0.0, h), (w, h)].map(|(x, y)| {
+            (
+                a.render_tx + a.render_sx * x + a.render_c * y,
+                a.render_ty + a.render_b * x + a.render_sy * y,
+            )
+        });
+        let min_x = corners.iter().map(|c| c.0).fold(f64::INFINITY, f64::min);
+        let max_x = corners
+            .iter()
+            .map(|c| c.0)
+            .fold(f64::NEG_INFINITY, f64::max);
+        let min_y = corners.iter().map(|c| c.1).fold(f64::INFINITY, f64::min);
+        let max_y = corners
+            .iter()
+            .map(|c| c.1)
+            .fold(f64::NEG_INFINITY, f64::max);
+        if min_x.is_finite() && min_y.is_finite() {
+            out.push((child, (min_x, min_y, max_x - min_x, max_y - min_y)));
+        }
+    }
+}
+
+/// 묶음 개체 → `wpg:wgp`(Word 그리기 묶음). 안의 도형·글상자·그림을 같은 자리에 넣는다. 차트·OLE 는 뺀다.
+fn group_graphic(
+    info: &DocInfo,
+    media: &mut Media,
+    group: &rhwp::model::shape::GroupShape,
+    id: u32,
+    cx: u64,
+    cy: u64,
+    depth: usize,
+) -> Result<Option<String>> {
+    let mut leaves = Vec::new();
+    group_leaves(group, &mut leaves, 0);
+    let mut children = String::new();
+    for (child, (x, y, w, h)) in leaves {
+        let to_emu = |v: f64| (v * 127.0).round() as i64;
+        let (x, y) = (to_emu(x), to_emu(y));
+        let (w, h) = (to_emu(w).max(1) as u64, to_emu(h).max(1) as u64);
+        media.next_object += 1;
+        let child_id = media.next_object;
+        match child {
+            ShapeObject::Picture(picture) => {
+                if let Some(rel) = media.add(picture.image_attr.bin_data_id) {
+                    children.push_str(&pic_xml(child_id, &rel, (x, y, w, h)));
+                }
+            }
+            _ => {
+                if let Some(xml) = wsp_xml(info, media, child, child_id, (x, y, w, h), depth, true)?
+                {
+                    children.push_str(&xml);
+                }
+            }
+        }
+    }
+    if children.is_empty() {
+        return Ok(None);
+    }
+    Ok(Some(format!(
+        r#"<wp:docPr id="{id}" name="Group {id}"/><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.microsoft.com/office/word/2010/wordprocessingGroup"><wpg:wgp><wpg:cNvGrpSpPr/><wpg:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="{cx}" cy="{cy}"/><a:chOff x="0" y="0"/><a:chExt cx="{cx}" cy="{cy}"/></a:xfrm></wpg:grpSpPr>{children}</wpg:wgp></a:graphicData></a:graphic>"#
+    )))
+}
+
+/// 도형(사각형·타원·선·다각형·곡선·호, 글상자 포함)과 묶음 → 그리기 런. 차트·OLE 는 옮기지 않는다.
+fn write_shape(
+    out: &mut String,
+    info: &DocInfo,
+    media: &mut Media,
+    shape: &ShapeObject,
+    depth: usize,
+) -> Result<()> {
+    let common = shape.common();
+    let (cx, cy) = (emu(common.width.max(1)), emu(common.height.max(1)));
+    media.next_object += 1;
+    let id = media.next_object;
+    let graphic = if let ShapeObject::Group(group) = shape {
+        group_graphic(info, media, group, id, cx, cy, depth)?
+    } else {
+        wsp_xml(info, media, shape, id, (0, 0, cx, cy), depth, false)?.map(|wsp| {
+            format!(
+                r#"<wp:docPr id="{id}" name="Shape {id}"/><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.microsoft.com/office/word/2010/wordprocessingShape">{wsp}</a:graphicData></a:graphic>"#
+            )
+        })
+    };
+    if let Some(graphic) = graphic {
+        write_drawing(out, common, cx, cy, &graphic);
+    }
     Ok(())
+}
+
+/// 수식 → 그림(그릴 수 없으면 수식 스크립트 글).
+fn write_equation(out: &mut String, media: &mut Media, equation: &Equation) {
+    let png = media.render_equation.and_then(|render| render(equation));
+    if let Some(rel) = png.and_then(|png| media.add_bytes(png)) {
+        // 기준선은 위에서 높이의 baseline% 자리. 그 아래 부분만큼 내린다.
+        let height = equation.common.height;
+        let baseline = u32::try_from(equation.baseline.clamp(0, 100)).unwrap_or(0);
+        let lower = if baseline == 0 {
+            0
+        } else {
+            height.saturating_mul(100 - baseline) / 100
+        };
+        write_inline_image(out, media, &rel, equation.common.width, height, lower);
+        return;
+    }
+    let script = equation.script.trim();
+    if !script.is_empty() {
+        let _ = write!(
+            out,
+            r#"<w:r><w:t xml:space="preserve">{}</w:t></w:r>"#,
+            xml_escape(script)
+        );
+    }
+}
+
+/// 양식 개체 → 글. 선택 상자·라디오 단추는 표시 글자(☑ ☐ ◉ ○)와 캡션, 단추는 [캡션], 입력·목록 상자는 내용.
+fn write_form(out: &mut String, form: &FormObject) {
+    let checked = form.value != 0;
+    let text = match form.form_type {
+        FormType::CheckBox => format!("{} {}", if checked { '☑' } else { '☐' }, form.caption),
+        FormType::RadioButton => format!("{} {}", if checked { '◉' } else { '○' }, form.caption),
+        FormType::PushButton => format!("[{}]", form.caption),
+        _ => form.text.clone(),
+    };
+    let text = text.trim_end();
+    if text.is_empty() {
+        return;
+    }
+    let color = rgb(form.fore_color)
+        .map(|hex| format!(r#"<w:rPr><w:color w:val="{hex}"/></w:rPr>"#))
+        .unwrap_or_default();
+    let _ = write!(
+        out,
+        r#"<w:r>{color}<w:t xml:space="preserve">{}</w:t></w:r>"#,
+        xml_escape(text)
+    );
 }
 
 fn xml_escape(text: &str) -> String {
@@ -260,6 +623,19 @@ fn run_props(info: &DocInfo, shape_id: u32) -> String {
     if let Some(color) = rgb(shape.text_color) {
         let _ = write!(props, r#"<w:color w:val="{color}"/>"#);
     }
+    // 자간(글자 크기의 %) → twip, 장평(%) → w:w. 0: 한글 글꼴 묶음.
+    let spacing = i32::from(shape.spacings[0]);
+    if spacing != 0 && shape.base_size > 0 {
+        // base_size 는 1/100 pt, twip = pt × 20
+        let twip = shape.base_size * spacing / 500;
+        if twip != 0 {
+            let _ = write!(props, r#"<w:spacing w:val="{twip}"/>"#);
+        }
+    }
+    let ratio = shape.ratios[0];
+    if ratio != 100 && (1..=600).contains(&u16::from(ratio)) {
+        let _ = write!(props, r#"<w:w w:val="{ratio}"/>"#);
+    }
     if shape.base_size > 0 {
         // 1/100 pt → 반 포인트
         let half_points = (shape.base_size + 25) / 50;
@@ -297,25 +673,68 @@ fn para_props(info: &DocInfo, paragraph: &Paragraph) -> String {
     } else {
         ""
     };
-    let mut props = format!(r#"<w:pPr>{page_break}<w:jc w:val="{jc}"/>"#);
-    if shape.line_spacing_type == LineSpacingType::Percent && shape.line_spacing > 0 {
-        // 100% = 240
-        let line = shape.line_spacing * 240 / 100;
-        let _ = write!(props, r#"<w:spacing w:line="{line}" w:lineRule="auto"/>"#);
+    // 스키마 순서: pageBreakBefore … spacing, ind, jc, outlineLvl
+    let mut props = format!("<w:pPr>{page_break}");
+    // 문단 여백·간격은 HWPUNIT 의 2배 단위로 저장된다(rhwp ParaShape 규약).
+    let half = |v: i32| twips(u32::try_from(v.max(0) / 2).unwrap_or(0));
+    let mut spacing = String::new();
+    if shape.spacing_before > 0 {
+        let _ = write!(spacing, r#" w:before="{}""#, half(shape.spacing_before));
     }
-    let (left, right) = (
-        shape.margin_left.max(0) as u32,
-        shape.margin_right.max(0) as u32,
+    if shape.spacing_after > 0 {
+        let _ = write!(spacing, r#" w:after="{}""#, half(shape.spacing_after));
+    }
+    match shape.line_spacing_type {
+        // 100% = 240(Papy 읽기와 같은 기준)
+        LineSpacingType::Percent if shape.line_spacing > 0 => {
+            let _ = write!(
+                spacing,
+                r#" w:line="{}" w:lineRule="auto""#,
+                shape.line_spacing * 240 / 100
+            );
+        }
+        LineSpacingType::Fixed if shape.line_spacing > 0 => {
+            let _ = write!(
+                spacing,
+                r#" w:line="{}" w:lineRule="exact""#,
+                twips(shape.line_spacing as u32)
+            );
+        }
+        LineSpacingType::Minimum if shape.line_spacing > 0 => {
+            let _ = write!(
+                spacing,
+                r#" w:line="{}" w:lineRule="atLeast""#,
+                twips(shape.line_spacing as u32)
+            );
+        }
+        _ => {}
+    }
+    if !spacing.is_empty() {
+        let _ = write!(props, "<w:spacing{spacing}/>");
+    }
+    // HWP: 들여쓰기(+)는 첫 줄만 더 들어가고, 내어쓰기(-)는 둘째 줄부터 |indent| 만큼 더 들어간다.
+    let (left, right, indent) = (
+        half(shape.margin_left),
+        half(shape.margin_right),
+        shape.indent / 2 / 5,
     );
-    if left > 0 || right > 0 {
-        // 문단 여백은 HWPUNIT 의 2배 단위로 저장된다(rhwp ParaShape 규약).
-        let _ = write!(
-            props,
-            r#"<w:ind w:left="{}" w:right="{}"/>"#,
-            twips(left / 2),
-            twips(right / 2)
-        );
+    let mut ind = String::new();
+    if indent < 0 {
+        let hanging = indent.unsigned_abs();
+        let _ = write!(ind, r#" w:left="{}" w:hanging="{hanging}""#, left + hanging);
+    } else if left > 0 {
+        let _ = write!(ind, r#" w:left="{left}""#);
     }
+    if right > 0 {
+        let _ = write!(ind, r#" w:right="{right}""#);
+    }
+    if indent > 0 {
+        let _ = write!(ind, r#" w:firstLine="{indent}""#);
+    }
+    if !ind.is_empty() {
+        let _ = write!(props, "<w:ind{ind}/>");
+    }
+    let _ = write!(props, r#"<w:jc w:val="{jc}"/>"#);
     // 한글 개요 문단 → Word 개요 수준(탐색 창·목차에 나온다).
     if shape.head_type == HeadType::Outline {
         let _ = write!(
@@ -386,6 +805,8 @@ fn write_inline(
         Control::Endnote(note) => write_note(out, info, media, &note.paragraphs, true, depth)?,
         Control::Picture(picture) => write_picture(out, media, picture),
         Control::Shape(shape) if depth < MAX_DEPTH => write_shape(out, info, media, shape, depth)?,
+        Control::Equation(equation) => write_equation(out, media, equation),
+        Control::Form(form) => write_form(out, form),
         _ => {}
     }
     Ok(())
@@ -431,6 +852,48 @@ fn write_paragraph_with(
     depth: usize,
     prefix: &str,
 ) -> Result<()> {
+    // 표만 든 빈 문단: 한글은 표를 그 문단 자리에 놓고 빈 줄은 표 아래에 둔다. 표 → 그 문단 순서로 쓰면
+    // 빈 줄이 하나만 생긴다(문단 → 표 → 빈 문단이면 표 위아래로 빈 줄이 둘).
+    let has_table = paragraph
+        .controls
+        .iter()
+        .any(|c| matches!(c, Control::Table(_)));
+    let table_only = has_table
+        && prefix.is_empty()
+        && paragraph
+            .text
+            .chars()
+            .all(|c| c.is_whitespace() || c.is_control())
+        && paragraph.controls.iter().all(|c| {
+            !matches!(
+                c,
+                Control::Footnote(_)
+                    | Control::Endnote(_)
+                    | Control::Picture(_)
+                    | Control::Shape(_)
+                    | Control::Equation(_)
+                    | Control::Form(_)
+            )
+        });
+    if table_only {
+        let tables: Vec<&Table> = paragraph
+            .controls
+            .iter()
+            .filter_map(|c| match c {
+                Control::Table(table) => Some(&**table),
+                _ => None,
+            })
+            .collect();
+        for (index, table) in tables.iter().enumerate() {
+            write_table(out, info, media, table, depth + 1)?;
+            // Word 는 표 바로 뒤에 문단이 있어야 한다(마지막은 이 문단 자체).
+            if index + 1 < tables.len() {
+                out.push_str("<w:p/>");
+            }
+        }
+        let _ = write!(out, "<w:p>{}</w:p>", para_props(info, paragraph));
+        return Ok(());
+    }
     out.push_str("<w:p>");
     out.push_str(&para_props(info, paragraph));
     out.push_str(prefix);
@@ -447,6 +910,8 @@ fn write_paragraph_with(
                     | Control::Endnote(_)
                     | Control::Picture(_)
                     | Control::Shape(_)
+                    | Control::Equation(_)
+                    | Control::Form(_)
             )
         })
         .collect();
@@ -539,27 +1004,21 @@ fn write_table(
     if rows == 0 || cols == 0 {
         return Ok(());
     }
-    // 열 너비: 한 칸짜리 셀에서 가져온다(없으면 고르게).
-    let mut widths = vec![0u32; cols];
-    for cell in &table.cells {
-        if cell.col_span == 1 && (cell.col as usize) < cols {
-            widths[cell.col as usize] = widths[cell.col as usize].max(twips(cell.width));
-        }
-    }
-    let fallback = widths
-        .iter()
-        .copied()
-        .max()
-        .filter(|w| *w > 0)
-        .unwrap_or(2000);
-    for width in &mut widths {
-        if *width == 0 {
-            *width = fallback;
-        }
-    }
-    out.push_str(
-        r#"<w:tbl><w:tblPr><w:tblW w:w="0" w:type="auto"/><w:tblBorders><w:top w:val="single" w:sz="4"/><w:left w:val="single" w:sz="4"/><w:bottom w:val="single" w:sz="4"/><w:right w:val="single" w:sz="4"/><w:insideH w:val="single" w:sz="4"/><w:insideV w:val="single" w:sz="4"/></w:tblBorders></w:tblPr><w:tblGrid>"#,
+    let widths = grid_widths(table, cols);
+    // 테두리는 칸마다 쓴다(한글 표는 칸마다 테두리·배경이 다르다). 머리글 행은 쪽마다 되풀이.
+    let mut properties = String::from(
+        r#"<w:tbl><w:tblPr><w:tblW w:w="0" w:type="auto"/><w:tblLayout w:type="fixed"/>"#,
     );
+    let margin = |v: i16| twips(u32::try_from(v.max(0)).unwrap_or(0));
+    let _ = write!(
+        properties,
+        r#"<w:tblCellMar><w:top w:w="{}" w:type="dxa"/><w:left w:w="{}" w:type="dxa"/><w:bottom w:w="{}" w:type="dxa"/><w:right w:w="{}" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid>"#,
+        margin(table.padding.top),
+        margin(table.padding.left),
+        margin(table.padding.bottom),
+        margin(table.padding.right),
+    );
+    out.push_str(&properties);
     for width in &widths {
         let _ = write!(out, r#"<w:gridCol w:w="{width}"/>"#);
     }
@@ -580,6 +1039,33 @@ fn write_table(
     };
     for row in 0..rows {
         out.push_str("<w:tr>");
+        // 행 높이: 이 행에서 시작하고 끝나는 칸의 높이(가장 큰 것)를 "최소"로 둔다.
+        let height = table
+            .cells
+            .iter()
+            .filter(|cell| cell.row as usize == row && cell.row_span <= 1)
+            .map(|cell| cell.height)
+            .max()
+            .unwrap_or(0);
+        let mut row_props = String::new();
+        if height > 0 {
+            let _ = write!(
+                row_props,
+                r#"<w:trHeight w:val="{}" w:hRule="atLeast"/>"#,
+                twips(height)
+            );
+        }
+        if table.repeat_header
+            && table
+                .cells
+                .iter()
+                .any(|c| c.row as usize == row && c.is_header)
+        {
+            row_props.push_str("<w:tblHeader/>");
+        }
+        if !row_props.is_empty() {
+            let _ = write!(out, "<w:trPr>{row_props}</w:trPr>");
+        }
         let mut col = 0;
         while col < cols {
             if let Some(cell) = start_at(row, col) {
@@ -593,6 +1079,13 @@ fn write_table(
                 if cell.row_span > 1 {
                     out.push_str(r#"<w:vMerge w:val="restart"/>"#);
                 }
+                out.push_str(&cell_style(info, cell.border_fill_id));
+                let v_align = match cell.vertical_align {
+                    rhwp::model::table::VerticalAlign::Top => "top",
+                    rhwp::model::table::VerticalAlign::Center => "center",
+                    rhwp::model::table::VerticalAlign::Bottom => "bottom",
+                };
+                let _ = write!(out, r#"<w:vAlign w:val="{v_align}"/>"#);
                 out.push_str("</w:tcPr>");
                 if cell.paragraphs.is_empty() {
                     out.push_str("<w:p/>");
@@ -605,10 +1098,14 @@ fn write_table(
             } else if let Some(cell) = covered_from_above(row, col) {
                 let span = (cell.col_span.max(1) as usize).min(cols - col);
                 out.push_str("<w:tc><w:tcPr>");
+                let width: u32 = widths[col..col + span].iter().sum();
+                let _ = write!(out, r#"<w:tcW w:w="{width}" w:type="dxa"/>"#);
                 if span > 1 {
                     let _ = write!(out, r#"<w:gridSpan w:val="{span}"/>"#);
                 }
-                out.push_str("<w:vMerge/></w:tcPr><w:p/></w:tc>");
+                out.push_str("<w:vMerge/>");
+                out.push_str(&cell_style(info, cell.border_fill_id));
+                out.push_str("</w:tcPr><w:p/></w:tc>");
                 col += span;
             } else {
                 // 가로 병합 안쪽 등 빈 칸: Word 가 열 수 없는 표가 되지 않게 빈 셀로 채운다.
@@ -620,6 +1117,134 @@ fn write_table(
     }
     out.push_str("</w:tbl>");
     Ok(())
+}
+
+/// 열 너비(twip). 칸마다 (시작 열, 끝 열) 경계 사이 거리가 칸 너비가 되도록 경계 위치를 푼다
+/// (병합 칸만 있는 열도 맞는 너비가 나온다). 정해지지 않은 경계는 고르게 나눈다.
+fn grid_widths(table: &Table, cols: usize) -> Vec<u32> {
+    let mut edge: Vec<Option<i64>> = vec![None; cols + 1];
+    edge[0] = Some(0);
+    let spans: Vec<(usize, usize, i64)> = table
+        .cells
+        .iter()
+        .filter(|c| (c.col as usize) < cols && c.width > 0)
+        .map(|c| {
+            let start = c.col as usize;
+            let end = (start + c.col_span.max(1) as usize).min(cols);
+            (start, end, i64::from(c.width))
+        })
+        .collect();
+    // 행마다 왼쪽부터 이어 붙이면 모든 경계가 정해진다. 몇 번 돌려 서로 다른 행의 정보를 퍼뜨린다.
+    for _ in 0..4 {
+        let mut changed = false;
+        for &(start, end, width) in &spans {
+            match (edge[start], edge[end]) {
+                (Some(a), None) => {
+                    edge[end] = Some(a + width);
+                    changed = true;
+                }
+                (None, Some(b)) => {
+                    edge[start] = Some(b - width);
+                    changed = true;
+                }
+                _ => {}
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+    // 빈 경계는 앞뒤 정해진 경계 사이를 고르게 나눈다. 끝 경계가 없으면 가장 넓은 행 너비.
+    if edge[cols].is_none() {
+        let total = table
+            .cells
+            .iter()
+            .fold(
+                std::collections::HashMap::<u16, i64>::new(),
+                |mut rows, c| {
+                    *rows.entry(c.row).or_default() += i64::from(c.width);
+                    rows
+                },
+            )
+            .into_values()
+            .max()
+            .filter(|w| *w > 0)
+            .unwrap_or(10_000 * cols as i64);
+        edge[cols] = Some(total.max(edge.iter().flatten().copied().max().unwrap_or(0)));
+    }
+    let mut i = 0;
+    while i < cols {
+        if edge[i + 1].is_some() {
+            i += 1;
+            continue;
+        }
+        let next = (i + 1..=cols).find(|&k| edge[k].is_some()).unwrap_or(cols);
+        let (a, b) = (edge[i].unwrap_or(0), edge[next].unwrap_or(0));
+        for (k, slot) in edge.iter_mut().enumerate().take(next).skip(i + 1) {
+            *slot = Some(a + (b - a) * (k - i) as i64 / (next - i) as i64);
+        }
+        i = next;
+    }
+    edge.windows(2)
+        .map(|w| {
+            let width = w[1].unwrap_or(0) - w[0].unwrap_or(0);
+            // 너무 좁은(겹친) 열은 0.1 인치로.
+            twips(u32::try_from(width).unwrap_or(0)).max(144)
+        })
+        .collect()
+}
+
+/// HWP 선 굵기 번호 → mm.
+const BORDER_WIDTH_MM: [f32; 16] = [
+    0.1, 0.12, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.7, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0,
+];
+
+/// 칸 테두리(`w:tcBorders`)와 배경(`w:shd`).
+fn cell_style(info: &DocInfo, border_fill_id: u16) -> String {
+    let Some(fill) = border_fill_id
+        .checked_sub(1)
+        .and_then(|i| info.border_fills.get(i as usize))
+    else {
+        return String::new();
+    };
+    use rhwp::model::style::BorderLineType as Line;
+    let mut out = String::from("<w:tcBorders>");
+    // HWP 순서는 왼쪽·오른쪽·위·아래, Word 스키마 순서는 위·왼쪽·아래·오른쪽.
+    for (side, index) in [("top", 2), ("left", 0), ("bottom", 3), ("right", 1)] {
+        let line = &fill.borders[index];
+        let value = match line.line_type {
+            Line::None => "nil",
+            Line::Solid => "single",
+            Line::Dash | Line::LongDash => "dashed",
+            Line::Dot | Line::Circle => "dotted",
+            Line::DashDot => "dotDash",
+            Line::DashDotDot => "dotDotDash",
+            Line::Double => "double",
+            _ => "single",
+        };
+        if value == "nil" {
+            let _ = write!(out, r#"<w:{side} w:val="nil"/>"#);
+            continue;
+        }
+        // 1/8 pt, Word 범위 2~96
+        let mm = BORDER_WIDTH_MM[usize::from(line.width.min(15))];
+        let size = ((mm * 72.0 / 25.4 * 8.0).round() as u32).clamp(2, 96);
+        let color = rgb(line.color).unwrap_or_else(|| "000000".into());
+        let _ = write!(
+            out,
+            r#"<w:{side} w:val="{value}" w:sz="{size}" w:space="0" w:color="{color}"/>"#
+        );
+    }
+    out.push_str("</w:tcBorders>");
+    if let (FillType::Solid, Some(solid)) = (&fill.fill.fill_type, &fill.fill.solid) {
+        if let Some(color) = rgb(solid.background_color) {
+            let _ = write!(
+                out,
+                r#"<w:shd w:val="clear" w:color="auto" w:fill="{color}"/>"#
+            );
+        }
+    }
+    out
 }
 
 fn section_props(document: &Document, references: &str, title_page: &str) -> String {
@@ -638,8 +1263,24 @@ fn section_props(document: &Document, references: &str, title_page: &str) -> Str
     } else {
         ""
     };
+    // 다단: 첫 구역의 단 정의(같은 너비로 본다).
+    let columns = document
+        .sections
+        .first()
+        .into_iter()
+        .flat_map(|s| s.paragraphs.iter().take(1))
+        .flat_map(|p| &p.controls)
+        .find_map(|c| match c {
+            Control::ColumnDef(def) if def.column_count > 1 => Some(format!(
+                r#"<w:cols w:num="{}" w:space="{}"/>"#,
+                def.column_count.min(16),
+                twips(u32::try_from(def.spacing.max(0)).unwrap_or(0))
+            )),
+            _ => None,
+        })
+        .unwrap_or_default();
     format!(
-        r#"<w:sectPr>{references}<w:pgSz w:w="{width}" w:h="{height}"{orient}/><w:pgMar w:top="{}" w:right="{}" w:bottom="{}" w:left="{}" w:header="{}" w:footer="{}" w:gutter="{}"/>{title_page}</w:sectPr>"#,
+        r#"<w:sectPr>{references}<w:pgSz w:w="{width}" w:h="{height}"{orient}/><w:pgMar w:top="{}" w:right="{}" w:bottom="{}" w:left="{}" w:header="{}" w:footer="{}" w:gutter="{}"/>{columns}{title_page}</w:sectPr>"#,
         twips(page.margin_top + page.margin_header),
         twips(page.margin_right),
         twips(page.margin_bottom + page.margin_footer),
@@ -706,7 +1347,7 @@ fn rels_xml(media: &Media, extra: &[Part], styles: bool) -> String {
 const STYLES: &str = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:docDefaults><w:rPrDefault><w:rPr><w:sz w:val="20"/><w:lang w:val="ko-KR" w:eastAsia="ko-KR"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:after="0" w:line="240" w:lineRule="auto"/></w:pPr></w:pPrDefault></w:docDefaults><w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/></w:style></w:styles>"#;
 
-const NAMESPACES: &str = r#"xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape""#;
+const NAMESPACES: &str = r#"xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape" xmlns:wpg="http://schemas.microsoft.com/office/word/2010/wordprocessingGroup""#;
 
 /// 첫 구역의 머리말·꼬리말을 부분으로 쓰고 sectPr 참조를 돌려준다. 같은 종류·쪽은 처음 것만.
 fn header_footer_parts(
@@ -822,10 +1463,20 @@ pub fn docx_from_document_with_outline(
     document: &Document,
     outline: &HashMap<(usize, usize), u8>,
 ) -> Result<Vec<u8>> {
+    docx_from_document_with(document, outline, None)
+}
+
+/// [`docx_from_document_with_outline`] 에 더해, 수식을 `render_equation` 이 그린 PNG 그림으로 넣는다.
+pub fn docx_from_document_with(
+    document: &Document,
+    outline: &HashMap<(usize, usize), u8>,
+    render_equation: Option<EquationRenderer<'_>>,
+) -> Result<Vec<u8>> {
     let info = &document.doc_info;
     let mut media = Media {
         contents: &document.bin_data_content,
         files: Vec::new(),
+        render_equation,
         next_object: 0,
         footnotes: Vec::new(),
         endnotes: Vec::new(),

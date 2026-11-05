@@ -46,7 +46,7 @@ fn paragraphs_runs_styles_and_entities() {
         </w:body></w:document>"#
     );
     let (html, report) = docx_to_html(&docx(&document, Some(&styles))).unwrap();
-    assert!(html.contains(r#"<p style="text-align:center"><span style="font-size:16pt;font-weight:bold;">제목</span></p>"#), "{html}");
+    assert!(html.contains(r#"<p style="text-align:center;"><span style="font-size:16pt;font-weight:bold;">제목</span></p>"#), "{html}");
     assert!(
         html.contains("font-style:italic;color:#FF0000;\">빨강 기울임 </span>"),
         "{html}"
@@ -339,4 +339,275 @@ fn group_shapes_are_unpacked() {
     assert_eq!(line.horizontal, (Relative::Page, 500_000));
     assert_eq!(line.vertical, (Relative::Paragraph, 600_000));
     assert_eq!(line.line, Some(0x00FF00));
+}
+
+/// 문서 XML 부분을 글로 꺼낸다.
+fn part_text(bytes: &[u8], name: &str) -> String {
+    let mut archive = zip::ZipArchive::new(Cursor::new(bytes)).unwrap();
+    let mut xml = String::new();
+    std::io::Read::read_to_string(&mut archive.by_name(name).unwrap(), &mut xml).unwrap();
+    xml
+}
+
+#[test]
+fn forms_and_equations_are_written() {
+    use rhwp::model::control::{Control, Equation, FormObject, FormType};
+    let mut core = rhwp::document_core::DocumentCore::new_empty();
+    core.create_blank_document_native().unwrap();
+    core.insert_text_native(0, 0, 0, "양식").unwrap();
+    let mut document = core.document().clone();
+    let paragraph = &mut document.sections[0].paragraphs[0];
+    let check = FormObject {
+        form_type: FormType::CheckBox,
+        caption: "동의함".into(),
+        value: 1,
+        ..FormObject::default()
+    };
+    let mut equation = Equation {
+        script: "1 over 2".into(),
+        ..Equation::default()
+    };
+    equation.common.width = 2000;
+    equation.common.height = 3000;
+    equation.baseline = 70;
+    for control in [
+        Control::Form(Box::new(check)),
+        Control::Equation(Box::new(equation)),
+    ] {
+        paragraph.controls.push(control);
+    }
+    // 그림을 못 그리면 수식 스크립트를 글로 넣는다.
+    let plain = docx_from_document(&document).unwrap();
+    let xml = part_text(&plain, "word/document.xml");
+    assert!(xml.contains("☑ 동의함"), "{xml}");
+    assert!(xml.contains("1 over 2"), "{xml}");
+    // 그리는 함수가 있으면 그림으로 넣고, 기준선 아래 부분(30%)만큼 내린다.
+    let render = |_: &Equation| Some(PNG_1X1.to_vec());
+    let pictured =
+        docx_from_document_with(&document, &std::collections::HashMap::new(), Some(&render))
+            .unwrap();
+    let xml = part_text(&pictured, "word/document.xml");
+    assert!(
+        !xml.contains("1 over 2") && xml.contains("<wp:inline"),
+        "{xml}"
+    );
+    assert!(xml.contains(r#"<w:position w:val="-9"/>"#), "{xml}");
+    assert!(part_text(&pictured, "word/_rels/document.xml.rels").contains("media/image1.png"));
+}
+
+#[test]
+fn page_setup_is_read_from_the_longest_section() {
+    // 첫 구역(문단 하나)은 아래 여백이 큰 표지, 둘째 구역(문단 둘)이 본문: 가로 A4, 2단.
+    let document = format!(
+        r#"<w:document {NS}><w:body><w:p><w:pPr><w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1440" w:right="1440" w:bottom="10000" w:left="1440" w:header="720" w:footer="720" w:gutter="0"/></w:sectPr></w:pPr></w:p><w:p/><w:p/><w:sectPr><w:pgSz w:w="16838" w:h="11906" w:orient="landscape"/><w:pgMar w:top="1000" w:right="800" w:bottom="900" w:left="700" w:header="400" w:footer="300" w:gutter="0"/><w:cols w:num="2" w:space="425"/></w:sectPr></w:body></w:document>"#
+    );
+    let (_, report) = docx_to_html(&docx(&document, None)).unwrap();
+    let page = report.page.expect("쪽 설정");
+    assert_eq!((page.width, page.height), (16838 * 5, 11906 * 5));
+    assert_eq!((page.margin_left, page.margin_right), (700 * 5, 800 * 5));
+    // Word 위 여백 1000 = 머리말 자리 400 + 본문 여백 600
+    assert_eq!((page.margin_header, page.margin_top), (400 * 5, 600 * 5));
+    assert_eq!((page.margin_footer, page.margin_bottom), (300 * 5, 600 * 5));
+    assert_eq!((page.columns, page.column_gap), (2, 425 * 5));
+    // 이상한 값(본문이 남지 않는 여백)은 버린다.
+    let broken = format!(
+        r#"<w:document {NS}><w:body><w:p/><w:sectPr><w:pgSz w:w="2000" w:h="2000"/><w:pgMar w:top="900" w:right="900" w:bottom="900" w:left="900"/></w:sectPr></w:body></w:document>"#
+    );
+    assert_eq!(docx_to_html(&docx(&broken, None)).unwrap().1.page, None);
+}
+
+#[test]
+fn bmp_pictures_become_png() {
+    // 2×1 BMP(24비트)
+    let mut bmp = Vec::new();
+    bmp.extend_from_slice(b"BM");
+    bmp.extend_from_slice(&(54u32 + 8).to_le_bytes());
+    bmp.extend_from_slice(&[0; 4]);
+    bmp.extend_from_slice(&54u32.to_le_bytes());
+    bmp.extend_from_slice(&40u32.to_le_bytes());
+    bmp.extend_from_slice(&2i32.to_le_bytes());
+    bmp.extend_from_slice(&1i32.to_le_bytes());
+    bmp.extend_from_slice(&1u16.to_le_bytes());
+    bmp.extend_from_slice(&24u16.to_le_bytes());
+    bmp.extend_from_slice(&[0; 24]);
+    bmp.extend_from_slice(&[0, 0, 255, 255, 0, 0, 0, 0]);
+    let png = super::write::bmp_to_png_for_test(&bmp).expect("PNG");
+    assert!(png.starts_with(b"\x89PNG"));
+}
+
+#[test]
+fn groups_polygons_and_floating_pictures_are_written() {
+    use rhwp::model::Point;
+    use rhwp::model::control::Control;
+    use rhwp::model::shape::{GroupShape, PolygonShape, RectangleShape, ShapeObject};
+    let mut core = rhwp::document_core::DocumentCore::new_empty();
+    core.create_blank_document_native().unwrap();
+    core.insert_text_native(0, 0, 0, "도형").unwrap();
+    let mut document = core.document().clone();
+    // 묶음: 사각형(0,0 1000×500)과 삼각형(1000,0 1000×1000)
+    let mut rect = RectangleShape::default();
+    rect.drawing.shape_attr.original_width = 1000;
+    rect.drawing.shape_attr.original_height = 500;
+    rect.drawing.shape_attr.render_sx = 1.0;
+    rect.drawing.shape_attr.render_sy = 1.0;
+    let mut triangle = PolygonShape {
+        points: vec![
+            Point { x: 0, y: 1000 },
+            Point { x: 500, y: 0 },
+            Point { x: 1000, y: 1000 },
+            Point { x: 0, y: 1000 },
+        ],
+        ..PolygonShape::default()
+    };
+    let attr = &mut triangle.drawing.shape_attr;
+    (attr.original_width, attr.original_height) = (1000, 1000);
+    (attr.render_sx, attr.render_sy, attr.render_tx) = (1.0, 1.0, 1000.0);
+    let mut group = GroupShape {
+        children: vec![
+            ShapeObject::Rectangle(rect),
+            ShapeObject::Polygon(triangle.clone()),
+        ],
+        ..GroupShape::default()
+    };
+    (group.common.width, group.common.height) = (2000, 1000);
+    group.common.treat_as_char = true;
+    triangle.common.width = 1000;
+    triangle.common.height = 1000;
+    let paragraph = &mut document.sections[0].paragraphs[0];
+    paragraph
+        .controls
+        .push(Control::Shape(Box::new(ShapeObject::Group(group))));
+    paragraph
+        .controls
+        .push(Control::Shape(Box::new(ShapeObject::Polygon(triangle))));
+    let xml = part_text(&docx_from_document(&document).unwrap(), "word/document.xml");
+    // 묶음 안 두 도형이 묶음 좌표(EMU = HWPUNIT × 127)로 들어간다.
+    assert!(xml.contains("<wpg:wgp>"), "{xml}");
+    assert!(
+        xml.contains(r#"<a:chExt cx="254000" cy="127000"/>"#),
+        "{xml}"
+    );
+    assert!(xml.contains(r#"<a:off x="127000" y="0"/>"#), "{xml}");
+    // 다각형: 꼭짓점 경로(처음 = 끝이면 닫는다), 떠 있는 개체는 wp:anchor.
+    assert!(
+        xml.contains(r#"<a:path w="1000" h="1000"><a:moveTo><a:pt x="0" y="1000"/></a:moveTo><a:lnTo><a:pt x="500" y="0"/></a:lnTo>"#),
+        "{xml}"
+    );
+    assert!(
+        xml.contains("<a:close/>") && xml.contains("<wp:anchor"),
+        "{xml}"
+    );
+}
+
+#[test]
+fn table_cells_keep_borders_fill_alignment_and_height() {
+    use rhwp::model::control::Control;
+    let mut core = rhwp::document_core::DocumentCore::new_empty();
+    core.create_blank_document_native().unwrap();
+    core.create_table_native(0, 0, 0, 2, 2).unwrap();
+    let mut document = core.document().clone();
+    // 칸 테두리·배경: 왼쪽만 없음, 노란 배경
+    let mut fill = rhwp::model::style::BorderFill::default();
+    fill.borders[0].line_type = rhwp::model::style::BorderLineType::None;
+    fill.fill.fill_type = rhwp::model::style::FillType::Solid;
+    fill.fill.solid = Some(rhwp::model::style::SolidFill {
+        background_color: 0x0000_FFFF,
+        ..Default::default()
+    });
+    document.doc_info.border_fills.push(fill);
+    let fill_id = document.doc_info.border_fills.len() as u16;
+    let table = document.sections[0]
+        .paragraphs
+        .iter_mut()
+        .flat_map(|p| p.controls.iter_mut())
+        .find_map(|c| match c {
+            Control::Table(t) => Some(t),
+            _ => None,
+        })
+        .expect("표");
+    // 둘째 열은 병합 칸에서만 너비를 알 수 있다: 첫 행 = 2000 + 3000, 둘째 행 = 5000(가로 병합).
+    table.cells[0].width = 2000;
+    table.cells[1].width = 3000;
+    table.cells[0].border_fill_id = fill_id;
+    table.cells[0].height = 1500;
+    table.cells[0].vertical_align = rhwp::model::table::VerticalAlign::Center;
+    table.cells[2].col_span = 2;
+    table.cells[2].width = 5000;
+    table.cells.remove(3);
+    let bytes = docx_from_document(&document).unwrap();
+    let xml = part_text(&bytes, "word/document.xml");
+    assert!(
+        xml.contains(r#"<w:gridCol w:w="400"/><w:gridCol w:w="600"/>"#),
+        "{xml}"
+    );
+    assert!(xml.contains(r#"<w:left w:val="nil"/>"#), "{xml}");
+    assert!(
+        xml.contains(r#"<w:shd w:val="clear" w:color="auto" w:fill="FFFF00"/>"#),
+        "{xml}"
+    );
+    assert!(xml.contains(r#"<w:vAlign w:val="center"/>"#), "{xml}");
+    assert!(
+        xml.contains(r#"<w:trHeight w:val="300" w:hRule="atLeast"/>"#),
+        "{xml}"
+    );
+    // 다시 읽으면 rhwp 표 붙여넣기가 읽는 CSS 로 옮긴다.
+    let (html, _) = docx_to_html(&bytes).unwrap();
+    for css in [
+        "border-left:none;",
+        "background-color:#FFFF00;",
+        "vertical-align:middle;",
+        "height:15.0pt;",
+    ] {
+        assert!(html.contains(css), "{css}: {html}");
+    }
+}
+
+#[test]
+fn paragraph_spacing_indent_and_letter_spacing_round_trip() {
+    // 기본 문단 스타일(Normal)의 뒤 간격·줄 간격이 pStyle 없는 문단에 들어간다.
+    let styles = format!(
+        r#"<w:styles {NS}><w:docDefaults><w:pPrDefault><w:pPr><w:spacing w:after="160" w:line="259" w:lineRule="auto"/></w:pPr></w:pPrDefault></w:docDefaults><w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:pPr><w:spacing w:after="200"/></w:pPr></w:style></w:styles>"#
+    );
+    let document = format!(
+        r#"<w:document {NS}><w:body><w:p><w:r><w:t>기본</w:t></w:r></w:p><w:p><w:pPr><w:spacing w:before="240" w:line="360" w:lineRule="exact"/><w:ind w:left="720" w:hanging="360"/></w:pPr><w:r><w:rPr><w:spacing w:val="-10"/></w:rPr><w:t>내어쓰기</w:t></w:r></w:p></w:body></w:document>"#
+    );
+    let (html, _) = docx_to_html(&docx(&document, Some(&styles))).unwrap();
+    assert!(
+        html.contains(r#"<p style="margin-bottom:10.0pt;line-height:107%;">"#),
+        "{html}"
+    );
+    assert!(
+        html.contains(r#"margin-top:12.0pt;margin-bottom:10.0pt;line-height:24.0px;margin-left:36.0pt;text-indent:-18.0pt;"#),
+        "{html}"
+    );
+    assert!(html.contains("letter-spacing:-0.50pt;"), "{html}");
+
+    // 쓰기: HWP 문단 서식 → w:spacing·w:ind, 자간·장평 → w:spacing·w:w
+    let mut core = rhwp::document_core::DocumentCore::new_empty();
+    core.create_blank_document_native().unwrap();
+    core.insert_text_native(0, 0, 0, "문단").unwrap();
+    let mut document = core.document().clone();
+    let id = document.sections[0].paragraphs[0].para_shape_id as usize;
+    let shape = &mut document.doc_info.para_shapes[id];
+    // 2배 스케일: 10pt = 1000 HWPUNIT → 2000
+    shape.spacing_before = 2000;
+    shape.spacing_after = 1000;
+    shape.margin_left = 4000;
+    shape.indent = -2000;
+    shape.line_spacing_type = rhwp::model::style::LineSpacingType::Fixed;
+    shape.line_spacing = 1800;
+    let char_id = document.sections[0].paragraphs[0].char_shapes[0].char_shape_id as usize;
+    let char_shape = &mut document.doc_info.char_shapes[char_id];
+    char_shape.base_size = 1000;
+    char_shape.spacings = [-10; 7];
+    char_shape.ratios = [90; 7];
+    let xml = part_text(&docx_from_document(&document).unwrap(), "word/document.xml");
+    assert!(
+        xml.contains(r#"<w:spacing w:before="200" w:after="100" w:line="360" w:lineRule="exact"/><w:ind w:left="600" w:hanging="200"/>"#),
+        "{xml}"
+    );
+    assert!(
+        xml.contains(r#"<w:spacing w:val="-20"/><w:w w:val="90"/>"#),
+        "{xml}"
+    );
 }

@@ -18,9 +18,11 @@ mod write;
 
 pub use doc::{doc_to_html, is_doc};
 pub use notes::{ENDNOTE_MARK, FOOTNOTE_MARK, HeaderFooterText, PAGE_BREAK_MARK};
-pub use read::{DocxHeading, DocxReadReport, docx_to_html, is_docx};
+pub use read::{DocxHeading, DocxReadReport, PageSetup, docx_to_html, is_docx};
 pub use shapes::{DocxShape, Relative, SHAPE_MARK, ShapeImage, ShapeKind, Wrap};
-pub use write::{docx_from_document, docx_from_document_with_outline};
+pub use write::{
+    EquationRenderer, docx_from_document, docx_from_document_with, docx_from_document_with_outline,
+};
 
 #[cfg(test)]
 mod tests;

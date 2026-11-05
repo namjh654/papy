@@ -246,6 +246,25 @@ fn split_tables_across_pages(doc: &mut Rhwp) -> std::result::Result<(), rhwp::Hw
     Ok(())
 }
 
+/// rhwp 표 붙여넣기는 표 전체 테두리·배경으로 3 번 테두리/배경(1부터)을 쓴다. 빈 문서에는 둘뿐이라
+/// 붙여넣으며 처음 만든 칸 테두리(배경색 포함)가 3 번이 되어 표 전체가 그 색으로 칠해진다.
+/// 붙여넣기 전에 선·배경 없는 3 번을 만들어 둔다.
+fn reserve_table_border_fill(doc: &mut Rhwp) {
+    if doc.document().doc_info.border_fills.len() >= 3 {
+        return;
+    }
+    let mut document = doc.document().clone();
+    while document.doc_info.border_fills.len() < 3 {
+        let mut plain = rhwp::model::style::BorderFill::default();
+        for border in &mut plain.borders {
+            border.line_type = rhwp::model::style::BorderLineType::None;
+        }
+        document.doc_info.border_fills.push(plain);
+    }
+    document.doc_info.raw_stream_dirty = true;
+    doc.set_document(document);
+}
+
 fn open_converted(
     bytes: &[u8],
     html: &str,
@@ -257,6 +276,34 @@ fn open_converted(
     let (doc, dropped_notes) = guard(|| -> std::result::Result<(Rhwp, usize), rhwp::HwpError> {
         let mut doc = Rhwp::create_empty();
         doc.create_blank_document_native()?;
+        reserve_table_border_fill(&mut doc);
+        // 쪽 크기·여백·다단을 먼저 맞춰야 붙여넣은 글과 표가 그 너비로 조판된다.
+        if let Some(page) = report.page {
+            doc.set_page_def_native(
+                0,
+                &format!(
+                    r#"{{"width":{},"height":{},"marginLeft":{},"marginRight":{},"marginTop":{},"marginBottom":{},"marginHeader":{},"marginFooter":{},"marginGutter":{},"landscape":false}}"#,
+                    page.width,
+                    page.height,
+                    page.margin_left,
+                    page.margin_right,
+                    page.margin_top,
+                    page.margin_bottom,
+                    page.margin_header,
+                    page.margin_footer,
+                    page.margin_gutter,
+                ),
+            )?;
+            if page.columns > 1 {
+                doc.set_column_def_native(
+                    0,
+                    page.columns,
+                    0,
+                    true,
+                    i16::try_from(page.column_gap).unwrap_or(i16::MAX),
+                )?;
+            }
+        }
         doc.paste_html_native(0, 0, 0, html)?;
         split_tables_across_pages(&mut doc)?;
         // 붙여넣은 표 칸은 한 줄로만 잡혀 있다. 칸 너비로 다시 나눠 긴 글이 잘리지 않게 한다.
@@ -383,6 +430,31 @@ pub(crate) fn svg_to_png(svg: &str, width: u32, height: u32) -> Result<Vec<u8>> 
     pixmap
         .encode_png()
         .map_err(|_| Error::new(ErrorCode::Internal, "chart image encoding failed"))
+}
+
+/// 수식을 흰 바탕 PNG 로 그린다(DOCX 저장). 수식 상자 크기의 2배(192 dpi)로 그린다.
+pub(crate) fn equation_png(equation: &rhwp::model::control::Equation) -> Option<Vec<u8>> {
+    use rhwp::renderer::equation::{layout, parser, svg_render, tokenizer};
+    let script = equation.script.trim();
+    if script.is_empty() {
+        return None;
+    }
+    let font_px = rhwp::renderer::hwpunit_to_px(equation.font_size.max(100) as i32, 96.0);
+    let ast = parser::EqParser::new(tokenizer::tokenize(script)).parse();
+    let layout = layout::EqLayout::new(font_px).layout(&ast);
+    let (w, h) = (layout.width.max(1.0), layout.height.max(1.0));
+    if !(w.is_finite() && h.is_finite()) || w > 4000.0 || h > 4000.0 {
+        return None;
+    }
+    let body = svg_render::render_equation_svg(
+        &layout,
+        &svg_render::eq_color_to_svg(equation.color),
+        font_px,
+    );
+    let svg = format!(
+        r#"<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" viewBox="0 0 {w} {h}">{body}</svg>"#
+    );
+    svg_to_png(&svg, (w * 2.0).ceil() as u32, (h * 2.0).ceil() as u32).ok()
 }
 
 /// 글꼴 파일을 한 번만 메모리에 매핑해 두고 계속 쓴다.

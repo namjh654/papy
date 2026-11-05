@@ -44,6 +44,87 @@ pub struct DocxReadReport {
     /// 첫 쪽에서 감출 (머리말, 꼬리말). 첫 구역이 "첫 쪽 다르게"(`w:titlePg`)일 때 켠다.
     /// rhwp 에는 첫 쪽 전용 머리말 자리가 없어, 첫 쪽에서는 기본 머리말을 감추고 첫 쪽 것의 글자는 옮기지 않는다.
     pub hide_first_page: (bool, bool),
+    /// 첫 구역의 쪽 크기·여백·다단(`w:pgSz`·`w:pgMar`·`w:cols`). 없거나 이상하면 None(빈 문서 기본값을 쓴다).
+    pub page: Option<PageSetup>,
+}
+
+/// 쪽 설정(HWPUNIT). 머리말·꼬리말 여백은 HWP 방식이다(본문 위·아래 여백에 더해지는 머리말·꼬리말 자리).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PageSetup {
+    /// 쪽 너비
+    pub width: u32,
+    /// 쪽 높이
+    pub height: u32,
+    /// 왼쪽 여백
+    pub margin_left: u32,
+    /// 오른쪽 여백
+    pub margin_right: u32,
+    /// 위 여백(머리말 자리 뺀 것)
+    pub margin_top: u32,
+    /// 아래 여백(꼬리말 자리 뺀 것)
+    pub margin_bottom: u32,
+    /// 머리말 자리
+    pub margin_header: u32,
+    /// 꼬리말 자리
+    pub margin_footer: u32,
+    /// 제본 여백
+    pub margin_gutter: u32,
+    /// 단 수(1 이면 다단 아님)
+    pub columns: u16,
+    /// 단 사이 간격
+    pub column_gap: u32,
+}
+
+/// Word 쪽 설정(twip, 1/1440 인치).
+#[derive(Debug, Clone, Copy, Default)]
+pub(crate) struct WordPage {
+    pub width: i64,
+    pub height: i64,
+    pub top: i64,
+    pub bottom: i64,
+    pub left: i64,
+    pub right: i64,
+    pub header: i64,
+    pub footer: i64,
+    pub gutter: i64,
+    pub columns: i64,
+    pub column_gap: i64,
+}
+
+impl WordPage {
+    /// HWP 쪽 설정으로. Word 는 쪽 끝에서 머리말·본문까지를 재고, HWP 는 본문 여백 + 머리말 자리로 잰다.
+    pub(crate) fn to_setup(self) -> Option<PageSetup> {
+        let hwp = |twip: i64| u32::try_from(twip.max(0) * 5).ok();
+        let (top, bottom) = (self.top.abs(), self.bottom.abs());
+        let header = self.header.clamp(0, top);
+        let footer = self.footer.clamp(0, bottom);
+        let usable_width = self.width - self.left - self.right - self.gutter;
+        let usable_height = self.height - top - bottom;
+        // 1 인치보다 작은 쪽, 본문이 반 인치도 안 남는 여백, 22 인치(Word 상한)보다 큰 쪽은 버린다.
+        if !(1440..=31680).contains(&self.width)
+            || !(1440..=31680).contains(&self.height)
+            || usable_width < 720
+            || usable_height < 720
+            || self.left < 0
+            || self.right < 0
+        {
+            return None;
+        }
+        let columns = self.columns.clamp(1, 16) as u16;
+        Some(PageSetup {
+            width: hwp(self.width)?,
+            height: hwp(self.height)?,
+            margin_left: hwp(self.left)?,
+            margin_right: hwp(self.right)?,
+            margin_top: hwp(top - header)?,
+            margin_bottom: hwp(bottom - footer)?,
+            margin_header: hwp(header)?,
+            margin_footer: hwp(footer)?,
+            margin_gutter: hwp(self.gutter)?,
+            columns,
+            column_gap: hwp(self.column_gap.clamp(0, usable_width / 2))?,
+        })
+    }
 }
 
 /// 제목 문단 하나.
@@ -168,6 +249,8 @@ struct RunProps {
     size: Option<u32>,
     color: Option<String>,
     font: Option<String>,
+    /// 자간(twip, `w:spacing`)
+    spacing: Option<i32>,
 }
 
 impl RunProps {
@@ -180,6 +263,7 @@ impl RunProps {
             size: self.size.or(base.size),
             color: self.color.clone().or_else(|| base.color.clone()),
             font: self.font.clone().or_else(|| base.font.clone()),
+            spacing: self.spacing.or(base.spacing),
         }
     }
 
@@ -213,6 +297,97 @@ impl RunProps {
         if !decorations.is_empty() {
             css.push_str(&format!("text-decoration:{};", decorations.join(" ")));
         }
+        if let Some(spacing) = self.spacing.filter(|s| *s != 0) {
+            css.push_str(&format!("letter-spacing:{:.2}pt;", spacing as f32 / 20.0));
+        }
+        css
+    }
+}
+
+/// 문단 서식(twip): 앞뒤 간격, 줄 간격, 들여쓰기.
+#[derive(Debug, Clone, Default)]
+struct ParaProps {
+    before: Option<i64>,
+    after: Option<i64>,
+    /// 줄 간격 값과 규칙(auto: 240 = 한 줄, exact·atLeast: twip)
+    line: Option<(i64, String)>,
+    left: Option<i64>,
+    right: Option<i64>,
+    /// 첫 줄 들여쓰기(+) 또는 내어쓰기(-)
+    first_line: Option<i64>,
+}
+
+impl ParaProps {
+    fn over(&self, base: &ParaProps) -> ParaProps {
+        ParaProps {
+            before: self.before.or(base.before),
+            after: self.after.or(base.after),
+            line: self.line.clone().or_else(|| base.line.clone()),
+            left: self.left.or(base.left),
+            right: self.right.or(base.right),
+            first_line: self.first_line.or(base.first_line),
+        }
+    }
+
+    /// `w:spacing`·`w:ind` 하나를 반영한다.
+    fn apply(&mut self, element: &BytesStart) {
+        let number = |key: &str| {
+            attr(element, key)
+                .and_then(|v| v.parse::<f64>().ok())
+                .map(|v| v as i64)
+        };
+        match local(element.name().as_ref()) {
+            "spacing" => {
+                self.before = number("before").or(self.before);
+                self.after = number("after").or(self.after);
+                if let Some(line) = number("line") {
+                    let rule = attr(element, "lineRule").unwrap_or_else(|| "auto".into());
+                    self.line = Some((line, rule));
+                }
+            }
+            "ind" => {
+                self.left = number("left").or_else(|| number("start")).or(self.left);
+                self.right = number("right").or_else(|| number("end")).or(self.right);
+                if let Some(hanging) = number("hanging") {
+                    self.first_line = Some(-hanging);
+                } else if let Some(first) = number("firstLine") {
+                    self.first_line = Some(first);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// rhwp HTML 붙여넣기가 읽는 문단 CSS. 줄 간격은 Papy 저장과 같은 기준(240 = 100%)으로 옮긴다.
+    fn css(&self) -> String {
+        let pt = |twip: i64| twip as f32 / 20.0;
+        let mut css = String::new();
+        if let Some(before) = self.before.filter(|v| *v > 0) {
+            css.push_str(&format!("margin-top:{:.1}pt;", pt(before)));
+        }
+        if let Some(after) = self.after.filter(|v| *v > 0) {
+            css.push_str(&format!("margin-bottom:{:.1}pt;", pt(after)));
+        }
+        match &self.line {
+            Some((line, rule)) if rule == "exact" && *line > 0 => {
+                // rhwp 는 px 를 고정 줄 간격으로 읽는다.
+                css.push_str(&format!("line-height:{:.1}px;", pt(*line) * 96.0 / 72.0));
+            }
+            Some((line, rule)) if rule == "auto" && *line > 0 => {
+                let percent = (line * 100 / 240).clamp(50, 500);
+                css.push_str(&format!("line-height:{percent}%;"));
+            }
+            _ => {}
+        }
+        if let Some(left) = self.left.filter(|v| *v != 0) {
+            css.push_str(&format!("margin-left:{:.1}pt;", pt(left.max(0))));
+        }
+        if let Some(right) = self.right.filter(|v| *v > 0) {
+            css.push_str(&format!("margin-right:{:.1}pt;", pt(right)));
+        }
+        if let Some(first) = self.first_line.filter(|v| *v != 0) {
+            css.push_str(&format!("text-indent:{:.1}pt;", pt(first)));
+        }
         css
     }
 }
@@ -221,6 +396,7 @@ impl RunProps {
 struct ParaStyle {
     based_on: Option<String>,
     run: RunProps,
+    para: ParaProps,
     align: Option<String>,
     /// 개요 수준(0부터, `w:outlineLvl` 또는 이름이 "heading N"). 9 는 본문이다.
     outline: Option<u8>,
@@ -281,6 +457,11 @@ fn apply_run_prop(props: &mut RunProps, element: &BytesStart) {
                 .or_else(|| attr(element, "ascii"))
                 .or_else(|| attr(element, "hAnsi"))
         }
+        "spacing" => {
+            props.spacing = attr(element, "val")
+                .and_then(|v| v.parse::<f64>().ok())
+                .map(|v| v as i32)
+        }
         _ => {}
     }
 }
@@ -294,10 +475,22 @@ fn align_css(value: &str) -> &'static str {
     }
 }
 
-/// styles.xml 에서 기본 글자 서식과 문단 스타일을 읽는다.
-fn parse_styles(xml: &str) -> (RunProps, HashMap<String, ParaStyle>) {
+/// styles.xml 에서 읽은 것: 기본 글자·문단 서식, 문단 스타일, 기본 문단 스타일 id.
+#[derive(Default)]
+struct Styles {
+    run: RunProps,
+    para: ParaProps,
+    styles: HashMap<String, ParaStyle>,
+    default_style: Option<String>,
+}
+
+/// styles.xml 에서 기본 글자·문단 서식과 문단 스타일을 읽는다.
+fn parse_styles(xml: &str) -> Styles {
     let mut reader = Reader::from_str(xml);
     let mut defaults = RunProps::default();
+    let mut para_defaults = ParaProps::default();
+    let mut default_style = None;
+    let mut in_ppr_defaults = false;
     let mut styles = HashMap::new();
     let mut current: Option<(String, ParaStyle)> = None;
     let mut in_defaults = false;
@@ -310,11 +503,22 @@ fn parse_styles(xml: &str) -> (RunProps, HashMap<String, ParaStyle>) {
         match event {
             Event::Start(e) | Event::Empty(e) => match local(e.name().as_ref()) {
                 "rPrDefault" => in_defaults = true,
+                "pPrDefault" => in_ppr_defaults = true,
                 "style" => {
                     current = (attr(&e, "type").as_deref() == Some("paragraph"))
                         .then(|| attr(&e, "styleId"))
                         .flatten()
                         .map(|id| (id, ParaStyle::default()));
+                    if let (Some((id, _)), true) = (&current, toggle_attr(&e, "default")) {
+                        default_style = Some(id.clone());
+                    }
+                }
+                "spacing" | "ind" if !in_rpr => {
+                    if in_ppr_defaults {
+                        para_defaults.apply(&e);
+                    } else if let Some((_, style)) = current.as_mut() {
+                        style.para.apply(&e);
+                    }
                 }
                 "basedOn" => {
                     if let Some((_, style)) = current.as_mut() {
@@ -349,6 +553,7 @@ fn parse_styles(xml: &str) -> (RunProps, HashMap<String, ParaStyle>) {
             },
             Event::End(e) => match local(e.name().as_ref()) {
                 "rPrDefault" => in_defaults = false,
+                "pPrDefault" => in_ppr_defaults = false,
                 "rPr" => in_rpr = false,
                 "style" => {
                     if let Some((id, style)) = current.take() {
@@ -360,14 +565,24 @@ fn parse_styles(xml: &str) -> (RunProps, HashMap<String, ParaStyle>) {
             _ => {}
         }
     }
-    (defaults, styles)
+    Styles {
+        run: defaults,
+        para: para_defaults,
+        styles,
+        default_style,
+    }
+}
+
+/// `w:default="1"` 같은 켜짐 속성.
+fn toggle_attr(element: &BytesStart, key: &str) -> bool {
+    attr(element, key).is_some_and(|v| matches!(v.as_str(), "1" | "true" | "on"))
 }
 
 /// 스타일 상속을 풀어 (글자 서식, 정렬, 개요 수준) 을 돌려준다.
 fn resolve_style(
     styles: &HashMap<String, ParaStyle>,
     id: &str,
-) -> (RunProps, Option<String>, Option<u8>) {
+) -> (RunProps, Option<String>, Option<u8>, ParaProps) {
     let mut chain = Vec::new();
     let mut next = Some(id.to_string());
     while let Some(id) = next {
@@ -381,12 +596,14 @@ fn resolve_style(
     let mut run = RunProps::default();
     let mut align = None;
     let mut outline = None;
+    let mut para = ParaProps::default();
     for style in chain.iter().rev() {
         run = style.run.over(&run);
         align = style.align.clone().or(align);
         outline = style.outline.or(outline);
+        para = style.para.over(&para);
     }
-    (run, align, outline)
+    (run, align, outline, para)
 }
 
 fn escape(text: &str) -> String {
@@ -409,6 +626,8 @@ struct CellBuild {
     width: Option<f32>,
     /// None: 병합 없음, Some(true): 병합 시작, Some(false): 위 칸에 이어짐
     vmerge: Option<bool>,
+    /// 칸 테두리·배경·세로 정렬·행 높이 CSS(rhwp 표 붙여넣기가 읽는 것)
+    style: String,
     html: String,
 }
 
@@ -460,6 +679,7 @@ impl TableBuild {
                     // rhwp 는 병합하지 않은 칸의 너비로 열 너비를 정한다.
                     style.push_str(&format!("width:{width:.1}pt;"));
                 }
+                style.push_str(&cell.style);
                 if !style.is_empty() {
                     html.push_str(&format!(" style=\"{style}\""));
                 }
@@ -525,8 +745,18 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
         zip::ZipArchive::new(Cursor::new(bytes)).map_err(|_| invalid("not a ZIP container"))?;
     let document = read_part(&mut archive, "word/document.xml")?
         .ok_or_else(|| Error::new(ErrorCode::UnsupportedFormat, "not a DOCX document"))?;
-    let (defaults, styles) = read_part(&mut archive, "word/styles.xml")?
+    let Styles {
+        run: defaults,
+        para: para_defaults,
+        styles,
+        default_style,
+    } = read_part(&mut archive, "word/styles.xml")?
         .map(|xml| parse_styles(&xml))
+        .unwrap_or_default();
+    // pStyle 이 없는 문단은 기본 문단 스타일(보통 "Normal")을 따른다.
+    let base_style = default_style
+        .as_deref()
+        .map(|id| resolve_style(&styles, id))
         .unwrap_or_default();
 
     let rels = read_part(&mut archive, "word/_rels/document.xml.rels")?
@@ -545,6 +775,24 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
     let mut header_refs: Vec<(bool, String, String)> = Vec::new();
     let mut sections_seen = 0usize;
     let mut title_page = false;
+    // 구역마다 쪽 설정과 문단 수. rhwp 문서는 구역 하나라서 문단이 가장 많은 구역의 쪽 설정을 쓴다
+    // (표지 구역만 여백이 큰 문서 등). 정하지 않은 값은 Word 기본값(Letter, 여백 1 인치, 머리말 0.5 인치).
+    const WORD_PAGE: WordPage = WordPage {
+        width: 12240,
+        height: 15840,
+        top: 1440,
+        bottom: 1440,
+        left: 1440,
+        right: 1440,
+        header: 720,
+        footer: 720,
+        gutter: 0,
+        columns: 1,
+        column_gap: 720,
+    };
+    let mut page = WORD_PAGE;
+    let mut section_pages: Vec<(WordPage, usize)> = Vec::new();
+    let (mut paragraphs, mut section_start) = (0usize, 0usize);
     let mut image_budget = MAX_TOTAL_IMAGE_BYTES;
     let mut drawing: Option<Drawing> = None;
     // 건너뛰는 요소 깊이(mc:Fallback — 같은 내용의 옛 형식, VML)
@@ -559,7 +807,8 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
 
     let mut para_html = String::new();
     let mut in_para = false;
-    let mut para_style: (RunProps, Option<String>, Option<u8>) = (RunProps::default(), None, None);
+    let mut para_style: (RunProps, Option<String>, Option<u8>, ParaProps) = base_style.clone();
+    let mut para_props = ParaProps::default();
     let mut para_align: Option<String> = None;
     // 문단에 직접 준 개요 수준(스타일 것보다 앞선다)과 문단 글자(목차용, 이스케이프 전).
     let mut para_outline: Option<u8> = None;
@@ -567,6 +816,8 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
     let mut page_break_before = false;
     let mut in_ppr = false;
     let mut in_tbl_borders = false;
+    let mut in_tc_borders = false;
+    let mut row_height: Option<f32> = None;
     let mut run = RunProps::default();
     let mut in_run = false;
     let mut in_rpr = false;
@@ -636,11 +887,16 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
                     continue;
                 }
                 match name {
-                    "p" if empty => out(&mut body, &mut cell, "<p></p>"),
+                    "p" if empty => {
+                        paragraphs += 1;
+                        out(&mut body, &mut cell, "<p></p>");
+                    }
                     "p" => {
+                        paragraphs += 1;
                         in_para = true;
                         para_html.clear();
-                        para_style = (RunProps::default(), None, None);
+                        para_style = base_style.clone();
+                        para_props = ParaProps::default();
                         para_align = None;
                         para_outline = None;
                         page_break_before = false;
@@ -676,6 +932,7 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
                         }
                     }
                     "jc" if in_ppr && !in_rpr => para_align = attr(&e, "val"),
+                    "spacing" | "ind" if in_ppr && !in_rpr => para_props.apply(&e),
                     "outlineLvl" if in_ppr && !in_rpr => para_outline = outline_level(&e),
                     "numPr" if in_ppr => {
                         list_item = true;
@@ -685,8 +942,45 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
                     "ilvl" if in_numpr => {
                         ilvl = attr(&e, "val").and_then(|v| v.parse().ok()).unwrap_or(0)
                     }
-                    "sectPr" if !empty => sections_seen += 1,
+                    "sectPr" => {
+                        page = WORD_PAGE;
+                        if empty {
+                            section_pages.push((page, paragraphs - section_start));
+                            section_start = paragraphs;
+                        } else {
+                            sections_seen += 1;
+                        }
+                    }
                     "titlePg" if sections_seen == 1 => title_page = toggle(&e),
+                    "pgSz" => {
+                        let v = |k| attr(&e, k).and_then(|v| v.parse::<f64>().ok());
+                        if let (Some(w), Some(h)) = (v("w"), v("h")) {
+                            (page.width, page.height) = (w as i64, h as i64);
+                        }
+                    }
+                    "pgMar" => {
+                        let v = |k| attr(&e, k).and_then(|v| v.parse::<f64>().ok());
+                        for (key, field) in [
+                            ("top", &mut page.top),
+                            ("bottom", &mut page.bottom),
+                            ("left", &mut page.left),
+                            ("right", &mut page.right),
+                            ("header", &mut page.header),
+                            ("footer", &mut page.footer),
+                            ("gutter", &mut page.gutter),
+                        ] {
+                            if let Some(value) = v(key) {
+                                *field = value as i64;
+                            }
+                        }
+                    }
+                    "cols" => {
+                        let v = |k| attr(&e, k).and_then(|v| v.parse::<f64>().ok());
+                        page.columns = v("num").map_or(1, |n| n as i64);
+                        if let Some(gap) = v("space") {
+                            page.column_gap = gap as i64;
+                        }
+                    }
                     kind @ ("headerReference" | "footerReference") if sections_seen == 1 => {
                         if let (Some(kind_attr), Some(id)) = (attr(&e, "type"), attr(&e, "id")) {
                             header_refs.push((kind == "headerReference", kind_attr, id));
@@ -763,16 +1057,78 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
                         });
                     }
                     "tr" => {
+                        row_height = None;
                         if let Some(table) = tables.last_mut() {
                             table.rows.push(Vec::new());
                         }
+                    }
+                    "trHeight" => {
+                        row_height = attr(&e, "val")
+                            .and_then(|v| v.parse::<f32>().ok())
+                            .filter(|h| *h > 0.0)
+                            .map(|h| h / 20.0);
                     }
                     "tc" => cell.push(Some(CellBuild {
                         span: 1,
                         width: None,
                         vmerge: None,
+                        style: row_height
+                            .map(|h| format!("height:{h:.1}pt;"))
+                            .unwrap_or_default(),
                         html: String::new(),
                     })),
+                    "tcBorders" if !empty => in_tc_borders = true,
+                    side @ ("top" | "left" | "bottom" | "right" | "start" | "end")
+                        if in_tc_borders =>
+                    {
+                        if let Some(Some(current)) = cell.last_mut() {
+                            let side = match side {
+                                "start" => "left",
+                                "end" => "right",
+                                other => other,
+                            };
+                            let value = attr(&e, "val").unwrap_or_default();
+                            let css = match value.as_str() {
+                                "nil" | "none" | "" => "none".to_owned(),
+                                kind => {
+                                    let width = attr(&e, "sz")
+                                        .and_then(|v| v.parse::<f32>().ok())
+                                        .map_or(0.5, |sz| (sz / 8.0).max(0.25));
+                                    let line = match kind {
+                                        "double" => "double",
+                                        "dashed" | "dashSmallGap" => "dashed",
+                                        "dotted" => "dotted",
+                                        _ => "solid",
+                                    };
+                                    let color = attr(&e, "color")
+                                        .filter(|c| c.len() == 6 && c != "auto")
+                                        .unwrap_or_else(|| "000000".into());
+                                    format!("{width:.2}pt {line} #{color}")
+                                }
+                            };
+                            current.style.push_str(&format!("border-{side}:{css};"));
+                        }
+                    }
+                    "shd" if !cell.is_empty() && !in_para => {
+                        if let (Some(Some(current)), Some(fill)) = (
+                            cell.last_mut(),
+                            attr(&e, "fill").filter(|f| f.len() == 6 && f != "auto"),
+                        ) {
+                            current
+                                .style
+                                .push_str(&format!("background-color:#{fill};"));
+                        }
+                    }
+                    "vAlign" => {
+                        if let Some(Some(current)) = cell.last_mut() {
+                            let value = match attr(&e, "val").as_deref() {
+                                Some("center") => "middle",
+                                Some("bottom") => "bottom",
+                                _ => "top",
+                            };
+                            current.style.push_str(&format!("vertical-align:{value};"));
+                        }
+                    }
                     "tcW" => {
                         if let Some(Some(current)) = cell.last_mut() {
                             current.width = (attr(&e, "type").as_deref() == Some("dxa"))
@@ -850,6 +1206,10 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
                 }
             }
             Event::End(e) => match local(e.name().as_ref()) {
+                "sectPr" => {
+                    section_pages.push((page, paragraphs - section_start));
+                    section_start = paragraphs;
+                }
                 "drawing" => {
                     let Some(done) = drawing.take() else { continue };
                     if !done.is_picture() {
@@ -932,6 +1292,7 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
                 "rPr" => in_rpr = false,
                 "pPr" => in_ppr = false,
                 "tblBorders" => in_tbl_borders = false,
+                "tcBorders" => in_tc_borders = false,
                 "numPr" => in_numpr = false,
                 "r" => {
                     flush(
@@ -946,9 +1307,15 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
                 "p" => {
                     in_para = false;
                     let align = para_align.clone().or_else(|| para_style.1.clone());
-                    let style = align
-                        .map(|a| format!(" style=\"text-align:{}\"", align_css(&a)))
+                    let mut css = align
+                        .map(|a| format!("text-align:{};", align_css(&a)))
                         .unwrap_or_default();
+                    css.push_str(&para_props.over(&para_style.3).over(&para_defaults).css());
+                    let style = if css.is_empty() {
+                        String::new()
+                    } else {
+                        format!(" style=\"{css}\"")
+                    };
                     let label = match (&num_id, list_item) {
                         (Some(id), _) => numbering.label(id, ilvl),
                         (None, true) => Some("•".into()),
@@ -991,6 +1358,12 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
             _ => {}
         }
     }
+    // 문단이 가장 많은 구역(같으면 앞 구역).
+    report.page = section_pages
+        .iter()
+        .rev()
+        .max_by_key(|(_, count)| *count)
+        .and_then(|(page, _)| page.to_setup());
     // 머리말·꼬리말: 짝수 쪽 것이 있으면 기본(default)은 홀수 쪽이다. 첫 쪽 것은 rhwp 에 맞는 자리가 없어
     // 첫 쪽에서 기본 것을 감추고(Word 도 첫 쪽 것이 없으면 아무것도 안 보인다), 글자가 있으면 빠진 것으로 센다.
     // 짝수 쪽 것은 설정(evenAndOddHeaders)이 켜졌을 때만 쓴다. 꺼져 있으면 Word 는 모든 쪽에 기본 것을 쓴다.
