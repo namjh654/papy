@@ -1,0 +1,141 @@
+Papy 패치: 붙여넣은 표 칸 안 겹친 표의 글도 칸 너비로 다시 나누고, 칸·행·표 높이를 글에 맞춰 늘린다.
+
+rhwp v0.8.7(1a76570e). 0002 의 `reflow_table_cells_native` 를 넓힌다.
+DOC·DOCX 는 쪽 짜기용으로 표 안에 표를 자주 쓴다. 안쪽 표 칸 문단이 한 줄로만 잡혀 글이 칸 밖으로 나가거나 잘렸다.
+- 안쪽 표마다(깊은 것부터) `reflow_cell_paragraph_by_path` 로 다시 나누고 칸 문단 세로 위치를 다시 잰다.
+- 다시 나눈 글이 칸보다 길면 칸 높이, 그 행 칸 높이, 표 높이를 늘린다(바깥 칸이 안쪽 표 높이로 줄을 잡는다).
+- 안쪽 표도 "글을 다시 나눈 표"로 표시한다.
+
+--- a/src/document_core/commands/text_editing.rs
++++ b/src/document_core/commands/text_editing.rs
+@@ -2687,7 +2687,7 @@
+     /// [Papy] 구역의 본문 표마다 칸 문단의 줄을 칸 너비로 다시 나누고 쪽을 다시 짠다.
+     ///
+     /// HTML 붙여넣기로 만든 표는 칸 문단마다 한 줄로만 잡혀 있어, 칸보다 긴 글은 행 높이가 늘지 않고 잘린다
+-    /// (DOCX·DOC 변환). 붙여넣은 뒤 한 번 부른다. 칸 안 겹친 표는 다시 나누지 않는다.
++    /// (DOCX·DOC 변환). 붙여넣은 뒤 한 번 부른다. 칸 안 겹친 표도 다시 나눈다(패치 0007).
+     pub fn reflow_table_cells_native(&mut self, section_idx: usize) -> Result<(), HwpError> {
+         let paragraph_count = self
+             .document
+@@ -2718,6 +2718,53 @@
+                 })
+                 .collect();
+             for (control_idx, cells) in tables {
++                // [Papy] 칸 안 겹친 표의 칸 문단도 그 칸 너비로 다시 나눈다(안쪽부터).
++                let mut nested: Vec<(Vec<(usize, usize, usize)>, usize)> = Vec::new();
++                let mut nested_keys = Vec::new();
++                if let Some(Control::Table(table)) = self.document.sections[section_idx].paragraphs
++                    [para_idx]
++                    .controls
++                    .get(control_idx)
++                {
++                    fn walk(
++                        table: &crate::model::table::Table,
++                        control_idx: usize,
++                        prefix: &[(usize, usize, usize)],
++                        out: &mut Vec<(Vec<(usize, usize, usize)>, usize)>,
++                        keys: &mut Vec<super::super::TableTextReflowKey>,
++                    ) {
++                        if prefix.len() >= 8 {
++                            return;
++                        }
++                        for (cell_idx, cell) in table.cells.iter().enumerate() {
++                            for (p, paragraph) in cell.paragraphs.iter().enumerate() {
++                                for (ci, control) in paragraph.controls.iter().enumerate() {
++                                    if let Control::Table(inner) = control {
++                                        let mut path = prefix.to_vec();
++                                        path.push((control_idx, cell_idx, p));
++                                        walk(inner, ci, &path, out, keys);
++                                        // 행 높이를 저장값이 아니라 다시 나눈 글로 잰다.
++                                        keys.push(super::super::TableTextReflowKey::from_table(inner));
++                                        for (inner_cell, c) in inner.cells.iter().enumerate() {
++                                            let mut cell_path = path.clone();
++                                            cell_path.push((ci, inner_cell, 0));
++                                            out.push((cell_path, c.paragraphs.len()));
++                                        }
++                                    }
++                                }
++                            }
++                        }
++                    }
++                    walk(table, control_idx, &[], &mut nested, &mut nested_keys);
++                }
++                for (path, count) in nested {
++                    for q in 0..count {
++                        self.reflow_cell_paragraph_by_path(section_idx, para_idx, &path, q);
++                    }
++                    self.recalculate_cell_paragraph_vpos_by_path(section_idx, para_idx, &path, 0, None);
++                    self.grow_nested_table_to_content(section_idx, para_idx, &path);
++                }
++                self.render_normalization.text_reflowed_tables.extend(nested_keys);
+                 for (cell_idx, cell_para_idx) in cells {
+                     self.reflow_cell_paragraph(
+                         section_idx,
+@@ -2737,6 +2784,67 @@
+         self.paginate_if_needed();
+         self.invalidate_page_tree_cache();
+         Ok(())
++    }
++
++    /// [Papy] 다시 나눈 글이 칸보다 길면 칸·행·표 높이를 글에 맞춰 늘린다(겹친 표). `path` 끝은 그 칸.
++    fn grow_nested_table_to_content(
++        &mut self,
++        section_idx: usize,
++        para_idx: usize,
++        path: &[(usize, usize, usize)],
++    ) {
++        let Some((&(table_ctrl, cell_idx, _), parents)) = path.split_last() else {
++            return;
++        };
++        let Some(mut para) = self.document.sections[section_idx].paragraphs.get_mut(para_idx) else {
++            return;
++        };
++        for &(ctrl, cell, p) in parents {
++            let Some(Control::Table(t)) = para.controls.get_mut(ctrl) else {
++                return;
++            };
++            let Some(next) = t.cells.get_mut(cell).and_then(|c| c.paragraphs.get_mut(p)) else {
++                return;
++            };
++            para = next;
++        }
++        let Some(Control::Table(table)) = para.controls.get_mut(table_ctrl) else {
++            return;
++        };
++        let Some(cell) = table.cells.get_mut(cell_idx) else {
++            return;
++        };
++        let content = cell
++            .paragraphs
++            .last()
++            .and_then(|p| p.line_segs.last())
++            .map(|seg| (seg.vertical_pos + seg.line_height).max(0) as u32)
++            .unwrap_or(0);
++        let need = content
++            + cell.padding.top.max(0) as u32
++            + cell.padding.bottom.max(0) as u32;
++        if need <= cell.height {
++            return;
++        }
++        cell.height = need;
++        // 행 높이 = 그 행 한 칸짜리 칸 높이 가운데 가장 큰 것. 표 높이 = 행 높이 합.
++        let rows = table.row_count as usize;
++        let mut row_heights = vec![0u32; rows];
++        for c in &table.cells {
++            if c.row_span <= 1 && (c.row as usize) < rows {
++                row_heights[c.row as usize] = row_heights[c.row as usize].max(c.height);
++            }
++        }
++        let row = table.cells[cell_idx].row as usize;
++        for c in table.cells.iter_mut() {
++            if c.row as usize == row && c.row_span <= 1 {
++                c.height = row_heights[row];
++            }
++        }
++        let total: u32 = row_heights.iter().sum();
++        if total > table.common.height {
++            table.common.height = total;
++        }
+     }
+ 
+     /// Reflow stale cell paragraphs after a table split with the split-specific rule.

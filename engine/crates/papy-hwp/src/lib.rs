@@ -246,6 +246,25 @@ fn split_tables_across_pages(doc: &mut Rhwp) -> std::result::Result<(), rhwp::Hw
     Ok(())
 }
 
+/// rhwp 표 붙여넣기는 표 전체 테두리·배경으로 3 번 테두리/배경(1부터)을 쓴다. 빈 문서에는 둘뿐이라
+/// 붙여넣으며 처음 만든 칸 테두리(배경색 포함)가 3 번이 되어 표 전체가 그 색으로 칠해진다.
+/// 붙여넣기 전에 선·배경 없는 3 번을 만들어 둔다.
+fn reserve_table_border_fill(doc: &mut Rhwp) {
+    if doc.document().doc_info.border_fills.len() >= 3 {
+        return;
+    }
+    let mut document = doc.document().clone();
+    while document.doc_info.border_fills.len() < 3 {
+        let mut plain = rhwp::model::style::BorderFill::default();
+        for border in &mut plain.borders {
+            border.line_type = rhwp::model::style::BorderLineType::None;
+        }
+        document.doc_info.border_fills.push(plain);
+    }
+    document.doc_info.raw_stream_dirty = true;
+    doc.set_document(document);
+}
+
 fn open_converted(
     bytes: &[u8],
     html: &str,
@@ -257,6 +276,7 @@ fn open_converted(
     let (doc, dropped_notes) = guard(|| -> std::result::Result<(Rhwp, usize), rhwp::HwpError> {
         let mut doc = Rhwp::create_empty();
         doc.create_blank_document_native()?;
+        reserve_table_border_fill(&mut doc);
         // 쪽 크기·여백·다단을 먼저 맞춰야 붙여넣은 글과 표가 그 너비로 조판된다.
         if let Some(page) = report.page {
             doc.set_page_def_native(

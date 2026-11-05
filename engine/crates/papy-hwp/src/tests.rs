@@ -1918,3 +1918,18 @@ fn equations_render_to_png() {
     let empty = rhwp::model::control::Equation::default();
     assert!(crate::equation_png(&empty).is_none());
 }
+
+#[test]
+fn docx_nested_table_text_wraps_and_grows() {
+    // 바깥 표 칸 안 표에 긴 문단: 칸 너비로 접히고, 안쪽 표가 글만큼 커져 여러 쪽이 된다.
+    let long = "가나다라마바사아자차카타파하 ".repeat(600);
+    let document = format!(
+        r#"<w:document xmlns:w="w"><w:body><w:tbl><w:tr><w:tc><w:tcPr><w:tcW w:w="9000" w:type="dxa"/></w:tcPr><w:tbl><w:tr><w:tc><w:tcPr><w:tcW w:w="8000" w:type="dxa"/></w:tcPr><w:p><w:r><w:t>{long}</w:t></w:r></w:p></w:tc></w:tr></w:tbl><w:p/></w:tc></w:tr></w:tbl><w:p/></w:body></w:document>"#
+    );
+    let bytes = zip_parts(&[
+        ("[Content_Types].xml", "<Types/>"),
+        ("word/document.xml", &document),
+    ]);
+    let doc = open(HwpBackend::docx(), bytes, &options()).unwrap();
+    assert!(doc.info().page_count >= 2, "{}", doc.info().page_count);
+}

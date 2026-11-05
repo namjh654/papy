@@ -1,0 +1,31 @@
+Papy 패치: HTML 붙여넣기 문단 여백을 HWPX 로 저장했다 다시 열면 두 배가 되는 것을 막는다.
+
+rhwp v0.8.7(1a76570e).
+HTML 붙여넣기는 문단 여백(margin·text-indent)을 공통 IR(HWPUNIT 의 2배)로 넣고 "평문 표기"(`hwpx_plain_para_margin`)로
+표시하는데 "물리 단위"(`hwpx_plain_para_margin_physical`)는 켜지 않는다. 그러면 HWPX 저장이 IR 값을 그대로 쓰고,
+rhwp 가 쓴 패키지(xmlVersion 1.4 이상)를 다시 읽을 때는 평문을 물리 단위로 보고 2배로 올려 여백이 두 배가 된다
+(DOCX → HWPX 저장 → 다시 열기에서 문단 간격이 커져 쪽이 는다). 평문 표시와 함께 물리 단위도 켠다(저장 때 절반으로 쓴다).
+
+--- a/src/document_core/commands/html_import/inline_content.rs
++++ b/src/document_core/commands/html_import/inline_content.rs
+@@ -400,17 +400,20 @@
+             ps.indent = ti;
+             // 평문 표기를 유지하되, 여백은 직렬화기가 공통 IR에서 물리 단위로 되돌린다.
+             ps.hwpx_plain_para_margin = true;
++                ps.hwpx_plain_para_margin_physical = true; // [Papy] 0008
+         }
+         if let Some(v) = parse_css_value(&css_lower, "margin-top") {
+             if let Some(hu) = css_len_to_hwpunit(&v) {
+                 ps.spacing_before = hu.max(0);
+                 ps.hwpx_plain_para_margin = true;
++                ps.hwpx_plain_para_margin_physical = true; // [Papy] 0008
+             }
+         }
+         if let Some(v) = parse_css_value(&css_lower, "margin-bottom") {
+             if let Some(hu) = css_len_to_hwpunit(&v) {
+                 ps.spacing_after = hu.max(0);
+                 ps.hwpx_plain_para_margin = true;
++                ps.hwpx_plain_para_margin_physical = true; // [Papy] 0008
+             }
+         }
+ 

@@ -1,6 +1,6 @@
 [package]
 name = "papy-desktop"
-version = "0.3.0"
+version = "0.3.1"
 description = "Papy desktop app (Tauri host)"
 edition = "2024"
 rust-version = "1.85"
