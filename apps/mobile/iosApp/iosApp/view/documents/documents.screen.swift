@@ -17,6 +17,7 @@ struct DocumentsScreen: View {
         UTType(filenameExtension: "hwp"),
         UTType(filenameExtension: "hwpx"),
         UTType(filenameExtension: "docx"),
+        UTType(filenameExtension: "doc"),
     ].compactMap { $0 }
 
     var body: some View {
@@ -116,6 +117,7 @@ extension DocumentKind {
         case .hwp: "HWP"
         case .hwpx: "HWPX"
         case .docx: "DOCX"
+        case .doc: "DOC"
         }
     }
 }

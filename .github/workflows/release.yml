@@ -63,10 +63,11 @@ jobs:
           tagName: ${{ inputs.tag || github.ref_name }}
           releaseName: "Papy ${{ inputs.tag || github.ref_name }}"
           releaseBody: |
-            미리보기 빌드입니다. PDF·HWP·HWPX·DOCX 보기, HWP·HWPX·DOCX 편집·저장, PDF 로 내보내기를 할 수 있습니다.
-            아직 시험 단계라 중요한 문서는 사본으로 써 주세요.
+            PDF·HWP·HWPX·DOCX·DOC 보기, HWP·HWPX·DOCX·DOC 편집, 저장·형식 변환, PDF 로 내보내기를 할 수 있습니다.
+            중요한 문서는 사본으로 써 주세요.
             설치 방법과 보안 경고 해결: https://papy-omega.vercel.app/install/
             코드 서명이 없어 첫 실행 시 OS 보안 경고가 나올 수 있습니다.
           releaseDraft: false
-          prerelease: true
+          # v1.0.0-rc.1 처럼 태그에 - 가 있으면 미리보기(pre-release)로 올린다.
+          prerelease: ${{ contains(inputs.tag || github.ref_name, '-') }}
           args: --target ${{ matrix.target }}

@@ -1,4 +1,4 @@
-//! Papy Office 문서 변환 — 지금은 DOCX(Word).
+//! Papy Office 문서 변환 — DOCX(Word), 구형 DOC(Word 97~2003 바이너리, [`doc_to_html`]).
 //!
 //! DOCX 는 자체 배치 엔진을 만들지 않고 rhwp 문서 구조로 바꿔 HWP 와 같은 엔진으로 보이고 편집한다
 //! (docs/decisions/0004·로드맵 6b, 2026-11-03 결정).
@@ -6,17 +6,20 @@
 //! - [`docx_to_html`]: DOCX → HTML(문단·글자 서식·표). rhwp 의 HTML 붙여넣기로 문서를 만든다.
 //! - [`docx_from_document`]: rhwp 문서 → DOCX(문단·글자 서식·정렬·줄 간격·표·쪽 크기).
 //!
-//! 그림·도형(사각형·타원·선·글상자)·머리말·꼬리말·본문 각주(글자)·번호 목록(번호 글자)을 옮긴다.
-//! 묶음 도형·차트·SmartArt·VML 개체·미주·표 안 각주·변경 추적은 아직 옮기지 않는다.
+//! 그림·도형(사각형·타원·선·글상자)·묶음 도형(안의 그림 포함)·차트(그림으로)·머리말·꼬리말·각주·미주(글자)·
+//! 번호 목록(번호 글자)을 옮긴다. SmartArt·VML 개체·변경 추적은 옮기지 않는다.
 
+mod chart;
+mod doc;
 mod notes;
 mod read;
 mod shapes;
 mod write;
 
-pub use notes::{ENDNOTE_MARK, FOOTNOTE_MARK, HeaderFooterText};
+pub use doc::{doc_to_html, is_doc};
+pub use notes::{ENDNOTE_MARK, FOOTNOTE_MARK, HeaderFooterText, PAGE_BREAK_MARK};
 pub use read::{DocxHeading, DocxReadReport, docx_to_html, is_docx};
-pub use shapes::{DocxShape, Relative, SHAPE_MARK, ShapeKind, Wrap};
+pub use shapes::{DocxShape, Relative, SHAPE_MARK, ShapeImage, ShapeKind, Wrap};
 pub use write::{docx_from_document, docx_from_document_with_outline};
 
 #[cfg(test)]

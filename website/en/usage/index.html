@@ -7,7 +7,7 @@
     {{header}}
     <main id="main" class="wrap">
       <h1>User guide</h1>
-      <p class="lead">How to open, edit and save documents in Papy. Features marked <span class="badge ok">Next release</span> work in the development build and will ship in the next release.</p>
+      <p class="lead">How to open, edit and save documents in Papy. Features marked <span class="badge ok">v0.3.0</span> are in v0.3.0.</p>
       <ul class="toc">
         <li><a href="#start">Getting started</a></li>
         <li><a href="#open">Opening documents</a></li>
@@ -28,17 +28,17 @@
         <li>Documents open in <strong>view mode</strong>. Switch to edit mode only when you want to make changes.</li>
       </ol>
 
-      <h2 id="open">Opening documents <span class="badge ok">Next release</span></h2>
+      <h2 id="open">Opening documents <span class="badge ok">v0.3.0</span></h2>
       <ul>
         <li><strong>Choose a file:</strong> the <em>Open</em> button or <kbd>Ctrl</kbd>+<kbd>O</kbd>.</li>
         <li><strong>Drag and drop:</strong> drop a file onto the Papy window.</li>
-        <li><strong>Double-click:</strong> once installed, PDF, HWP, HWPX and DOCX files can open in Papy.</li>
+        <li><strong>Double-click:</strong> once installed, PDF, HWP, HWPX, DOCX and DOC files can open in Papy.</li>
         <li><strong>Recent documents:</strong> reopen them from the start screen. The list stays on your computer and you can clear it at any time.</li>
         <li><strong>Password-protected files:</strong> Papy asks for the password of protected PDF and HWP files. Passwords are never stored.</li>
       </ul>
       <p>Papy only reads the files you choose. It does not scan other folders or upload files anywhere.</p>
 
-      <h2 id="view">Viewing and navigating <span class="badge ok">Next release</span></h2>
+      <h2 id="view">Viewing and navigating <span class="badge ok">v0.3.0</span></h2>
       <div class="table-scroll">
         <table>
           <thead><tr><th>Action</th><th>How</th></tr></thead>
@@ -52,8 +52,8 @@
         </table>
       </div>
 
-      <h2 id="edit">Edit mode <span class="badge ok">Next release</span></h2>
-      <p>Use the <em>Edit</em> button in the toolbar or <kbd>Ctrl</kbd>+<kbd>E</kbd> to switch between view mode and edit mode. HWP, HWPX and DOCX files are edited like in a word processor.</p>
+      <h2 id="edit">Edit mode <span class="badge ok">v0.3.0</span></h2>
+      <p>Use the <em>Edit</em> button in the toolbar or <kbd>Ctrl</kbd>+<kbd>E</kbd> to switch between view mode and edit mode. HWP, HWPX, DOCX and DOC files are edited like in a word processor.</p>
       <div class="table-scroll">
         <table>
           <thead><tr><th>Action</th><th>How</th></tr></thead>
@@ -70,7 +70,7 @@
       <p>Click <em>Advanced editing</em> at the right of the format bar in edit mode to open an editor for tables and cells, images and objects, headers and footers, footnotes, and find and replace.
         Click <em>Apply</em> to bring the changes into the document, then save as usual with <kbd>Ctrl</kbd>+<kbd>S</kbd>. The editor works offline too.</p>
 
-      <h2 id="pdf">Editing PDFs <span class="badge ok">Next release</span></h2>
+      <h2 id="pdf">Editing PDFs <span class="badge ok">v0.3.0</span></h2>
       <p>A toolbar appears when you switch a PDF to edit mode.</p>
       <ul>
         <li><strong>Highlight, underline, strikethrough:</strong> pick a tool and drag over the text.</li>
@@ -81,7 +81,7 @@
       </ul>
       <p>Changing text that is already in a PDF is not supported yet.</p>
 
-      <h2 id="save">Saving and converting <span class="badge ok">Next release</span></h2>
+      <h2 id="save">Saving and converting <span class="badge ok">v0.3.0</span></h2>
       <ul>
         <li><strong>Save</strong> <kbd>Ctrl</kbd>+<kbd>S</kbd>: overwrites the original file. Papy writes to a temporary file first, so the original stays intact if something goes wrong.</li>
         <li><strong>Save as</strong> <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd>: choose a new location and format.</li>
@@ -93,6 +93,7 @@
           <thead><tr><th>Open document</th><th>Can be saved as</th></tr></thead>
           <tbody>
             <tr><td>HWP · HWPX · DOCX</td><td>HWP, HWPX, DOCX, PDF, plain text</td></tr>
+            <tr><td>DOC</td><td>DOCX (recommended), HWP, HWPX, PDF, plain text — not written back as DOC</td></tr>
             <tr><td>PDF</td><td>PDF, plain text</td></tr>
           </tbody>
         </table>
@@ -103,14 +104,15 @@
         <table>
           <thead><tr><th>Format</th><th>Viewing</th><th>Editing</th></tr></thead>
           <tbody>
-            <tr><td>PDF</td><td><span class="badge ok">Next release</span></td><td>Annotations, text boxes, pen, fixing text, page editing</td></tr>
-            <tr><td>HWPX · HWP (5.x)</td><td><span class="badge ok">Next release</span></td><td>Text and formatting / tables, images and headers with advanced editing</td></tr>
-            <tr><td>DOCX</td><td><span class="badge ok">Next release</span></td><td>Text and formatting, images, shapes, headers and footnotes kept / grouped shapes and charts in progress</td></tr>
+            <tr><td>PDF</td><td><span class="badge ok">v0.3.0</span></td><td>Annotations, text boxes, pen, fixing text, page editing</td></tr>
+            <tr><td>HWPX · HWP (5.x)</td><td><span class="badge ok">v0.3.0</span></td><td>Text and formatting / tables, images and headers with advanced editing</td></tr>
+            <tr><td>DOCX</td><td><span class="badge ok">v0.3.0</span></td><td>Text and formatting; images, shapes, grouped shapes, charts (as pictures), headers, footnotes and endnotes kept</td></tr>
+            <tr><td>DOC (Word 97–2003)</td><td><span class="badge ok">v0.3.0</span></td><td>Text and formatting; tables, images, footnotes and headers kept / floating shapes and OLE objects are left out; Word 6/95 and password-protected DOC files cannot be opened</td></tr>
             <tr><td>XLSX · PPTX</td><td><span class="badge">Planned</span></td><td>Long-term plan</td></tr>
           </tbody>
         </table>
       </div>
-      <p>If a DOCX has elements that are not carried over yet (grouped shapes, charts, footnotes inside tables, endnotes and so on), Papy tells you when it opens the file. Keep a copy of important originals.</p>
+      <p>If a DOCX or DOC file has elements that are not carried over yet (OLE objects, first-page-only headers, floating shapes in .doc files and so on), Papy tells you when it opens the file. Keep a copy of important originals.</p>
 
       <h2 id="help">Troubleshooting</h2>
       <h3>The app does not open</h3>

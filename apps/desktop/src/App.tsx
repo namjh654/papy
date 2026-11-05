@@ -39,7 +39,7 @@ import { t } from "./i18n";
 const ZOOM_STEPS = [0.25, 0.33, 0.5, 0.67, 0.75, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 5];
 const ZOOM_MIN = ZOOM_STEPS[0]!;
 const ZOOM_MAX = ZOOM_STEPS[ZOOM_STEPS.length - 1]!;
-const EXTENSIONS = ["pdf", "hwp", "hwpx", "docx"];
+const EXTENSIONS = ["pdf", "hwp", "hwpx", "docx", "doc"];
 
 type Opened = OpenedDocument & { path: string };
 type PasswordPrompt = { path: string; fileName: string; retry: boolean; attempt: number };
@@ -171,7 +171,9 @@ export function App() {
     if (!current) return false;
     const formats = workFormats(current);
     if (formats.length === 0) return false;
-    const preferred = formats.includes(extensionOf(current.path)) ? extensionOf(current.path) : formats[0]!;
+    const ext = extensionOf(current.path);
+    // 옛 Word(.doc)는 그대로 쓸 수 없어 DOCX 를 먼저 권한다.
+    const preferred = formats.includes(ext) ? ext : ext === "doc" && formats.includes("docx") ? "docx" : formats[0]!;
     const chosen = await saveDialog({
       defaultPath: `${stemOf(current.fileName)}.${preferred}`,
       filters: [preferred, ...formats.filter((ext) => ext !== preferred)].map((ext) => ({

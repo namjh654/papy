@@ -2438,7 +2438,7 @@ data class DocumentSummary (
     var `session`: kotlin.ULong
     , 
     /**
-     * 형식: "hwp" | "hwpx" | "docx"
+     * 형식: "hwp" | "hwpx" | "docx" | "doc"
      */
     var `format`: kotlin.String
     , 
@@ -2458,7 +2458,7 @@ data class DocumentSummary (
     var `droppedObjects`: kotlin.UInt
     , 
     /**
-     * 본문을 고칠 수 있는가(HWP·HWPX·DOCX)
+     * 본문을 고칠 수 있는가(HWP·HWPX·DOCX. DOC 는 보기 전용)
      */
     var `canEdit`: kotlin.Boolean
     

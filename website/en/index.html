@@ -10,7 +10,7 @@
         "alternateName": ["Papy", "페이피"],
         "applicationCategory": "UtilitiesApplication",
         "operatingSystem": "Windows, macOS, Linux",
-        "description": "A free, offline, source-available app for viewing and editing PDF, Hangul (HWP/HWPX) and Word (DOCX) documents, for personal and noncommercial use",
+        "description": "A free, offline, source-available app for viewing and editing PDF, Hangul (HWP/HWPX) and Word (DOCX, DOC) documents, for personal and noncommercial use",
         "url": "{{url}}",
         "downloadUrl": "{{site}}{{base}}/download/",
         "inLanguage": "en",
@@ -26,7 +26,7 @@
       <section class="hero">
         <h1>View and edit PDF, Hangul and Word documents<br />on your own computer, for free.</h1>
         <p class="lead">
-          Papy is a source-available document app that opens and edits PDF, HWP, HWPX and DOCX files.
+          Papy is a source-available document app that opens and edits PDF, HWP, HWPX, DOCX and DOC files.
           Switch between view and edit mode in one step, then save, save as or convert formats, all offline.
           No sign-up, no ads, no uploads.
         </p>
@@ -36,8 +36,8 @@
           <a class="btn" href="{{repo}}">View source on GitHub</a>
         </div>
         <div class="notice" role="note">
-          <strong>The first full release is on its way.</strong> The features below work in the development build and will ship in the next release.
-          The files on the <a href="{{base}}/download/">download</a> page today are an earlier preview.
+          <strong>The first stable release, v0.3.0, is out.</strong> It adds legacy Word (.doc) files, PDF export for every document (now faster) and more DOCX content such as charts and grouped pictures.
+          Get it on the <a href="{{base}}/download/">download</a> page.
         </div>
       </section>
 
@@ -46,7 +46,7 @@
         <div class="card"><h3>Offline first</h3><p>Your documents are never sent to any server. Papy works without an internet connection.</p></div>
         <div class="card"><h3>No account, no ads</h3><p>No sign-in, no ads, no usage tracking. Install it and start working.</p></div>
         <div class="card"><h3>View or edit</h3><p>Read in view mode, then press <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>E</kbd> to edit. One app for every document.</p></div>
-        <div class="card"><h3>Save and convert</h3><p>Save in the original format, or convert between HWP, HWPX, DOCX and PDF.</p></div>
+        <div class="card"><h3>Save and convert</h3><p>Save in the original format, or convert between HWP, HWPX, DOCX and PDF. Legacy Word (.doc) files open and convert too.</p></div>
         <div class="card"><h3>Korean documents first</h3><p>Open and edit HWP and HWPX, the formats widely used in Korea, without Hancom Office.</p></div>
         <div class="card"><h3>Light and fast</h3><p>Built with a Rust document engine and Tauri, so the installer is small and the app starts quickly.</p></div>
         <div class="card"><h3>Every desktop</h3><p>Windows, macOS and Linux first, then Android and iOS.</p></div>
@@ -58,12 +58,13 @@
         <table>
           <thead><tr><th>Format</th><th>What works</th><th>Status</th></tr></thead>
           <tbody>
-            <tr><td>PDF</td><td>Viewing, zoom, outline; highlight, underline, strikethrough, pen, text box, notes; fix text already on the page; rotate, move and delete pages</td><td><span class="badge ok">Next release</span></td></tr>
-            <tr><td>HWPX · HWP (5.x)</td><td>Viewing, typing and deleting text, character and paragraph formatting, undo, password-protected files</td><td><span class="badge ok">Next release</span></td></tr>
-            <tr><td>DOCX</td><td>Viewing, typing and formatting text, tables, images, shapes (rectangles, ellipses, lines, text boxes), headers, footers, footnotes and numbered lists kept (grouped shapes and charts in progress)</td><td><span class="badge ok">Next release</span></td></tr>
-            <tr><td>Conversion</td><td>Between HWP, HWPX and DOCX, plus export to PDF and plain text</td><td><span class="badge ok">Next release</span></td></tr>
-            <tr><td>Advanced editing (HWP, HWPX)</td><td>Tables and cells, images and objects, headers and footers, footnotes, find and replace</td><td><span class="badge ok">Next release</span></td></tr>
-            <tr><td>XLSX · PPTX</td><td>Viewing first, then more over time</td><td><span class="badge">Planned</span></td></tr>
+            <tr><td>PDF</td><td>Viewing, zoom, outline; highlight, underline, strikethrough, pen, text box, notes; fix text already on the page; rotate, move and delete pages</td><td><span class="badge ok">v0.3.0</span></td></tr>
+            <tr><td>HWPX · HWP (5.x)</td><td>Viewing, typing and deleting text, character and paragraph formatting, undo, password-protected files</td><td><span class="badge ok">v0.3.0</span></td></tr>
+            <tr><td>DOCX</td><td>Viewing, typing and formatting text; tables, images, shapes (rectangles, ellipses, lines, text boxes), grouped shapes, charts (as pictures), headers, footers, footnotes, endnotes and numbered lists kept</td><td><span class="badge ok">v0.3.0</span></td></tr>
+            <tr><td>DOC (Word 97–2003)</td><td>Viewing and editing; tables, images, footnotes, headers and footers kept; save as DOCX, HWP, HWPX or PDF</td><td><span class="badge ok">v0.3.0</span></td></tr>
+            <tr><td>Conversion</td><td>Between HWP, HWPX and DOCX, from DOC, plus export to PDF and plain text</td><td><span class="badge ok">v0.3.0</span></td></tr>
+            <tr><td>Advanced editing (HWP, HWPX)</td><td>Tables and cells, images and objects, headers and footers, footnotes, find and replace</td><td><span class="badge ok">v0.3.0</span></td></tr>
+            <tr><td>XLSX · PPTX</td><td>Viewing first, then more over time (approach under study)</td><td><span class="badge">Planned</span></td></tr>
           </tbody>
         </table>
       </div>
@@ -78,8 +79,8 @@
       <p>No. Documents are processed only on your computer. The app goes online only for clearly stated purposes, such as checking for a new version (if that is added). See the <a href="{{base}}/privacy/">privacy policy</a> for details.</p>
       <h3>Can I open HWP files without Hancom Office?</h3>
       <p>Yes. Papy opens HWP (5.x) and HWPX without Hancom Office, and you can edit the text and formatting and save. Tables, images and headers can be edited with advanced editing.</p>
-      <h3>Does it work with Word (DOCX) files?</h3>
-      <p>You can open and edit DOCX, save it back as DOCX, or convert it to HWP, HWPX or PDF. Images, shapes, headers, footers, footnotes and numbered lists are carried over; Papy tells you when it opens a file with elements it cannot carry over yet, such as grouped shapes or charts. Keep a copy of the original.</p>
+      <h3>Does it work with Word (DOCX, DOC) files?</h3>
+      <p>You can open and edit DOCX, save it back as DOCX, or convert it to HWP, HWPX or PDF. Images, shapes, grouped shapes, charts, headers, footers, footnotes and numbered lists are carried over. Legacy Word files (.doc, 97–2003) open and can be edited too, and are saved as DOCX, HWP, HWPX or PDF. Papy tells you when a file has elements it cannot carry over yet, such as OLE objects or floating shapes in .doc files. Keep a copy of the original.</p>
       <h3>Can I use it on my phone?</h3>
       <p>Once the desktop engine is stable, the same engine will power Android and iOS apps.</p>
     </main>

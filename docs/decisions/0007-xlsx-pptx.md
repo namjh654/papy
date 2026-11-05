@@ -1,7 +1,7 @@
 # 0007. XLSX·PPTX 지원 방식 (데스크톱·모바일)
 
-- 상태: **제안 (2026-11-04)** — 사용자 결정 필요(아래 "정할 것")
-- 관련: [formats/README.md](../formats/README.md)(XLSX P1, PPTX P2), [0004 HWP 엔진](0004-hwp-engine.md), [0006 모바일 연결](0006-mobile-bridge.md)
+- 상태: **보류 (2026-11-05)** — 사용자가 더 연구한 뒤 정한다. v0.3.0 은 XLSX·PPTX 없이 낸다(제안 2026-11-04, 아래 "정할 것")
+- 관련: [formats/README.md](../formats/README.md), [0004 HWP 엔진](0004-hwp-engine.md), [0006 모바일 연결](0006-mobile-bridge.md)
 
 ## 맥락
 

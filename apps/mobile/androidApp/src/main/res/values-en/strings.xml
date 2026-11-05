@@ -75,7 +75,7 @@
     <string name="documents_open">Open document</string>
     <string name="documents_recent">Recent documents</string>
     <string name="documents_empty">No recent documents</string>
-    <string name="documents_empty_message">Tap Open document to choose a PDF, HWP, HWPX or DOCX file.</string>
+    <string name="documents_empty_message">Tap Open document to choose a PDF, HWP, HWPX, DOCX or DOC file.</string>
     <string name="documents_clear">Clear list</string>
     <string name="documents_remove">Remove from list</string>
     <string name="viewer_opening">Opening document…</string>
@@ -84,7 +84,7 @@
     <string name="viewer_password_wrong">That password isn\'t right. Please try again.</string>
     <string name="viewer_password_open">Open</string>
     <string name="viewer_error_unreadable">The file can\'t be read. It may have been deleted or access was removed.</string>
-    <string name="viewer_error_unsupported">This document isn\'t supported. Papy opens PDF, HWP, HWPX and DOCX.</string>
+    <string name="viewer_error_unsupported">This document isn\'t supported. Papy opens PDF, HWP, HWPX, DOCX and DOC.</string>
     <string name="viewer_error_invalid">The document is damaged or not in a valid format.</string>
     <string name="viewer_error_too_large">The document is too large to open on this device.</string>
     <string name="viewer_error_internal">Something went wrong while opening the document.</string>

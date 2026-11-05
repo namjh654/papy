@@ -21,7 +21,7 @@ export const en: Messages = {
     home: {
       title: "Papy — Free, offline PDF, HWP and DOCX document editor",
       description:
-        "Papy is a source-available app for viewing and editing PDF, Hangul (HWP/HWPX) and Word (DOCX) documents, free for personal and noncommercial use. Switch between view and edit mode, save and convert formats on your own computer, with no sign-up, ads or uploads. Windows, macOS and Linux.",
+        "Papy is a source-available app for viewing and editing PDF, Hangul (HWP/HWPX) and Word (DOCX, DOC) documents, free for personal and noncommercial use. Switch between view and edit mode, save and convert formats on your own computer, with no sign-up, ads or uploads. Windows, macOS and Linux.",
       nav: "About",
     },
     download: {

@@ -33,7 +33,9 @@
 |---|---|---|---|
 | PDFium 사전 빌드 ([bblanchon/pdfium-binaries](https://github.com/bblanchon/pdfium-binaries)) | chromium/8125 | `scripts/fetch-pdfium.mjs` (타깃별 SHA-256) | `node scripts/fetch-pdfium.mjs [rust-target]` |
 | `pdfium-render` (crate) | =0.9.5 (feature `pdfium_8125`) | `engine/crates/papy-pdf/Cargo.toml` | crates.io |
-| rhwp ([edwardkim/rhwp](https://github.com/edwardkim/rhwp)) | v0.8.7 (`1a76570e833917d15817415a53c09ad61ab3203f`) | `scripts/fetch-rhwp.mjs` | `node scripts/fetch-rhwp.mjs` (sparse, 약 47MB). 받은 뒤 `engine/patches/rhwp/*.patch` 적용(큰 표 조판 속도, 결과 같음) |
+| rhwp ([edwardkim/rhwp](https://github.com/edwardkim/rhwp)) | v0.8.7 (`1a76570e833917d15817415a53c09ad61ab3203f`) | `scripts/fetch-rhwp.mjs` | `node scripts/fetch-rhwp.mjs` (sparse, 약 47MB). 받은 뒤 `engine/patches/rhwp/*.patch` 를 이름 순서로 적용: 0001 큰 표 조판 속도(결과 같음), 0002·0003 DOCX·DOC 변환 도움 함수(새 함수만), 0004 PDF 에서 읽을 수 없는 그림만 빼기, 0005 PDF 글꼴 처리 속도(결과 같음). 각 패치 머리에 이유를 적는다 |
+| Apache POI 문서 모음(Apache-2.0, 회귀 점검용) | `7f4d36854109efa17152b27a5fb1b2c7d842c314` `test-data/document` 의 .doc·.docx | `scripts/fetch-corpus.mjs` | `node scripts/fetch-corpus.mjs poi` (→ `tests/corpus/poi-documents/`, git 제외) |
+| `cfb` (crate) | 0.15 | `engine/crates/papy-office/Cargo.toml` | crates.io (DOC 의 OLE 복합 파일 읽기) |
 | `resvg` (crate) | =0.45.1 | `engine/crates/papy-hwp/Cargo.toml` | crates.io |
 | Noto Sans KR Regular (OFL-1.1) | rhwp v0.8.7 저장소 사본 | `scripts/fetch-rhwp.mjs` | rhwp 받을 때 함께 |
 | rhwp 샘플 문서 모음(MIT, 회귀 점검용) | rhwp v0.8.7 (`1a76570e`) `samples/` | `scripts/fetch-corpus.mjs` | `node scripts/fetch-corpus.mjs` (약 700MB → `tests/corpus/rhwp-samples/`, git 제외) |

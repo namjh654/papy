@@ -30,6 +30,7 @@
 			<key>LSItemContentTypes</key>
 			<array>
 				<string>org.openxmlformats.wordprocessingml.document</string>
+				<string>com.microsoft.word.doc</string>
 			</array>
 		</dict>
 		<dict>

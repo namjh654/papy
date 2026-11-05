@@ -22,6 +22,8 @@ pub enum DocumentFormat {
     ZipContainer,
     /// Word 문서(DOCX). ZIP 컨테이너를 연 뒤 내부 항목으로 확정한다.
     Docx,
+    /// 구형 Word 문서(DOC, Word 97~2003). CFB 컨테이너를 연 뒤 `WordDocument` 스트림으로 확정한다.
+    Doc,
 }
 
 impl DocumentFormat {
@@ -33,6 +35,7 @@ impl DocumentFormat {
             Self::CompoundFile => "OLE compound file",
             Self::ZipContainer => "ZIP container",
             Self::Docx => "DOCX",
+            Self::Doc => "DOC",
         }
     }
 }

@@ -62,3 +62,5 @@ apps/mobile/iosApp/iosApp/Resources/Licenses/
 # 회귀 점검 문서 모음(scripts/fetch-corpus.mjs 가 받는다)
 tests/corpus/rhwp-samples/
 tests/corpus/rhwp-samples.download/
+tests/corpus/poi-documents/
+tests/corpus/poi-documents.download/

@@ -78,6 +78,7 @@ final class PapyDocumentEngine: NSObject, DocumentEngine, @unchecked Sendable {
             let kind: DocumentKind = switch summary.format {
             case "hwp": .hwp
             case "hwpx": .hwpx
+            case "doc": .doc
             default: .docx
             }
             return OpenResult.companion.success(document: OpenedDocument(

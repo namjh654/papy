@@ -2,8 +2,8 @@
 //!
 //! 도형은 rhwp HTML 붙여넣기로 넣을 수 없어, 본문에는 [`SHAPE_MARK`] 만 두고 도형 정보는
 //! [`crate::DocxReadReport::shapes`] 로 넘긴다. papy-hwp 가 붙여넣은 뒤 그 자리에 도형을 만든다.
-//! 묶음 도형(`wpg:wgp`)은 안의 도형을 하나씩 풀어 같은 자리에 놓는다(묶음 안 그림은 아직 옮기지 않는다).
-//! 차트·SmartArt 는 아직 옮기지 않는다.
+//! 묶음 도형(`wpg:wgp`)은 안의 도형·그림·차트를 하나씩 풀어 같은 자리에 놓는다.
+//! 차트는 저장된 값으로 그림을 그려 넣는다([`crate::chart`]). SmartArt·잉크는 아직 옮기지 않는다.
 
 use quick_xml::events::BytesStart;
 
@@ -82,6 +82,26 @@ pub struct DocxShape {
     pub flip_v: bool,
     /// 글상자 문단(없으면 글상자가 아님)
     pub text: Vec<String>,
+    /// 그림으로 넣을 내용(묶음 안 그림, 차트). 있으면 도형 대신 이 그림을 넣는다.
+    pub image: Option<ShapeImage>,
+    /// 읽는 중에 찾은 그림·차트 관계 id. [`crate::docx_to_html`] 이 [`DocxShape::image`] 로 푼다.
+    pub(crate) pending: Option<Pending>,
+}
+
+/// 도형 자리에 넣을 그림.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ShapeImage {
+    /// PNG·JPEG·GIF·BMP 파일 바이트
+    Raster(Vec<u8>),
+    /// SVG 문서(차트). 넣는 쪽이 비트맵으로 그린다.
+    Svg(String),
+}
+
+/// 아직 풀지 않은 관계.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum Pending {
+    Image(String),
+    Chart(String),
 }
 
 /// Office 기본 테마의 도형 색(테마 색을 풀지 않을 때 쓴다): accent1 채우기, 그보다 어두운 선.
@@ -139,6 +159,10 @@ pub(crate) struct Drawing {
     group: Option<Group>,
     /// 맨 바깥 묶음을 다 읽었다
     group_done: bool,
+    /// 차트 관계 id(`c:chart r:id`)
+    chart: Option<String>,
+    /// 묶음 안 `graphicFrame`(변환이 `spPr` 밖에 있다)
+    frame: bool,
 }
 
 /// 묶음의 좌표 변환: 자식 좌표 `ch_off..ch_off+ch_ext` 를 부모 좌표 `off..off+ext` 로 옮긴다.
@@ -176,8 +200,9 @@ struct Group {
     /// `grpSpPr` 안(지금 묶음의 변환을 읽는 중)
     in_props: bool,
     in_xfrm: bool,
-    /// 읽는 중인 안쪽 도형
+    /// 읽는 중인 안쪽 도형과 그 요소 이름(wsp·pic·graphicFrame)
     child: Option<Box<Drawing>>,
+    child_tag: &'static str,
     /// 다 읽은 안쪽 도형과 그 자리
     done: Vec<Placed>,
     /// 옮기지 못한 안쪽 개체(그림·차트 등)
@@ -221,13 +246,34 @@ impl Group {
                     }
                 }
             }
-            "wsp" if !empty => {
-                self.child = Some(Box::new(Drawing {
-                    shape: true,
-                    ..Drawing::default()
-                }))
+            "wsp" | "pic" | "graphicFrame" if !empty => {
+                let (tag, child) = match name {
+                    "wsp" => (
+                        "wsp",
+                        Drawing {
+                            shape: true,
+                            ..Drawing::default()
+                        },
+                    ),
+                    "pic" => (
+                        "pic",
+                        Drawing {
+                            picture: true,
+                            ..Drawing::default()
+                        },
+                    ),
+                    _ => (
+                        "graphicFrame",
+                        Drawing {
+                            frame: true,
+                            ..Drawing::default()
+                        },
+                    ),
+                };
+                self.child_tag = tag;
+                self.child = Some(Box::new(child));
             }
-            // 묶음 안 그림·차트·잉크 등은 아직 옮기지 않는다.
+            // 묶음 안 잉크·빈 그림 등은 옮기지 않는다.
             "pic" | "graphicFrame" | "contentPart" => {
                 self.dropped += 1;
                 if !empty {
@@ -243,7 +289,7 @@ impl Group {
             self.skip -= 1;
             return;
         }
-        if name == "wsp" {
+        if self.child.is_some() && name == self.child_tag {
             if let Some(child) = self.child.take() {
                 let off = child.xfrm_off.unwrap_or((0, 0));
                 let ext = child.xfrm_ext.unwrap_or((0, 0));
@@ -351,9 +397,10 @@ impl Drawing {
                 })
             }
             // 차트·SmartArt·잉크 등
-            "wgp" | "grpSp" | "chart" | "relIds" | "contentPart" => self.unsupported = true,
+            "chart" => self.chart = attr(e, "id"),
+            "wgp" | "grpSp" | "relIds" | "contentPart" => self.unsupported = true,
             "spPr" if !empty => self.in_shape_props = true,
-            "xfrm" if self.in_shape_props => {
+            "xfrm" if self.in_shape_props || (self.frame && !empty) => {
                 self.flip_h = attr(e, "flipH").as_deref() == Some("1");
                 self.flip_v = attr(e, "flipV").as_deref() == Some("1");
                 self.in_xfrm = !empty;
@@ -507,8 +554,37 @@ impl Drawing {
 
     /// 다 읽은 도형. 옮길 수 없는 것이면 None.
     fn into_shape(self) -> Option<DocxShape> {
-        if !self.shape || self.unsupported {
+        let pending = match (&self.chart, &self.embed) {
+            (Some(chart), _) => Some(Pending::Chart(chart.clone())),
+            (None, Some(embed)) if self.picture => Some(Pending::Image(embed.clone())),
+            _ => None,
+        };
+        if self.unsupported || (!self.shape && pending.is_none()) {
             return None;
+        }
+        if let Some(pending) = pending {
+            let size = |value: Option<f64>| value.filter(|v| *v > 0.0).map_or(0, |v| v as i64);
+            let (width, height) = (size(self.cx), size(self.cy));
+            if width == 0 || height == 0 {
+                return None;
+            }
+            return Some(DocxShape {
+                kind: ShapeKind::Rectangle,
+                width,
+                height,
+                inline: self.inline,
+                horizontal: self.horizontal.unwrap_or((Relative::Column, 0)),
+                vertical: self.vertical.unwrap_or((Relative::Paragraph, 0)),
+                wrap: self.wrap.unwrap_or(Wrap::InFront),
+                fill: None,
+                line: None,
+                line_width: 0,
+                flip_h: self.flip_h,
+                flip_v: self.flip_v,
+                text: Vec::new(),
+                image: None,
+                pending: Some(pending),
+            });
         }
         let kind = match self.geometry.as_deref() {
             Some("ellipse") => ShapeKind::Ellipse,
@@ -556,6 +632,8 @@ impl Drawing {
             } else {
                 Vec::new()
             },
+            image: None,
+            pending: None,
         })
     }
 }

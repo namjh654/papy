@@ -45,15 +45,15 @@ export const en: Messages = {
         .join(" "),
     dropped: (count) =>
       `${count} element(s) in this document (charts, pictures inside groups, footnotes inside tables and so on) can't be carried over yet and aren't shown. Saving will leave them out, so keep a copy of the original.`,
-    openFilter: "Documents (PDF, HWP, HWPX, DOCX)",
+    openFilter: "Documents (PDF, HWP, HWPX, DOCX, DOC)",
     studioApplied: "Advanced edits applied. Save to write them to the file.",
-    onlySupported: "Only PDF, HWP, HWPX and DOCX files can be opened.",
+    onlySupported: "Only PDF, HWP, HWPX, DOCX and DOC files can be opened.",
     opening: "Opening document…",
     dropHere: "Drop here to open the document",
   },
   errors: {
     io: "The file can't be read. Check whether it has been moved or deleted.",
-    unsupported: "This format isn't supported. Papy opens PDF, HWP, HWPX and DOCX documents.",
+    unsupported: "This format isn't supported. Papy opens PDF, HWP, HWPX, DOCX and DOC documents.",
     invalid: "The document is damaged or not in a valid format, so it can't be opened.",
     password: "A password is needed, or the password is wrong.",
     notSupported: "This isn't supported for this document yet.",
@@ -157,7 +157,7 @@ export const en: Messages = {
     exportAs: "Export to another format",
   },
   welcome: {
-    lead: "Open and edit PDF, Hangul (HWP, HWPX) and Word (DOCX) documents, no internet needed.",
+    lead: "Open and edit PDF, Hangul (HWP, HWPX) and Word (DOCX, DOC) documents, no internet needed.",
     open: "Open document",
     dropHint: "or drag a file into this window ·",
     recent: "Recent documents",

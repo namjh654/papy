@@ -27,7 +27,7 @@ struct AppState {
 }
 
 /// Papy 가 여는 확장자. 파일 연결 인자에서 이것만 받는다.
-const OPENABLE: [&str; 4] = ["pdf", "hwp", "hwpx", "docx"];
+const OPENABLE: [&str; 5] = ["pdf", "hwp", "hwpx", "docx", "doc"];
 
 fn openable(path: &Path) -> bool {
     path.extension()

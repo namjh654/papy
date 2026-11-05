@@ -1685,3 +1685,190 @@ fn caret_moves_up_and_down_through_table_cells() {
         "{back:?}"
     );
 }
+
+// ---- DOCX: 묶음 안 그림·차트·첫 쪽 머리말 ----
+
+/// 묶음 안 빨간 그림(왼쪽 반)과 녹색 막대 차트(글자처럼), "첫 쪽 다르게" 구역(첫 쪽 머리말은 비어 있음).
+fn docx_with_group_picture_and_chart() -> Vec<u8> {
+    use std::io::Write;
+    let document = r#"<w:document xmlns:w="w" xmlns:wp="wp" xmlns:a="a" xmlns:pic="pic" xmlns:r="r" xmlns:wpg="wpg" xmlns:wps="wps" xmlns:c="c"><w:body>
+<w:p><w:r><w:t>묶음 앞</w:t></w:r><w:r><w:drawing><wp:anchor behindDoc="0"><wp:positionH relativeFrom="page"><wp:posOffset>1270000</wp:posOffset></wp:positionH><wp:positionV relativeFrom="paragraph"><wp:posOffset>0</wp:posOffset></wp:positionV><wp:extent cx="2540000" cy="1270000"/><wp:wrapSquare/><wp:docPr id="1"/><a:graphic><a:graphicData><wpg:wgp><wpg:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="2540000" cy="1270000"/><a:chOff x="0" y="0"/><a:chExt cx="200" cy="100"/></a:xfrm></wpg:grpSpPr>
+<pic:pic><pic:blipFill><a:blip r:embed="rId9"/></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="100" cy="100"/></a:xfrm><a:prstGeom prst="rect"/></pic:spPr></pic:pic>
+<wps:wsp><wps:spPr><a:xfrm><a:off x="100" y="0"/><a:ext cx="100" cy="100"/></a:xfrm><a:prstGeom prst="rect"/><a:solidFill><a:srgbClr val="0000FF"/></a:solidFill></wps:spPr><wps:bodyPr/></wps:wsp>
+</wpg:wgp></a:graphicData></a:graphic></wp:anchor></w:drawing></w:r><w:r><w:t xml:space="preserve"> 묶음 뒤</w:t></w:r></w:p>
+<w:p><w:r><w:drawing><wp:inline><wp:extent cx="3810000" cy="2540000"/><wp:docPr id="2"/><a:graphic><a:graphicData><c:chart r:id="rIdC"/></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>
+<w:p><w:r><w:t>차트 아래</w:t></w:r></w:p>
+<w:sectPr><w:headerReference w:type="default" r:id="rIdH"/><w:headerReference w:type="first" r:id="rIdE"/><w:titlePg/></w:sectPr></w:body></w:document>"#;
+    let chart = r#"<c:chartSpace xmlns:c="c" xmlns:a="a"><c:chart><c:title><c:tx><c:rich><a:p><a:r><a:t>분기 매출</a:t></a:r></a:p></c:rich></c:tx></c:title><c:autoTitleDeleted val="0"/><c:plotArea><c:barChart><c:barDir val="col"/><c:grouping val="clustered"/><c:ser><c:idx val="0"/><c:tx><c:strRef><c:strCache><c:pt idx="0"><c:v>매출</c:v></c:pt></c:strCache></c:strRef></c:tx><c:spPr><a:solidFill><a:srgbClr val="00B050"/></a:solidFill></c:spPr><c:cat><c:strRef><c:strCache><c:ptCount val="3"/><c:pt idx="0"><c:v>1분기</c:v></c:pt><c:pt idx="1"><c:v>2분기</c:v></c:pt><c:pt idx="2"><c:v>3분기</c:v></c:pt></c:strCache></c:strRef></c:cat><c:val><c:numRef><c:numCache><c:ptCount val="3"/><c:pt idx="0"><c:v>4</c:v></c:pt><c:pt idx="1"><c:v>8</c:v></c:pt><c:pt idx="2"><c:v>6</c:v></c:pt></c:numCache></c:numRef></c:val></c:ser></c:barChart><c:catAx/><c:valAx/></c:plotArea></c:chart></c:chartSpace>"#;
+    let rels = r#"<Relationships xmlns="r"><Relationship Id="rId9" Type="image" Target="media/red.png"/><Relationship Id="rIdC" Type="chart" Target="charts/chart1.xml"/><Relationship Id="rIdH" Type="header" Target="header1.xml"/><Relationship Id="rIdE" Type="header" Target="header2.xml"/></Relationships>"#;
+    let mut buffer = std::io::Cursor::new(Vec::new());
+    let mut zip = zip::ZipWriter::new(&mut buffer);
+    let options = zip::write::SimpleFileOptions::default();
+    for (name, bytes) in [
+        ("[Content_Types].xml", &b"<Types/>"[..]),
+        ("word/document.xml", document.as_bytes()),
+        ("word/_rels/document.xml.rels", rels.as_bytes()),
+        ("word/media/red.png", RED_PNG),
+        ("word/charts/chart1.xml", chart.as_bytes()),
+        (
+            "word/header1.xml",
+            r#"<w:hdr xmlns:w="w"><w:p><w:r><w:t>기본 머리말</w:t></w:r></w:p></w:hdr>"#.as_bytes(),
+        ),
+        (
+            "word/header2.xml",
+            r#"<w:hdr xmlns:w="w"><w:p/></w:hdr>"#.as_bytes(),
+        ),
+    ] {
+        zip.start_file(name, options).unwrap();
+        zip.write_all(bytes).unwrap();
+    }
+    zip.finish().unwrap();
+    buffer.into_inner()
+}
+
+#[test]
+fn docx_group_pictures_charts_and_first_page_header() {
+    let mut doc = open(
+        HwpBackend::docx(),
+        docx_with_group_picture_and_chart(),
+        &options(),
+    )
+    .unwrap();
+    assert_eq!(doc.info().dropped_objects, 0);
+    let page = doc.render_page(0, &RenderRequest::with_scale(1.0)).unwrap();
+    let count = |want: fn(&[u8]) -> bool| page.pixels.chunks_exact(4).filter(|p| want(p)).count();
+    // 묶음 안 그림(100×100pt), 옆 파란 사각형, 차트의 녹색 막대
+    let red = count(|p| p[0] > 200 && p[1] < 80 && p[2] < 80);
+    let blue = count(|p| p[2] > 200 && p[0] < 60 && p[1] < 60);
+    let green = count(|p| p[1] > 150 && p[0] < 60 && p[2] > 40 && p[2] < 120);
+    let bbox = |want: fn(&[u8]) -> bool| {
+        let width = page.width as usize;
+        let (mut x0, mut y0, mut x1, mut y1) = (usize::MAX, usize::MAX, 0, 0);
+        for (i, p) in page.pixels.chunks_exact(4).enumerate() {
+            if want(p) {
+                let (x, y) = (i % width, i / width);
+                x0 = x0.min(x);
+                y0 = y0.min(y);
+                x1 = x1.max(x);
+                y1 = y1.max(y);
+            }
+        }
+        (x0, y0, x1, y1)
+    };
+    let red_box = bbox(|p| p[0] > 200 && p[1] < 80 && p[2] < 80);
+    let blue_box = bbox(|p| p[2] > 200 && p[0] < 60 && p[1] < 60);
+    assert!(red > 8_000, "red {red} {red_box:?} blue {blue_box:?}");
+    assert!(blue > 8_000, "blue {blue}");
+    assert!(green > 2_000, "green {green}");
+    // 묶음 안 그림과 사각형이 같은 높이에 나란히
+    assert!(
+        red_box.1.abs_diff(blue_box.1) <= 2,
+        "{red_box:?} {blue_box:?}"
+    );
+    assert!(red_box.2 < blue_box.0 + 2, "{red_box:?} {blue_box:?}");
+    let text = doc.extract_text(0).unwrap();
+    assert!(text.contains("묶음 앞 묶음 뒤"), "{text:?}");
+    assert!(text.contains("차트 아래"), "{text:?}");
+    // 첫 쪽에서는 기본 머리말을 감춘다.
+    assert!(!text.contains("기본 머리말"), "{text:?}");
+    // 그림 둘(묶음 안 그림·차트)이 저장된다.
+    let body = zip_text(&doc.save(SaveFormat::Docx).unwrap(), "word/document.xml");
+    assert_eq!(body.matches("<pic:pic").count(), 2, "{body}");
+    assert!(doc.save(SaveFormat::Pdf).is_ok());
+}
+
+#[test]
+fn docx_table_footnotes_are_kept() {
+    let document = r#"<w:document xmlns:w="w" xmlns:r="r"><w:body><w:p><w:r><w:t>앞</w:t></w:r><w:r><w:footnoteReference w:id="1"/></w:r></w:p><w:tbl><w:tr><w:tc><w:p><w:r><w:t>칸 글</w:t></w:r><w:r><w:footnoteReference w:id="2"/></w:r><w:r><w:t xml:space="preserve"> 뒤</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>옆 칸</w:t></w:r></w:p></w:tc></w:tr></w:tbl><w:p><w:r><w:t>끝</w:t></w:r><w:r><w:footnoteReference w:id="3"/></w:r></w:p></w:body></w:document>"#;
+    let footnotes = r#"<w:footnotes xmlns:w="w"><w:footnote w:id="1"><w:p><w:r><w:t>첫 각주</w:t></w:r></w:p></w:footnote><w:footnote w:id="2"><w:p><w:r><w:t>표 각주</w:t></w:r></w:p></w:footnote><w:footnote w:id="3"><w:p><w:r><w:t>셋째 각주</w:t></w:r></w:p></w:footnote></w:footnotes>"#;
+    let bytes = zip_parts(&[
+        ("[Content_Types].xml", "<Types/>"),
+        ("word/document.xml", document),
+        ("word/footnotes.xml", footnotes),
+    ]);
+    let mut doc = open(HwpBackend::docx(), bytes, &options()).unwrap();
+    assert_eq!(doc.info().dropped_objects, 0);
+    let text = doc.extract_text(0).unwrap();
+    assert!(!text.contains(papy_office::FOOTNOTE_MARK), "{text:?}");
+    for part in [
+        "앞1)",
+        "칸 글2) 뒤",
+        "끝3)",
+        "첫 각주",
+        "표 각주",
+        "셋째 각주",
+    ] {
+        assert!(text.contains(part), "{part}: {text:?}");
+    }
+    // 저장해도 각주 셋이 남는다.
+    let body = zip_text(&doc.save(SaveFormat::Docx).unwrap(), "word/document.xml");
+    assert!(body.matches("<w:footnoteReference").count() >= 2, "{body}");
+    let mut hwp = open(
+        HwpBackend::hwp(),
+        doc.save(SaveFormat::Hwp).unwrap(),
+        &options(),
+    )
+    .unwrap();
+    let text = hwp.extract_text(0).unwrap();
+    assert!(text.contains("표 각주"), "{text:?}");
+}
+
+#[test]
+fn docx_tall_table_row_splits_across_pages() {
+    let lines: String = (0..120)
+        .map(|i| format!("<w:p><w:r><w:t>줄 {i}</w:t></w:r></w:p>"))
+        .collect();
+    let document = format!(
+        r#"<w:document xmlns:w="w"><w:body><w:p><w:r><w:t>앞</w:t></w:r></w:p><w:tbl><w:tr><w:tc>{lines}</w:tc><w:tc><w:p><w:r><w:t>옆</w:t></w:r></w:p></w:tc></w:tr></w:tbl><w:p><w:r><w:t>뒤</w:t></w:r></w:p></w:body></w:document>"#
+    );
+    let bytes = zip_parts(&[
+        ("[Content_Types].xml", "<Types/>"),
+        ("word/document.xml", &document),
+    ]);
+    let mut doc = open(HwpBackend::docx(), bytes, &options()).unwrap();
+    // 쪽보다 긴 행은 잘리지 않고 다음 쪽으로 이어진다.
+    let pages = doc.info().page_count;
+    assert!(pages >= 3, "{pages}");
+    let text: String = (0..pages).map(|p| doc.extract_text(p).unwrap()).collect();
+    for part in ["줄 0", "줄 60", "줄 119", "뒤"] {
+        assert!(text.contains(part), "{part}");
+    }
+}
+
+#[test]
+fn docx_first_page_hide_and_even_headers_survive_save() {
+    let document = r#"<w:document xmlns:w="w" xmlns:r="r"><w:body><w:p><w:r><w:t>첫 쪽</w:t></w:r></w:p><w:p><w:r><w:br w:type="page"/><w:t>둘째 쪽</w:t></w:r></w:p><w:sectPr><w:headerReference w:type="even" r:id="rIdE"/><w:headerReference w:type="default" r:id="rIdH"/><w:titlePg/></w:sectPr></w:body></w:document>"#;
+    let bytes = zip_parts(&[
+        ("[Content_Types].xml", "<Types/>"),
+        ("word/document.xml", document),
+        (
+            "word/_rels/document.xml.rels",
+            r#"<Relationships xmlns="r"><Relationship Id="rIdH" Type="header" Target="header1.xml"/><Relationship Id="rIdE" Type="header" Target="header2.xml"/></Relationships>"#,
+        ),
+        (
+            "word/header1.xml",
+            r#"<w:hdr xmlns:w="w"><w:p><w:r><w:t>기본 머리말</w:t></w:r></w:p></w:hdr>"#,
+        ),
+        (
+            "word/header2.xml",
+            r#"<w:hdr xmlns:w="w"><w:p><w:r><w:t>짝수 머리말</w:t></w:r></w:p></w:hdr>"#,
+        ),
+    ]);
+    let check = |doc: &mut Box<dyn Document>| {
+        assert_eq!(doc.info().page_count, 2);
+        let first = doc.extract_text(0).unwrap();
+        assert!(!first.contains("머리말"), "{first:?}");
+        // evenAndOddHeaders 가 없으니 짝수 쪽에도 기본 머리말이 나온다.
+        let second = doc.extract_text(1).unwrap();
+        assert!(
+            second.contains("기본 머리말") && !second.contains("짝수"),
+            "{second:?}"
+        );
+    };
+    let mut doc = open(HwpBackend::docx(), bytes, &options()).unwrap();
+    check(&mut doc);
+    let saved = doc.save(SaveFormat::Docx).unwrap();
+    assert!(zip_text(&saved, "word/document.xml").contains("<w:titlePg/>"));
+    let mut reopened = open(HwpBackend::docx(), saved, &options()).unwrap();
+    check(&mut reopened);
+}
