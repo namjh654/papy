@@ -24,6 +24,9 @@ interface DocumentEngine {
     /** 목차(나무를 앞에서부터 편 목록, [OutlineEntry.depth] 로 들여쓴다). 없거나 읽지 못하면 빈 목록 */
     fun outline(session: Long): List<OutlineEntry>
 
+    /** 메모와 변경 추적 수(DOCX 메모·변경 추적, 한글 메모). 없거나 읽지 못하면 빈 값 */
+    fun review(session: Long): ReviewSummary
+
     /**
      * 문서에서 글자를 찾는다(대소문자·공백 종류는 가리지 않는다). 쪽 순서로 [max] 개까지.
      * 찾는 동안 다시 부르면 앞의 찾기는 빈 목록으로 끝날 수 있다.
@@ -131,6 +134,18 @@ data class OpenedDocument(
 
 /** 목차 항목: 제목, 이동할 쪽(모르면 null), 깊이(0 이 맨 위) */
 data class OutlineEntry(val title: String, val page: Int?, val depth: Int)
+
+/** 메모: 쓴 사람·때(없으면 빈 글), 메모 글, 메모를 단 본문 글(앞부분), 쪽(모르면 null) */
+data class ReviewComment(val author: String, val date: String, val text: String, val anchor: String, val page: Int?)
+
+/** 메모 목록과 변경 추적 수(넣은 것·지운 것). 화면은 변경을 받아들인 상태로 보인다 */
+data class ReviewSummary(
+    val comments: List<ReviewComment> = emptyList(),
+    val insertions: Int = 0,
+    val deletions: Int = 0,
+) {
+    val isEmpty: Boolean get() = comments.isEmpty() && insertions == 0 && deletions == 0
+}
 
 /** 찾은 글자: 쪽, 앞 글자, 찾은 글자(문서 그대로), 뒤 글자 */
 data class TextHit(val page: Int, val before: String, val matched: String, val after: String)

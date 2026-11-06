@@ -65,7 +65,7 @@ jobs:
           releaseName: "Papy ${{ inputs.tag || github.ref_name }}"
           releaseBody: |
             PDF·HWP·HWPX·DOCX·DOC 보기, HWP·HWPX·DOCX·DOC 편집, 저장·형식 변환, PDF 로 내보내기를 할 수 있습니다.
-            v0.3.4: macOS 에서 쪽이 그려지지 않던 문제와 "손상된 앱" 경고를 고쳤습니다. 명조·굵은 글꼴을 함께 넣고(모바일은 설정에서 받기), DOCX 로 저장할 때 번호 목록·쪽 번호·줄 간격을 Word 형식 그대로 쓰며, 메모·변경 추적을 사이드바 "검토" 탭에서 봅니다.
+            v0.3.5: 모바일(Android·iOS)에서도 메모와 변경 추적을 볼 수 있습니다(문서 화면의 메모 단추, 메모를 누르면 그 쪽으로). v0.3.4: macOS 에서 쪽이 그려지지 않던 문제를 고치고 명조·굵은 글꼴, DOCX 번호 목록·쪽 번호, 데스크톱 메모 보기를 더했습니다.
             중요한 문서는 사본으로 써 주세요.
             설치 방법과 보안 경고 해결: https://papy-omega.vercel.app/install/
             코드 서명이 없어 첫 실행 시 OS 보안 경고가 나올 수 있습니다.

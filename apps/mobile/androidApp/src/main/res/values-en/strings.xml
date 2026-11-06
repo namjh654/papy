@@ -96,6 +96,9 @@
     <string name="viewer_text_copied">Copied</string>
     <string name="viewer_loss">%1$d element(s) in this document, such as charts or endnotes, can\'t be shown yet.</string>
     <string name="viewer_outline">Outline</string>
+    <string name="viewer_review">Comments</string>
+    <string name="viewer_review_tracked">Tracked changes: %1$d insertions, %2$d deletions — shown as accepted.</string>
+    <string name="viewer_review_page">Page %1$d</string>
     <string name="viewer_search">Find</string>
     <string name="viewer_search_hint">Find in document</string>
     <string name="viewer_search_none">No matches.</string>

@@ -179,6 +179,10 @@ struct ViewerScreen: View {
                         Button { model.viewModel.showOutline() } label: { Image(systemName: "list.bullet.indent") }
                             .accessibilityLabel(String(localized: "viewer_outline"))
                     }
+                    if !state.editing && !state.review.isEmpty {
+                        Button { model.viewModel.showReview() } label: { Image(systemName: "text.bubble") }
+                            .accessibilityLabel(String(localized: "viewer_review"))
+                    }
                     if !state.editing {
                         Button { model.viewModel.showSearch() } label: { Image(systemName: "magnifyingglass") }
                             .accessibilityLabel(String(localized: "viewer_search"))
@@ -314,6 +318,9 @@ struct ViewerScreen: View {
         .sheet(isPresented: Binding(get: { state.showOutline }, set: { if !$0 { model.viewModel.hideOutline() } })) {
             outlineSheet
         }
+        .sheet(isPresented: Binding(get: { state.showReview }, set: { if !$0 { model.viewModel.hideReview() } })) {
+            reviewSheet
+        }
         .sheet(isPresented: Binding(get: { state.showSearch }, set: { if !$0 { model.viewModel.hideSearch() } })) {
             searchSheet
         }
@@ -350,6 +357,52 @@ struct ViewerScreen: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(String(localized: "common_close")) { model.viewModel.hideOutline() }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+    }
+
+    private var reviewSheet: some View {
+        let review = state.review
+        return NavigationStack {
+            List {
+                if review.insertions > 0 || review.deletions > 0 {
+                    Text(String(format: String(localized: "viewer_review_tracked"), Int(review.insertions), Int(review.deletions)))
+                        .papyFont(PapyFont.caption)
+                        .foregroundStyle(PapyColor.onSurfaceVariant)
+                }
+                ForEach(Array(review.comments.enumerated()), id: \.offset) { _, comment in
+                    Button {
+                        if let page = comment.page { model.viewModel.openReviewComment(page: page.int32Value) }
+                    } label: {
+                        VStack(alignment: .leading, spacing: PapySpacing.xs) {
+                            let meta = [
+                                comment.author.isEmpty ? nil : comment.author,
+                                comment.date.isEmpty ? nil : comment.date,
+                                comment.page.map { String(format: String(localized: "viewer_review_page"), Int($0.int32Value) + 1) },
+                            ].compactMap { $0 }.joined(separator: " · ")
+                            if !meta.isEmpty {
+                                Text(meta).papyFont(PapyFont.caption).foregroundStyle(PapyColor.onSurfaceVariant)
+                            }
+                            Text(comment.text).papyFont(PapyFont.body).foregroundStyle(PapyColor.onSurface)
+                            if !comment.anchor.isEmpty {
+                                Text("“\(comment.anchor)”")
+                                    .papyFont(PapyFont.caption)
+                                    .foregroundStyle(PapyColor.onSurfaceVariant)
+                                    .lineLimit(2)
+                            }
+                        }
+                    }
+                    .disabled(comment.page == nil)
+                }
+            }
+            .listStyle(.plain)
+            .navigationTitle(String(localized: "viewer_review"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(String(localized: "common_close")) { model.viewModel.hideReview() }
                 }
             }
         }

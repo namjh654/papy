@@ -119,6 +119,18 @@ class ViewerViewModel(
         goTo(page)
     }
 
+    fun showReview() {
+        if (!currentState.review.isEmpty) setState { copy(showReview = true) }
+    }
+
+    fun hideReview() = setState { copy(showReview = false) }
+
+    /** 메모를 고르면 창을 닫고 그 쪽으로 옮긴다 */
+    fun openReviewComment(page: Int) {
+        setState { copy(showReview = false) }
+        goTo(page)
+    }
+
     fun showSearch() = setState { copy(showSearch = true, search = search ?: SearchState()) }
 
     fun hideSearch() = setState { copy(showSearch = false) }
@@ -553,9 +565,11 @@ class ViewerViewModel(
         val sizes = (0 until count).map { engine.pageSize(id, it) ?: FALLBACK_SIZE }
         // 제목을 고치거나 쪽이 밀리면 목차도 바뀐다.
         val outline = engine.outline(id)
+        val review = engine.review(id)
         setState {
             copy(
                 outline = outline,
+                review = review,
                 document = document?.copy(pageCount = sizes.size),
                 pageSizes = sizes,
                 currentPage = currentPage.coerceIn(0, (sizes.size - 1).coerceAtLeast(0)),
@@ -593,7 +607,8 @@ class ViewerViewModel(
         recents.add(ref, currentState.name, document.kind)
         checkUnsupported()
         val outline = withContext(io) { engine.outline(document.session) }
-        setState { copy(outline = outline) }
+        val review = withContext(io) { engine.review(document.session) }
+        setState { copy(outline = outline, review = review) }
     }
 
     override fun onCleared() {

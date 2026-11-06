@@ -9,6 +9,7 @@ import io.github.namjh654.papy.feature.documents.PageObject
 import io.github.namjh654.papy.feature.documents.TableCell
 import io.github.namjh654.papy.feature.documents.OpenedDocument
 import io.github.namjh654.papy.feature.documents.OutlineEntry
+import io.github.namjh654.papy.feature.documents.ReviewSummary
 import io.github.namjh654.papy.feature.documents.TextHit
 import io.github.namjh654.papy.feature.documents.UnsupportedCount
 import io.github.namjh654.papy.feature.documents.PageBox
@@ -37,6 +38,10 @@ data class ViewerUiState(
     val outline: List<OutlineEntry> = emptyList(),
     /** 목차 창이 열려 있다 */
     val showOutline: Boolean = false,
+    /** 메모·변경 추적(열 때 읽는다). 비어 있으면 검토 단추를 숨긴다 */
+    val review: ReviewSummary = ReviewSummary(),
+    /** 검토 창이 열려 있다 */
+    val showReview: Boolean = false,
     /** 찾기 창이 열려 있다 */
     val showSearch: Boolean = false,
     /** 마지막 찾기(창을 닫아도 남겨 다시 열면 이어 본다). null 이면 찾은 적 없음 */

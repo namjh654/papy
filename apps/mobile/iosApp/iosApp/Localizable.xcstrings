@@ -1803,6 +1803,57 @@
         }
       }
     },
+    "viewer_review" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comments"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "메모"
+          }
+        }
+      }
+    },
+    "viewer_review_page" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Page %1$lld"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld쪽"
+          }
+        }
+      }
+    },
+    "viewer_review_tracked" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tracked changes: %1$lld insertions, %2$lld deletions — shown as accepted."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "변경 추적: 넣은 내용 %1$lld곳, 지운 내용 %2$lld곳 — 받아들인 상태로 보여 줍니다."
+          }
+        }
+      }
+    },
     "viewer_save" : {
       "extractionState" : "manual",
       "localizations" : {

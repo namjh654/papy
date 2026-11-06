@@ -70,6 +70,8 @@ class FakeEngine(
         outlineCalls++
         return listOf(OutlineEntry("1. 개요", 0, 0), OutlineEntry("가. 목적", 2, 1))
     }
+    var review = ReviewSummary()
+    override fun review(session: Long) = review
     val queries = mutableListOf<String>()
     override fun findText(session: Long, query: String, max: Int): List<TextHit> {
         queries += query
@@ -247,6 +249,28 @@ class ViewerViewModelTest {
         vm.hideText()
         assertNull(vm.uiState.value.text)
         assertEquals(DocumentKind.Hwp, recents.items.value.single().kind)
+    }
+
+    @Test
+    fun reviewCommentsOpenAndJump() = runTest(dispatcher) {
+        // 메모가 없으면 검토 창을 열지 않는다
+        val empty = ViewerViewModel("ref", "a.hwp", FakeEngine(), recents(), io = dispatcher)
+        advanceUntilIdle()
+        assertTrue(empty.uiState.value.review.isEmpty)
+        empty.showReview()
+        assertFalse(empty.uiState.value.showReview)
+
+        val engine = FakeEngine().apply {
+            review = ReviewSummary(listOf(ReviewComment("홍길동", "2026-11-06", "확인 필요", "첫 문단", 2)), insertions = 1, deletions = 0)
+        }
+        val vm = ViewerViewModel("ref", "a.docx", engine, recents(), io = dispatcher)
+        advanceUntilIdle()
+        assertEquals(1, vm.uiState.value.review.comments.size)
+        vm.showReview()
+        assertTrue(vm.uiState.value.showReview)
+        vm.openReviewComment(2)
+        assertFalse(vm.uiState.value.showReview)
+        assertEquals(2, vm.uiState.value.currentPage)
     }
 
     @Test
