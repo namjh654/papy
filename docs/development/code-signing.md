@@ -48,4 +48,4 @@ GitHub Secrets 이름(Tauri 가 읽는 환경 변수): `APPLE_CERTIFICATE`(p12 �
 - 묶음 서명은 강화된 런타임을 켜는데, 그러면 같은 팀 서명이 아닌 PDFium 라이브러리를 막는다 —
   `entitlements.plist` 의 `com.apple.security.cs.disable-library-validation` 으로 허용한다.
 - 웹뷰 CSP `connect-src` 에 `ipc: http://ipc.localhost` 가 있어야 빠른 IPC 가 된다. 빠지면 postMessage 로 바뀌어
-  쪽 그림(바이트)이 숫자 배열로 와서 "이 쪽을 열지 못했습니다"가 났다(v0.3.3 macOS).
+  쪽 그림(바이트)이 숫자 배열로 와서 "이 쪽을 열지 못했습니다"가 났다(v0.3.3 macOS, v0.3.4 에서 고침).

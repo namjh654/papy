@@ -2924,7 +2924,7 @@ dependencies = [
 
 [[package]]
 name = "papy-core"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "papy-hwp",
  "papy-model",
@@ -2935,7 +2935,7 @@ dependencies = [
 
 [[package]]
 name = "papy-desktop"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "papy-core",
  "serde",
@@ -2948,7 +2948,7 @@ dependencies = [
 
 [[package]]
 name = "papy-hwp"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "papy-model",
  "papy-office",
@@ -2960,11 +2960,11 @@ dependencies = [
 
 [[package]]
 name = "papy-model"
-version = "0.3.3"
+version = "0.3.4"
 
 [[package]]
 name = "papy-office"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "base64 0.23.1",
  "cfb 0.15.0",
@@ -2977,7 +2977,7 @@ dependencies = [
 
 [[package]]
 name = "papy-pdf"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "papy-model",
  "papy-render",
@@ -2986,7 +2986,7 @@ dependencies = [
 
 [[package]]
 name = "papy-render"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "papy-model",
 ]
