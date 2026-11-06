@@ -1,0 +1,19 @@
+{
+  "fonts": [
+    {
+      "file": "NotoSerifKR-Regular.ttf",
+      "bytes": 8434736,
+      "sha256": "ad1800d5b4fd538aeab7d2d6e528dea3bd77a79744c9cf32c81072e7ec9a2b86"
+    },
+    {
+      "file": "NotoSerifKR-Bold.ttf",
+      "bytes": 8439212,
+      "sha256": "e7b59b63b716f68996c042a376ac36c6fbefd151cca11b50025805655e9b3af7"
+    },
+    {
+      "file": "NotoSansKR-Bold.ttf",
+      "bytes": 2474372,
+      "sha256": "7db7302f86db389083623d100701c1c9811c2ad11e88c27c1b4f99a0b3e9cb8c"
+    }
+  ]
+}
