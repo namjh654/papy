@@ -884,6 +884,13 @@ fn write_paragraph_with(
                 _ => None,
             })
             .collect();
+        // 글자처럼 놓은 표 여럿은 한 줄에 나란히 선다. Word 는 표를 나란히 놓지 못하니 테두리 없는
+        // 한 줄짜리 표의 칸에 하나씩 넣는다.
+        if tables.len() >= 2 && tables.iter().all(|t| t.common.treat_as_char) && depth < MAX_DEPTH {
+            write_side_by_side(out, info, media, paragraph, &tables, depth)?;
+            out.push_str(TINY_PARAGRAPH);
+            return Ok(());
+        }
         for (index, table) in tables.iter().enumerate() {
             write_table(out, info, media, table, depth + 1)?;
             // Word 는 표 바로 뒤에 문단이 있어야 한다(마지막은 이 문단 자체).
@@ -891,8 +898,28 @@ fn write_paragraph_with(
                 out.push_str("<w:p/>");
             }
         }
-        let _ = write!(out, "<w:p>{}</w:p>", para_props(info, paragraph));
+        // 표만 든 문단의 빈 줄은 표 자리 안에 든다(글자처럼 놓은 표는 그 줄 안에, 떠 있는 표는 그 줄에서 시작).
+        // Word 가 요구하는 문단만 1pt 로 둔다.
+        out.push_str(TINY_PARAGRAPH);
         return Ok(());
+    }
+    // 문단 기준으로 떠 있는(글자처럼이 아닌) 표는 문단 위쪽에 놓이고 글은 그 아래로 흐른다. 표를 먼저 쓴다.
+    // 표가 문단 첫 줄 안에서 시작할 때만 앞에 쓴다(제목 아래로 내려 놓은 표는 글 뒤에 둔다).
+    let first_line = paragraph
+        .line_segs
+        .first()
+        .map_or(1000, |seg| seg.line_height.max(1));
+    let table_first = |table: &Table| {
+        !table.common.treat_as_char
+            && (!matches!(table.common.vert_rel_to, VertRelTo::Para)
+                || (table.common.vertical_offset as i32) < first_line)
+    };
+    for control in &paragraph.controls {
+        if let Control::Table(table) = control {
+            if table_first(table) {
+                write_table(out, info, media, table, depth + 1)?;
+            }
+        }
     }
     out.push_str("<w:p>");
     out.push_str(&para_props(info, paragraph));
@@ -979,11 +1006,59 @@ fn write_paragraph_with(
     out.push_str("</w:p>");
     for control in &paragraph.controls {
         if let Control::Table(table) = control {
+            if table_first(table) {
+                continue;
+            }
             write_table(out, info, media, table, depth + 1)?;
-            // Word 는 표 바로 뒤에 문단이 있어야 한다.
-            out.push_str("<w:p/>");
+            // Word 는 표 바로 뒤에 문단이 있어야 한다(한글에는 없는 줄이라 1pt 로).
+            out.push_str(TINY_PARAGRAPH);
         }
     }
+    Ok(())
+}
+
+/// 표 뒤에 Word 가 요구하는 문단을 거의 높이 없이(1pt 고정 줄, 1pt 글자) 둔다.
+const TINY_PARAGRAPH: &str = r#"<w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="20" w:lineRule="exact"/><w:rPr><w:sz w:val="2"/></w:rPr></w:pPr></w:p>"#;
+
+/// 나란히 놓인 표들 → 테두리 없는 한 줄 표, 칸마다 표 하나. 표 사이 빈칸(문단의 공백)은 칸 너비에 나눠 더한다.
+fn write_side_by_side(
+    out: &mut String,
+    info: &DocInfo,
+    media: &mut Media,
+    paragraph: &Paragraph,
+    tables: &[&Table],
+    depth: usize,
+) -> Result<()> {
+    let spaces = paragraph.text.chars().filter(|c| *c == ' ').count() as u32;
+    // 빈칸 하나 ≈ 글자 크기의 절반(HWPUNIT). 글자 크기는 첫 글자 모양.
+    let size = paragraph
+        .char_shapes
+        .first()
+        .and_then(|r| info.char_shapes.get(r.char_shape_id as usize))
+        .map_or(1000, |c| c.base_size.max(100) as u32);
+    let gap = spaces * size / 2 / tables.len() as u32;
+    out.push_str(
+        r#"<w:tbl><w:tblPr><w:tblW w:w="0" w:type="auto"/><w:tblBorders><w:top w:val="nil"/><w:left w:val="nil"/><w:bottom w:val="nil"/><w:right w:val="nil"/><w:insideH w:val="nil"/><w:insideV w:val="nil"/></w:tblBorders><w:tblLayout w:type="fixed"/><w:tblCellMar><w:top w:w="0" w:type="dxa"/><w:left w:w="0" w:type="dxa"/><w:bottom w:w="0" w:type="dxa"/><w:right w:w="0" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid>"#,
+    );
+    let widths: Vec<u32> = tables
+        .iter()
+        .map(|t| twips(t.common.width.saturating_add(gap)).max(144))
+        .collect();
+    for width in &widths {
+        let _ = write!(out, r#"<w:gridCol w:w="{width}"/>"#);
+    }
+    out.push_str("</w:tblGrid><w:tr>");
+    for (table, width) in tables.iter().zip(&widths) {
+        let _ = write!(
+            out,
+            r#"<w:tc><w:tcPr><w:tcW w:w="{width}" w:type="dxa"/></w:tcPr>"#
+        );
+        write_table(out, info, media, table, depth + 2)?;
+        // 칸은 문단으로 끝나야 한다. 1pt 줄로 둬 칸이 높아지지 않게 한다.
+        out.push_str(TINY_PARAGRAPH);
+        out.push_str("</w:tc>");
+    }
+    out.push_str("</w:tr></w:tbl>");
     Ok(())
 }
 
@@ -1006,8 +1081,24 @@ fn write_table(
     }
     let widths = grid_widths(table, cols);
     // 테두리는 칸마다 쓴다(한글 표는 칸마다 테두리·배경이 다르다). 머리글 행은 쪽마다 되풀이.
-    let mut properties = String::from(
-        r#"<w:tbl><w:tblPr><w:tblW w:w="0" w:type="auto"/><w:tblLayout w:type="fixed"/>"#,
+    // 왼쪽 자리: 바깥 여백 + (문단·단 기준 떠 있는 표면) 가로 위치. 맨 바깥 표만.
+    let mut indent = i32::from(table.common.margin.left);
+    if !table.common.treat_as_char
+        && matches!(
+            table.common.horz_rel_to,
+            HorzRelTo::Para | HorzRelTo::Column
+        )
+    {
+        indent = indent.saturating_add(table.common.horizontal_offset as i32);
+    }
+    let indent = if depth <= 1 { indent / 5 } else { 0 };
+    let float = if depth <= 1 {
+        float_table_position(table)
+    } else {
+        String::new()
+    };
+    let mut properties = format!(
+        r#"<w:tbl><w:tblPr>{float}<w:tblW w:w="0" w:type="auto"/><w:tblInd w:w="{indent}" w:type="dxa"/><w:tblLayout w:type="fixed"/>"#
     );
     let margin = |v: i16| twips(u32::try_from(v.max(0)).unwrap_or(0));
     let _ = write!(
@@ -1119,42 +1210,83 @@ fn write_table(
     Ok(())
 }
 
-/// 열 너비(twip). 칸마다 (시작 열, 끝 열) 경계 사이 거리가 칸 너비가 되도록 경계 위치를 푼다
-/// (병합 칸만 있는 열도 맞는 너비가 나온다). 정해지지 않은 경계는 고르게 나눈다.
+/// 쪽·종이 기준으로 놓은 떠 있는 표(결재란을 쪽 아래에 붙이는 공문서 등) → `w:tblpPr`.
+/// 문단 기준·글자처럼 놓은 표는 본문 흐름 그대로 둔다.
+fn float_table_position(table: &Table) -> String {
+    use rhwp::model::shape::{HorzAlign, VertAlign};
+    let common = &table.common;
+    if common.treat_as_char || !matches!(common.vert_rel_to, VertRelTo::Page | VertRelTo::Paper) {
+        return String::new();
+    }
+    let vert_anchor = if matches!(common.vert_rel_to, VertRelTo::Paper) {
+        "page"
+    } else {
+        "margin"
+    };
+    let vertical = match common.vert_align {
+        VertAlign::Center => r#" w:tblpYSpec="center""#.to_owned(),
+        VertAlign::Bottom | VertAlign::Outside => r#" w:tblpYSpec="bottom""#.to_owned(),
+        _ => format!(r#" w:tblpY="{}""#, common.vertical_offset as i32 / 5),
+    };
+    let horz_anchor = match common.horz_rel_to {
+        HorzRelTo::Paper => "page",
+        HorzRelTo::Page => "margin",
+        _ => "text",
+    };
+    let horizontal = match common.horz_align {
+        HorzAlign::Center => r#" w:tblpXSpec="center""#.to_owned(),
+        HorzAlign::Right | HorzAlign::Outside => r#" w:tblpXSpec="right""#.to_owned(),
+        _ => format!(r#" w:tblpX="{}""#, common.horizontal_offset as i32 / 5),
+    };
+    format!(
+        r#"<w:tblpPr w:leftFromText="0" w:rightFromText="0" w:vertAnchor="{vert_anchor}" w:horzAnchor="{horz_anchor}"{horizontal}{vertical}/>"#
+    )
+}
+
+/// 열 너비(twip). 행마다 그 행을 차지하는 칸(위에서 세로 병합된 칸 포함)의 너비를 왼쪽부터 더해 열 경계 자리를
+/// 얻고, 경계마다 여러 행이 낸 값의 가운데 값을 쓴다(행마다 칸 너비가 조금씩 어긋나는 한글 양식 표). 어느 행도
+/// 정하지 않은 경계는 앞뒤 경계 사이를 고르게 나눈다.
 fn grid_widths(table: &Table, cols: usize) -> Vec<u32> {
-    let mut edge: Vec<Option<i64>> = vec![None; cols + 1];
-    edge[0] = Some(0);
-    let spans: Vec<(usize, usize, i64)> = table
-        .cells
-        .iter()
-        .filter(|c| (c.col as usize) < cols && c.width > 0)
-        .map(|c| {
-            let start = c.col as usize;
-            let end = (start + c.col_span.max(1) as usize).min(cols);
-            (start, end, i64::from(c.width))
-        })
-        .collect();
-    // 행마다 왼쪽부터 이어 붙이면 모든 경계가 정해진다. 몇 번 돌려 서로 다른 행의 정보를 퍼뜨린다.
-    for _ in 0..4 {
-        let mut changed = false;
-        for &(start, end, width) in &spans {
-            match (edge[start], edge[end]) {
-                (Some(a), None) => {
-                    edge[end] = Some(a + width);
-                    changed = true;
-                }
-                (None, Some(b)) => {
-                    edge[start] = Some(b - width);
-                    changed = true;
-                }
-                _ => {}
+    let rows = table.row_count as usize;
+    let mut votes: Vec<Vec<i64>> = vec![Vec::new(); cols + 1];
+    votes[0].push(0);
+    for row in 0..rows {
+        let mut cells: Vec<(usize, usize, i64)> = table
+            .cells
+            .iter()
+            .filter(|c| {
+                let (r, span) = (c.row as usize, c.row_span.max(1) as usize);
+                r <= row && row < r + span && (c.col as usize) < cols
+            })
+            .map(|c| {
+                let start = c.col as usize;
+                let end = (start + c.col_span.max(1) as usize).min(cols);
+                (start, end, i64::from(c.width))
+            })
+            .collect();
+        cells.sort_by_key(|c| c.0);
+        // 왼쪽부터 빈틈없이 이어진 칸만 더한다(빈 칸이 있으면 거기서 멈춘다).
+        let (mut x, mut next) = (0i64, 0usize);
+        for (start, end, width) in cells {
+            if start != next || width <= 0 {
+                break;
             }
-        }
-        if !changed {
-            break;
+            x += width;
+            votes[end].push(x);
+            next = end;
         }
     }
-    // 빈 경계는 앞뒤 정해진 경계 사이를 고르게 나눈다. 끝 경계가 없으면 가장 넓은 행 너비.
+    let mut edge: Vec<Option<i64>> = votes
+        .iter_mut()
+        .map(|v| {
+            if v.is_empty() {
+                return None;
+            }
+            v.sort_unstable();
+            Some(v[v.len() / 2])
+        })
+        .collect();
+    edge[0] = Some(0);
     if edge[cols].is_none() {
         let total = table
             .cells
@@ -1172,6 +1304,20 @@ fn grid_widths(table: &Table, cols: usize) -> Vec<u32> {
             .unwrap_or(10_000 * cols as i64);
         edge[cols] = Some(total.max(edge.iter().flatten().copied().max().unwrap_or(0)));
     }
+    // 앞 경계보다 작거나 같은 값(어긋난 행)은 버리고 다시 채운다.
+    let mut last = 0i64;
+    for slot in edge.iter_mut().skip(1) {
+        if let Some(v) = *slot {
+            if v <= last {
+                *slot = None;
+            } else {
+                last = v;
+            }
+        }
+    }
+    if edge[cols].is_none() {
+        edge[cols] = Some(last + 720);
+    }
     let mut i = 0;
     while i < cols {
         if edge[i + 1].is_some() {
@@ -1188,8 +1334,8 @@ fn grid_widths(table: &Table, cols: usize) -> Vec<u32> {
     edge.windows(2)
         .map(|w| {
             let width = w[1].unwrap_or(0) - w[0].unwrap_or(0);
-            // 너무 좁은(겹친) 열은 0.1 인치로.
-            twips(u32::try_from(width).unwrap_or(0)).max(144)
+            // 한글 표는 격자 열이 아주 가늘 수 있다(칸 하나가 열 수십 개에 걸침). 0 만 막는다.
+            twips(u32::try_from(width).unwrap_or(0)).max(10)
         })
         .collect()
 }

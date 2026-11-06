@@ -29,7 +29,7 @@
 60279.doc	DOC	4	68365802b2132565	98bb9eda1404659d	0
 60293.docx	DOCX	3	af3b543cd2e8a2ed	d59822a1fc1c70d5	1
 60316.docx	DOCX	1	250c5d3886b33e0d	c758d94e3f0e7442	2
-60329.docx	DOCX	3	b5d7b599bd185dc5	82c1193a1f35f819	0
+60329.docx	DOCX	3	b5d7b599bd185dc5	91faaa335ecc6653	0
 61470.docx	DOCX	1	250c5d3886b33e0d	4e410a34c1df1c86	0
 61490.doc	DOC	1	e5989f18eb184be8	ef6e3cbc2f5f83a6	0
 61586.doc	DOC	1	e5989f18eb184be8	164a3643e94e61c5	0
@@ -89,7 +89,7 @@ Bug53380_3.doc	DOC	32	871f2ab5b3c51325	546f987e980dac9e	2
 Bug53380_4.doc	DOC	1	e5989f18eb184be8	af63c14c8601beab	0
 Bug53453Section.doc	DOC	2	22d10a52556263a1	99fb95d0ebb6de6e	0
 Bug54771a.docx	DOCX	1	250c5d3886b33e0d	e81321986a49e220	0
-Bug54771b.docx	DOCX	1	250c5d3886b33e0d	f890c59bd954d79e	0
+Bug54771b.docx	DOCX	1	250c5d3886b33e0d	f7b126fe0116924c	0
 Bug54849.docx	DOCX	1	250c5d3886b33e0d	6f0cd66c8d92dbc2	0
 Bug55142.docx	DOCX	1	250c5d3886b33e0d	69dd58922f0c55ae	0
 Bug60337.docx	DOCX	1	250c5d3886b33e0d	e97a87f382e57be1	0
@@ -122,7 +122,7 @@ HeaderFooterUnicode.doc	DOC	2	34a07278ce85fe05	45c9c2002e21e2d7	0
 HeaderFooterUnicode.docx	DOCX	2	34a07278ce85fe05	e8e1e7bb0350911f	0
 HeaderWithMacros.doc	DOC	1	250c5d3886b33e0d	96a6dbaf9eb24c7a	0
 Headers.docx	DOCX	1	e5989f18eb184be8	2d215ea8fa0e8d59	0
-IllustrativeCases.docx	DOCX	6	8d45a711edd37465	52edcb3f0e939bbb	0
+IllustrativeCases.docx	DOCX	6	8d45a711edd37465	a76f7115e1501043	0
 ListEntryNoListTable.doc	DOC	1	e5989f18eb184be8	38484c7264ed4f2f	0
 Lists.doc	DOC	2	34a07278ce85fe05	33818bbba892b910	0
 MarkAuthorsTable.doc	DOC	12	bde22a0cec0b59e5	cc17a8c19c30510a	0
@@ -163,9 +163,9 @@ Word6.doc	error	UnsupportedFormat
 Word6_sections.doc	error	UnsupportedFormat
 Word6_sections2.doc	error	UnsupportedFormat
 Word95.doc	error	UnsupportedFormat
-WordWithAttachments.docx	DOCX	2	22d10a52556263a1	20e794b4bd92e671	9
+WordWithAttachments.docx	DOCX	2	22d10a52556263a1	ab7e75bc6f3d499d	9
 au.edu.utas.www___data_assets_word_doc_0003_154335_International-Travel-Approval-Request-Form.doc	DOC	4	cb34ff9c7c790a8d	04b86b8a3a1fa222	0
-bib-chernigovka.netdo.ru_download_docs_17459.docx	DOCX	13	e0f004dbc7bfed30	f75335d0e715fa35	0
+bib-chernigovka.netdo.ru_download_docs_17459.docx	DOCX	12	d63ec331307e8fbd	684bd67afb7d6845	0
 bookmarks.docx	DOCX	1	250c5d3886b33e0d	fac5d9de78d86ca0	0
 bug-paragraph-alignment.docx	DOCX	1	e5989f18eb184be8	565e6443985f64a6	0
 bug53475-password-is-pass.docx	error	InvalidDocument
@@ -173,11 +173,11 @@ bug53475-password-is-solrcell.docx	error	UnsupportedFormat
 bug56075-changeTracking_off.docx	DOCX	1	250c5d3886b33e0d	5577da3f547bed45	0
 bug56075-changeTracking_on.docx	DOCX	1	250c5d3886b33e0d	d3054b54e409c031	0
 bug56076.docx	DOCX	1	e5989f18eb184be8	c27ddb98602cfaf7	0
-bug57031.docx	DOCX	10	a1b4910ff14f8285	8cb8555986498083	3
-bug59058.docx	DOCX	92	fb4945338988a6e5	f65d00a33e2bd134	1
+bug57031.docx	DOCX	12	bde22a0cec0b59e5	6f872ac642205865	3
+bug59058.docx	DOCX	90	4af865970741ef85	77aaf33eee7da9a4	1
 bug65255.doc	DOC	1	e5989f18eb184be8	f7ec269244ee8d60	0
 bug65649.docx	DOCX	61	f5fc1737404acc8c	197405c668ec61fd	0
-bug65738.docx	DOCX	1	250c5d3886b33e0d	c082291816225218	0
+bug65738.docx	DOCX	1	250c5d3886b33e0d	2441b55b79115210	0
 bug66312.docx	DOCX	1	e5989f18eb184be8	78416c03165e53a7	0
 bug69628.docx	DOCX	1	250c5d3886b33e0d	54e687bc69a16e7c	0
 ca.kwsymphony.www_education_School_Concert_Seat_Booking_Form_2011-12.doc	DOC	2	34a07278ce85fe05	a5cc4864c74313e1	8
@@ -222,7 +222,7 @@ documentProtection_no_protection.docx	DOCX	1	250c5d3886b33e0d	bbc8e16a7d9e6883	0
 documentProtection_no_protection_tag_existing.docx	DOCX	1	250c5d3886b33e0d	3e85ea3e822c1643	0
 documentProtection_readonly_no_password.docx	DOCX	1	250c5d3886b33e0d	d77ba6b42c16d6eb	0
 documentProtection_trackedChanges_no_password.docx	DOCX	1	250c5d3886b33e0d	a6d1674bc2a1d5d9	0
-drawing.docx	DOCX	27	6dc0942507b9f9ec	c237d8c360f6f71c	6
+drawing.docx	DOCX	27	6dc0942507b9f9ec	7dd2d9a34564ed52	6
 empty.doc	DOC	1	250c5d3886b33e0d	af63c14c8601beab	0
 emptyPPr.docx	DOCX	1	250c5d3886b33e0d	a20f65c830f6f40b	0
 endingnote.doc	DOC	1	e5989f18eb184be8	b623dce2a4ac7973	0
@@ -230,7 +230,7 @@ endnotes.docx	DOCX	1	e5989f18eb184be8	26f9b70a29a4d0b3	0
 equation.doc	DOC	1	e5989f18eb184be8	af63c14c8601beab	1
 footnote.doc	DOC	1	e5989f18eb184be8	ba41e4d57c8742b7	0
 footnotes.docx	DOCX	1	e5989f18eb184be8	07a69b740839bb26	0
-form_footnotes.docx	DOCX	4	68365802b2132565	fadcaf5c310bb034	4
+form_footnotes.docx	DOCX	4	68365802b2132565	ef143f62253bfc54	4
 gh-issue-1126.doc	DOC	1	e5989f18eb184be8	5f09df4c812cfb87	0
 headerFooter.docx	DOCX	1	e1ce00b9df03cf59	8de53920cd2c36a2	0
 headerPic.docx	DOCX	1	b419d911f520d03a	af63c14c8601beab	0

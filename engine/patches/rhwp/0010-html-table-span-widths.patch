@@ -1,0 +1,47 @@
+Papy 패치: HTML 표 붙여넣기에서 병합 칸만 있는 열의 너비를 병합 칸 너비로 정한다.
+
+rhwp v0.8.7(1a76570e).
+열 너비는 병합하지 않은 칸의 CSS width 로만 정하고, 그런 칸이 없는 열은 쪽 너비 ÷ 열 수로 둔다. 한글 양식 표는 행마다
+칸 경계가 달라 병합 칸만 있는 열이 많고, 그 열들이 엉뚱한 너비가 되어 칸 글이 세로로 접히고 쪽이 는다(한글 → DOCX →
+다시 열기). 병합 칸 너비에서 아는 열을 빼고 남은 너비를 모르는 열에 고르게 나눈다(좁은 병합부터, 여러 번).
+
+--- a/src/document_core/html_table_import.rs
++++ b/src/document_core/html_table_import.rs
+@@ -253,6 +253,37 @@
+                 }
+             }
+         }
++        // [Papy] 병합 칸만 있는 열: 병합 칸 너비에서 이미 아는 열을 빼고 남은 너비를 모르는 열에 고르게 나눈다
++        // (한글 양식 표처럼 행마다 칸 경계가 다른 표). 좁은 병합부터 여러 번 돌려 정해지는 열을 늘린다.
++        let mut spans: Vec<(u16, u16, u32)> = cell_positions
++            .iter()
++            .filter(|cp| cp.col_span > 1)
++            .filter_map(|cp| {
++                let pc = &parsed_rows[cp.parsed_row][cp.parsed_col];
++                (pc.width_pt > 0.0).then(|| (cp.col, cp.col_span, (pc.width_pt * 100.0).round() as u32))
++            })
++            .collect();
++        spans.sort_by_key(|s| s.1);
++        for _ in 0..4 {
++            let mut changed = false;
++            for &(col, span, width) in &spans {
++                let range = col as usize..((col + span) as usize).min(col_widths.len());
++                let known: u32 = col_widths[range.clone()].iter().sum();
++                let unknown = col_widths[range.clone()].iter().filter(|w| **w == 0).count() as u32;
++                if unknown > 0 && width > known {
++                    let each = (width - known) / unknown;
++                    for w in &mut col_widths[range] {
++                        if *w == 0 {
++                            *w = each.max(1);
++                        }
++                    }
++                    changed = true;
++                }
++            }
++            if !changed {
++                break;
++            }
++        }
+         for w in col_widths.iter_mut() {
+             if *w == 0 {
+                 *w = default_col_width;

@@ -219,7 +219,11 @@ impl HwpBackend {
 /// DOCX·DOC 에서 만든 HTML 을 붙여넣고 머리말·각주·도형을 넣어 rhwp 문서로 연다.
 /// 붙여넣은 표는 글자처럼 취급·나누지 않음이라 쪽보다 긴 행이 잘린다. Word 처럼 문단 기준
 /// 자리차지 표로 바꾸고 칸 안에서도 쪽을 나눈다.
-fn split_tables_across_pages(doc: &mut Rhwp) -> std::result::Result<(), rhwp::HwpError> {
+fn split_tables_across_pages(
+    doc: &mut Rhwp,
+    indents: &[i32],
+    places: &[String],
+) -> std::result::Result<(), rhwp::HwpError> {
     let tables: Vec<(usize, usize)> = doc
         .document()
         .sections
@@ -235,15 +239,73 @@ fn split_tables_across_pages(doc: &mut Rhwp) -> std::result::Result<(), rhwp::Hw
                 .map(move |(control, _)| (para, control))
         })
         .collect();
-    for (para, control) in tables {
-        doc.set_table_properties_native(
-            0,
-            para,
-            control,
-            r#"{"treatAsChar":false,"textWrap":"TopAndBottom","vertRelTo":"Para","horzRelTo":"Para","pageBreak":1}"#,
-        )?;
+    // 원본 표의 왼쪽 자리(`w:tblInd`)는 붙여넣은 순서와 같을 때만 쓴다(바깥 여백 대신 위치로).
+    let same_order = indents.len() == tables.len();
+    for (index, (para, control)) in tables.into_iter().enumerate() {
+        let float = places.get(index).filter(|p| same_order && !p.is_empty());
+        let json = match float {
+            // 쪽·종이 기준 자리: 그 자리에 놓고 쪽을 나누지 않는다(결재란 등).
+            Some(place) => {
+                format!(r#"{{"treatAsChar":false,"textWrap":"TopAndBottom","outerLeft":0{place}}}"#)
+            }
+            None => {
+                let indent = if same_order {
+                    format!(r#","horzOffset":{},"outerLeft":0"#, indents[index])
+                } else {
+                    String::new()
+                };
+                format!(
+                    r#"{{"treatAsChar":false,"textWrap":"TopAndBottom","vertRelTo":"Para","horzRelTo":"Para","pageBreak":1{indent}}}"#
+                )
+            }
+        };
+        doc.set_table_properties_native(0, para, control, &json)?;
     }
     Ok(())
+}
+
+/// rhwp 표 붙여넣기는 표를 담는 문단에 1 번 문단 모양("본문")을 쓴다. 빈 문서의 "본문"은 왼쪽 여백이 15pt 라
+/// 모든 표(칸 안 표 포함)가 5mm 오른쪽으로 밀려 칸 글이 접히고 쪽이 는다. 그런 문단을 0 번(바탕글, 여백 없음)으로 바꾼다.
+fn unindent_table_paragraphs(doc: &mut Rhwp) {
+    use rhwp::model::control::Control;
+    use rhwp::model::paragraph::Paragraph;
+    let shapes = &doc.document().doc_info.para_shapes;
+    let indented = |id: usize| {
+        shapes
+            .get(id)
+            .is_some_and(|s| s.margin_left != 0 || s.indent != 0)
+    };
+    if !indented(1) || indented(0) {
+        return;
+    }
+    fn walk(paragraphs: &mut [Paragraph], depth: usize, changed: &mut bool) {
+        if depth > 16 {
+            return;
+        }
+        for paragraph in paragraphs {
+            let mut has_table = false;
+            for control in &mut paragraph.controls {
+                if let Control::Table(table) = control {
+                    has_table = true;
+                    for cell in &mut table.cells {
+                        walk(&mut cell.paragraphs, depth + 1, changed);
+                    }
+                }
+            }
+            if has_table && paragraph.para_shape_id == 1 {
+                paragraph.para_shape_id = 0;
+                *changed = true;
+            }
+        }
+    }
+    let mut document = doc.document().clone();
+    let mut changed = false;
+    for section in &mut document.sections {
+        walk(&mut section.paragraphs, 0, &mut changed);
+    }
+    if changed {
+        doc.set_document(document);
+    }
 }
 
 /// rhwp 표 붙여넣기는 표 전체 테두리·배경으로 3 번 테두리/배경(1부터)을 쓴다. 빈 문서에는 둘뿐이라
@@ -305,7 +367,8 @@ fn open_converted(
             }
         }
         doc.paste_html_native(0, 0, 0, html)?;
-        split_tables_across_pages(&mut doc)?;
+        unindent_table_paragraphs(&mut doc);
+        split_tables_across_pages(&mut doc, &report.table_indents, &report.table_places)?;
         // 붙여넣은 표 칸은 한 줄로만 잡혀 있다. 칸 너비로 다시 나눠 긴 글이 잘리지 않게 한다.
         doc.reflow_table_cells_native(0)?;
         let dropped = notes::apply(&mut doc, &report)? + shapes::apply(&mut doc, &report.shapes)?;
