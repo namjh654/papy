@@ -40,3 +40,12 @@ GitHub Secrets 이름(Tauri 가 읽는 환경 변수): `APPLE_CERTIFICATE`(p12 �
 1. macOS 먼저: 개인 가입으로 바로 되고, 공증이 없으면 macOS 는 "손상된 앱" 경고가 커서 효과가 크다.
 2. Windows: 개인이면 클라우드 서명이 되는 OV 인증서, 법인(미국·캐나다·EU·영국)이 있으면 Azure Artifact Signing.
 3. 값이 준비되면 release.yml 에 Secrets 를 연결한다(서명 Secrets 가 없으면 지금처럼 서명 없이 만든다).
+
+## 지금(서명 인증서 없이) macOS 빌드가 하는 일
+
+- `bundle.macOS.signingIdentity: "-"` 로 앱 묶음 전체를 임시(ad-hoc) 서명한다. 링커 서명만 있으면 묶음 봉인이 없어
+  받은 앱이 "손상됨"으로 보인다.
+- 묶음 서명은 강화된 런타임을 켜는데, 그러면 같은 팀 서명이 아닌 PDFium 라이브러리를 막는다 —
+  `entitlements.plist` 의 `com.apple.security.cs.disable-library-validation` 으로 허용한다.
+- 웹뷰 CSP `connect-src` 에 `ipc: http://ipc.localhost` 가 있어야 빠른 IPC 가 된다. 빠지면 postMessage 로 바뀌어
+  쪽 그림(바이트)이 숫자 배열로 와서 "이 쪽을 열지 못했습니다"가 났다(v0.3.3 macOS).
