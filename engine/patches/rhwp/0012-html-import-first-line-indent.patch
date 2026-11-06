@@ -1,0 +1,20 @@
+Papy 패치: HTML 붙여넣기에서 첫 줄 들여쓰기(text-indent > 0)가 왼쪽 여백에 더해지던 것을 바로잡는다.
+
+rhwp v0.8.7(1a76570e).
+CSS 의 첫 줄 자리는 margin-left + text-indent, 나머지 줄은 margin-left 다. 한글 문단은 들여쓰기(indent > 0)면 첫 줄만
+더 들어가고 왼쪽 여백은 나머지 줄 자리다. 붙여넣기가 들여쓰기에도 왼쪽 여백 = margin-left + text-indent 로 넣어
+둘째 줄부터 들여쓰기만큼 더 들어가 줄이 짧아지고 쪽이 늘었다(한글 → DOCX → 다시 열기, 시험지 지문). 내어쓰기(< 0)는 그대로.
+
+--- a/src/document_core/commands/html_import/inline_content.rs
++++ b/src/document_core/commands/html_import/inline_content.rs
+@@ -404,7 +404,9 @@
+             // 따라서 left = margin-left + text-indent(첫 줄 위치), indent = text-indent 로 옮긴다.
+             let ml = css_margin_left.unwrap_or(0);
+             let ti = css_text_indent.unwrap_or(0);
+-            ps.margin_left = (ml + ti).max(0);
++            // [Papy] 들여쓰기(ti > 0)는 첫 줄만 더 들어간다: 왼쪽 여백은 margin-left 그대로.
++            // 내어쓰기(ti < 0)만 첫 줄 자리(margin-left + text-indent)가 왼쪽 여백이다.
++            ps.margin_left = if ti < 0 { (ml + ti).max(0) } else { ml.max(0) };
+             ps.indent = ti;
+             // 평문 표기를 유지하되, 여백은 직렬화기가 공통 IR에서 물리 단위로 되돌린다.
+             ps.hwpx_plain_para_margin = true;

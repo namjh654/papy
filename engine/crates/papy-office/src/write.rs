@@ -893,9 +893,9 @@ fn write_paragraph_with(
         }
         for (index, table) in tables.iter().enumerate() {
             write_table(out, info, media, table, depth + 1)?;
-            // Word 는 표 바로 뒤에 문단이 있어야 한다(마지막은 이 문단 자체).
+            // Word 는 표 사이·뒤에 문단이 있어야 한다(한글에는 없는 줄이라 1pt 로, 마지막은 아래에서).
             if index + 1 < tables.len() {
-                out.push_str("<w:p/>");
+                out.push_str(TINY_PARAGRAPH);
             }
         }
         // 표만 든 문단의 빈 줄은 표 자리 안에 든다(글자처럼 놓은 표는 그 줄 안에, 떠 있는 표는 그 줄에서 시작).
@@ -924,6 +924,10 @@ fn write_paragraph_with(
     out.push_str("<w:p>");
     out.push_str(&para_props(info, paragraph));
     out.push_str(prefix);
+    // 단 나누기(문단 앞). 쪽 나누기는 문단 속성(pageBreakBefore)으로 쓴다.
+    if paragraph.column_type == rhwp::model::paragraph::ColumnBreakType::Column && depth == 0 {
+        out.push_str(r#"<w:r><w:br w:type="column"/></w:r>"#);
+    }
     let chars: Vec<char> = paragraph.text.chars().collect();
     // 각주·그림·도형 자리(글자 위치) — 그 앞에서 런을 끊고 그 자리에 넣는다(표는 문단 뒤).
     let mut notes: Vec<(usize, &Control)> = paragraph
@@ -1380,6 +1384,30 @@ fn cell_style(info: &DocInfo, border_fill_id: u16) -> String {
             out,
             r#"<w:{side} w:val="{value}" w:sz="{size}" w:space="0" w:color="{color}"/>"#
         );
+    }
+    // 칸 대각선: 속성 비트 2~4 = "/"(오른쪽 위 → 왼쪽 아래), 5~7 = "\"(왼쪽 위 → 오른쪽 아래).
+    let diagonal = &fill.diagonal;
+    if diagonal.diagonal_type != 0 {
+        let value = match diagonal.diagonal_type {
+            2 | 6 => "dashed",
+            3 | 7 => "dotted",
+            8 => "double",
+            _ => "single",
+        };
+        let mm = BORDER_WIDTH_MM[usize::from(diagonal.width.min(15))];
+        let size = ((mm * 72.0 / 25.4 * 8.0).round() as u32).clamp(2, 96);
+        let color = rgb(diagonal.color).unwrap_or_else(|| "000000".into());
+        for (side, bits) in [
+            ("tl2br", (fill.attr >> 5) & 0x07),
+            ("tr2bl", (fill.attr >> 2) & 0x07),
+        ] {
+            if bits != 0 {
+                let _ = write!(
+                    out,
+                    r#"<w:{side} w:val="{value}" w:sz="{size}" w:space="0" w:color="{color}"/>"#
+                );
+            }
+        }
     }
     out.push_str("</w:tcBorders>");
     if let (FillType::Solid, Some(solid)) = (&fill.fill.fill_type, &fill.fill.solid) {

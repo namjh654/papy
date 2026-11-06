@@ -241,12 +241,15 @@ fn split_tables_across_pages(
         .collect();
     // 원본 표의 왼쪽 자리(`w:tblInd`)는 붙여넣은 순서와 같을 때만 쓴다(바깥 여백 대신 위치로).
     let same_order = indents.len() == tables.len();
+    let mut floating = Vec::new();
     for (index, (para, control)) in tables.into_iter().enumerate() {
         let float = places.get(index).filter(|p| same_order && !p.is_empty());
         let json = match float {
             // 쪽·종이 기준 자리: 그 자리에 놓고 쪽을 나누지 않는다(결재란 등).
             Some(place) => {
-                format!(r#"{{"treatAsChar":false,"textWrap":"TopAndBottom","outerLeft":0{place}}}"#)
+                format!(
+                    r#"{{"treatAsChar":false,"textWrap":"TopAndBottom","outerLeft":0,"keepWithAnchor":true{place}}}"#
+                )
             }
             None => {
                 let indent = if same_order {
@@ -254,14 +257,56 @@ fn split_tables_across_pages(
                 } else {
                     String::new()
                 };
+                // 위아래 바깥 여백: 한글 표에 흔한 0.5mm(붙여넣기 기본 1mm 는 표마다 1mm 씩 늘린다).
                 format!(
-                    r#"{{"treatAsChar":false,"textWrap":"TopAndBottom","vertRelTo":"Para","horzRelTo":"Para","pageBreak":1{indent}}}"#
+                    r#"{{"treatAsChar":false,"textWrap":"TopAndBottom","vertRelTo":"Para","horzRelTo":"Para","pageBreak":1,"outerTop":141,"outerBottom":141{indent}}}"#
                 )
             }
         };
         doc.set_table_properties_native(0, para, control, &json)?;
+        if float.is_some() {
+            floating.push(para);
+        }
     }
+    shrink_floating_table_lines(doc, &floating);
     Ok(())
+}
+
+/// 쪽·종이 기준으로 옮긴 표를 담는 빈 문단: 붙여넣을 때 글자처럼 놓인 표 높이로 잡힌 줄이 남아 본문 흐름에서
+/// 표 높이만큼 자리를 차지한다(쪽 아래 결재란이 다음 쪽으로 넘어간다). 표는 쪽 기준 자리에 따로 놓이니 줄은 보통 한 줄로 둔다.
+fn shrink_floating_table_lines(doc: &mut Rhwp, paragraphs: &[usize]) {
+    if paragraphs.is_empty() {
+        return;
+    }
+    let mut document = doc.document().clone();
+    let mut changed = false;
+    for &index in paragraphs {
+        let Some(paragraph) = document
+            .sections
+            .first_mut()
+            .and_then(|s| s.paragraphs.get_mut(index))
+        else {
+            continue;
+        };
+        if !paragraph
+            .text
+            .chars()
+            .all(|c| c.is_whitespace() || c.is_control())
+        {
+            continue;
+        }
+        for seg in &mut paragraph.line_segs {
+            // 10pt 160% 줄(HWPUNIT): 글 높이 1000, 기준선 850, 줄 사이 600
+            seg.line_height = 1000;
+            seg.text_height = 1000;
+            seg.baseline_distance = 850;
+            seg.line_spacing = 600;
+            changed = true;
+        }
+    }
+    if changed {
+        doc.set_document(document);
+    }
 }
 
 /// rhwp 표 붙여넣기는 표를 담는 문단에 1 번 문단 모양("본문")을 쓴다. 빈 문서의 "본문"은 왼쪽 여백이 15pt 라
@@ -366,7 +411,25 @@ fn open_converted(
                 )?;
             }
         }
-        doc.paste_html_native(0, 0, 0, html)?;
+        // 붙여넣기의 첫 문단은 빈 문서의 첫 문단(구역 정의를 가진)에 합쳐지며 그 문단 모양을 그대로 써서 첫 문단의
+        // 서식(들여쓰기·간격·정렬)이 빠진다. 빈 문단을 앞에 붙여 첫 문단을 새 문단으로 만든 뒤, 그 모양을 첫 문단에
+        // 주고 둘을 합친다.
+        let lead = html.find("<body>").map(|i| i + "<body>".len());
+        match lead {
+            Some(at) => {
+                let padded = format!("{}<p></p>{}", &html[..at], &html[at..]);
+                doc.paste_html_native(0, 0, 0, &padded)?;
+                let first = doc.document().sections[0].paragraphs.get(1).map(|p| p.para_shape_id);
+                let empty = doc.document().sections[0].paragraphs[0].text.is_empty();
+                if let (Some(shape), true) = (first, empty) {
+                    doc.set_para_shape_id_native(0, 0, shape)?;
+                    doc.merge_paragraph_native(0, 1)?;
+                }
+            }
+            None => {
+                doc.paste_html_native(0, 0, 0, html)?;
+            }
+        }
         unindent_table_paragraphs(&mut doc);
         split_tables_across_pages(&mut doc, &report.table_indents, &report.table_places)?;
         // 붙여넣은 표 칸은 한 줄로만 잡혀 있다. 칸 너비로 다시 나눠 긴 글이 잘리지 않게 한다.

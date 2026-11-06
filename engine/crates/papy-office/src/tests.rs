@@ -1,5 +1,5 @@
 use super::*;
-use crate::notes::{ENDNOTE_MARK, FOOTNOTE_MARK, HeaderFooterText};
+use crate::notes::{COLUMN_BREAK_MARK, ENDNOTE_MARK, FOOTNOTE_MARK, HeaderFooterText};
 use std::io::{Cursor, Write};
 
 /// 주어진 document.xml(과 styles.xml)로 최소 DOCX 를 만든다.
@@ -733,4 +733,46 @@ fn table_cell_margins_ratio_and_thin_grid_columns() {
         xml.contains(r#"<w:gridCol w:w="40"/><w:gridCol w:w="40"/><w:gridCol w:w="40"/><w:gridCol w:w="1000"/>"#),
         "{xml}"
     );
+}
+
+#[test]
+fn column_breaks_and_diagonals_are_written() {
+    use rhwp::model::control::Control;
+    // 단 나누기: 쓰기 w:br type=column, 읽기 표시 글자
+    let mut core = rhwp::document_core::DocumentCore::new_empty();
+    core.create_blank_document_native().unwrap();
+    core.insert_text_native(0, 0, 0, "첫 단").unwrap();
+    let mut document = core.document().clone();
+    let mut second = document.sections[0].paragraphs[0].clone();
+    second.text = "둘째 단".into();
+    second.column_type = rhwp::model::paragraph::ColumnBreakType::Column;
+    document.sections[0].paragraphs.push(second);
+    let bytes = docx_from_document(&document).unwrap();
+    let xml = part_text(&bytes, "word/document.xml");
+    assert!(xml.contains(r#"<w:br w:type="column"/>"#), "{xml}");
+    let (html, _) = docx_to_html(&bytes).unwrap();
+    assert!(html.contains(COLUMN_BREAK_MARK), "{html}");
+
+    // 칸 대각선(속성 비트 5~7 = 왼쪽 위 → 오른쪽 아래) → w:tl2br
+    core.create_table_native(0, 0, 0, 1, 1).unwrap();
+    let mut document = core.document().clone();
+    let mut fill = rhwp::model::style::BorderFill {
+        attr: 0b010_0000,
+        ..Default::default()
+    };
+    fill.diagonal.diagonal_type = 1;
+    document.doc_info.border_fills.push(fill);
+    let id = document.doc_info.border_fills.len() as u16;
+    for control in document.sections[0]
+        .paragraphs
+        .iter_mut()
+        .flat_map(|p| p.controls.iter_mut())
+    {
+        if let Control::Table(table) = control {
+            table.cells[0].border_fill_id = id;
+        }
+    }
+    let xml = part_text(&docx_from_document(&document).unwrap(), "word/document.xml");
+    assert!(xml.contains("<w:tl2br w:val=\"single\""), "{xml}");
+    assert!(!xml.contains("<w:tr2bl"), "{xml}");
 }

@@ -15,6 +15,8 @@ pub const FOOTNOTE_MARK: char = '\u{E0F1}';
 pub const ENDNOTE_MARK: char = '\u{E0F3}';
 /// 문단 맨 앞의 쪽 나누기 표시(사용자 영역 글자). papy-hwp 가 지우고 그 문단 앞에서 쪽을 나눈다.
 pub const PAGE_BREAK_MARK: char = '\u{E0F4}';
+/// 단 나누기 표시 글자(문단 앞). papy-hwp 가 붙여넣은 뒤 단 나누기로 바꾼다.
+pub const COLUMN_BREAK_MARK: char = '\u{E0F5}';
 
 /// 머리말·꼬리말 하나.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
