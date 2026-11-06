@@ -450,6 +450,32 @@ pub enum UnsupportedKind {
     MissingImage,
 }
 
+/// 메모 하나(한글 메모, Word 메모).
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct Comment {
+    /// 쓴 사람(없으면 빈 글).
+    pub author: String,
+    /// 쓴 때(문서에 적힌 그대로, 없으면 빈 글).
+    pub date: String,
+    /// 메모 글.
+    pub text: String,
+    /// 메모를 단 자리의 본문 글(앞부분).
+    pub anchor: String,
+    /// 쪽(0부터). 찾지 못하면 `None`.
+    pub page: Option<u32>,
+}
+
+/// 문서의 메모와 변경 추적(검토 내용).
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct Review {
+    /// 메모.
+    pub comments: Vec<Comment>,
+    /// 넣은 내용(변경 추적) 수. 화면은 변경을 받아들인 상태다.
+    pub insertions: u32,
+    /// 지운 내용(변경 추적) 수.
+    pub deletions: u32,
+}
+
 /// 쪽에서 제대로 그리지 못한 개체 하나와 그 자리(pt). 앱은 "이 쪽의 개체 N개를 표시하지 못했다"고 알린다.
 #[derive(Debug, Clone, PartialEq)]
 pub struct UnsupportedObject {

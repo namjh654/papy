@@ -8,7 +8,7 @@ use std::io::{Cursor, Read};
 
 use crate::notes::{
     COLUMN_BREAK_MARK, ENDNOTE_MARK, FOOTNOTE_MARK, HeaderFooterText, Numbering, PAGE_BREAK_MARK,
-    paragraph_texts, parse_endnotes, parse_footnotes,
+    header_footer_texts, parse_endnotes, parse_footnotes,
 };
 use crate::shapes::{DocxShape, Drawing, Pending, SHAPE_MARK, ShapeImage};
 use papy_model::{Error, ErrorCode, Result};
@@ -44,12 +44,80 @@ pub struct DocxReadReport {
     /// 첫 쪽에서 감출 (머리말, 꼬리말). 첫 구역이 "첫 쪽 다르게"(`w:titlePg`)일 때 켠다.
     /// rhwp 에는 첫 쪽 전용 머리말 자리가 없어, 첫 쪽에서는 기본 머리말을 감추고 첫 쪽 것의 글자는 옮기지 않는다.
     pub hide_first_page: (bool, bool),
+    /// 메모(`word/comments.xml`), 본문에서 처음 가리킨 순서.
+    pub comments: Vec<DocxComment>,
+    /// 변경 추적: 넣은 내용(`w:ins`)·지운 내용(`w:del`) 수. 화면은 받아들인 상태(넣은 글은 보이고 지운 글은 빠진다).
+    pub insertions: u32,
+    /// 지운 내용 수
+    pub deletions: u32,
     /// 본문 맨 바깥 표마다 왼쪽 자리(HWPUNIT, `w:tblInd`, 문서 순서). 없으면 0.
     pub table_indents: Vec<i32>,
     /// 본문 맨 바깥 표마다 쪽·종이 기준 자리(`w:tblpPr`): rhwp 표 속성 JSON 조각(`"vertRelTo":…`). 없으면 빈 글.
     pub table_places: Vec<String>,
     /// 첫 구역의 쪽 크기·여백·다단(`w:pgSz`·`w:pgMar`·`w:cols`). 없거나 이상하면 None(빈 문서 기본값을 쓴다).
     pub page: Option<PageSetup>,
+}
+
+/// Word 메모 하나.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct DocxComment {
+    /// 쓴 사람
+    pub author: String,
+    /// 쓴 때(ISO 8601 그대로)
+    pub date: String,
+    /// 메모 글(문단은 줄바꿈으로)
+    pub text: String,
+    /// 메모를 단 문단 글(앞 60자)
+    pub anchor: String,
+}
+
+/// `word/comments.xml` → id 별 (쓴 사람, 때, 글).
+fn parse_comments(xml: &str) -> HashMap<String, (String, String, String)> {
+    let mut reader = Reader::from_str(xml);
+    let mut out = HashMap::new();
+    let mut current: Option<(String, String, String, Vec<String>)> = None;
+    let mut in_text = false;
+    loop {
+        match reader.read_event() {
+            Ok(Event::Eof) | Err(_) => break,
+            Ok(Event::Start(e)) => match local(e.name().as_ref()) {
+                "comment" => {
+                    current = attr(&e, "id").map(|id| {
+                        (
+                            id,
+                            attr(&e, "author").unwrap_or_default(),
+                            attr(&e, "date").unwrap_or_default(),
+                            Vec::new(),
+                        )
+                    })
+                }
+                "p" => {
+                    if let Some(c) = current.as_mut() {
+                        c.3.push(String::new());
+                    }
+                }
+                "t" => in_text = true,
+                _ => {}
+            },
+            Ok(Event::End(e)) => match local(e.name().as_ref()) {
+                "t" => in_text = false,
+                "comment" => {
+                    if let Some((id, author, date, paragraphs)) = current.take() {
+                        let text = paragraphs.join("\n").trim().to_owned();
+                        out.insert(id, (author, date, text));
+                    }
+                }
+                _ => {}
+            },
+            Ok(Event::Text(text)) if in_text => {
+                if let Some(paragraph) = current.as_mut().and_then(|c| c.3.last_mut()) {
+                    paragraph.push_str(&text.xml10_content());
+                }
+            }
+            _ => {}
+        }
+    }
+    out
 }
 
 /// 쪽 설정(HWPUNIT). 머리말·꼬리말 여백은 HWP 방식이다(본문 위·아래 여백에 더해지는 머리말·꼬리말 자리).
@@ -350,7 +418,10 @@ impl ParaProps {
             "spacing" => {
                 self.before = number("before").or(self.before);
                 self.after = number("after").or(self.after);
-                if let Some(line) = number("line") {
+                if let Some(percent) = number("linePercent") {
+                    // Papy 가 쓴 원래 한글 배수 줄 간격(%) — 240 = 100% 기준으로 둔다.
+                    self.line = Some((percent * 240 / 100, "auto".into()));
+                } else if let Some(line) = number("line") {
                     let rule = attr(element, "lineRule").unwrap_or_else(|| "auto".into());
                     self.line = Some((line, rule));
                 }
@@ -379,8 +450,8 @@ impl ParaProps {
             css.push_str(&format!("margin-bottom:{:.1}pt;", pt(after)));
         }
         match &self.line {
-            Some((line, rule)) if rule == "exact" && *line > 0 => {
-                // rhwp 는 px 를 고정 줄 간격으로 읽는다.
+            Some((line, rule)) if (rule == "exact" || rule == "atLeast") && *line > 0 => {
+                // rhwp 는 px 를 고정 줄 간격으로 읽는다(글자보다 작으면 글자 높이 — "최소" 와 같다).
                 css.push_str(&format!("line-height:{:.1}px;", pt(*line) * 96.0 / 72.0));
             }
             Some((line, rule)) if rule == "auto" && *line > 0 => {
@@ -828,6 +899,11 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
     let rels = read_part(&mut archive, "word/_rels/document.xml.rels")?
         .map(|xml| parse_rels(&xml))
         .unwrap_or_default();
+    let comments = read_part(&mut archive, "word/comments.xml")?
+        .map(|xml| parse_comments(&xml))
+        .unwrap_or_default();
+    // 이 문단에서 가리킨 메모 id(문단이 끝나면 문단 글을 자리 글로 붙인다)
+    let mut pending_comments: Vec<String> = Vec::new();
     let footnotes = read_part(&mut archive, "word/footnotes.xml")?
         .map(|xml| parse_footnotes(&xml))
         .unwrap_or_default();
@@ -954,6 +1030,15 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
                     continue;
                 }
                 match name {
+                    "ins" if !empty => report.insertions += 1,
+                    "del" if !empty => report.deletions += 1,
+                    "commentReference" => {
+                        if let Some(id) = attr(&e, "id") {
+                            if comments.contains_key(&id) && !pending_comments.contains(&id) {
+                                pending_comments.push(id);
+                            }
+                        }
+                    }
                     "p" if empty => {
                         paragraphs += 1;
                         out(&mut body, &mut cell, "<p></p>");
@@ -1416,6 +1501,16 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
                 }
                 "p" => {
                     in_para = false;
+                    for id in pending_comments.drain(..) {
+                        if let Some((author, date, text)) = comments.get(&id) {
+                            report.comments.push(DocxComment {
+                                author: author.clone(),
+                                date: date.clone(),
+                                text: text.clone(),
+                                anchor: para_plain.trim().chars().take(60).collect(),
+                            });
+                        }
+                    }
                     let align = para_align.clone().or_else(|| para_style.1.clone());
                     let mut css = align
                         .map(|a| format!("text-align:{};", align_css(&a)))
@@ -1523,7 +1618,7 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
         let Some(xml) = read_part(&mut archive, path)? else {
             continue;
         };
-        let paragraphs = paragraph_texts(&xml);
+        let paragraphs = header_footer_texts(&xml);
         let blank = paragraphs.iter().all(|p| p.trim().is_empty());
         let apply_to = match kind.as_str() {
             "default" if has_even => 2,

@@ -1966,3 +1966,24 @@ fn docx_first_line_indent_and_column_breaks_survive() {
         "{xml}"
     );
 }
+
+#[test]
+fn docx_comments_and_changes_are_reviewed() {
+    let document = r#"<w:document xmlns:w="w"><w:body><w:p><w:r><w:t>첫 쪽 문장</w:t></w:r></w:p><w:p><w:r><w:br w:type="page"/><w:t>둘째 쪽 메모 자리</w:t></w:r><w:r><w:commentReference w:id="0"/></w:r><w:ins w:id="5"><w:r><w:t>넣음</w:t></w:r></w:ins></w:p></w:body></w:document>"#;
+    let comments = r#"<w:comments xmlns:w="w"><w:comment w:id="0" w:author="검토자"><w:p><w:r><w:t>여기 확인</w:t></w:r></w:p></w:comment></w:comments>"#;
+    let bytes = zip_parts(&[
+        ("[Content_Types].xml", "<Types/>"),
+        ("word/document.xml", document),
+        ("word/comments.xml", comments),
+    ]);
+    let mut doc = open(HwpBackend::docx(), bytes, &options()).unwrap();
+    let review = doc.review().unwrap();
+    assert_eq!((review.insertions, review.deletions), (1, 0));
+    assert_eq!(review.comments.len(), 1);
+    let comment = &review.comments[0];
+    assert_eq!(
+        (comment.author.as_str(), comment.text.as_str()),
+        ("검토자", "여기 확인")
+    );
+    assert_eq!(comment.page, Some(1), "{comment:?}");
+}

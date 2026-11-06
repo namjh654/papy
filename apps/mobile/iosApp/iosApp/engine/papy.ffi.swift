@@ -730,6 +730,11 @@ public protocol PapyEngineProtocol: AnyObject, Sendable {
     func resizePicture(sessionId: UInt64, picture: EngineObjectRef, width: Float, height: Float) throws  -> UInt32
     
     /**
+     * 메모와 변경 추적(검토 내용). 없으면 빈 목록과 0.
+     */
+    func review(sessionId: UInt64) throws  -> ReviewInfo
+    
+    /**
      * 원래 형식으로 저장한 바이트(암호 문서는 같은 암호로).
      */
     func save(sessionId: UInt64) throws  -> Data
@@ -1195,6 +1200,19 @@ open func resizePicture(sessionId: UInt64, picture: EngineObjectRef, width: Floa
 }
     
     /**
+     * 메모와 변경 추적(검토 내용). 없으면 빈 목록과 0.
+     */
+open func review(sessionId: UInt64)throws  -> ReviewInfo  {
+    return try  FfiConverterTypeReviewInfo_lift(try rustCallWithError(FfiConverterTypePapyError_lift) {
+        uniffiCallStatus in
+    uniffi_papy_ffi_fn_method_papyengine_review(
+            self.uniffiCloneHandle(),
+        FfiConverterUInt64.lower(sessionId),uniffiCallStatus
+    )
+})
+}
+    
+    /**
      * 원래 형식으로 저장한 바이트(암호 문서는 같은 암호로).
      */
 open func save(sessionId: UInt64)throws  -> Data  {
@@ -1349,6 +1367,105 @@ public func FfiConverterTypePapyEngine_lower(_ value: PapyEngine) -> UInt64 {
 }
 
 
+
+
+/**
+ * 메모 하나(한글 메모, Word 메모).
+ */
+public struct CommentEntry: Equatable, Hashable {
+    /**
+     * 쓴 사람(없으면 빈 글)
+     */
+    public var author: String
+    /**
+     * 쓴 때(문서에 적힌 그대로, 없으면 빈 글)
+     */
+    public var date: String
+    /**
+     * 메모 글
+     */
+    public var text: String
+    /**
+     * 메모를 단 자리의 본문 글(앞부분)
+     */
+    public var anchor: String
+    /**
+     * 쪽(0부터). 모르면 없음
+     */
+    public var page: UInt32?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * 쓴 사람(없으면 빈 글)
+         */author: String, 
+        /**
+         * 쓴 때(문서에 적힌 그대로, 없으면 빈 글)
+         */date: String, 
+        /**
+         * 메모 글
+         */text: String, 
+        /**
+         * 메모를 단 자리의 본문 글(앞부분)
+         */anchor: String, 
+        /**
+         * 쪽(0부터). 모르면 없음
+         */page: UInt32?) {
+        self.author = author
+        self.date = date
+        self.text = text
+        self.anchor = anchor
+        self.page = page
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension CommentEntry: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeCommentEntry: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> CommentEntry {
+        return
+            try CommentEntry(
+                author: FfiConverterString.read(from: &buf), 
+                date: FfiConverterString.read(from: &buf), 
+                text: FfiConverterString.read(from: &buf), 
+                anchor: FfiConverterString.read(from: &buf), 
+                page: FfiConverterOptionUInt32.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: CommentEntry, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.author, into: &buf)
+        FfiConverterString.write(value.date, into: &buf)
+        FfiConverterString.write(value.text, into: &buf)
+        FfiConverterString.write(value.anchor, into: &buf)
+        FfiConverterOptionUInt32.write(value.page, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeCommentEntry_lift(_ buf: RustBuffer) throws -> CommentEntry {
+    return try FfiConverterTypeCommentEntry.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeCommentEntry_lower(_ value: CommentEntry) -> RustBuffer {
+    return FfiConverterTypeCommentEntry.lower(value)
+}
 
 
 /**
@@ -2727,6 +2844,85 @@ public func FfiConverterTypeParagraphAtPoint_lower(_ value: ParagraphAtPoint) ->
 
 
 /**
+ * 메모와 변경 추적.
+ */
+public struct ReviewInfo: Equatable, Hashable {
+    /**
+     * 메모
+     */
+    public var comments: [CommentEntry]
+    /**
+     * 넣은 내용(변경 추적) 수. 화면은 받아들인 상태다
+     */
+    public var insertions: UInt32
+    /**
+     * 지운 내용 수
+     */
+    public var deletions: UInt32
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * 메모
+         */comments: [CommentEntry], 
+        /**
+         * 넣은 내용(변경 추적) 수. 화면은 받아들인 상태다
+         */insertions: UInt32, 
+        /**
+         * 지운 내용 수
+         */deletions: UInt32) {
+        self.comments = comments
+        self.insertions = insertions
+        self.deletions = deletions
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension ReviewInfo: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeReviewInfo: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ReviewInfo {
+        return
+            try ReviewInfo(
+                comments: FfiConverterSequenceTypeCommentEntry.read(from: &buf), 
+                insertions: FfiConverterUInt32.read(from: &buf), 
+                deletions: FfiConverterUInt32.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: ReviewInfo, into buf: inout [UInt8]) {
+        FfiConverterSequenceTypeCommentEntry.write(value.comments, into: &buf)
+        FfiConverterUInt32.write(value.insertions, into: &buf)
+        FfiConverterUInt32.write(value.deletions, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeReviewInfo_lift(_ buf: RustBuffer) throws -> ReviewInfo {
+    return try FfiConverterTypeReviewInfo.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeReviewInfo_lower(_ value: ReviewInfo) -> RustBuffer {
+    return FfiConverterTypeReviewInfo.lower(value)
+}
+
+
+/**
  * 찾은 글자 하나.
  */
 public struct TextHit: Equatable, Hashable {
@@ -3573,6 +3769,31 @@ fileprivate struct FfiConverterOptionTypeEngineCell: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterSequenceTypeCommentEntry: FfiConverterRustBuffer {
+    typealias SwiftType = [CommentEntry]
+
+    public static func write(_ value: [CommentEntry], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeCommentEntry.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [CommentEntry] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [CommentEntry]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeCommentEntry.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterSequenceTypeEngineObject: FfiConverterRustBuffer {
     typealias SwiftType = [EngineObject]
 
@@ -3793,6 +4014,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_papy_ffi_checksum_method_papyengine_resize_picture() != 61970) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_papy_ffi_checksum_method_papyengine_review() != 21399) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_papy_ffi_checksum_method_papyengine_save() != 57793) {

@@ -27,31 +27,102 @@ pub struct HeaderFooterText {
     pub paragraphs: Vec<String>,
 }
 
+/// 머리말·꼬리말의 쪽 번호 필드 글자: rhwp 머리말·꼬리말은 이 글자를 지금 쪽 번호·전체 쪽 수로 그린다.
+pub const PAGE_NUMBER_FIELD: char = '\u{0015}';
+/// 전체 쪽 수 필드 글자
+pub const PAGE_COUNT_FIELD: char = '\u{0016}';
+
 /// XML 조각의 문단별 글자. 표 안 문단도 차례대로 펼친다. 각주 번호 표시(`footnoteRef`)는 뺀다.
 pub fn paragraph_texts(xml: &str) -> Vec<String> {
+    texts(xml, false)
+}
+
+/// [`paragraph_texts`] 와 같되 쪽 번호(`PAGE`)·전체 쪽 수(`NUMPAGES`) 필드를 필드 글자로 바꾼다(머리말·꼬리말).
+pub fn header_footer_texts(xml: &str) -> Vec<String> {
+    texts(xml, true)
+}
+
+/// 필드 명령의 첫 낱말로 고른 필드 글자.
+fn field_char(instr: &str) -> Option<char> {
+    match instr
+        .split_whitespace()
+        .next()?
+        .to_ascii_uppercase()
+        .as_str()
+    {
+        "PAGE" => Some(PAGE_NUMBER_FIELD),
+        "NUMPAGES" | "SECTIONPAGES" => Some(PAGE_COUNT_FIELD),
+        _ => None,
+    }
+}
+
+fn texts(xml: &str, fields: bool) -> Vec<String> {
     let mut reader = Reader::from_str(xml);
     let mut paragraphs = Vec::new();
     let mut current: Option<String> = None;
     let mut in_text = false;
+    // 필드: 복합 필드(fldChar)의 명령 글자, 결과(캐시된 쪽 번호) 건너뛰기
+    let mut instr: Option<String> = None;
+    let mut in_instr = false;
+    let mut skip_result = false;
+    let mut simple_depth = 0usize;
     loop {
         match reader.read_event() {
             Ok(Event::Eof) | Err(_) => break,
             Ok(Event::Start(e)) => match local(e.name().as_ref()) {
                 "p" => current = Some(String::new()),
                 "t" => in_text = true,
+                "instrText" if fields => in_instr = true,
+                "fldSimple" if fields => {
+                    if let Some(ch) = attr(&e, "instr").as_deref().and_then(field_char) {
+                        current.get_or_insert_default().push(ch);
+                        simple_depth += 1;
+                    }
+                }
                 _ => {}
             },
             Ok(Event::Empty(e)) => match local(e.name().as_ref()) {
                 "p" => paragraphs.push(String::new()),
                 "tab" => current.get_or_insert_default().push('\t'),
                 "br" | "cr" => current.get_or_insert_default().push(' '),
+                "fldSimple" if fields => {
+                    if let Some(ch) = attr(&e, "instr").as_deref().and_then(field_char) {
+                        current.get_or_insert_default().push(ch);
+                    }
+                }
+                "fldChar" if fields => match attr(&e, "fldCharType").as_deref() {
+                    Some("begin") => instr = Some(String::new()),
+                    Some("separate") => {
+                        if let Some(ch) = instr.as_deref().and_then(field_char) {
+                            current.get_or_insert_default().push(ch);
+                            skip_result = true;
+                        }
+                        instr = None;
+                    }
+                    Some("end") => {
+                        // 결과 없는 필드
+                        if let Some(ch) = instr.take().as_deref().and_then(field_char) {
+                            current.get_or_insert_default().push(ch);
+                        }
+                        skip_result = false;
+                    }
+                    _ => {}
+                },
                 _ => {}
             },
             Ok(Event::End(e)) => match local(e.name().as_ref()) {
                 "p" => paragraphs.extend(current.take()),
                 "t" => in_text = false,
+                "instrText" => in_instr = false,
+                "fldSimple" if simple_depth > 0 => simple_depth -= 1,
                 _ => {}
             },
+            Ok(Event::Text(text)) if in_instr => {
+                if let Some(instr) = instr.as_mut() {
+                    instr.push_str(&text.xml10_content());
+                }
+            }
+            Ok(Event::Text(_)) if in_text && (skip_result || simple_depth > 0) => {}
             Ok(Event::Text(text)) if in_text => {
                 if let Some(current) = current.as_mut() {
                     current.push_str(&text.xml10_content());

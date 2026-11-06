@@ -776,3 +776,146 @@ fn column_breaks_and_diagonals_are_written() {
     assert!(xml.contains("<w:tl2br w:val=\"single\""), "{xml}");
     assert!(!xml.contains("<w:tr2bl"), "{xml}");
 }
+
+#[test]
+fn numbering_note_marks_and_page_fields_are_written() {
+    use rhwp::model::control::{AutoNumber, AutoNumberType, Control, PageNumberPos};
+    use rhwp::model::paragraph::{MarkerHead, NumberingMarker};
+    let mut core = rhwp::document_core::DocumentCore::new_empty();
+    core.create_blank_document_native().unwrap();
+    core.insert_text_native(0, 0, 0, "항목").unwrap();
+    let mut document = core.document().clone();
+    // 번호 정의 1: 수준 1 "^1." (가나다), 수준 2 "^1.^2)"
+    let mut numbering = rhwp::model::style::Numbering::default();
+    numbering.level_formats[0] = "^1.".into();
+    numbering.level_formats[1] = "^1.^2)".into();
+    numbering.heads[0].number_format = 8;
+    numbering.level_start_numbers = [1; 7];
+    document.doc_info.numberings.push(numbering);
+    let numbering_id = document.doc_info.numberings.len() as u16;
+    let mut shape = document.doc_info.para_shapes[0].clone();
+    shape.head_type = rhwp::model::style::HeadType::Number;
+    shape.numbering_id = numbering_id;
+    shape.para_level = 1;
+    document.doc_info.para_shapes.push(shape);
+    let shape_id = (document.doc_info.para_shapes.len() - 1) as u16;
+    let section = &mut document.sections[0];
+    let paragraph = &mut section.paragraphs[0];
+    paragraph.para_shape_id = shape_id;
+    paragraph.numbering_marker = NumberingMarker::Text("가.1)".into(), MarkerHead::default());
+    // 쪽 번호 위치: 아래 가운데 "- 1 -", 글 안 전체 쪽 수
+    paragraph
+        .controls
+        .push(Control::PageNumberPos(PageNumberPos {
+            position: 5,
+            dash_char: '-',
+            ..PageNumberPos::default()
+        }));
+    paragraph.controls.push(Control::AutoNumber(AutoNumber {
+        number_type: AutoNumberType::TotalPage,
+        ..AutoNumber::default()
+    }));
+    // 미주 번호 모양: "문1)" 처럼 본문 크기
+    section.section_def.endnote_shape.prefix_char = '문';
+    section.section_def.endnote_shape.suffix_char = ')';
+    section.section_def.endnote_shape.number_code_superscript = false;
+    section.section_def.endnote_shape.number_format =
+        rhwp::model::footnote::NumberFormat::HangulSyllable;
+    section.paragraphs[0]
+        .controls
+        .push(Control::Endnote(Box::default()));
+    let bytes = docx_from_document(&document).unwrap();
+    let xml = part_text(&bytes, "word/document.xml");
+    assert!(
+        xml.contains(r#"<w:numPr><w:ilvl w:val="1"/><w:numId w:val="1"/></w:numPr>"#),
+        "{xml}"
+    );
+    let numbering = part_text(&bytes, "word/numbering.xml");
+    assert!(
+        numbering.contains(
+            r#"<w:numFmt w:val="ganada"/><w:suff w:val="space"/><w:lvlText w:val="%1."/>"#
+        ),
+        "{numbering}"
+    );
+    assert!(
+        numbering.contains(r#"<w:lvlText w:val="%1.%2)"/>"#),
+        "{numbering}"
+    );
+    assert!(
+        xml.contains(r#"<w:fldSimple w:instr=" NUMPAGES ">"#),
+        "{xml}"
+    );
+    assert!(
+        xml.contains(r#"<w:r><w:t xml:space="preserve">문</w:t></w:r><w:r><w:endnoteReference w:id="1"/></w:r><w:r><w:t xml:space="preserve">)</w:t></w:r>"#),
+        "{xml}"
+    );
+    assert!(
+        xml.contains(r#"<w:endnotePr><w:numFmt w:val="ganada"/>"#),
+        "{xml}"
+    );
+    let footer = part_text(&bytes, "word/footer1.xml");
+    assert!(
+        footer.contains(r#"<w:jc w:val="center"/></w:pPr><w:r><w:t xml:space="preserve">- </w:t></w:r><w:fldSimple w:instr=" PAGE ">"#),
+        "{footer}"
+    );
+    // 다시 읽기: 머리말·꼬리말의 쪽 번호 필드는 rhwp 필드 글자로, 번호 목록은 번호 글자로.
+    assert_eq!(
+        crate::notes::header_footer_texts(&footer),
+        vec![format!("- {} -", crate::notes::PAGE_NUMBER_FIELD)]
+    );
+    let complex = r#"<w:ftr xmlns:w="w"><w:p><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText> NUMPAGES </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:t>9</w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r><w:r><w:t>쪽</w:t></w:r></w:p></w:ftr>"#;
+    assert_eq!(
+        crate::notes::header_footer_texts(complex),
+        vec![format!("{}쪽", crate::notes::PAGE_COUNT_FIELD)]
+    );
+    let (html, _) = docx_to_html(&bytes).unwrap();
+    assert!(html.contains("가.1) "), "{html}");
+}
+
+#[test]
+fn comments_tracked_changes_font_table_and_line_spacing() {
+    // 읽기: Word 메모(쓴 사람·때·글·단 자리)와 변경 추적 수
+    let document = format!(
+        r#"<w:document {NS}><w:body><w:p><w:r><w:t>검토할 문장</w:t></w:r><w:r><w:commentReference w:id="3"/></w:r><w:ins w:id="1"><w:r><w:t>넣음</w:t></w:r></w:ins><w:del w:id="2"><w:r><w:delText>지움</w:delText></w:r></w:del></w:p></w:body></w:document>"#
+    );
+    let comments = format!(
+        r#"<w:comments {NS}><w:comment w:id="3" w:author="홍길동" w:date="2026-11-06T10:00:00Z"><w:p><w:r><w:t>확인 필요</w:t></w:r></w:p><w:p><w:r><w:t>둘째 줄</w:t></w:r></w:p></w:comment></w:comments>"#
+    );
+    let bytes = docx_with(&document, &[("word/comments.xml", comments.as_bytes())]);
+    let (html, report) = docx_to_html(&bytes).unwrap();
+    assert_eq!(
+        report.comments,
+        vec![DocxComment {
+            author: "홍길동".into(),
+            date: "2026-11-06T10:00:00Z".into(),
+            text: "확인 필요\n둘째 줄".into(),
+            anchor: "검토할 문장넣음".into(),
+        }]
+    );
+    assert_eq!((report.insertions, report.deletions), (1, 1));
+    assert!(html.contains("넣음") && !html.contains("지움"), "{html}");
+
+    // 쓰기: 글꼴 표(계열·한글 문자 집합·대체 글꼴), 배수 줄 간격은 글자 크기 × % 를 "최소"로
+    let mut core = rhwp::document_core::DocumentCore::new_empty();
+    core.create_blank_document_native().unwrap();
+    core.insert_text_native(0, 0, 0, "본문").unwrap();
+    let document = core.document().clone();
+    let bytes = docx_from_document(&document).unwrap();
+    let fonts = part_text(&bytes, "word/fontTable.xml");
+    assert!(fonts.contains(r#"<w:charset w:val="81"/>"#), "{fonts}");
+    assert!(
+        fonts.contains(r#"<w:family w:val="roman"/>"#)
+            || fonts.contains(r#"<w:family w:val="swiss"/>"#),
+        "{fonts}"
+    );
+    assert!(part_text(&bytes, "word/_rels/document.xml.rels").contains("fontTable.xml"));
+    let xml = part_text(&bytes, "word/document.xml");
+    // 빈 문서 본문: 10pt 160% → 16pt = 320 twip
+    assert!(
+        xml.contains(r#"w:line="320" w:lineRule="atLeast" papy:linePercent="160""#),
+        "{xml}"
+    );
+    // Papy 로 다시 열면 원래 % 로
+    let (html, _) = docx_to_html(&bytes).unwrap();
+    assert!(html.contains("line-height:160%;"), "{html}");
+}

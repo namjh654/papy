@@ -725,6 +725,8 @@ internal object IntegrityCheckingUniffiLib {
     ): Int
     external fun uniffi_papy_ffi_checksum_method_papyengine_resize_picture(
     ): Int
+    external fun uniffi_papy_ffi_checksum_method_papyengine_review(
+    ): Int
     external fun uniffi_papy_ffi_checksum_method_papyengine_save(
     ): Int
     external fun uniffi_papy_ffi_checksum_method_papyengine_selection_regions(
@@ -817,6 +819,8 @@ internal object UniffiLib {
     ): Int
     external fun uniffi_papy_ffi_fn_method_papyengine_resize_picture(`ptr`: Long,`sessionId`: Long,`picture`: RustBuffer.ByValue,`width`: Float,`height`: Float,uniffi_out_err: UniffiRustCallStatus, 
     ): Int
+    external fun uniffi_papy_ffi_fn_method_papyengine_review(`ptr`: Long,`sessionId`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
     external fun uniffi_papy_ffi_fn_method_papyengine_save(`ptr`: Long,`sessionId`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     external fun uniffi_papy_ffi_fn_method_papyengine_selection_regions(`ptr`: Long,`sessionId`: Long,`range`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
@@ -1027,6 +1031,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_papy_ffi_checksum_method_papyengine_resize_picture() and 0xFFFF) != 61970) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if ((lib.uniffi_papy_ffi_checksum_method_papyengine_review() and 0xFFFF) != 21399) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_papy_ffi_checksum_method_papyengine_save() and 0xFFFF) != 57793) {
@@ -1604,6 +1611,11 @@ public interface PapyEngineInterface {
      * 그림 크기를 바꾼다(pt).
      */
     fun `resizePicture`(`sessionId`: kotlin.ULong, `picture`: EngineObjectRef, `width`: kotlin.Float, `height`: kotlin.Float): kotlin.UInt
+    
+    /**
+     * 메모와 변경 추적(검토 내용). 없으면 빈 목록과 0.
+     */
+    fun `review`(`sessionId`: kotlin.ULong): ReviewInfo
     
     /**
      * 원래 형식으로 저장한 바이트(암호 문서는 같은 암호로).
@@ -2241,6 +2253,24 @@ open class PapyEngine: Disposable, AutoCloseable, PapyEngineInterface
 
     
     /**
+     * 메모와 변경 추적(검토 내용). 없으면 빈 목록과 0.
+     */
+    @Throws(PapyException::class)override fun `review`(`sessionId`: kotlin.ULong): ReviewInfo {
+            return FfiConverterTypeReviewInfo.lift(
+    callWithHandle {
+    uniffiRustCallWithError(PapyException) { _status ->
+    UniffiLib.uniffi_papy_ffi_fn_method_papyengine_review(
+        it,
+        
+        FfiConverterULong.lower(`sessionId`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    /**
      * 원래 형식으로 저장한 바이트(암호 문서는 같은 암호로).
      */
     @Throws(PapyException::class)override fun `save`(`sessionId`: kotlin.ULong): kotlin.ByteArray {
@@ -2423,6 +2453,77 @@ public object FfiConverterTypePapyEngine: FfiConverter<PapyEngine, Long> {
 
     override fun write(value: PapyEngine, buf: ByteBuffer) {
         buf.putLong(lower(value))
+    }
+}
+
+
+
+/**
+ * 메모 하나(한글 메모, Word 메모).
+ */
+data class CommentEntry (
+    /**
+     * 쓴 사람(없으면 빈 글)
+     */
+    var `author`: kotlin.String
+    , 
+    /**
+     * 쓴 때(문서에 적힌 그대로, 없으면 빈 글)
+     */
+    var `date`: kotlin.String
+    , 
+    /**
+     * 메모 글
+     */
+    var `text`: kotlin.String
+    , 
+    /**
+     * 메모를 단 자리의 본문 글(앞부분)
+     */
+    var `anchor`: kotlin.String
+    , 
+    /**
+     * 쪽(0부터). 모르면 없음
+     */
+    var `page`: kotlin.UInt?
+    
+){
+    
+
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeCommentEntry: FfiConverterRustBuffer<CommentEntry> {
+    override fun read(buf: ByteBuffer): CommentEntry {
+        return CommentEntry(
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterOptionalUInt.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: CommentEntry) = (
+            FfiConverterString.allocationSize(value.`author`) +
+            FfiConverterString.allocationSize(value.`date`) +
+            FfiConverterString.allocationSize(value.`text`) +
+            FfiConverterString.allocationSize(value.`anchor`) +
+            FfiConverterOptionalUInt.allocationSize(value.`page`)
+    )
+
+    override fun write(value: CommentEntry, buf: ByteBuffer) {
+            FfiConverterString.write(value.`author`, buf)
+            FfiConverterString.write(value.`date`, buf)
+            FfiConverterString.write(value.`text`, buf)
+            FfiConverterString.write(value.`anchor`, buf)
+            FfiConverterOptionalUInt.write(value.`page`, buf)
     }
 }
 
@@ -3398,6 +3499,61 @@ public object FfiConverterTypeParagraphAtPoint: FfiConverterRustBuffer<Paragraph
 
 
 /**
+ * 메모와 변경 추적.
+ */
+data class ReviewInfo (
+    /**
+     * 메모
+     */
+    var `comments`: List<CommentEntry>
+    , 
+    /**
+     * 넣은 내용(변경 추적) 수. 화면은 받아들인 상태다
+     */
+    var `insertions`: kotlin.UInt
+    , 
+    /**
+     * 지운 내용 수
+     */
+    var `deletions`: kotlin.UInt
+    
+){
+    
+
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeReviewInfo: FfiConverterRustBuffer<ReviewInfo> {
+    override fun read(buf: ByteBuffer): ReviewInfo {
+        return ReviewInfo(
+            FfiConverterSequenceTypeCommentEntry.read(buf),
+            FfiConverterUInt.read(buf),
+            FfiConverterUInt.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: ReviewInfo) = (
+            FfiConverterSequenceTypeCommentEntry.allocationSize(value.`comments`) +
+            FfiConverterUInt.allocationSize(value.`insertions`) +
+            FfiConverterUInt.allocationSize(value.`deletions`)
+    )
+
+    override fun write(value: ReviewInfo, buf: ByteBuffer) {
+            FfiConverterSequenceTypeCommentEntry.write(value.`comments`, buf)
+            FfiConverterUInt.write(value.`insertions`, buf)
+            FfiConverterUInt.write(value.`deletions`, buf)
+    }
+}
+
+
+
+/**
  * 찾은 글자 하나.
  */
 data class TextHit (
@@ -4302,6 +4458,34 @@ public object FfiConverterOptionalTypeEngineCell: FfiConverterRustBuffer<EngineC
         } else {
             buf.put(1)
             FfiConverterTypeEngineCell.write(value, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterSequenceTypeCommentEntry: FfiConverterRustBuffer<List<CommentEntry>> {
+    override fun read(buf: ByteBuffer): List<CommentEntry> {
+        val len = buf.getInt()
+        return List<CommentEntry>(len) {
+            FfiConverterTypeCommentEntry.read(buf)
+        }
+    }
+
+    override fun allocationSize(value: List<CommentEntry>): ULong {
+        val sizeForLength = 4UL
+        val sizeForItems = value.map { FfiConverterTypeCommentEntry.allocationSize(it) }.sum()
+        return sizeForLength + sizeForItems
+    }
+
+    override fun write(value: List<CommentEntry>, buf: ByteBuffer) {
+        buf.putInt(value.size)
+        value.iterator().forEach {
+            FfiConverterTypeCommentEntry.write(it, buf)
         }
     }
 }

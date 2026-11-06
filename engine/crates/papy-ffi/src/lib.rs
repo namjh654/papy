@@ -555,6 +555,32 @@ pub struct OutlineEntry {
     pub depth: u32,
 }
 
+/// 메모 하나(한글 메모, Word 메모).
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+pub struct CommentEntry {
+    /// 쓴 사람(없으면 빈 글)
+    pub author: String,
+    /// 쓴 때(문서에 적힌 그대로, 없으면 빈 글)
+    pub date: String,
+    /// 메모 글
+    pub text: String,
+    /// 메모를 단 자리의 본문 글(앞부분)
+    pub anchor: String,
+    /// 쪽(0부터). 모르면 없음
+    pub page: Option<u32>,
+}
+
+/// 메모와 변경 추적.
+#[derive(Debug, Clone, PartialEq, uniffi::Record)]
+pub struct ReviewInfo {
+    /// 메모
+    pub comments: Vec<CommentEntry>,
+    /// 넣은 내용(변경 추적) 수. 화면은 받아들인 상태다
+    pub insertions: u32,
+    /// 지운 내용 수
+    pub deletions: u32,
+}
+
 /// 찾은 글자 하나.
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
 pub struct TextHit {
@@ -754,6 +780,26 @@ impl PapyEngine {
         let mut out = Vec::new();
         flatten_outline(self.engine.outline(session(session_id)?)?, 0, &mut out);
         Ok(out)
+    }
+
+    /// 메모와 변경 추적(검토 내용). 없으면 빈 목록과 0.
+    pub fn review(&self, session_id: u64) -> Result<ReviewInfo, PapyError> {
+        let review = self.engine.review(session(session_id)?)?;
+        Ok(ReviewInfo {
+            comments: review
+                .comments
+                .into_iter()
+                .map(|c| CommentEntry {
+                    author: c.author,
+                    date: c.date,
+                    text: c.text,
+                    anchor: c.anchor,
+                    page: c.page,
+                })
+                .collect(),
+            insertions: review.insertions,
+            deletions: review.deletions,
+        })
     }
 
     /// 문서에서 글자를 찾는다(대소문자·공백 종류는 가리지 않는다). 쪽 순서로 `max` 개까지.

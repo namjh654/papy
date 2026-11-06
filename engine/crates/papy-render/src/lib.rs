@@ -13,7 +13,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use papy_model::{
     Annotation, CaretMotion, CellPos, CharFormat, DocumentFormat, DocumentInfo, EditOutcome, Error,
     ErrorCode, HitTarget, ObjectRef, OutlineItem, PageObject, PageOp, PageRect, PageSize,
-    ParaFormat, Result, SaveFormat, TableOp, TextPos, UnsupportedObject,
+    ParaFormat, Result, Review, SaveFormat, TableOp, TextPos, UnsupportedObject,
 };
 
 /// 렌더링 결과. RGBA 8비트, 알파는 premultiplied 가 아님, 행 사이 여백 없음(`stride == width * 4`).
@@ -155,6 +155,11 @@ pub trait Document: Send {
     /// 목차.
     fn outline(&mut self) -> Result<Vec<OutlineItem>> {
         Ok(Vec::new())
+    }
+
+    /// 메모와 변경 추적. 기본은 없음.
+    fn review(&mut self) -> Result<Review> {
+        Ok(Review::default())
     }
 
     /// 쪽에서 제대로 그리지 못한 개체(차트·OLE·없는 그림 자리 등). 기본은 없음.

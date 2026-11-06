@@ -180,6 +180,11 @@ async fn outline(state: State<'_, AppState>, id: u64) -> CommandResult<Vec<Outli
 }
 
 #[tauri::command]
+async fn review(state: State<'_, AppState>, id: u64) -> CommandResult<host::ReviewDto> {
+    blocking(&state, move |engine| host::review(engine, id)).await
+}
+
+#[tauri::command]
 async fn close_document(state: State<'_, AppState>, id: u64) -> CommandResult<()> {
     blocking(&state, move |engine| host::close(engine, id)).await
 }
@@ -338,6 +343,7 @@ pub fn run() {
             render_page,
             extract_text,
             outline,
+            review,
             find_text,
             unsupported_objects,
             close_document,

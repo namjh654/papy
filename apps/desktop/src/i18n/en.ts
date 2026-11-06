@@ -171,6 +171,8 @@ export const en: Messages = {
   sidebar: {
     pages: "Pages",
     outline: "Outline",
+    review: "Comments",
+    trackedChanges: (ins, del) => `Tracked changes: ${ins} insertion${ins === 1 ? "" : "s"}, ${del} deletion${del === 1 ? "" : "s"} — shown as accepted.`,
     text: "Text",
     label: "Document navigation",
     goTo: (n) => `Go to page ${n}`,

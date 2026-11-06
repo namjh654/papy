@@ -235,6 +235,27 @@ export function unsupportedObjects(id: number, page: number): Promise<Unsupporte
   return call("unsupported_objects", { id, page });
 }
 
+/** 메모 하나(한글 메모, Word 메모). */
+export interface ReviewComment {
+  author: string;
+  date: string;
+  text: string;
+  /** 메모를 단 자리의 본문 글(앞부분) */
+  anchor: string;
+  page: number | null;
+}
+
+/** 메모와 변경 추적(넣은·지운 내용 수, 화면은 받아들인 상태). */
+export interface Review {
+  comments: ReviewComment[];
+  insertions: number;
+  deletions: number;
+}
+
+export function review(id: number): Promise<Review> {
+  return call("review", { id });
+}
+
 export function outline(id: number): Promise<OutlineItem[]> {
   return call("outline", { id });
 }

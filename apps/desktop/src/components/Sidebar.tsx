@@ -6,8 +6,10 @@ import {
   findText,
   MAX_MATCHES,
   outline as loadOutline,
+  review as loadReview,
   type OpenedDocument,
   type OutlineItem,
+  type Review,
   type TextMatch,
 } from "../engine";
 import type { RenderQueue } from "../renderQueue";
@@ -17,7 +19,7 @@ import { t } from "../i18n";
 
 const THUMB_WIDTH = 112;
 
-type Tab = "thumbs" | "outline" | "find" | "text";
+type Tab = "thumbs" | "outline" | "review" | "find" | "text";
 
 interface Props {
   doc: OpenedDocument;
@@ -31,6 +33,21 @@ interface Props {
 export function Sidebar({ doc, current, queue, onGoTo, revision }: Props) {
   const [tab, setTab] = useState<Tab>("thumbs");
   const [items, setItems] = useState<OutlineItem[]>([]);
+  const [reviewInfo, setReviewInfo] = useState<Review | null>(null);
+
+  // 메모·변경 추적: 열 때 한 번(편집해도 메모는 그대로 둔다).
+  useEffect(() => {
+    let alive = true;
+    setReviewInfo(null);
+    loadReview(doc.id).then(
+      (value) => alive && setReviewInfo(value),
+      () => alive && setReviewInfo(null),
+    );
+    return () => {
+      alive = false;
+    };
+  }, [doc]);
+  const hasReview = !!reviewInfo && (reviewInfo.comments.length > 0 || reviewInfo.insertions + reviewInfo.deletions > 0);
 
   // 편집하면 제목이 바뀌거나 쪽이 밀리므로 다시 읽는다.
   useEffect(() => {
@@ -54,6 +71,7 @@ export function Sidebar({ doc, current, queue, onGoTo, revision }: Props) {
   const tabs: [Tab, string, boolean][] = [
     ["thumbs", t.sidebar.pages, true],
     ["outline", t.sidebar.outline, items.length > 0],
+    ["review", t.sidebar.review, hasReview],
     ["find", t.sidebar.find, doc.canExtractText],
     ["text", t.sidebar.text, doc.canExtractText],
   ];
@@ -72,6 +90,7 @@ export function Sidebar({ doc, current, queue, onGoTo, revision }: Props) {
       <div className="sidebar-body">
         {tab === "thumbs" && <Thumbnails doc={doc} current={current} queue={queue} onGoTo={onGoTo} revision={revision} />}
         {tab === "outline" && <OutlineTree items={items} current={current} onGoTo={onGoTo} />}
+        {tab === "review" && reviewInfo && <ReviewList review={reviewInfo} current={current} onGoTo={onGoTo} />}
         {tab === "find" && <Find doc={doc} current={current} onGoTo={onGoTo} revision={revision} />}
         {tab === "text" && <PageText doc={doc} page={current} revision={revision} />}
       </div>
@@ -141,6 +160,34 @@ function Thumbnails({ doc, current, queue, onGoTo, revision }: Props) {
           </button>
         );
       })}
+    </div>
+  );
+}
+
+function ReviewList({ review, current, onGoTo }: { review: Review; current: number; onGoTo(page: number): void }) {
+  const changes = review.insertions + review.deletions;
+  return (
+    <div className="review">
+      {changes > 0 && <p className="review-changes">{t.sidebar.trackedChanges(review.insertions, review.deletions)}</p>}
+      <ul className="review-list">
+        {review.comments.map((comment, index) => (
+          <li key={index}>
+            <button
+              className={`review-item ${comment.page === current ? "active" : ""}`}
+              disabled={comment.page === null}
+              onClick={() => comment.page !== null && onGoTo(comment.page)}
+            >
+              <span className="review-meta">
+                {[comment.author, comment.date.slice(0, 10), comment.page !== null ? t.sidebar.matchPage(comment.page + 1) : ""]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </span>
+              <span className="review-text">{comment.text}</span>
+              {comment.anchor && <span className="review-anchor">{comment.anchor}</span>}
+            </button>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
