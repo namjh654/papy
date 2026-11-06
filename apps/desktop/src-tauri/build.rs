@@ -66,11 +66,16 @@ fn stage_resources() {
             }
         }
         if extra.join("Noto-OFL.txt").exists() {
-            copy(&extra.join("Noto-OFL.txt"), &out.join("licenses/noto-fonts/OFL.txt"));
+            copy(
+                &extra.join("Noto-OFL.txt"),
+                &out.join("licenses/noto-fonts/OFL.txt"),
+            );
         }
     }
     if copied == 0 && env::var("PROFILE").as_deref() == Ok("release") {
-        println!("cargo:warning=명조·굵게 글꼴이 없습니다. `node scripts/fetch-fonts.mjs` 를 먼저 실행하세요.");
+        println!(
+            "cargo:warning=명조·굵게 글꼴이 없습니다. `node scripts/fetch-fonts.mjs` 를 먼저 실행하세요."
+        );
     }
     copy(&rhwp.join("LICENSE"), &out.join("licenses/rhwp/LICENSE"));
     // 전체 고지는 `node scripts/third-party-notices.mjs` 로 만든다(배포 빌드는 CI 가 만든다).
