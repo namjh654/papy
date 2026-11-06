@@ -96,6 +96,9 @@
     <string name="viewer_text_copied">복사했습니다</string>
     <string name="viewer_loss">이 문서의 요소 %1$d개(차트·미주 등)는 아직 옮기지 못해 보이지 않습니다.</string>
     <string name="viewer_outline">목차</string>
+    <string name="viewer_review">메모</string>
+    <string name="viewer_review_tracked">변경 추적: 넣은 내용 %1$d곳, 지운 내용 %2$d곳 — 받아들인 상태로 보여 줍니다.</string>
+    <string name="viewer_review_page">%1$d쪽</string>
     <string name="viewer_search">찾기</string>
     <string name="viewer_search_hint">문서에서 찾기</string>
     <string name="viewer_search_none">찾는 글자가 없습니다.</string>

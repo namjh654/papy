@@ -226,6 +226,11 @@ fun ViewerScreen(ref: String, name: String, onBack: () -> Unit) {
                         Icon(painterResource(R.drawable.papy_ic_tab_list), contentDescription = stringResource(R.string.viewer_outline), tint = PapyTheme.colors.onSurface)
                     }
                 }
+                if (!state.editing && !state.review.isEmpty) {
+                    IconButton(onClick = viewModel::showReview) {
+                        Icon(painterResource(R.drawable.papy_ic_comment), contentDescription = stringResource(R.string.viewer_review), tint = PapyTheme.colors.onSurface)
+                    }
+                }
                 if (!state.editing) {
                     IconButton(onClick = viewModel::showSearch) {
                         Icon(painterResource(R.drawable.papy_ic_search), contentDescription = stringResource(R.string.viewer_search), tint = PapyTheme.colors.onSurface)
@@ -368,6 +373,45 @@ fun ViewerScreen(ref: String, name: String, onBack: () -> Unit) {
                             .padding(start = PapySpacing.lg + PapySpacing.md * entry.depth.coerceAtMost(6), end = PapySpacing.lg)
                             .padding(vertical = PapySpacing.sm),
                     )
+                }
+            }
+        }
+    }
+
+    if (state.showReview) {
+        val review = state.review
+        PapyBottomSheet(onDismiss = viewModel::hideReview, title = stringResource(R.string.viewer_review)) {
+            LazyColumn(Modifier.fillMaxWidth().heightIn(max = 480.dp)) {
+                if (review.insertions > 0 || review.deletions > 0) {
+                    item {
+                        Text(
+                            stringResource(R.string.viewer_review_tracked, review.insertions, review.deletions),
+                            style = PapyTheme.typography.bodySmall,
+                            color = PapyTheme.colors.onSurfaceVariant,
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = PapySpacing.lg, vertical = PapySpacing.sm),
+                        )
+                    }
+                }
+                itemsIndexed(review.comments) { _, comment ->
+                    Column(
+                        Modifier
+                            .fillMaxWidth()
+                            .clickable(enabled = comment.page != null) { comment.page?.let(viewModel::openReviewComment) }
+                            .padding(horizontal = PapySpacing.lg, vertical = PapySpacing.sm),
+                    ) {
+                        val meta = listOfNotNull(
+                            comment.author.ifBlank { null },
+                            comment.date.ifBlank { null },
+                            comment.page?.let { stringResource(R.string.viewer_review_page, it + 1) },
+                        ).joinToString(" · ")
+                        if (meta.isNotEmpty()) {
+                            Text(meta, style = PapyTheme.typography.caption, color = PapyTheme.colors.onSurfaceVariant)
+                        }
+                        Text(comment.text, style = PapyTheme.typography.body, color = PapyTheme.colors.onSurface)
+                        if (comment.anchor.isNotBlank()) {
+                            Text("“${comment.anchor}”", style = PapyTheme.typography.caption, color = PapyTheme.colors.onSurfaceVariant, maxLines = 2)
+                        }
+                    }
                 }
             }
         }

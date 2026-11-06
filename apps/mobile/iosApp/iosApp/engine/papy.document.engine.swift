@@ -164,6 +164,21 @@ final class PapyDocumentEngine: NSObject, DocumentEngine, @unchecked Sendable {
         }
     }
 
+    func review(session: Int64) -> Core.ReviewSummary {
+        // PDF 주석 메모는 아직 읽지 않는다.
+        if pdf(session) != nil { return Core.ReviewSummary(comments: [], insertions: 0, deletions: 0) }
+        guard let info = try? rust.review(sessionId: UInt64(bitPattern: session)) else {
+            return Core.ReviewSummary(comments: [], insertions: 0, deletions: 0)
+        }
+        let comments = info.comments.map { entry in
+            Core.ReviewComment(
+                author: entry.author, date: entry.date, text: entry.text, anchor: entry.anchor,
+                page: entry.page.map { KotlinInt(int: Int32(clamping: $0)) }
+            )
+        }
+        return Core.ReviewSummary(comments: comments, insertions: Int32(clamping: info.insertions), deletions: Int32(clamping: info.deletions))
+    }
+
     func findText(session: Int64, query: String, max: Int32) -> [Core.TextHit] {
         if let document = pdf(session) {
             let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)

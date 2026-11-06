@@ -30,6 +30,8 @@ import io.github.namjh654.papy.feature.documents.TextRange
 import io.github.namjh654.papy.feature.documents.TextStyle
 import io.github.namjh654.papy.feature.documents.UndoResult
 import io.github.namjh654.papy.feature.documents.OutlineEntry
+import io.github.namjh654.papy.feature.documents.ReviewComment
+import io.github.namjh654.papy.feature.documents.ReviewSummary
 import io.github.namjh654.papy.feature.documents.TextHit
 import io.github.namjh654.papy.feature.documents.UnsupportedCount
 import java.io.File
@@ -212,6 +214,19 @@ class AndroidDocumentEngine(private val context: Context) : DocumentEngine {
         return runCatching {
             rust.outline(session.toULong()).map { OutlineEntry(it.title, it.page?.toInt(), it.depth.toInt()) }
         }.getOrDefault(emptyList())
+    }
+
+    override fun review(session: Long): ReviewSummary {
+        // PDF 주석 메모는 아직 읽지 않는다.
+        if (pdfs.containsKey(session)) return ReviewSummary()
+        return runCatching {
+            val info = rust.review(session.toULong())
+            ReviewSummary(
+                comments = info.comments.map { ReviewComment(it.author, it.date, it.text, it.anchor, it.page?.toInt()) },
+                insertions = info.insertions.toInt(),
+                deletions = info.deletions.toInt(),
+            )
+        }.getOrDefault(ReviewSummary())
     }
 
     override fun findText(session: Long, query: String, max: Int): List<TextHit> {
