@@ -158,5 +158,6 @@ fn insert_note(
 /// 쪽 나누기 표시를 지우고 그 문단 앞에서 쪽을 나눈다(한 번에 다시 짠다).
 fn page_breaks(doc: &mut Rhwp) -> Result<(), HwpError> {
     doc.apply_page_break_marks_native(0, PAGE_BREAK_MARK)?;
+    doc.apply_column_break_marks_native(0, papy_office::COLUMN_BREAK_MARK)?;
     Ok(())
 }

@@ -7,8 +7,8 @@ use std::collections::HashMap;
 use std::io::{Cursor, Read};
 
 use crate::notes::{
-    ENDNOTE_MARK, FOOTNOTE_MARK, HeaderFooterText, Numbering, PAGE_BREAK_MARK, paragraph_texts,
-    parse_endnotes, parse_footnotes,
+    COLUMN_BREAK_MARK, ENDNOTE_MARK, FOOTNOTE_MARK, HeaderFooterText, Numbering, PAGE_BREAK_MARK,
+    paragraph_texts, parse_endnotes, parse_footnotes,
 };
 use crate::shapes::{DocxShape, Drawing, Pending, SHAPE_MARK, ShapeImage};
 use papy_model::{Error, ErrorCode, Result};
@@ -1100,10 +1100,17 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
                             &para_style.0,
                             &defaults,
                         );
-                        if attr(&e, "type").as_deref() == Some("page") && cell.is_empty() {
+                        let kind = attr(&e, "type");
+                        if kind.as_deref() == Some("page") && cell.is_empty() {
                             // 쪽 나누기: 문단을 끊고 뒤 문단 앞에서 쪽을 나눈다.
                             para_html.push_str("</p><p>");
                             para_html.push(PAGE_BREAK_MARK);
+                        } else if kind.as_deref() == Some("column") && cell.is_empty() {
+                            // 단 나누기: 런이 문단 맨 앞이면 이 문단 앞에서, 아니면 끊고 뒤 문단 앞에서.
+                            if !para_html.is_empty() {
+                                para_html.push_str("</p><p>");
+                            }
+                            para_html.push(COLUMN_BREAK_MARK);
                         } else {
                             para_html.push_str("<br>");
                         }

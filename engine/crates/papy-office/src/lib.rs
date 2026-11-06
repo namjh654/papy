@@ -17,7 +17,9 @@ mod shapes;
 mod write;
 
 pub use doc::{doc_to_html, is_doc};
-pub use notes::{ENDNOTE_MARK, FOOTNOTE_MARK, HeaderFooterText, PAGE_BREAK_MARK};
+pub use notes::{
+    COLUMN_BREAK_MARK, ENDNOTE_MARK, FOOTNOTE_MARK, HeaderFooterText, PAGE_BREAK_MARK,
+};
 pub use read::{DocxHeading, DocxReadReport, PageSetup, docx_to_html, is_docx};
 pub use shapes::{DocxShape, Relative, SHAPE_MARK, ShapeImage, ShapeKind, Wrap};
 pub use write::{

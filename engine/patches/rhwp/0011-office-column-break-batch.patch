@@ -1,0 +1,70 @@
+Papy 패치: 표시 글자로 단 나누기를 한 번에 적용하는 함수(0003 쪽 나누기의 단 나누기판).
+
+rhwp v0.8.7(1a76570e). 새 함수만 더한다.
+DOCX 의 단 나누기(`w:br w:type="column"`)는 HTML 붙여넣기에 자리가 없어 표시 글자로 넘기고, 붙여넣은 뒤 그 글자가 있는
+문단 앞에서 단을 나눈다. 한글 시험지처럼 2단 문서는 문제마다 단을 나눠, 이것이 없으면 글이 이어 흘러 쪽 수가 크게 준다.
+
+--- a/src/document_core/commands/text_editing.rs
++++ b/src/document_core/commands/text_editing.rs
+@@ -4118,7 +4118,61 @@
+                 section: section_idx,
+                 para: para_idx,
+             });
++        }
++        Ok(changed.len())
++    }
++
++    /// [Papy] `apply_page_break_marks_native` 의 단 나누기판: `mark` 글자를 지우고 그 문단 앞에서 단을 나눈다
++    /// (이미 쪽 나누기가 있으면 그대로 둔다). DOCX `w:br w:type="column"` 을 옮긴다.
++    pub fn apply_column_break_marks_native(
++        &mut self,
++        section_idx: usize,
++        mark: char,
++    ) -> Result<usize, HwpError> {
++        use crate::model::paragraph::ColumnBreakType;
++        let section = self.document.sections.get(section_idx).ok_or_else(|| {
++            HwpError::RenderError(format!("구역 인덱스 {} 범위 초과", section_idx))
++        })?;
++        let changed: Vec<usize> = section
++            .paragraphs
++            .iter()
++            .enumerate()
++            .filter(|(_, para)| para.text.contains(mark))
++            .map(|(idx, _)| idx)
++            .collect();
++        let Some(&first) = changed.first() else {
++            return Ok(0);
++        };
++        let stored_end_for_reset = crate::renderer::composer::paragraph_flow_end(
++            &self.document.sections[section_idx].paragraphs[first],
++        );
++        self.document.sections[section_idx].raw_stream = None;
++        for &para_idx in &changed {
++            let para = &mut self.document.sections[section_idx].paragraphs[para_idx];
++            while let Some(offset) = para.text.chars().position(|c| c == mark) {
++                para.delete_text_at(offset, 1);
++            }
++            if para_idx > 0 && para.column_type != ColumnBreakType::Page {
++                para.column_type = ColumnBreakType::Column;
++                para.raw_break_type |= 0x08;
++            }
++        }
++        for &para_idx in &changed {
++            self.reflow_paragraph(section_idx, para_idx);
+         }
++        let doc_hwp3_layout = self.document.layout_profile().hwp3_layout();
++        crate::renderer::composer::recalculate_section_vpos(
++            &mut self.document.sections[section_idx].paragraphs,
++            first,
++            None,
++            stored_end_for_reset,
++            &self.styles,
++            self.dpi,
++            doc_hwp3_layout,
++        );
++        self.recompose_section(section_idx);
++        self.paginate_if_needed();
++        self.invalidate_page_tree_cache();
+         Ok(changed.len())
+     }
+ 

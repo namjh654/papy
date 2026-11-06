@@ -1933,3 +1933,36 @@ fn docx_nested_table_text_wraps_and_grows() {
     let doc = open(HwpBackend::docx(), bytes, &options()).unwrap();
     assert!(doc.info().page_count >= 2, "{}", doc.info().page_count);
 }
+
+#[test]
+fn docx_first_line_indent_and_column_breaks_survive() {
+    // 첫 줄 들여쓰기는 둘째 줄을 밀지 않는다(rhwp 패치 0012): 들여쓴 문단과 들여쓰지 않은 문단의 줄 수가 같다.
+    let long = "가나다라마바사아자차카타파하 ".repeat(40);
+    let paragraph = |indent: &str| {
+        format!(
+            r#"<w:p><w:pPr><w:ind w:left="720"{indent}/></w:pPr><w:r><w:t>{long}</w:t></w:r></w:p>"#
+        )
+    };
+    let body = format!(
+        r#"<w:document xmlns:w="w"><w:body>{}{}<w:p><w:r><w:br w:type="column"/><w:t>둘째 단</w:t></w:r></w:p><w:sectPr><w:cols w:num="2"/></w:sectPr></w:body></w:document>"#,
+        paragraph(r#" w:firstLine="720""#),
+        paragraph("")
+    );
+    let bytes = zip_parts(&[
+        ("[Content_Types].xml", "<Types/>"),
+        ("word/document.xml", &body),
+    ]);
+    let mut doc = open(HwpBackend::docx(), bytes, &options()).unwrap();
+    // 단 나누기: "둘째 단" 문단은 앞 글 뒤가 아니라 새 단(같은 쪽 오른쪽 단 또는 다음 쪽)에서 시작한다.
+    let text: String = (0..doc.info().page_count)
+        .map(|p| doc.extract_text(p).unwrap())
+        .collect();
+    assert!(text.contains("둘째 단"), "{text}");
+    let saved = doc.save(SaveFormat::Docx).unwrap();
+    let xml = zip_text(&saved, "word/document.xml");
+    assert!(xml.contains(r#"<w:br w:type="column"/>"#), "{xml}");
+    assert!(
+        xml.contains(r#"<w:ind w:left="720" w:firstLine="720"/>"#),
+        "{xml}"
+    );
+}
