@@ -5,7 +5,7 @@ Source-available cross-platform document viewer and editor (PolyForm Noncommerci
 PDF 와 한국어 문서(HWP/HWPX)를 우선 지원하는 **비상업 용도 무료·오프라인 우선** 통합 문서 앱입니다.
 회원가입·광고·서버 업로드 없이, 사용자가 선택한 파일만 로컬에서 엽니다.
 
-> **상태: 안정판 v0.3.1.** PDF·HWP·HWPX·DOCX·DOC(Word 97–2003) 보기, HWP·HWPX·DOCX 편집·저장(DOC 는 DOCX 등 다른 형식으로 저장), PDF 로 내보내기를 할 수 있습니다. 옮기지 못하는 요소가 있으면 열 때 알려 주지만, 중요한 문서는 사본으로 써 주세요.
+> **상태: 안정판 v0.3.2.** PDF·HWP·HWPX·DOCX·DOC(Word 97–2003) 보기, HWP·HWPX·DOCX 편집·저장(DOC 는 DOCX 등 다른 형식으로 저장), PDF 로 내보내기를 할 수 있습니다. 옮기지 못하는 요소가 있으면 열 때 알려 주지만, 중요한 문서는 사본으로 써 주세요.
 > 지원 포맷·기능은 실제 테스트 문서와 회귀 테스트로 검증된 범위만 이 README 에 표시합니다.
 
 ## 내려받기

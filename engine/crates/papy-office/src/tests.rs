@@ -611,3 +611,126 @@ fn paragraph_spacing_indent_and_letter_spacing_round_trip() {
         "{xml}"
     );
 }
+
+#[test]
+fn table_layout_round_trip() {
+    use rhwp::model::control::Control;
+    // 글자처럼 놓은 표 둘이 한 문단에 → 테두리 없는 한 줄 표의 칸에 하나씩, 뒤 문단은 1pt
+    let mut core = rhwp::document_core::DocumentCore::new_empty();
+    core.create_blank_document_native().unwrap();
+    core.create_table_native(0, 0, 0, 1, 1).unwrap();
+    let mut document = core.document().clone();
+    let (para, table) = document.sections[0]
+        .paragraphs
+        .iter()
+        .enumerate()
+        .find_map(|(i, p)| {
+            p.controls.iter().find_map(|c| match c {
+                Control::Table(t) => Some((i, t.clone())),
+                _ => None,
+            })
+        })
+        .expect("표");
+    let mut left = table.clone();
+    left.common.treat_as_char = true;
+    left.common.width = 10_000;
+    let right = left.clone();
+    let host = &mut document.sections[0].paragraphs[para];
+    host.controls.retain(|c| !matches!(c, Control::Table(_)));
+    host.controls.push(Control::Table(left));
+    host.controls.push(Control::Table(right));
+    host.text = "  ".into();
+    let xml = part_text(&docx_from_document(&document).unwrap(), "word/document.xml");
+    // 바깥 표 칸 안에 표, 칸 끝·표 뒤 문단은 1pt
+    assert!(xml.contains(r#"<w:tc><w:tcPr><w:tcW w:w="#), "{xml}");
+    assert!(xml.matches("<w:tbl>").count() >= 3, "{xml}");
+    assert!(xml.contains(r#"w:line="20" w:lineRule="exact""#), "{xml}");
+
+    // 쪽 기준 떠 있는 표(쪽 아래 가운데) → w:tblpPr, 왼쪽 자리 → w:tblInd
+    let mut document = core.document().clone();
+    let table = document.sections[0]
+        .paragraphs
+        .iter_mut()
+        .flat_map(|p| p.controls.iter_mut())
+        .find_map(|c| match c {
+            Control::Table(t) => Some(t),
+            _ => None,
+        })
+        .unwrap();
+    table.common.treat_as_char = false;
+    table.common.vert_rel_to = rhwp::model::shape::VertRelTo::Page;
+    table.common.vert_align = rhwp::model::shape::VertAlign::Bottom;
+    table.common.horz_align = rhwp::model::shape::HorzAlign::Center;
+    table.common.margin.left = 500;
+    let bytes = docx_from_document(&document).unwrap();
+    let xml = part_text(&bytes, "word/document.xml");
+    assert!(
+        xml.contains(
+            r#"w:vertAnchor="margin" w:horzAnchor="text" w:tblpXSpec="center" w:tblpYSpec="bottom""#
+        ),
+        "{xml}"
+    );
+    assert!(
+        xml.contains(r#"<w:tblInd w:w="100" w:type="dxa"/>"#),
+        "{xml}"
+    );
+    let (html, report) = docx_to_html(&bytes).unwrap();
+    assert_eq!(report.table_indents, vec![500]);
+    assert!(
+        report.table_places[0].contains(r#""vertRelTo":"Page","vertAlign":"Bottom""#)
+            && report.table_places[0].contains(r#""horzAlign":"Center""#),
+        "{:?}",
+        report.table_places
+    );
+    // 1pt 문단은 다시 읽을 때 뺀다.
+    assert!(!html.contains("line-height:1.3px"), "{html}");
+}
+
+#[test]
+fn table_cell_margins_ratio_and_thin_grid_columns() {
+    // 칸 안쪽 여백(tblCellMar) → 표 padding, 장평(w:w) → font-stretch
+    let document = format!(
+        r#"<w:document {NS}><w:body><w:tbl><w:tblPr><w:tblCellMar><w:top w:w="0" w:type="dxa"/><w:left w:w="28" w:type="dxa"/><w:bottom w:w="0" w:type="dxa"/><w:right w:w="28" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tr><w:tc><w:p><w:r><w:rPr><w:w w:val="90"/></w:rPr><w:t>칸</w:t></w:r></w:p></w:tc></w:tr></w:tbl><w:p/></w:body></w:document>"#
+    );
+    let (html, _) = docx_to_html(&docx(&document, None)).unwrap();
+    assert!(
+        html.contains(r#"style="padding:0.02pt 1.40pt 0.02pt 1.40pt""#),
+        "{html}"
+    );
+    assert!(html.contains("font-stretch:90%;"), "{html}");
+
+    // 칸 하나가 가는 격자 열 여럿에 걸친 표: 열 너비를 칸 너비 합에 맞춘다(최소 너비로 부풀리지 않는다).
+    use rhwp::model::control::Control;
+    let mut core = rhwp::document_core::DocumentCore::new_empty();
+    core.create_blank_document_native().unwrap();
+    core.create_table_native(0, 0, 0, 2, 4).unwrap();
+    let mut document = core.document().clone();
+    let table = document.sections[0]
+        .paragraphs
+        .iter_mut()
+        .flat_map(|p| p.controls.iter_mut())
+        .find_map(|c| match c {
+            Control::Table(t) => Some(t),
+            _ => None,
+        })
+        .unwrap();
+    // 1행: [0..3) 600 + [3] 5000, 2행: [0] 200 + [1..4) 5400
+    table
+        .cells
+        .retain(|c| !(c.row == 0 && (c.col == 1 || c.col == 2)) && !(c.row == 1 && c.col >= 2));
+    for cell in &mut table.cells {
+        match (cell.row, cell.col) {
+            (0, 0) => (cell.col_span, cell.width) = (3, 600),
+            (0, 3) => cell.width = 5000,
+            (1, 0) => cell.width = 200,
+            (1, 1) => (cell.col_span, cell.width) = (3, 5400),
+            _ => {}
+        }
+    }
+    let xml = part_text(&docx_from_document(&document).unwrap(), "word/document.xml");
+    // 경계 0·200·(400)·600·5600 HWPUNIT → 40·40·40·1000 twip
+    assert!(
+        xml.contains(r#"<w:gridCol w:w="40"/><w:gridCol w:w="40"/><w:gridCol w:w="40"/><w:gridCol w:w="1000"/>"#),
+        "{xml}"
+    );
+}

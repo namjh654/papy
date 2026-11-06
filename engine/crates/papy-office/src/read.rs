@@ -44,6 +44,10 @@ pub struct DocxReadReport {
     /// 첫 쪽에서 감출 (머리말, 꼬리말). 첫 구역이 "첫 쪽 다르게"(`w:titlePg`)일 때 켠다.
     /// rhwp 에는 첫 쪽 전용 머리말 자리가 없어, 첫 쪽에서는 기본 머리말을 감추고 첫 쪽 것의 글자는 옮기지 않는다.
     pub hide_first_page: (bool, bool),
+    /// 본문 맨 바깥 표마다 왼쪽 자리(HWPUNIT, `w:tblInd`, 문서 순서). 없으면 0.
+    pub table_indents: Vec<i32>,
+    /// 본문 맨 바깥 표마다 쪽·종이 기준 자리(`w:tblpPr`): rhwp 표 속성 JSON 조각(`"vertRelTo":…`). 없으면 빈 글.
+    pub table_places: Vec<String>,
     /// 첫 구역의 쪽 크기·여백·다단(`w:pgSz`·`w:pgMar`·`w:cols`). 없거나 이상하면 None(빈 문서 기본값을 쓴다).
     pub page: Option<PageSetup>,
 }
@@ -251,6 +255,8 @@ struct RunProps {
     font: Option<String>,
     /// 자간(twip, `w:spacing`)
     spacing: Option<i32>,
+    /// 장평(%, `w:w`)
+    scale: Option<u32>,
 }
 
 impl RunProps {
@@ -264,6 +270,7 @@ impl RunProps {
             color: self.color.clone().or_else(|| base.color.clone()),
             font: self.font.clone().or_else(|| base.font.clone()),
             spacing: self.spacing.or(base.spacing),
+            scale: self.scale.or(base.scale),
         }
     }
 
@@ -296,6 +303,9 @@ impl RunProps {
         }
         if !decorations.is_empty() {
             css.push_str(&format!("text-decoration:{};", decorations.join(" ")));
+        }
+        if let Some(scale) = self.scale.filter(|s| *s != 100) {
+            css.push_str(&format!("font-stretch:{scale}%;"));
         }
         if let Some(spacing) = self.spacing.filter(|s| *s != 0) {
             css.push_str(&format!("letter-spacing:{:.2}pt;", spacing as f32 / 20.0));
@@ -457,6 +467,12 @@ fn apply_run_prop(props: &mut RunProps, element: &BytesStart) {
                 .or_else(|| attr(element, "ascii"))
                 .or_else(|| attr(element, "hAnsi"))
         }
+        "w" => {
+            props.scale = attr(element, "val")
+                .and_then(|v| v.trim_end_matches('%').parse::<f64>().ok())
+                .filter(|v| (1.0..=600.0).contains(v))
+                .map(|v| v.round() as u32)
+        }
         "spacing" => {
             props.spacing = attr(element, "val")
                 .and_then(|v| v.parse::<f64>().ok())
@@ -573,6 +589,46 @@ fn parse_styles(xml: &str) -> Styles {
     }
 }
 
+/// `w:tblpPr` → rhwp 표 속성 JSON 조각. 쪽(`margin`)·종이(`page`) 기준만 옮긴다(글 기준은 본문 흐름).
+fn float_place(element: &BytesStart) -> String {
+    let vert = match attr(element, "vertAnchor").as_deref() {
+        Some("page") => "Paper",
+        Some("margin") => "Page",
+        _ => return String::new(),
+    };
+    let number = |key: &str| {
+        attr(element, key)
+            .and_then(|v| v.parse::<f64>().ok())
+            .map(|v| (v * 5.0) as i64)
+    };
+    let mut json = format!(r#","vertRelTo":"{vert}""#);
+    match attr(element, "tblpYSpec").as_deref() {
+        Some("center") => json.push_str(r#","vertAlign":"Center""#),
+        Some("bottom") => json.push_str(r#","vertAlign":"Bottom""#),
+        _ => {
+            json.push_str(&format!(
+                r#","vertAlign":"Top","vertOffset":{}"#,
+                number("tblpY").unwrap_or(0)
+            ));
+        }
+    }
+    let horz = match attr(element, "horzAnchor").as_deref() {
+        Some("page") => "Paper",
+        Some("margin") => "Page",
+        _ => "Column",
+    };
+    json.push_str(&format!(r#","horzRelTo":"{horz}""#));
+    match attr(element, "tblpXSpec").as_deref() {
+        Some("center") => json.push_str(r#","horzAlign":"Center""#),
+        Some("right") => json.push_str(r#","horzAlign":"Right""#),
+        _ => json.push_str(&format!(
+            r#","horzAlign":"Left","horzOffset":{}"#,
+            number("tblpX").unwrap_or(0)
+        )),
+    }
+    json
+}
+
 /// `w:default="1"` 같은 켜짐 속성.
 fn toggle_attr(element: &BytesStart, key: &str) -> bool {
     attr(element, key).is_some_and(|v| matches!(v.as_str(), "1" | "true" | "on"))
@@ -618,6 +674,12 @@ struct TableBuild {
     rows: Vec<Vec<CellBuild>>,
     /// 표 테두리(`w:tblBorders` 의 선, 또는 Word 기본 "표 구분선" 스타일)
     bordered: bool,
+    /// 칸 안쪽 여백(pt, 왼쪽·오른쪽·위·아래, `w:tblCellMar`). 없으면 Word 기본(좌우 5.4pt, 위아래 0).
+    padding: [f32; 4],
+    /// 왼쪽 들여쓰기(twip, `w:tblInd`)
+    indent: i32,
+    /// 쪽·종이 기준 자리(rhwp 표 속성 JSON 조각)
+    place: String,
 }
 
 struct CellBuild {
@@ -656,7 +718,11 @@ impl TableBuild {
                     .any(|(cell, start)| *start == col && cell.vmerge == Some(false))
             })
         };
-        let mut html = String::from("<table border=\"1\">");
+        // rhwp 표 붙여넣기는 표 CSS padding 을 칸 안쪽 여백으로 쓴다(0 은 기본값으로 읽으니 아주 작은 값으로).
+        let [left, right, top, bottom] = self.padding.map(|v| v.max(0.02));
+        let mut html = format!(
+            "<table border=\"1\" style=\"padding:{top:.2}pt {right:.2}pt {bottom:.2}pt {left:.2}pt\">"
+        );
         for (r, row) in self.rows.iter().enumerate() {
             html.push_str("<tr>");
             for (cell, col) in row.iter().zip(&starts[r]) {
@@ -675,8 +741,8 @@ impl TableBuild {
                     // rhwp 붙여넣기는 칸 CSS 로만 테두리를 읽는다(Word 기본 0.5pt 검정).
                     style.push_str("border:0.5pt solid #000000;");
                 }
-                if let (Some(width), 1) = (cell.width, cell.span) {
-                    // rhwp 는 병합하지 않은 칸의 너비로 열 너비를 정한다.
+                if let Some(width) = cell.width {
+                    // rhwp 는 병합하지 않은 칸의 너비로 열 너비를 정하고, 병합 칸만 있는 열은 병합 칸 너비로 채운다(패치 0010).
                     style.push_str(&format!("width:{width:.1}pt;"));
                 }
                 style.push_str(&cell.style);
@@ -817,6 +883,7 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
     let mut in_ppr = false;
     let mut in_tbl_borders = false;
     let mut in_tc_borders = false;
+    let mut in_tbl_cell_mar = false;
     let mut row_height: Option<f32> = None;
     let mut run = RunProps::default();
     let mut in_run = false;
@@ -1054,6 +1121,9 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
                         tables.push(TableBuild {
                             rows: Vec::new(),
                             bordered: false,
+                            padding: [5.4, 5.4, 0.0, 0.0],
+                            indent: 0,
+                            place: String::new(),
                         });
                     }
                     "tr" => {
@@ -1077,7 +1147,39 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
                             .unwrap_or_default(),
                         html: String::new(),
                     })),
+                    "tblpPr" => {
+                        if let Some(table) = tables.last_mut() {
+                            table.place = float_place(&e);
+                        }
+                    }
+                    "tblInd" => {
+                        if let (Some(table), Some(w)) = (
+                            tables.last_mut(),
+                            attr(&e, "w").and_then(|v| v.parse::<f64>().ok()),
+                        ) {
+                            if attr(&e, "type").as_deref() != Some("pct") {
+                                table.indent = w as i32;
+                            }
+                        }
+                    }
                     "tcBorders" if !empty => in_tc_borders = true,
+                    "tblCellMar" if !empty => in_tbl_cell_mar = true,
+                    side @ ("top" | "left" | "bottom" | "right" | "start" | "end")
+                        if in_tbl_cell_mar =>
+                    {
+                        let value = (attr(&e, "type").as_deref() != Some("pct"))
+                            .then(|| attr(&e, "w").and_then(|v| v.parse::<f32>().ok()))
+                            .flatten();
+                        if let (Some(value), Some(table)) = (value, tables.last_mut()) {
+                            let index = match side {
+                                "left" | "start" => 0,
+                                "right" | "end" => 1,
+                                "top" => 2,
+                                _ => 3,
+                            };
+                            table.padding[index] = value.max(0.0) / 20.0;
+                        }
+                    }
                     side @ ("top" | "left" | "bottom" | "right" | "start" | "end")
                         if in_tc_borders =>
                     {
@@ -1293,6 +1395,7 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
                 "pPr" => in_ppr = false,
                 "tblBorders" => in_tbl_borders = false,
                 "tcBorders" => in_tc_borders = false,
+                "tblCellMar" => in_tbl_cell_mar = false,
                 "numPr" => in_numpr = false,
                 "r" => {
                     flush(
@@ -1329,8 +1432,19 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
                     } else {
                         String::new()
                     };
-                    let html = format!("<p{style}>{mark}{label}{para_html}</p>");
-                    out(&mut body, &mut cell, &html);
+                    // 표 뒤에 Word 가 요구해서 둔 1pt 빈 문단(Papy 저장)은 rhwp 에 필요 없고 한 줄을 차지하니 뺀다.
+                    let tiny = para_html.is_empty()
+                        && label.is_empty()
+                        && mark.is_empty()
+                        && matches!(&para_props.line, Some((line, rule)) if rule == "exact" && *line <= 40);
+                    let after_table = match cell.last() {
+                        Some(Some(current)) => current.html.ends_with("</table>"),
+                        _ => body.ends_with("</table>"),
+                    };
+                    if !(tiny && after_table) {
+                        let html = format!("<p{style}>{mark}{label}{para_html}</p>");
+                        out(&mut body, &mut cell, &html);
+                    }
                     let level = para_outline.or(para_style.2).filter(|&level| level < 9);
                     let text = para_plain.trim();
                     if let (Some(level), true, false) = (level, cell.is_empty(), text.is_empty()) {
@@ -1341,7 +1455,19 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
                     }
                 }
                 "tc" => {
-                    if let (Some(Some(done)), Some(table)) = (cell.pop(), tables.last_mut()) {
+                    if let (Some(Some(mut done)), Some(table)) = (cell.pop(), tables.last_mut()) {
+                        // Word 는 칸이 문단으로 끝나야 해서 칸 안 표 뒤에 빈 문단을 둔다. rhwp 칸은 그럴 필요가 없고
+                        // 빈 줄만큼 칸이 높아지니 뺀다.
+                        if let Some(end) = done.html.rfind("</table>").map(|i| i + "</table>".len())
+                        {
+                            let tail = &done.html[end..];
+                            if tail.starts_with("<p")
+                                && tail.ends_with("></p>")
+                                && tail.matches("<p").count() == 1
+                            {
+                                done.html.truncate(end);
+                            }
+                        }
                         if let Some(row) = table.rows.last_mut() {
                             row.push(done);
                         }
@@ -1349,6 +1475,10 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
                 }
                 "tbl" => {
                     if let Some(table) = tables.pop() {
+                        if tables.is_empty() && cell.is_empty() {
+                            report.table_indents.push(table.indent.saturating_mul(5));
+                            report.table_places.push(table.place.clone());
+                        }
                         let html = table.to_html();
                         out(&mut body, &mut cell, &html);
                     }

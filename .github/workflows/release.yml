@@ -64,7 +64,7 @@ jobs:
           releaseName: "Papy ${{ inputs.tag || github.ref_name }}"
           releaseBody: |
             PDF·HWP·HWPX·DOCX·DOC 보기, HWP·HWPX·DOCX·DOC 편집, 저장·형식 변환, PDF 로 내보내기를 할 수 있습니다.
-            v0.3.1: 내보낸 PDF 에서 글 찾기·복사가 되고, 한글 → DOCX 변환에 수식·양식·묶음 도형·표 테두리·문단 간격이 옮겨지며, DOC·DOCX 의 쪽 크기·여백·표 안 표를 바르게 엽니다.
+            v0.3.2: 한글 → DOCX 변환의 쪽 배치를 원본에 더 가깝게 맞췄습니다(쪽 수 오차 HWP 21% → 8%, HWPX 24% → 14%): 표 칸 여백·장평·나란히 놓인 표·쪽 아래 결재란·양식 표 칸 너비.
             중요한 문서는 사본으로 써 주세요.
             설치 방법과 보안 경고 해결: https://papy-omega.vercel.app/install/
             코드 서명이 없어 첫 실행 시 OS 보안 경고가 나올 수 있습니다.
