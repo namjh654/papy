@@ -130,13 +130,15 @@ fun DocumentsScreen(onOpen: (ref: String, name: String) -> Unit, onLicenses: () 
                     }
                 }
             }
+            item(key = "fonts") {
+                FontPackCard(modifier = Modifier.padding(top = PapySpacing.xl))
+            }
             item(key = "licenses") {
                 PapyButton(
                     text = stringResource(R.string.licenses_title),
                     onClick = onLicenses,
                     style = PapyButtonStyle.Text,
                     size = PapyButtonSize.Small,
-                    modifier = Modifier.padding(top = PapySpacing.xl),
                 )
             }
         }

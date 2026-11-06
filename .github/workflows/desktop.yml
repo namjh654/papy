@@ -43,6 +43,7 @@ jobs:
       - run: node scripts/fetch-rhwp.mjs
       - run: node scripts/fetch-pdfium.mjs
       - run: node scripts/fetch-rhwp-studio.mjs
+      - run: node scripts/fetch-fonts.mjs
       - run: node scripts/third-party-notices.mjs
       - run: pnpm --filter @papy/desktop typecheck
       - run: pnpm --filter @papy/desktop test

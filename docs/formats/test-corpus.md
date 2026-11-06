@@ -90,7 +90,7 @@ cd engine && cargo run --release -p papy-core --example convert_matrix -- <문�
 ```
 
 문서마다 DOCX·HWP·HWPX·PDF 로 저장하고 다시 열어 쪽 수와 글 보존율(빈칸 뺀 글자 빈도)을 적는다. PDF 를 다시 열려면
-`PAPY_PDFIUM_LIBRARY` 가 필요하다. 수식이 많은 문서는 원문 글에 수식 스크립트가 들어 있어(그림으로 옮겨진다) 보존율이 낮게 나온다.
+`PAPY_PDFIUM_LIBRARY` 가 필요하다. `PAPY_KOREAN_FONT`(앱에 넣는 한글 글꼴 경로, 같은 폴더 글꼴을 모두 읽음)와 `PAPY_FONTS_BUNDLED_ONLY=1`(시스템 글꼴을 읽지 않음 — 한글 글꼴 없는 모바일·Linux 재현)로 글꼴 환경을 바꿔 볼 수 있다(쪽 수는 글꼴과 무관: rhwp 내장 글자 폭 표로 줄을 나눈다). 수식이 많은 문서는 원문 글에 수식 스크립트가 들어 있어(그림으로 옮겨진다) 보존율이 낮게 나온다.
 
 ### 기록
 

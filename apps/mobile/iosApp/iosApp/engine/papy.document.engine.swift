@@ -15,16 +15,14 @@ final class PapyDocumentEngine: NSObject, DocumentEngine, @unchecked Sendable {
 
     private lazy var rust = PapyEngine(koreanFont: Self.koreanFont())
 
-    /// 앱에 넣은 한글 글꼴을 글꼴만 든 폴더로 복사한다. PDF 내보내기가 이 폴더의 글꼴을 읽는다
-    /// (앱 묶음 폴더를 통째로 뒤지지 않게).
+    /// 앱에 넣은 한글 글꼴을 글꼴만 든 폴더로 복사한다. 엔진·PDF 내보내기가 이 폴더의 글꼴을 모두 읽는다
+    /// (앱 묶음 폴더를 통째로 뒤지지 않게, 받은 명조 글꼴도 같은 폴더 — `PapyFontPack`).
     private static func koreanFont() -> String? {
         guard let bundled = Bundle.main.url(forResource: "NotoSansKR-Regular", withExtension: "ttf"),
-              let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
+              let folder = PapyFontPack.folder
         else { return nil }
-        let folder = caches.appendingPathComponent("EngineFonts", isDirectory: true)
         let target = folder.appendingPathComponent("NotoSansKR-Regular.ttf")
         if !FileManager.default.fileExists(atPath: target.path) {
-            try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             try? FileManager.default.copyItem(at: bundled, to: target)
         }
         return FileManager.default.fileExists(atPath: target.path) ? target.path : bundled.path

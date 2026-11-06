@@ -205,6 +205,12 @@ if (existsSync(licensesDir)) {
 add("PDFium (chromium/8125, bblanchon/pdfium-binaries)", "BSD-3-Clause AND Apache-2.0 (and bundled third-party licenses)", pdfiumTexts);
 }
 add("Noto Sans KR Regular (font)", "OFL-1.1", licenseTexts(join(vendor, "rhwp", "ttfs", "opensource")));
+// 엔진 대체 글꼴(명조·굵게, scripts/fetch-fonts.mjs) — rhwp-studio woff2 를 TrueType 으로 풀고 이름 표만 다시 쓴 것.
+if (existsSync(join(vendor, "fonts", "Noto-OFL.txt"))) {
+  add("Noto Serif KR Regular·Bold, Noto Sans KR Bold (font)", "OFL-1.1", [
+    { name: "OFL.txt", text: readFileSync(join(vendor, "fonts", "Noto-OFL.txt"), "utf8").trim() },
+  ]);
+}
 
 // ---- 모바일 앱 라이브러리(Gradle) ----
 if (mobile) addGradle();

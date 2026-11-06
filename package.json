@@ -8,10 +8,13 @@
     "node": ">=24"
   },
   "scripts": {
-    "engine:vendor": "node scripts/fetch-rhwp.mjs && node scripts/fetch-pdfium.mjs && node scripts/fetch-rhwp-studio.mjs",
+    "engine:vendor": "node scripts/fetch-rhwp.mjs && node scripts/fetch-pdfium.mjs && node scripts/fetch-rhwp-studio.mjs && node scripts/fetch-fonts.mjs",
     "typecheck": "pnpm -r --if-present typecheck",
     "build": "pnpm -r --if-present build",
     "web:dev": "pnpm --filter @papy/web dev",
     "desktop:dev": "pnpm --filter @papy/desktop tauri dev"
+  },
+  "devDependencies": {
+    "wawoff2": "2.0.1"
   }
 }

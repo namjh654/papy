@@ -60,7 +60,7 @@ fn main() {
             pdfium_library: std::env::var_os("PAPY_PDFIUM_LIBRARY")
                 .map(PathBuf::from)
                 .unwrap_or_default(),
-            korean_font: None,
+            korean_font: std::env::var_os("PAPY_KOREAN_FONT").map(PathBuf::from),
         },
     );
     println!("file\tsrc_pages\ttarget\tresult\tpages\tkeep\tms");

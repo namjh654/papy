@@ -659,10 +659,19 @@ fn svg_options() -> &'static usvg::Options<'static> {
     static OPTIONS: OnceLock<usvg::Options<'static>> = OnceLock::new();
     OPTIONS.get_or_init(|| {
         let mut fonts = usvg::fontdb::Database::new();
-        fonts.load_system_fonts();
+        // 점검용: `PAPY_FONTS_BUNDLED_ONLY=1` 이면 시스템 글꼴을 읽지 않는다(한글 글꼴 없는 모바일·Linux 재현).
+        if std::env::var_os("PAPY_FONTS_BUNDLED_ONLY").is_none() {
+            fonts.load_system_fonts();
+        }
         if let Some(path) = FALLBACK_FONT.get() {
+            // 앱에 넣은 한글 글꼴과 같은 폴더의 글꼴을 모두 읽는다(명조·굵게, 모바일은 내려받은 글꼴).
             // 읽지 못하면(파일 없음 등) 시스템 글꼴만 쓴다.
-            let _ = fonts.load_font_file(path);
+            match path.parent().filter(|dir| dir.is_dir()) {
+                Some(dir) => fonts.load_fonts_dir(dir),
+                None => {
+                    let _ = fonts.load_font_file(path);
+                }
+            }
         }
         share_font_data(&mut fonts);
         // 문서가 지정한 글꼴이 없으면 generic(serif 등)으로 떨어진다. fontdb 기본값(Times New Roman 등)이

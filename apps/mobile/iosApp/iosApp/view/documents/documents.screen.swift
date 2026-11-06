@@ -51,8 +51,9 @@ struct DocumentsScreen: View {
                         }
                     }
                 }
-                PapyButton(String(localized: "licenses_title"), style: .text, size: .small, fullWidth: false, action: onLicenses)
+                FontPackCard()
                     .padding(.top, PapySpacing.xl)
+                PapyButton(String(localized: "licenses_title"), style: .text, size: .small, fullWidth: false, action: onLicenses)
                     .accessibilityIdentifier("documents_licenses")
             }
             .padding(PapySize.screenPadding)

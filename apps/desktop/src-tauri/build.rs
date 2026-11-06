@@ -53,6 +53,25 @@ fn stage_resources() {
         &fonts.join("NotoSansKR-OFL.txt"),
         &out.join("licenses/noto-sans-kr/OFL.txt"),
     );
+    // 명조·굵게 대체 글꼴(`node scripts/fetch-fonts.mjs`). 엔진은 한글 글꼴과 같은 폴더의 글꼴을 모두 읽는다.
+    let extra = vendor.join("fonts");
+    println!("cargo:rerun-if-changed={}", extra.display());
+    let mut copied = 0;
+    if let Ok(entries) = fs::read_dir(&extra) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().is_some_and(|ext| ext == "ttf") {
+                copy(&path, &out.join("fonts").join(path.file_name().unwrap()));
+                copied += 1;
+            }
+        }
+        if extra.join("Noto-OFL.txt").exists() {
+            copy(&extra.join("Noto-OFL.txt"), &out.join("licenses/noto-fonts/OFL.txt"));
+        }
+    }
+    if copied == 0 && env::var("PROFILE").as_deref() == Ok("release") {
+        println!("cargo:warning=명조·굵게 글꼴이 없습니다. `node scripts/fetch-fonts.mjs` 를 먼저 실행하세요.");
+    }
     copy(&rhwp.join("LICENSE"), &out.join("licenses/rhwp/LICENSE"));
     // 전체 고지는 `node scripts/third-party-notices.mjs` 로 만든다(배포 빌드는 CI 가 만든다).
     let notices = manifest.join("notices/THIRD_PARTY_NOTICES.txt");
