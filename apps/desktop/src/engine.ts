@@ -195,9 +195,16 @@ export function openDocument(path: string, password?: string): Promise<OpenedDoc
   return call("open_document", { path, password: password ?? null });
 }
 
+/** 바이트 응답. 빠른 IPC(ipc: 프로토콜)는 ArrayBuffer 를 주고, 막혀서 postMessage 로 바뀌면 배열로 온다. */
+function toArrayBuffer(data: ArrayBuffer | Uint8Array | number[]): ArrayBuffer {
+  if (data instanceof ArrayBuffer) return data;
+  const bytes = data instanceof Uint8Array ? data : Uint8Array.from(data);
+  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+}
+
 /** `scale` 1 = 1pt 를 1px 로. */
 export async function renderPage(id: number, page: number, scale: number): Promise<ImageData> {
-  const buffer = await call<ArrayBuffer>("render_page", { id, page, scale });
+  const buffer = toArrayBuffer(await call<ArrayBuffer | Uint8Array | number[]>("render_page", { id, page, scale }));
   const view = new DataView(buffer);
   const width = view.getUint32(0, true);
   const height = view.getUint32(4, true);
@@ -235,6 +242,27 @@ export function unsupportedObjects(id: number, page: number): Promise<Unsupporte
   return call("unsupported_objects", { id, page });
 }
 
+/** 메모 하나(한글 메모, Word 메모). */
+export interface ReviewComment {
+  author: string;
+  date: string;
+  text: string;
+  /** 메모를 단 자리의 본문 글(앞부분) */
+  anchor: string;
+  page: number | null;
+}
+
+/** 메모와 변경 추적(넣은·지운 내용 수, 화면은 받아들인 상태). */
+export interface Review {
+  comments: ReviewComment[];
+  insertions: number;
+  deletions: number;
+}
+
+export function review(id: number): Promise<Review> {
+  return call("review", { id });
+}
+
 export function outline(id: number): Promise<OutlineItem[]> {
   return call("outline", { id });
 }
@@ -245,7 +273,7 @@ export function closeDocument(id: number): Promise<void> {
 
 /** 문서를 `format`(hwp·hwpx 등) 바이트로 내보낸다(파일에 쓰지 않는다). */
 export async function exportDocument(id: number, format: string): Promise<Uint8Array> {
-  return new Uint8Array(await call<ArrayBuffer>("export_document", { id, format }));
+  return new Uint8Array(toArrayBuffer(await call<ArrayBuffer | Uint8Array | number[]>("export_document", { id, format })));
 }
 
 /** 메모리의 문서 바이트를 새 세션으로 연다. `inheritFrom` 세션의 저장 암호를 이어받는다. */

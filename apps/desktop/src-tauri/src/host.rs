@@ -47,6 +47,44 @@ pub struct OpenedDocument {
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct CommentDto {
+    author: String,
+    date: String,
+    text: String,
+    anchor: String,
+    page: Option<u32>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewDto {
+    comments: Vec<CommentDto>,
+    insertions: u32,
+    deletions: u32,
+}
+
+/// 메모와 변경 추적.
+pub fn review(engine: &Engine, id: u64) -> papy_core::Result<ReviewDto> {
+    let review = engine.review(session(id)?)?;
+    Ok(ReviewDto {
+        comments: review
+            .comments
+            .into_iter()
+            .map(|c| CommentDto {
+                author: c.author,
+                date: c.date,
+                text: c.text,
+                anchor: c.anchor,
+                page: c.page,
+            })
+            .collect(),
+        insertions: review.insertions,
+        deletions: review.deletions,
+    })
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OutlineDto {
     title: String,
     page: Option<u32>,

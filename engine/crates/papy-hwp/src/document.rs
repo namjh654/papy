@@ -4,9 +4,10 @@
 //! 되돌리기는 rhwp 문서 스냅샷으로 한다. 이어 치는 글자는 한 단계로 묶는다.
 
 use papy_model::{
-    Alignment, CaretMotion, CellPos, CharFormat, DocumentInfo, EditOutcome, Error, ErrorCode,
-    HitTarget, ObjectKind, ObjectRef, OutlineItem, PageObject, PageRect, PageSize, ParaFormat,
-    Result, SaveFormat, TableCellBox, TableOp, TextPos, UnsupportedKind, UnsupportedObject,
+    Alignment, CaretMotion, CellPos, CharFormat, Comment, DocumentInfo, EditOutcome, Error,
+    ErrorCode, HitTarget, ObjectKind, ObjectRef, OutlineItem, PageObject, PageRect, PageSize,
+    ParaFormat, Result, Review, SaveFormat, TableCellBox, TableOp, TextPos, UnsupportedKind,
+    UnsupportedObject,
 };
 use papy_office::DocxHeading;
 use papy_render::{Bitmap, Document, RenderRequest};
@@ -42,6 +43,8 @@ pub(crate) struct HwpDocument {
     cell_typing: Option<(CellPos, u32)>,
     /// DOCX 에서 읽은 제목 문단. rhwp 문서에는 개요 속성이 없어서 목차를 이것으로 만든다.
     headings: Vec<DocxHeading>,
+    /// DOCX 에서 연 문서의 메모·변경 추적(한글 문서는 문서 안 메모 필드에서 읽는다)
+    docx_review: (Vec<papy_office::DocxComment>, u32, u32),
     /// rhwp 가 패닉한 뒤에는 내부 상태를 믿을 수 없으니 더 부르지 않는다.
     broken: bool,
 }
@@ -76,6 +79,7 @@ impl HwpDocument {
             typing: None,
             cell_typing: None,
             headings: Vec::new(),
+            docx_review: (Vec::new(), 0, 0),
             broken: false,
         }
     }
@@ -84,6 +88,86 @@ impl HwpDocument {
     pub(crate) fn with_headings(mut self, headings: Vec<DocxHeading>) -> Self {
         self.headings = headings;
         self
+    }
+
+    pub(crate) fn with_review(
+        mut self,
+        comments: Vec<papy_office::DocxComment>,
+        insertions: u32,
+        deletions: u32,
+    ) -> Self {
+        self.docx_review = (comments, insertions, deletions);
+        self
+    }
+
+    /// 본문 문단의 쪽(0부터).
+    fn page_of_paragraph(&mut self, section: usize, paragraph: usize) -> Option<u32> {
+        self.read("locate paragraph", |doc| {
+            doc.get_cursor_rect_native(section, paragraph, 0)
+        })
+        .ok()
+        .and_then(|reply| json(&reply).ok())
+        .and_then(|value| uint(&value, "pageIndex"))
+    }
+
+    /// 한글 메모(메모 필드)와 그 자리(본문 문단·쪽). 표 칸 안 메모는 표가 든 본문 문단의 쪽.
+    fn hwp_comments(&mut self) -> Vec<Comment> {
+        use rhwp::model::control::{Control, FieldType};
+        use rhwp::model::paragraph::Paragraph;
+        fn text_of(paragraphs: &[Paragraph]) -> String {
+            paragraphs
+                .iter()
+                .map(|p| p.text.trim_end())
+                .collect::<Vec<_>>()
+                .join("\n")
+                .trim()
+                .to_owned()
+        }
+        fn walk(paragraphs: &[Paragraph], depth: usize, found: &mut Vec<(String, String)>) {
+            if depth > 8 {
+                return;
+            }
+            for paragraph in paragraphs {
+                for control in &paragraph.controls {
+                    match control {
+                        Control::Field(field) if field.field_type == FieldType::Memo => {
+                            let text = text_of(&field.memo_paragraphs);
+                            if !text.is_empty() {
+                                let anchor = paragraph.text.trim().chars().take(60).collect();
+                                found.push((text, anchor));
+                            }
+                        }
+                        Control::Table(table) => {
+                            for cell in &table.cells {
+                                walk(&cell.paragraphs, depth + 1, found);
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+        let mut places = Vec::new();
+        for (section_index, section) in self.doc.document().sections.iter().enumerate() {
+            for (index, paragraph) in section.paragraphs.iter().enumerate() {
+                let mut found = Vec::new();
+                walk(std::slice::from_ref(paragraph), 0, &mut found);
+                if !found.is_empty() {
+                    places.push((section_index, index, found));
+                }
+            }
+        }
+        let mut out = Vec::new();
+        for (section_index, index, found) in places {
+            let page = self.page_of_paragraph(section_index, index);
+            out.extend(found.into_iter().map(|(text, anchor)| Comment {
+                text,
+                anchor,
+                page,
+                ..Comment::default()
+            }));
+        }
+        out
     }
 
     /// HWP·HWPX 목차: 문단 모양이 개요인 문단(한글의 "개요 1~7"). 번호는 화면에 그려지는 그대로 붙인다.
@@ -912,6 +996,48 @@ impl Document for HwpDocument {
         let mut out = Vec::new();
         collect_placeholders(&tree.root, page, &mut out);
         Ok(out)
+    }
+
+    fn review(&mut self) -> Result<Review> {
+        self.check()?;
+        let (docx, insertions, deletions) = self.docx_review.clone();
+        if docx.is_empty() && insertions == 0 && deletions == 0 {
+            return Ok(Review {
+                comments: self.hwp_comments(),
+                ..Review::default()
+            });
+        }
+        // DOCX 메모: 메모를 단 문단 글로 본문 문단을 찾아 쪽을 정한다(차례대로 찾아 같은 글이 겹쳐도 앞에서부터).
+        let mut next = 0;
+        let mut comments = Vec::new();
+        for comment in docx {
+            let key: String = comment.anchor.chars().take(20).collect();
+            let paragraphs = &self.doc.document().sections[0].paragraphs;
+            let found = (!key.trim().is_empty())
+                .then(|| {
+                    paragraphs[next.min(paragraphs.len())..]
+                        .iter()
+                        .position(|p| p.text.contains(key.as_str()))
+                        .map(|i| next + i)
+                })
+                .flatten();
+            let page = found.and_then(|paragraph| {
+                next = paragraph;
+                self.page_of_paragraph(0, paragraph)
+            });
+            comments.push(Comment {
+                author: comment.author,
+                date: comment.date,
+                text: comment.text,
+                anchor: comment.anchor,
+                page,
+            });
+        }
+        Ok(Review {
+            comments,
+            insertions,
+            deletions,
+        })
     }
 
     fn outline(&mut self) -> Result<Vec<OutlineItem>> {

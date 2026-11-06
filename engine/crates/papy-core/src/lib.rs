@@ -22,9 +22,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 pub use papy_model::{
-    Alignment, Annotation, Capabilities, CaretMotion, CellPos, CharFormat, DocumentFormat,
+    Alignment, Annotation, Capabilities, CaretMotion, CellPos, CharFormat, Comment, DocumentFormat,
     DocumentInfo, EditOutcome, Error, ErrorCode, HitTarget, MarkupKind, ObjectKind, ObjectRef,
-    OutlineItem, PageObject, PageOp, PageRect, PageSize, ParaFormat, Result, SaveFormat,
+    OutlineItem, PageObject, PageOp, PageRect, PageSize, ParaFormat, Result, Review, SaveFormat,
     TableCellBox, TableOp, TextMatch, TextPos, UnsupportedKind, UnsupportedObject,
 };
 pub use papy_render::{
@@ -393,6 +393,13 @@ impl Engine {
         let session = self.session(id)?;
         let mut doc = lock(&session.document);
         doc.outline()
+    }
+
+    /// 메모와 변경 추적(검토 내용).
+    pub fn review(&self, id: SessionId) -> Result<Review> {
+        let session = self.session(id)?;
+        let mut doc = lock(&session.document);
+        doc.review()
     }
 
     /// 지금 상태를 `format` 으로 직렬화한다. 파일 쓰기는 호출자가 한다(임시 파일에 쓴 뒤 바꿔치기 권장).

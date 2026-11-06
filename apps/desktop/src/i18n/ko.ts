@@ -165,6 +165,8 @@ export const ko = {
   sidebar: {
     pages: "쪽",
     outline: "목차",
+    review: "메모",
+    trackedChanges: (ins: number, del: number) => `변경 추적: 넣은 내용 ${ins}곳, 지운 내용 ${del}곳 — 받아들인 상태로 보여 줍니다.`,
     text: "텍스트",
     label: "문서 탐색",
     goTo: (n: number) => `${n}쪽으로 이동`,

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- 앱에 넣은 PDFium(Resources/pdfium/libpdfium.dylib)을 읽는다. 강화된 런타임(공증에 필요)은
+       같은 팀 서명이 아닌 라이브러리를 막아, 이 권한이 없으면 PDF 를 열지 못한다. -->
+  <key>com.apple.security.cs.disable-library-validation</key>
+  <true/>
+</dict>
+</plist>

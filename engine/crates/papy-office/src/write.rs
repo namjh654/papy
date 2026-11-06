@@ -31,6 +31,12 @@ struct Media<'a> {
     /// (bin_data_id — 만든 그림은 None, 파일 이름, 확장자, 바이트)
     files: Vec<(Option<u16>, String, &'static str, Vec<u8>)>,
     render_equation: Option<EquationRenderer<'a>>,
+    /// 문서의 개요 번호 정의(1부터, 0 이면 한컴 기본 개요 번호)
+    outline_numbering: u16,
+    /// 쓴 번호 목록: (글머리표인가, 정의 id) → Word numId(1부터)
+    lists: Vec<(bool, u16)>,
+    /// 각주·미주 번호 표시(앞 글자, 뒤 글자, 위 첨자): 한글 시험지는 미주 번호를 "문1)" 처럼 본문 크기로 쓴다.
+    note_marks: [(String, String, bool); 2],
     /// 그림 개체 번호(docPr id)
     next_object: u32,
     /// 각주 본문 XML(`<w:footnote>` 안쪽). 각주 id 는 순서 + 1.
@@ -656,7 +662,147 @@ fn run_props(info: &DocInfo, shape_id: u32) -> String {
     props
 }
 
-fn para_props(info: &DocInfo, paragraph: &Paragraph) -> String {
+/// 번호·개요·글머리표 문단 → Word 번호 목록(numId, 수준). 한글이 실제로 번호를 그리는 문단만(rhwp 가 계산해 둔 번호 글자가 있는 것).
+fn list_of(info: &DocInfo, media: &mut Media, paragraph: &Paragraph) -> Option<(usize, u8)> {
+    let shape = info.para_shapes.get(paragraph.para_shape_id as usize)?;
+    let level = shape.para_level.min(6);
+    let key = match shape.head_type {
+        HeadType::Bullet => {
+            let id = shape.numbering_id;
+            info.bullets.get(usize::from(id).checked_sub(1)?)?;
+            (true, id)
+        }
+        HeadType::Number | HeadType::Outline => {
+            if !matches!(
+                paragraph.numbering_marker,
+                rhwp::model::paragraph::NumberingMarker::Text(..)
+            ) {
+                return None;
+            }
+            let id = if shape.head_type == HeadType::Outline {
+                media.outline_numbering
+            } else {
+                shape.numbering_id
+            };
+            (false, id)
+        }
+        _ => return None,
+    };
+    let index = match media.lists.iter().position(|k| *k == key) {
+        Some(index) => index,
+        None => {
+            media.lists.push(key);
+            media.lists.len() - 1
+        }
+    };
+    Some((index + 1, level))
+}
+
+/// HWP 번호 형식 코드(표 41) → Word `w:numFmt`.
+fn word_num_format(code: u8) -> &'static str {
+    match code {
+        1 => "decimalEnclosedCircle",
+        2 => "upperRoman",
+        3 => "lowerRoman",
+        4 => "upperLetter",
+        5 => "lowerLetter",
+        8 => "ganada",
+        10 => "chosung",
+        12 => "koreanCounting",
+        13 => "ideographTraditional",
+        _ => "decimal",
+    }
+}
+
+/// HWP 번호 모양(`^1.`, `^N`) → Word `w:lvlText`(`%1.`).
+fn word_level_text(format: &str, level: usize) -> String {
+    let mut out = String::new();
+    let mut chars = format.chars().peekable();
+    while let Some(ch) = chars.next() {
+        if ch == '^' {
+            match chars.peek().copied() {
+                Some(d @ '1'..='7') => {
+                    chars.next();
+                    out.push('%');
+                    out.push(d);
+                    continue;
+                }
+                Some(code @ ('n' | 'N')) => {
+                    chars.next();
+                    for i in 0..=level {
+                        if i > 0 {
+                            out.push('.');
+                        }
+                        let _ = write!(out, "%{}", i + 1);
+                    }
+                    if code == 'N' {
+                        out.push('.');
+                    }
+                    continue;
+                }
+                _ => {}
+            }
+        }
+        out.push(ch);
+    }
+    out
+}
+
+/// `word/numbering.xml`: 쓴 번호 목록마다 추상 번호(수준 7개)와 번호.
+fn numbering_xml(info: &DocInfo, lists: &[(bool, u16)]) -> String {
+    let mut xml = format!(
+        r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:numbering {NAMESPACES}>"#
+    );
+    let default_outline = ["^1.", "^2.", "^3)", "^4)", "(^5)", "(^6)", "^7"];
+    for (index, &(bullet, id)) in lists.iter().enumerate() {
+        let _ = write!(
+            xml,
+            r#"<w:abstractNum w:abstractNumId="{index}"><w:multiLevelType w:val="multilevel"/>"#
+        );
+        for (level, outline_format) in default_outline.iter().enumerate() {
+            let (format, text, start) = if bullet {
+                let ch = info
+                    .bullets
+                    .get(usize::from(id).saturating_sub(1))
+                    .map_or('•', |b| b.bullet_char);
+                let ch = if ch == '\0' { '•' } else { ch };
+                ("bullet", ch.to_string(), 1)
+            } else {
+                match usize::from(id)
+                    .checked_sub(1)
+                    .and_then(|i| info.numberings.get(i))
+                {
+                    Some(n) => (
+                        word_num_format(n.heads[level].number_format),
+                        word_level_text(&n.level_formats[level], level),
+                        n.level_start_numbers[level].max(1),
+                    ),
+                    // 정의 없는 개요: 한컴 기본 개요 번호
+                    None => ("decimal", word_level_text(outline_format, level), 1),
+                }
+            };
+            let _ = write!(
+                xml,
+                r#"<w:lvl w:ilvl="{level}"><w:start w:val="{start}"/><w:numFmt w:val="{format}"/><w:suff w:val="space"/><w:lvlText w:val="{}"/><w:lvlJc w:val="left"/></w:lvl>"#,
+                xml_escape(&text)
+            );
+        }
+        xml.push_str("</w:abstractNum>");
+    }
+    for index in 0..lists.len() {
+        let _ = write!(
+            xml,
+            r#"<w:num w:numId="{}"><w:abstractNumId w:val="{index}"/></w:num>"#,
+            index + 1
+        );
+    }
+    xml.push_str("</w:numbering>");
+    xml
+}
+
+/// 문단 속성. `list` 는 Word 번호 목록(numId, 수준).
+fn para_props_with(info: &DocInfo, paragraph: &Paragraph, list: Option<(usize, u8)>) -> String {
     let Some(shape) = info.para_shapes.get(paragraph.para_shape_id as usize) else {
         return String::new();
     };
@@ -675,6 +821,12 @@ fn para_props(info: &DocInfo, paragraph: &Paragraph) -> String {
     };
     // 스키마 순서: pageBreakBefore … spacing, ind, jc, outlineLvl
     let mut props = format!("<w:pPr>{page_break}");
+    if let Some((num_id, level)) = list {
+        let _ = write!(
+            props,
+            r#"<w:numPr><w:ilvl w:val="{level}"/><w:numId w:val="{num_id}"/></w:numPr>"#
+        );
+    }
     // 문단 여백·간격은 HWPUNIT 의 2배 단위로 저장된다(rhwp ParaShape 규약).
     let half = |v: i32| twips(u32::try_from(v.max(0) / 2).unwrap_or(0));
     let mut spacing = String::new();
@@ -685,12 +837,25 @@ fn para_props(info: &DocInfo, paragraph: &Paragraph) -> String {
         let _ = write!(spacing, r#" w:after="{}""#, half(shape.spacing_after));
     }
     match shape.line_spacing_type {
-        // 100% = 240(Papy 읽기와 같은 기준)
+        // 한글 배수 줄 간격은 글자 크기의 %다. Word 의 배수(auto)는 글꼴 고유 줄 높이(한글 글꼴은 글자 크기의
+        // 약 1.3배)의 배수라 그대로 옮기면 줄이 30% 쯤 높아진다. 문단에서 가장 큰 글자 × % 를 "최소"로 쓴다
+        // (그림·수식처럼 더 큰 것이 있으면 줄이 늘어난다).
         LineSpacingType::Percent if shape.line_spacing > 0 => {
+            let size = paragraph
+                .char_shapes
+                .iter()
+                .filter_map(|r| info.char_shapes.get(r.char_shape_id as usize))
+                .map(|c| c.base_size)
+                .max()
+                .filter(|s| *s > 0)
+                .unwrap_or(1000);
+            // 1/100 pt × % ÷ 100 → twip(× 20 ÷ 100)
+            let line = size * shape.line_spacing / 500;
+            // Papy 가 다시 열 때는 원래 % 를 쓴다(Word 는 모르는 papy: 속성을 무시한다).
             let _ = write!(
                 spacing,
-                r#" w:line="{}" w:lineRule="auto""#,
-                shape.line_spacing * 240 / 100
+                r#" w:line="{line}" w:lineRule="atLeast" papy:linePercent="{}""#,
+                shape.line_spacing
             );
         }
         LineSpacingType::Fixed if shape.line_spacing > 0 => {
@@ -770,8 +935,27 @@ fn write_note(
     }
     notes(media, endnote).push(String::new());
     let id = notes(media, endnote).len();
-    let mark =
-        format!(r#"<w:r><w:rPr><w:vertAlign w:val="superscript"/></w:rPr><w:{tag}Ref/></w:r>"#);
+    // 번호 표시: 위 첨자 여부와 앞뒤 글자(한글 주 모양)
+    let (before, after, superscript) = media.note_marks[usize::from(endnote)].clone();
+    let raise = if superscript {
+        r#"<w:rPr><w:vertAlign w:val="superscript"/></w:rPr>"#
+    } else {
+        ""
+    };
+    let decorate = |inner: &str| {
+        let text = |t: &str| {
+            if t.is_empty() {
+                String::new()
+            } else {
+                format!(
+                    r#"<w:r>{raise}<w:t xml:space="preserve">{}</w:t></w:r>"#,
+                    xml_escape(t)
+                )
+            }
+        };
+        format!("{}<w:r>{raise}{inner}</w:r>{}", text(&before), text(&after))
+    };
+    let mark = decorate(&format!("<w:{tag}Ref/>"));
     let mut body = String::new();
     for (index, paragraph) in paragraphs.iter().enumerate() {
         let prefix = if index == 0 {
@@ -785,10 +969,7 @@ fn write_note(
         let _ = write!(body, "<w:p>{mark}</w:p>");
     }
     notes(media, endnote)[id - 1] = body;
-    let _ = write!(
-        out,
-        r#"<w:r><w:rPr><w:vertAlign w:val="superscript"/></w:rPr><w:{tag}Reference w:id="{id}"/></w:r>"#
-    );
+    out.push_str(&decorate(&format!(r#"<w:{tag}Reference w:id="{id}"/>"#)));
     Ok(())
 }
 
@@ -806,6 +987,34 @@ fn write_inline(
         Control::Picture(picture) => write_picture(out, media, picture),
         Control::Shape(shape) if depth < MAX_DEPTH => write_shape(out, info, media, shape, depth)?,
         Control::Equation(equation) => write_equation(out, media, equation),
+        Control::AutoNumber(number) => {
+            use rhwp::model::control::AutoNumberType as Kind;
+            let text = |c: char| {
+                if c == '\0' {
+                    String::new()
+                } else {
+                    format!(
+                        r#"<w:r><w:t xml:space="preserve">{}</w:t></w:r>"#,
+                        xml_escape(&c.to_string())
+                    )
+                }
+            };
+            let body = match number.number_type {
+                Kind::Page => page_field(false, number.format),
+                Kind::TotalPage => page_field(true, number.format),
+                // 그림·표·수식 번호 등은 매겨 둔 번호를 글로
+                _ => format!(
+                    r#"<w:r><w:t xml:space="preserve">{}</w:t></w:r>"#,
+                    number.assigned_number
+                ),
+            };
+            let _ = write!(
+                out,
+                "{}{body}{}",
+                text(number.prefix_char),
+                text(number.suffix_char)
+            );
+        }
         Control::Form(form) => write_form(out, form),
         _ => {}
     }
@@ -922,7 +1131,8 @@ fn write_paragraph_with(
         }
     }
     out.push_str("<w:p>");
-    out.push_str(&para_props(info, paragraph));
+    let list = list_of(info, media, paragraph);
+    out.push_str(&para_props_with(info, paragraph, list));
     out.push_str(prefix);
     // 단 나누기(문단 앞). 쪽 나누기는 문단 속성(pageBreakBefore)으로 쓴다.
     if paragraph.column_type == rhwp::model::paragraph::ColumnBreakType::Column && depth == 0 {
@@ -943,6 +1153,7 @@ fn write_paragraph_with(
                     | Control::Shape(_)
                     | Control::Equation(_)
                     | Control::Form(_)
+                    | Control::AutoNumber(_)
             )
         })
         .collect();
@@ -996,6 +1207,14 @@ fn write_paragraph_with(
                 '\n' | '\r' => {
                     flush(out, &mut text);
                     out.push_str("<w:br/>");
+                }
+                // 머리말·꼬리말의 쪽 번호·전체 쪽 수 필드 글자(rhwp) → Word 필드
+                '\u{0015}' | '\u{0016}' => {
+                    flush(out, &mut text);
+                    out.push_str("</w:r>");
+                    out.push_str(&page_field(*ch == '\u{0016}', 0));
+                    out.push_str("<w:r>");
+                    out.push_str(&run_props(info, shape));
                 }
                 c => text.push(*c),
             }
@@ -1421,6 +1640,89 @@ fn cell_style(info: &DocInfo, border_fill_id: u16) -> String {
     out
 }
 
+/// `word/fontTable.xml`: 문서가 쓰는 글꼴마다 계열(명조·고딕·고정폭)·한글 문자 집합·대체 글꼴.
+/// 글꼴이 없는 PC 의 Word·LibreOffice 는 이 정보로 대체 글꼴을 고른다(명조 글꼴이 고딕으로 바뀌지 않게).
+fn font_table_xml(info: &DocInfo) -> String {
+    let mut names: Vec<&str> = Vec::new();
+    for lang in 0..2 {
+        for font in info.font_faces.get(lang).into_iter().flatten() {
+            let name = font.name.as_str();
+            if !name.is_empty() && !names.contains(&name) {
+                names.push(name);
+            }
+        }
+    }
+    let mut xml = format!(
+        r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:fonts {NAMESPACES}>"#
+    );
+    for name in names {
+        let lower = name.to_lowercase();
+        let fixed = [
+            "굴림체",
+            "돋움체",
+            "바탕체",
+            "궁서체",
+            "coding",
+            "mono",
+            "courier",
+        ]
+        .iter()
+        .any(|k| lower.contains(k));
+        let serif = [
+            "명조", "바탕", "궁서", "myeongjo", "batang", "serif", "times", "신명", "바른",
+        ]
+        .iter()
+        .any(|k| lower.contains(k))
+            && !lower.contains("sans");
+        let (family, alt) = if fixed {
+            ("modern", if serif { "BatangChe" } else { "GulimChe" })
+        } else if serif {
+            ("roman", "Batang")
+        } else {
+            ("swiss", "Malgun Gothic")
+        };
+        let _ = write!(
+            xml,
+            r#"<w:font w:name="{}"><w:altName w:val="{alt}"/><w:charset w:val="81"/><w:family w:val="{family}"/><w:pitch w:val="{}"/></w:font>"#,
+            xml_escape(name),
+            if fixed { "fixed" } else { "variable" }
+        );
+    }
+    xml.push_str("</w:fonts>");
+    xml
+}
+
+/// 쪽 번호 필드 런(`PAGE`·`NUMPAGES`). `format` 은 한글 번호 형식 코드(표 134: 0 숫자, 2·3 로마 숫자).
+fn page_field(total: bool, format: u8) -> String {
+    let name = if total { "NUMPAGES" } else { "PAGE" };
+    let switch = match format {
+        2 => r" \* ROMAN",
+        3 => r" \* roman",
+        4 => r" \* ALPHABETIC",
+        5 => r" \* alphabetic",
+        _ => "",
+    };
+    format!(r#"<w:fldSimple w:instr=" {name}{switch} "><w:r><w:t>1</w:t></w:r></w:fldSimple>"#)
+}
+
+/// 한글 주 번호 모양 → Word 번호 형식.
+fn note_num_format(format: rhwp::model::footnote::NumberFormat) -> &'static str {
+    use rhwp::model::footnote::NumberFormat as F;
+    match format {
+        F::CircledDigit => "decimalEnclosedCircle",
+        F::UpperRoman => "upperRoman",
+        F::LowerRoman => "lowerRoman",
+        F::UpperAlpha => "upperLetter",
+        F::LowerAlpha => "lowerLetter",
+        F::HangulSyllable => "ganada",
+        F::HangulJamo => "chosung",
+        F::HangulDigit => "koreanCounting",
+        F::HanjaDigit => "ideographTraditional",
+        _ => "decimal",
+    }
+}
+
 fn section_props(document: &Document, references: &str, title_page: &str) -> String {
     let Some(page) = document.sections.first().map(|s| &s.section_def.page_def) else {
         return String::new();
@@ -1453,8 +1755,22 @@ fn section_props(document: &Document, references: &str, title_page: &str) -> Str
             _ => None,
         })
         .unwrap_or_default();
+    let notes = document
+        .sections
+        .first()
+        .map(|s| {
+            let def = &s.section_def;
+            format!(
+                r#"<w:footnotePr><w:numFmt w:val="{}"/><w:numStart w:val="{}"/></w:footnotePr><w:endnotePr><w:numFmt w:val="{}"/><w:numStart w:val="{}"/></w:endnotePr>"#,
+                note_num_format(def.footnote_shape.number_format),
+                def.footnote_shape.start_number.max(1),
+                note_num_format(def.endnote_shape.number_format),
+                def.endnote_shape.start_number.max(1),
+            )
+        })
+        .unwrap_or_default();
     format!(
-        r#"<w:sectPr>{references}<w:pgSz w:w="{width}" w:h="{height}"{orient}/><w:pgMar w:top="{}" w:right="{}" w:bottom="{}" w:left="{}" w:header="{}" w:footer="{}" w:gutter="{}"/>{columns}{title_page}</w:sectPr>"#,
+        r#"<w:sectPr>{references}{notes}<w:pgSz w:w="{width}" w:h="{height}"{orient}/><w:pgMar w:top="{}" w:right="{}" w:bottom="{}" w:left="{}" w:header="{}" w:footer="{}" w:gutter="{}"/>{columns}{title_page}</w:sectPr>"#,
         twips(page.margin_top + page.margin_header),
         twips(page.margin_right),
         twips(page.margin_bottom + page.margin_footer),
@@ -1521,7 +1837,7 @@ fn rels_xml(media: &Media, extra: &[Part], styles: bool) -> String {
 const STYLES: &str = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:docDefaults><w:rPrDefault><w:rPr><w:sz w:val="20"/><w:lang w:val="ko-KR" w:eastAsia="ko-KR"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:after="0" w:line="240" w:lineRule="auto"/></w:pPr></w:pPrDefault></w:docDefaults><w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/></w:style></w:styles>"#;
 
-const NAMESPACES: &str = r#"xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape" xmlns:wpg="http://schemas.microsoft.com/office/word/2010/wordprocessingGroup""#;
+const NAMESPACES: &str = r#"xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape" xmlns:wpg="http://schemas.microsoft.com/office/word/2010/wordprocessingGroup" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" xmlns:papy="urn:papy:docx" mc:Ignorable="papy""#;
 
 /// 첫 구역의 머리말·꼬리말을 부분으로 쓰고 sectPr 참조를 돌려준다. 같은 종류·쪽은 처음 것만.
 fn header_footer_parts(
@@ -1585,6 +1901,95 @@ fn header_footer_parts(
             kind: name,
             xml,
         });
+    }
+    // 쪽 번호 위치(한글 "쪽 번호 매기기"): 머리말·꼬리말에 쪽 번호 필드 문단을 더한다(없으면 만든다).
+    let page_number = section
+        .paragraphs
+        .iter()
+        .take(4)
+        .flat_map(|p| &p.controls)
+        .find_map(|c| match c {
+            Control::PageNumberPos(p) if p.position != 0 => Some(p.clone()),
+            _ => None,
+        });
+    if let Some(pnp) = page_number {
+        // 1·2·3·7·9 = 위(머리말), 그 밖 = 아래(꼬리말). 1·4 왼쪽, 3·6 오른쪽, 그 밖 가운데.
+        let top = matches!(pnp.position, 1..=3 | 7 | 9);
+        let jc = match pnp.position {
+            1 | 4 => "left",
+            3 | 6 => "right",
+            _ => "center",
+        };
+        let deco = |c: char| {
+            if c == '\0' {
+                String::new()
+            } else {
+                c.to_string()
+            }
+        };
+        let (dash, prefix, suffix) = (
+            deco(pnp.dash_char),
+            deco(pnp.prefix_char),
+            deco(pnp.suffix_char),
+        );
+        let (before, after) = if dash.is_empty() {
+            (prefix, suffix)
+        } else {
+            (format!("{dash} {prefix}"), format!("{suffix} {dash}"))
+        };
+        let run = |t: &str| {
+            if t.is_empty() {
+                String::new()
+            } else {
+                format!(
+                    r#"<w:r><w:t xml:space="preserve">{}</w:t></w:r>"#,
+                    xml_escape(t)
+                )
+            }
+        };
+        let paragraph = format!(
+            r#"<w:p><w:pPr><w:jc w:val="{jc}"/></w:pPr>{}{}{}</w:p>"#,
+            run(&before),
+            page_field(false, pnp.format),
+            run(&after)
+        );
+        let (tag, name, side) = if top {
+            ("hdr", "header", 0)
+        } else {
+            ("ftr", "footer", 1)
+        };
+        match defaults[side]
+            .as_ref()
+            .and_then(|rel| parts.iter_mut().find(|p| p.rel.as_ref() == Some(rel)))
+        {
+            Some(part) => {
+                let close = format!("</w:{tag}>");
+                if let Some(at) = part.xml.rfind(&close) {
+                    part.xml.insert_str(at, &paragraph);
+                }
+            }
+            None => {
+                let index = parts.len() + 1;
+                let rel = format!("rIdPart{index}");
+                let reference = format!(r#"<w:{name}Reference w:type="default" r:id="{rel}"/>"#);
+                if top {
+                    &mut references.0
+                } else {
+                    &mut references.1
+                }
+                .push_str(&reference);
+                defaults[side] = Some(rel.clone());
+                parts.push(Part {
+                    name: format!("{name}{index}.xml"),
+                    rel: Some(rel),
+                    kind: name,
+                    xml: format!(
+                        r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:{tag} {NAMESPACES}>{paragraph}</w:{tag}>"#
+                    ),
+                });
+            }
+        }
     }
     if seen.iter().any(|(_, kind)| *kind == "even") {
         parts.push(Part {
@@ -1651,6 +2056,36 @@ pub fn docx_from_document_with(
         contents: &document.bin_data_content,
         files: Vec::new(),
         render_equation,
+        outline_numbering: document
+            .sections
+            .first()
+            .map_or(0, |s| s.section_def.outline_numbering_id),
+        lists: Vec::new(),
+        note_marks: {
+            let mark = |shape: &rhwp::model::footnote::FootnoteShape| {
+                let text = |c: char| {
+                    if c == '\0' {
+                        String::new()
+                    } else {
+                        c.to_string()
+                    }
+                };
+                (
+                    text(shape.prefix_char),
+                    text(shape.suffix_char),
+                    shape.number_code_superscript,
+                )
+            };
+            document.sections.first().map_or_else(
+                || std::array::from_fn(|_| (String::new(), String::new(), true)),
+                |s| {
+                    [
+                        mark(&s.section_def.footnote_shape),
+                        mark(&s.section_def.endnote_shape),
+                    ]
+                },
+            )
+        },
         next_object: 0,
         footnotes: Vec::new(),
         endnotes: Vec::new(),
@@ -1689,6 +2124,20 @@ pub fn docx_from_document_with(
             xml,
         });
     }
+    extra.push(Part {
+        name: "fontTable.xml".into(),
+        rel: Some("rIdFontTable".into()),
+        kind: "fontTable",
+        xml: font_table_xml(info),
+    });
+    if !media.lists.is_empty() {
+        extra.push(Part {
+            name: "numbering.xml".into(),
+            rel: Some("rIdNumbering".into()),
+            kind: "numbering",
+            xml: numbering_xml(info, &media.lists),
+        });
+    }
     let xml = format!(
         r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document {NAMESPACES}><w:body>{body}{}</w:body></w:document>"#,
@@ -1713,7 +2162,9 @@ pub fn docx_from_document_with(
     // 본문 밖 부분의 그림 관계: 그림 관계 id 를 본문과 같게 쓴다.
     let part_rels: Vec<(String, String)> = extra
         .iter()
-        .filter(|part| part.kind != "settings" && !media.files.is_empty())
+        .filter(|part| {
+            !matches!(part.kind, "settings" | "numbering" | "fontTable") && !media.files.is_empty()
+        })
         .map(|part| {
             (
                 format!("word/_rels/{}.rels", part.name),

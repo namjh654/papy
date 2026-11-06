@@ -479,7 +479,9 @@ fn open_converted(
         },
     };
     Ok(Box::new(
-        HwpDocument::new(doc, info, None).with_headings(report.headings),
+        HwpDocument::new(doc, info, None)
+            .with_headings(report.headings)
+            .with_review(report.comments, report.insertions, report.deletions),
     ))
 }
 

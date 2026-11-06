@@ -71,7 +71,7 @@ Bug50936_1.doc	DOC	18	f026ebc1721fc705	40b12f14812a8bc4	27
 Bug50936_2.doc	DOC	19	cc101f989bf8837c	71d99a5cb9eaea56	0
 Bug50936_3.doc	DOC	58	f6bfc41be7bdb9e5	8fa0264b7a04128e	6
 Bug50955.doc	error	UnsupportedFormat
-Bug51170.docx	DOCX	8	0d2e2d9472efb615	dee24abc61882c1e	0
+Bug51170.docx	DOCX	6	0bf5fb2d947fbb21	bf27e75a4c42f289	0
 Bug51604.doc	DOC	1	e5989f18eb184be8	7ce25260d460261c	0
 Bug51686.doc	DOC	1	250c5d3886b33e0d	e38dc91dede429c0	0
 Bug51834.doc	DOC	3	af3b543cd2e8a2ed	ea1e9b70f087ec0b	0
@@ -93,7 +93,7 @@ Bug54771b.docx	DOCX	1	250c5d3886b33e0d	f7b126fe0116924c	0
 Bug54849.docx	DOCX	1	250c5d3886b33e0d	6f0cd66c8d92dbc2	0
 Bug55142.docx	DOCX	1	250c5d3886b33e0d	69dd58922f0c55ae	0
 Bug60337.docx	DOCX	1	250c5d3886b33e0d	e97a87f382e57be1	0
-Bug60341.docx	DOCX	1	250c5d3886b33e0d	5e7bc8d16bc11d65	0
+Bug60341.docx	DOCX	1	250c5d3886b33e0d	24d701404f4f61f1	0
 Bug60936.doc	error	UnsupportedFormat
 Bug60942.doc	error	UnsupportedFormat
 Bug60942b.doc	error	UnsupportedFormat
@@ -111,7 +111,7 @@ EmptyDocumentWithHeaderFooter.docx	DOCX	1	e5989f18eb184be8	90dd471ebc7e2f19	0
 EnforcedWith.docx	DOCX	1	250c5d3886b33e0d	d1f5c25596e531d0	0
 ExternalEntityInText.docx	DOCX	1	e5989f18eb184be8	81d513ea2297bdf6	0
 FancyFoot.doc	DOC	2	34a07278ce85fe05	ff0ca0b60706bb5b	0
-FancyFoot.docx	DOCX	2	34a07278ce85fe05	37de01e1262bd3bf	0
+FancyFoot.docx	DOCX	2	34a07278ce85fe05	7bd51874b651c4fa	0
 FieldCodes.docx	DOCX	1	e5989f18eb184be8	d80a33af9f883c54	0
 FldSimple.docx	DOCX	1	e5989f18eb184be8	3d5c5bd05dd3d0e7	0
 FloatingPictures.doc	DOC	9	c8922096973e2a8d	815e3d892272c85b	5
@@ -163,7 +163,7 @@ Word6.doc	error	UnsupportedFormat
 Word6_sections.doc	error	UnsupportedFormat
 Word6_sections2.doc	error	UnsupportedFormat
 Word95.doc	error	UnsupportedFormat
-WordWithAttachments.docx	DOCX	2	22d10a52556263a1	ab7e75bc6f3d499d	9
+WordWithAttachments.docx	DOCX	2	22d10a52556263a1	d266093ad506cc02	9
 au.edu.utas.www___data_assets_word_doc_0003_154335_International-Travel-Approval-Request-Form.doc	DOC	4	cb34ff9c7c790a8d	04b86b8a3a1fa222	0
 bib-chernigovka.netdo.ru_download_docs_17459.docx	DOCX	12	d63ec331307e8fbd	684bd67afb7d6845	0
 bookmarks.docx	DOCX	1	250c5d3886b33e0d	fac5d9de78d86ca0	0
@@ -173,8 +173,8 @@ bug53475-password-is-solrcell.docx	error	UnsupportedFormat
 bug56075-changeTracking_off.docx	DOCX	1	250c5d3886b33e0d	5577da3f547bed45	0
 bug56075-changeTracking_on.docx	DOCX	1	250c5d3886b33e0d	d3054b54e409c031	0
 bug56076.docx	DOCX	1	e5989f18eb184be8	c27ddb98602cfaf7	0
-bug57031.docx	DOCX	12	bde22a0cec0b59e5	6f872ac642205865	3
-bug59058.docx	DOCX	90	4af865970741ef85	77aaf33eee7da9a4	1
+bug57031.docx	DOCX	12	bde22a0cec0b59e5	0a0d3d2b20aea9b8	3
+bug59058.docx	DOCX	81	7c9077927d3c3b0d	1c8c248bff71f2e2	1
 bug65255.doc	DOC	1	e5989f18eb184be8	f7ec269244ee8d60	0
 bug65649.docx	DOCX	61	f5fc1737404acc8c	197405c668ec61fd	0
 bug65738.docx	DOCX	1	250c5d3886b33e0d	2441b55b79115210	0
@@ -222,7 +222,7 @@ documentProtection_no_protection.docx	DOCX	1	250c5d3886b33e0d	bbc8e16a7d9e6883	0
 documentProtection_no_protection_tag_existing.docx	DOCX	1	250c5d3886b33e0d	3e85ea3e822c1643	0
 documentProtection_readonly_no_password.docx	DOCX	1	250c5d3886b33e0d	d77ba6b42c16d6eb	0
 documentProtection_trackedChanges_no_password.docx	DOCX	1	250c5d3886b33e0d	a6d1674bc2a1d5d9	0
-drawing.docx	DOCX	27	6dc0942507b9f9ec	7dd2d9a34564ed52	6
+drawing.docx	DOCX	18	591b52204ff83bc1	ad4d4efcef711bec	6
 empty.doc	DOC	1	250c5d3886b33e0d	af63c14c8601beab	0
 emptyPPr.docx	DOCX	1	250c5d3886b33e0d	a20f65c830f6f40b	0
 endingnote.doc	DOC	1	e5989f18eb184be8	b623dce2a4ac7973	0
