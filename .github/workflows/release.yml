@@ -51,6 +51,7 @@ jobs:
       - run: node scripts/fetch-rhwp.mjs
       - run: node scripts/fetch-pdfium.mjs ${{ matrix.target }}
       - run: node scripts/fetch-rhwp-studio.mjs
+      - run: node scripts/fetch-fonts.mjs
       - run: node scripts/third-party-notices.mjs
         env:
           PAPY_TARGET: ${{ matrix.target }}

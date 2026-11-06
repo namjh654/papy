@@ -3,6 +3,7 @@
 //!   cargo run --release -p papy-core --example render_page -- <문서> <쪽(0부터)> <출력.bmp> [배율]
 //!
 //! PDF 는 `PAPY_PDFIUM_LIBRARY` 에 PDFium 라이브러리 경로를 준다. `PAPY_TEXT=1` 이면 그 쪽 글도 찍는다.
+//! `PAPY_KOREAN_FONT` 는 앱에 넣는 한글 글꼴 경로(같은 폴더의 글꼴을 모두 읽는다).
 
 use std::path::PathBuf;
 
@@ -22,7 +23,7 @@ fn main() {
             pdfium_library: std::env::var_os("PAPY_PDFIUM_LIBRARY")
                 .map(PathBuf::from)
                 .unwrap_or_default(),
-            korean_font: None,
+            korean_font: std::env::var_os("PAPY_KOREAN_FONT").map(PathBuf::from),
         },
     );
     let id = engine

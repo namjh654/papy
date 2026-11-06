@@ -715,6 +715,108 @@
         }
       }
     },
+    "fonts_description" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fonts that draw serif (Myeongjo, Batang) text and bold sans text closer to the original (about %d MB, free fonts). They are stored on this device only and used from the next time you open the app."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "명조·바탕 글과 굵은 고딕을 원본에 가깝게 그리는 글꼴입니다(약 %d MB, 무료 글꼴). 받으면 이 기기에만 저장되고 앱을 다시 열 때부터 쓰입니다."
+          }
+        }
+      }
+    },
+    "fonts_done" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Downloaded. Serif text will use them the next time you open the app."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "받았습니다. 앱을 다시 열면 명조 글꼴로 보입니다."
+          }
+        }
+      }
+    },
+    "fonts_download" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Download fonts"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "글꼴 받기"
+          }
+        }
+      }
+    },
+    "fonts_downloading" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Downloading… %d%%"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "받는 중… %d%%"
+          }
+        }
+      }
+    },
+    "fonts_failed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not download. Check your internet connection and try again."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "받지 못했습니다. 인터넷 연결을 확인하고 다시 시도해 주세요."
+          }
+        }
+      }
+    },
+    "fonts_title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Serif fonts"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "명조 글꼴"
+          }
+        }
+      }
+    },
     "licenses_intro" : {
       "extractionState" : "manual",
       "localizations" : {

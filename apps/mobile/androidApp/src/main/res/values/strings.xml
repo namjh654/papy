@@ -139,6 +139,12 @@
     <string name="viewer_caret_left">커서 왼쪽으로</string>
     <string name="viewer_caret_right">커서 오른쪽으로</string>
     <string name="viewer_edit_paragraph">문단 고치기</string>
+    <string name="fonts_title">명조 글꼴</string>
+    <string name="fonts_description">명조·바탕 글과 굵은 고딕을 원본에 가깝게 그리는 글꼴입니다(약 %1$d MB, 무료 글꼴). 받으면 이 기기에만 저장되고 앱을 다시 열 때부터 쓰입니다.</string>
+    <string name="fonts_downloading">받는 중… %1$d%%</string>
+    <string name="fonts_done">받았습니다. 앱을 다시 열면 명조 글꼴로 보입니다.</string>
+    <string name="fonts_failed">받지 못했습니다. 인터넷 연결을 확인하고 다시 시도해 주세요.</string>
+    <string name="fonts_download">글꼴 받기</string>
     <string name="licenses_title">오픈소스 라이선스</string>
     <string name="licenses_intro">Papy 는 PolyForm Noncommercial 1.0.0 라이선스로 배포됩니다(비상업적 사용). 앱에 들어 있는 다른 구성요소 %1$d개와 그 라이선스입니다.</string>
     <string name="licenses_missing">라이선스 고지 파일이 없습니다. 개발 빌드에서는 node scripts/third-party-notices.mjs mobile 로 만듭니다.</string>
