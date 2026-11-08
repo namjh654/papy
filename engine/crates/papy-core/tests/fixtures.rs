@@ -103,6 +103,35 @@ fn encrypted_word97_doc_opens_with_password() {
     }
 }
 
+/// 옛 Word(.doc) 그리기 개체: 떠 있는 도형(사각형·타원, 채우기 색)과 OLE 수식의 미리보기 그림(EMF)을 옮긴다.
+#[test]
+fn word97_doc_shapes_and_ole_preview() {
+    let engine = Engine::new(Limits::default());
+    for (name, want) in [
+        // 연한 파랑 채우기(#99CCFF 근처)
+        (
+            "poi/WithArtShapes.doc",
+            (|p: &[u8]| p[0] > 130 && p[0] < 180 && p[1] > 180 && p[2] > 230) as fn(&[u8]) -> bool,
+        ),
+        // 수식 글자(어두운 점)
+        ("poi/equation.doc", |p: &[u8]| {
+            p[0] < 100 && p[1] < 100 && p[2] < 100 && p[3] > 0
+        }),
+    ] {
+        let id = engine
+            .open(DocumentSource::Path(fixture(name)), OpenOptions::default())
+            .unwrap();
+        let info = engine.info(id).unwrap();
+        assert_eq!(info.dropped_objects, 0, "{name}");
+        let page = engine
+            .render_page(id, 0, &RenderRequest::with_scale(2.0))
+            .unwrap();
+        let count = page.pixels.chunks_exact(4).filter(|p| want(p)).count();
+        assert!(count > 200, "{name}: {count}");
+        engine.close(id).unwrap();
+    }
+}
+
 /// 옛 Word(.doc): 열고, 첫 쪽 머리말을 감추고, 병합 칸 표를 옮기고, DOCX·PDF 로 내보낸다.
 #[test]
 fn word97_doc_opens_and_converts() {

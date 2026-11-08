@@ -24,7 +24,8 @@ fn wrap_name(wrap: Wrap) -> &'static str {
         Wrap::Behind => "BehindText",
         Wrap::Square => "Square",
         Wrap::TopAndBottom => "TopAndBottom",
-        Wrap::Tight => "Tight",
+        // rhwp 의 "빽빽하게"는 둘러싼 문단 높이를 잘못 재어 다음 문단과 겹친다. 그림 상자는 어울림과 같은 모양이라 어울림으로 둔다.
+        Wrap::Tight => "Square",
     }
 }
 
@@ -188,20 +189,49 @@ fn insert_picture(
             (png, "png", (width as u32, height as u32))
         }
     };
-    // rhwp 는 문단 기준(세로)으로 떠 있는 그림을 그 문단 줄 높이로 잘라 그린다. 넣기 전에 문단 자리를 재서
-    // 종이 기준 위치로 바꿔 넣는다(DOCX 를 연 뒤의 배치로 고정된다).
+    // 문단 기준(세로)으로 떠 있는 그림을 rhwp 는 이렇게 다룬다:
+    // - 문단 기준 그대로 두면 그 문단 줄만 그림을 비켜 가고, 뒤 문단은 비키지 않는다(그림이 뒤 문단에 덮인다).
+    //   글 앞·뒤 그림은 문단 줄 높이에 잘려 보이기도 한다.
+    // - 종이 기준으로 바꾸면 뒤 문단은 비켜 가지만, 글이 둘러 흐르는 그림(어울림·위아래)은 제 문단 줄이 다음 문단과 겹친다.
+    // 그래서 글 앞·뒤 그림, 또는 제 문단 밖으로 나가는 그림만 넣기 전에 문단 자리를 재서 종이 기준으로 바꾼다
+    // (DOCX 를 연 뒤의 배치로 고정된다). 제 문단 안에 드는 둘러 흐르는 그림은 문단 기준으로 둔다.
+    let cursor = |doc: &Rhwp, offset: usize| -> Option<(f64, f64, u64)> {
+        let reply = doc.get_cursor_rect_native(0, para, offset).ok()?;
+        let value = serde_json::from_str::<Value>(&reply).ok()?;
+        Some((
+            value.get("y")?.as_f64()?,
+            value.get("height")?.as_f64()?,
+            value.get("pageIndex")?.as_u64()?,
+        ))
+    };
+    let fits_paragraph = || -> bool {
+        let length = doc.document().sections[0].paragraphs[para]
+            .text
+            .chars()
+            .count();
+        let (Some(first), Some(last)) = (cursor(doc, 0), cursor(doc, length)) else {
+            return false;
+        };
+        // 여러 쪽에 걸친 문단은 그 쪽 안에서 비켜 간다.
+        if first.2 != last.2 {
+            return true;
+        }
+        let paragraph_px = last.0 + last.1 - first.0;
+        let bottom_px = (shape.vertical.1 + shape.height) as f64 / EMU_PER_PX;
+        bottom_px <= paragraph_px + 1.0
+    };
     let vertical = match shape.vertical.0 {
-        Relative::Paragraph | Relative::Column if !shape.inline => doc
-            .get_cursor_rect_native(0, para, offset)
-            .ok()
-            .and_then(|reply| serde_json::from_str::<Value>(&reply).ok())
-            .and_then(|value| value.get("y")?.as_f64())
-            .map(|y_px| {
+        Relative::Paragraph | Relative::Column
+            if !shape.inline
+                && (matches!(shape.wrap, Wrap::InFront | Wrap::Behind) || !fits_paragraph()) =>
+        {
+            cursor(doc, offset).map(|(y_px, _, _)| {
                 (
                     "Paper",
                     (y_px * 75.0).max(0.0) as i64 + i64::from(hwpunit(shape.vertical.1)),
                 )
-            }),
+            })
+        }
         _ => None,
     }
     .unwrap_or((
