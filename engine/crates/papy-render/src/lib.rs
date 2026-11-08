@@ -131,6 +131,9 @@ pub trait FormatBackend: Send + Sync {
     fn open(&self, source: Source<'_>, options: &BackendOpenOptions) -> Result<Box<dyn Document>>;
 }
 
+/// 문서 구조 요약: 요소 이름 → 수([`Document::structure`]).
+pub type Structure = std::collections::BTreeMap<String, u64>;
+
 /// 열린 문서 하나. 엔진이 세션마다 잠금으로 감싸 한 번에 한 스레드만 호출한다.
 ///
 /// 페이지 번호는 0부터, 범위 확인은 엔진이 먼저 한다. 지원하지 않는 기능은 `NotImplemented` 를 돌려준다.
@@ -160,6 +163,11 @@ pub trait Document: Send {
     /// 메모와 변경 추적. 기본은 없음.
     fn review(&mut self) -> Result<Review> {
         Ok(Review::default())
+    }
+
+    /// 문서 구조 요약(요소 이름 → 수: 문단·글자·표·칸·그림·각주 등). 변환·저장 왕복에서 빠진 것을 찾는 점검용.
+    fn structure(&mut self) -> Result<Structure> {
+        Err(not_supported("structure summary"))
     }
 
     /// 쪽에서 제대로 그리지 못한 개체(차트·OLE·없는 그림 자리 등). 기본은 없음.

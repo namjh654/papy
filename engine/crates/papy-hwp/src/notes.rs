@@ -3,7 +3,10 @@
 //! 각주·미주: 본문 문단의 [`papy_office::FOOTNOTE_MARK`]·[`papy_office::ENDNOTE_MARK`] 자리마다 그 글자를 지우고
 //! 각주·미주를 넣는다(문서 순서 = 번호 순서). 주 안 글자는 rhwp 의 각주 편집 함수로 넣는다(미주도 같은 함수가 다룬다).
 
-use papy_office::{DocxReadReport, ENDNOTE_MARK, FOOTNOTE_MARK, HeaderFooterText, PAGE_BREAK_MARK};
+use papy_office::{
+    DocxReadReport, ENDNOTE_MARK, FOOTNOTE_MARK, HeaderFooterText, PAGE_BREAK_MARK,
+    PAGE_COUNT_FIELD, PAGE_COUNT_MARK, PAGE_NUMBER_FIELD, PAGE_NUMBER_MARK, SECTION_MARK,
+};
 use rhwp::HwpError;
 use rhwp::model::control::Control;
 
@@ -12,10 +15,18 @@ use crate::Rhwp;
 /// 넣지 못한 머리말·꼬리말·각주 수를 돌려준다.
 pub(crate) fn apply(doc: &mut Rhwp, report: &DocxReadReport) -> Result<usize, HwpError> {
     page_breaks(doc)?;
+    let starts = section_starts(doc)?;
     let mut dropped = 0;
     for (is_header, items) in [(true, &report.headers), (false, &report.footers)] {
         for item in items {
-            if header_footer(doc, is_header, item).is_err() {
+            let placed = match item.section {
+                0 => header_footer(doc, is_header, item),
+                section => match starts.get(section - 1).copied() {
+                    Some(para) => later_header_footer(doc, is_header, item, para),
+                    None => Err(HwpError::RenderError("구역 자리가 없습니다".to_string())),
+                },
+            };
+            if placed.is_err() {
                 dropped += 1;
             }
         }
@@ -30,8 +41,93 @@ pub(crate) fn apply(doc: &mut Rhwp, report: &DocxReadReport) -> Result<usize, Hw
     Ok(dropped)
 }
 
+/// 본문 [`SECTION_MARK`] 를 지우고, Word 구역(첫 구역 뒤)마다 그 구역이 시작하는 문단 번호를 돌려준다.
+/// (`k` 번째 = 구역 `k + 1`.)
+fn section_starts(doc: &mut Rhwp) -> Result<Vec<usize>, HwpError> {
+    let mut starts = Vec::new();
+    let count = doc.document().sections[0].paragraphs.len();
+    for para in 0..count {
+        while let Some(offset) = find_mark(
+            &doc.document().sections[0].paragraphs[para].text,
+            SECTION_MARK,
+        ) {
+            doc.delete_text_native(0, para, offset, 1)?;
+            starts.push(para);
+        }
+    }
+    Ok(starts)
+}
+
+/// 뒤 구역의 머리말·꼬리말: 첫 문단에 만들어 채운 뒤 구역이 시작하는 문단 `para` 로 옮긴다. rhwp 는 한 구역에
+/// 같은 종류·쪽 머리말을 하나만 만들게 해서, 이미 있는 것들은 잠시 빼 두었다가 되돌린다. 문단 중간에 놓인
+/// 머리말은 한글처럼 그 문단이 놓인 쪽부터 쓰인다.
+fn later_header_footer(
+    doc: &mut Rhwp,
+    is_header: bool,
+    item: &HeaderFooterText,
+    para: usize,
+) -> Result<(), HwpError> {
+    use rhwp::model::header_footer::HeaderFooterApply;
+    let apply = match item.apply_to {
+        1 => HeaderFooterApply::Even,
+        2 => HeaderFooterApply::Odd,
+        _ => HeaderFooterApply::Both,
+    };
+    let same = move |c: &Control| match c {
+        Control::Header(h) => is_header && h.apply_to == apply,
+        Control::Footer(f) => !is_header && f.apply_to == apply,
+        _ => false,
+    };
+    let take = |paragraph: &mut rhwp::model::paragraph::Paragraph, index: usize| {
+        let control = paragraph.controls.remove(index);
+        if index < paragraph.ctrl_data_records.len() {
+            paragraph.ctrl_data_records.remove(index);
+        }
+        paragraph.char_count = paragraph.char_count.saturating_sub(8);
+        control
+    };
+    let put = |paragraph: &mut rhwp::model::paragraph::Paragraph, control: Control| {
+        paragraph.controls.push(control);
+        paragraph.align_ctrl_data_records();
+        paragraph.char_count += 8;
+    };
+    // 이미 있는 같은 종류 머리말을 빼 둔다.
+    let mut document = doc.document().clone();
+    let mut stash = Vec::new();
+    for (index, paragraph) in document.sections[0].paragraphs.iter_mut().enumerate() {
+        while let Some(at) = paragraph.controls.iter().position(same) {
+            stash.push((index, take(paragraph, at)));
+        }
+    }
+    document.sections[0].raw_stream = None;
+    doc.set_document(document);
+    let filled = header_footer(doc, is_header, item);
+    let mut document = doc.document().clone();
+    let paragraphs = &mut document.sections[0].paragraphs;
+    if filled.is_ok() {
+        if let Some(at) = paragraphs[0].controls.iter().position(same) {
+            let control = take(&mut paragraphs[0], at);
+            put(&mut paragraphs[para], control);
+        }
+    }
+    for (index, control) in stash {
+        put(&mut paragraphs[index], control);
+    }
+    document.sections[0].raw_stream = None;
+    doc.set_document(document);
+    filled
+}
+
 fn header_footer(doc: &mut Rhwp, is_header: bool, item: &HeaderFooterText) -> Result<(), HwpError> {
     doc.create_header_footer_native(0, is_header, item.apply_to)?;
+    if let Some(html) = &item.html {
+        // 표·그림이 있는 머리말: 글자만 넣기로 물러서지 않게 실패하면 글자로 넣는다.
+        let saved = doc.document().clone();
+        match header_footer_html(doc, is_header, item.apply_to, html) {
+            Ok(()) => return Ok(()),
+            Err(_) => doc.set_document(saved),
+        }
+    }
     for (index, text) in item.paragraphs.iter().enumerate() {
         if index > 0 {
             let previous = item.paragraphs[index - 1].chars().count();
@@ -48,6 +144,72 @@ fn header_footer(doc: &mut Rhwp, is_header: bool, item: &HeaderFooterText) -> Re
             doc.insert_text_in_header_footer_native(0, is_header, item.apply_to, index, 0, text)?;
         }
     }
+    Ok(())
+}
+
+/// 머리말·꼬리말 HTML 을 넣는다. rhwp 에는 머리말에 HTML 을 붙여넣는 기능이 없어 본문 끝에 붙여넣은 뒤
+/// 그 문단들을 머리말로 옮긴다(같은 문서라 글자·문단 모양 번호가 그대로 맞는다). 붙여넣은 표 칸은 본문 표처럼
+/// 칸 너비로 다시 나눈 뒤 옮긴다. 쪽 번호 자리 표시는 rhwp 머리말 필드 글자로 바꾼다(둘 다 한 칸이다).
+fn header_footer_html(
+    doc: &mut Rhwp,
+    is_header: bool,
+    apply_to: u8,
+    html: &str,
+) -> Result<(), HwpError> {
+    use rhwp::model::header_footer::HeaderFooterApply;
+    // 끝 문단을 나누면 문단 끝에 놓인 그림·도형 컨트롤이 새 문단(→ 머리말)으로 넘어간다. 빈 문단을 따로 더한다.
+    let count = doc.document().sections[0].paragraphs.len();
+    doc.insert_paragraph_native(0, count)?;
+    // 빈 문단에 붙여넣으면 첫 문단이 그 문단 모양을 쓴다. 빈 문단을 앞에 두어 첫 문단을 새 문단으로 만든다.
+    let padded = match html.find("<body>").map(|i| i + "<body>".len()) {
+        Some(at) => format!("{}<p></p>{}", &html[..at], &html[at..]),
+        None => format!("<p></p>{html}"),
+    };
+    doc.paste_html_native(0, count, 0, &padded)?;
+    crate::unindent_table_paragraphs(doc);
+    doc.reflow_table_cells_native(0)?;
+    let mut document = doc.document().clone();
+    let section = &mut document.sections[0];
+    let mut moved: Vec<_> = section.paragraphs.drain(count..).collect();
+    // 앞에 둔 빈 문단과 끝 빈 문단은 뺀다.
+    let blank = |p: &rhwp::model::paragraph::Paragraph| p.text.is_empty() && p.controls.is_empty();
+    if moved.first().is_some_and(blank) && moved.len() > 1 {
+        moved.remove(0);
+    }
+    while moved.len() > 1 && moved.last().is_some_and(blank) {
+        moved.pop();
+    }
+    for paragraph in &mut moved {
+        if paragraph.text.contains([PAGE_NUMBER_MARK, PAGE_COUNT_MARK]) {
+            paragraph.text = paragraph
+                .text
+                .chars()
+                .map(|c| match c {
+                    PAGE_NUMBER_MARK => PAGE_NUMBER_FIELD,
+                    PAGE_COUNT_MARK => PAGE_COUNT_FIELD,
+                    c => c,
+                })
+                .collect();
+        }
+    }
+    let apply = match apply_to {
+        1 => HeaderFooterApply::Even,
+        2 => HeaderFooterApply::Odd,
+        _ => HeaderFooterApply::Both,
+    };
+    let target = section
+        .paragraphs
+        .iter_mut()
+        .flat_map(|p| p.controls.iter_mut())
+        .find_map(|c| match c {
+            Control::Header(h) if is_header && h.apply_to == apply => Some(&mut h.paragraphs),
+            Control::Footer(f) if !is_header && f.apply_to == apply => Some(&mut f.paragraphs),
+            _ => None,
+        })
+        .ok_or_else(|| HwpError::RenderError("머리말이 없습니다".to_string()))?;
+    *target = moved;
+    section.raw_stream = None;
+    doc.set_document(document);
     Ok(())
 }
 

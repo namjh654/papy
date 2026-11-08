@@ -279,8 +279,10 @@ fn numbering_footnotes_headers_and_footers() {
     assert_eq!(
         report.headers,
         vec![HeaderFooterText {
+            section: 0,
             apply_to: 0,
-            paragraphs: vec!["머리 글".into()]
+            paragraphs: vec!["머리 글".into()],
+            html: Some("<html><body><p>머리 글</p></body></html>".into()),
         }]
     );
     assert_eq!(report.footers[0].paragraphs, vec!["꼬리\t글".to_string()]);
@@ -347,6 +349,13 @@ fn part_text(bytes: &[u8], name: &str) -> String {
     let mut xml = String::new();
     std::io::Read::read_to_string(&mut archive.by_name(name).unwrap(), &mut xml).unwrap();
     xml
+}
+
+fn part_text_opt(bytes: &[u8], name: &str) -> Option<String> {
+    let mut archive = zip::ZipArchive::new(Cursor::new(bytes)).ok()?;
+    let mut xml = String::new();
+    std::io::Read::read_to_string(&mut archive.by_name(name).ok()?, &mut xml).ok()?;
+    Some(xml)
 }
 
 #[test]
@@ -908,7 +917,7 @@ fn numbering_note_marks_and_page_fields_are_written() {
         "{xml}"
     );
     assert!(
-        xml.contains(r#"<w:r><w:t xml:space="preserve">문</w:t></w:r><w:r><w:endnoteReference w:id="1"/></w:r><w:r><w:t xml:space="preserve">)</w:t></w:r>"#),
+        xml.contains(r#"<w:r papy:noteMark="1"><w:t xml:space="preserve">문</w:t></w:r><w:r><w:endnoteReference w:id="1"/></w:r><w:r papy:noteMark="1"><w:t xml:space="preserve">)</w:t></w:r>"#),
         "{xml}"
     );
     assert!(
@@ -980,4 +989,76 @@ fn comments_tracked_changes_font_table_and_line_spacing() {
     // Papy 로 다시 열면 원래 % 로
     let (html, _) = docx_to_html(&bytes).unwrap();
     assert!(html.contains("line-height:160%;"), "{html}");
+}
+
+/// 머리말·꼬리말을 영역(Word 구역)마다 쓴다: 둘째 한글 구역의 머리말은 둘째 구역 참조로(첫 구역 것으로 덮지 않는다),
+/// 단 정의가 없는 한글 구역도 새 쪽 구역으로 시작하고, 표 칸 문단에 놓인 머리말(HWPX)도 쓴다.
+#[test]
+fn header_footers_are_written_per_section() {
+    use rhwp::model::control::Control;
+    use rhwp::model::header_footer::{Header, HeaderFooterApply};
+    use rhwp::model::paragraph::Paragraph;
+    let mut core = rhwp::document_core::DocumentCore::new_empty();
+    core.create_blank_document_native().unwrap();
+    core.insert_text_native(0, 0, 0, "첫 구역").unwrap();
+    let mut document = core.document().clone();
+    let header = |text: &str| {
+        let mut paragraph = Paragraph::new_empty();
+        paragraph.text = text.into();
+        paragraph.char_offsets = (0..text.chars().count() as u32).collect();
+        paragraph.char_count = text.chars().count() as u32 + 1;
+        Control::Header(Box::new(Header {
+            apply_to: HeaderFooterApply::Both,
+            paragraphs: vec![paragraph],
+            ..Default::default()
+        }))
+    };
+    // 첫 구역: 표 칸 안에 머리말을 둔다.
+    let mut cell_paragraph = Paragraph::new_empty();
+    cell_paragraph.controls.push(header("칸 속 머리말"));
+    let table = rhwp::model::table::Table {
+        row_count: 1,
+        col_count: 1,
+        cells: vec![rhwp::model::table::Cell {
+            paragraphs: vec![cell_paragraph],
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+    document.sections[0].paragraphs[0]
+        .controls
+        .push(Control::Table(Box::new(table)));
+    // 둘째 구역: 단 정의 없이 머리말만.
+    let mut second = document.sections[0].clone();
+    let mut first = Paragraph::new_empty();
+    first.text = "둘째 구역".into();
+    first.char_offsets = (0..5).collect();
+    first.char_count = 6;
+    first.controls.push(header("둘째 머리말"));
+    second.paragraphs = vec![first];
+    document.sections.push(second);
+    let bytes = docx_from_document(&document).unwrap();
+    let xml = part_text(&bytes, "word/document.xml");
+    let sections: Vec<&str> = xml.split("<w:sectPr>").skip(1).collect();
+    assert_eq!(sections.len(), 2, "{xml}");
+    assert!(
+        sections[1].contains(r#"<w:type w:val="nextPage"/>"#),
+        "{xml}"
+    );
+    let reference = |section: &str| {
+        section
+            .split(r#"<w:headerReference w:type="default" r:id=""#)
+            .nth(1)
+            .and_then(|rest| rest.split('"').next())
+            .map(str::to_owned)
+    };
+    let (one, two) = (reference(sections[0]), reference(sections[1]));
+    assert!(one.is_some() && two.is_some() && one != two, "{xml}");
+    let headers: String = (1..=4)
+        .filter_map(|i| part_text_opt(&bytes, &format!("word/header{i}.xml")))
+        .collect();
+    assert!(
+        headers.contains("칸 속 머리말") && headers.contains("둘째 머리말"),
+        "{headers}"
+    );
 }

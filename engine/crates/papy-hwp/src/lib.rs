@@ -18,6 +18,7 @@ use papy_render::{BackendOpenOptions, Bitmap, Document, FormatBackend, Source};
 use resvg::{tiny_skia, usvg};
 use rhwp::wasm_api::HwpDocument as Rhwp;
 
+mod audit;
 mod document;
 mod notes;
 mod repair;

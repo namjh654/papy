@@ -8,7 +8,7 @@ use std::io::{Cursor, Read};
 
 use crate::notes::{
     COLUMN_BREAK_MARK, ENDNOTE_MARK, FOOTNOTE_MARK, HeaderFooterText, Numbering, PAGE_BREAK_MARK,
-    header_footer_texts, parse_endnotes, parse_footnotes,
+    SECTION_MARK, header_footer_texts, page_field_mark, parse_endnotes, parse_footnotes,
 };
 use crate::shapes::{DocxShape, Drawing, Pending, SHAPE_MARK, ShapeImage};
 use papy_model::{Error, ErrorCode, Result};
@@ -878,10 +878,26 @@ fn resolve_image(
 
 /// DOCX 바이트를 rhwp 가 붙여넣을 수 있는 HTML 로 바꾼다.
 pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
+    part_to_html(bytes, "word/document.xml", false)
+}
+
+/// 머리말·꼬리말 부분이 글자만으로 옮길 수 없는 것(표·글 속 그림)을 가졌는가.
+fn rich_header_footer(xml: &str) -> bool {
+    xml.contains("<w:tbl>") || xml.contains("<w:tbl ") || xml.contains("<wp:inline")
+}
+
+/// 문서 부분(`part`, 본문이나 머리말·꼬리말) 하나를 HTML 로 바꾼다. `header` 이면 머리말·꼬리말 부분이다:
+/// 쪽 번호·전체 쪽 수 필드(표 밖)를 [`PAGE_NUMBER_MARK`]·[`PAGE_COUNT_MARK`] 로 두고, 본문 것(머리말 참조·쪽 설정)은 읽지 않는다.
+fn part_to_html(bytes: &[u8], part: &str, header: bool) -> Result<(String, DocxReadReport)> {
     let mut archive =
         zip::ZipArchive::new(Cursor::new(bytes)).map_err(|_| invalid("not a ZIP container"))?;
-    let document = read_part(&mut archive, "word/document.xml")?
+    let document = read_part(&mut archive, part)?
         .ok_or_else(|| Error::new(ErrorCode::UnsupportedFormat, "not a DOCX document"))?;
+    // 부분의 관계: word/header1.xml → word/_rels/header1.xml.rels
+    let rels_path = match part.rsplit_once('/') {
+        Some((dir, name)) => format!("{dir}/_rels/{name}.rels"),
+        None => format!("_rels/{part}.rels"),
+    };
     let Styles {
         run: defaults,
         para: para_defaults,
@@ -896,7 +912,7 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
         .map(|id| resolve_style(&styles, id))
         .unwrap_or_default();
 
-    let rels = read_part(&mut archive, "word/_rels/document.xml.rels")?
+    let rels = read_part(&mut archive, &rels_path)?
         .map(|xml| parse_rels(&xml))
         .unwrap_or_default();
     let comments = read_part(&mut archive, "word/comments.xml")?
@@ -913,10 +929,14 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
     let mut numbering = read_part(&mut archive, "word/numbering.xml")?
         .map(|xml| Numbering::parse(&xml))
         .unwrap_or_default();
-    // 머리말·꼬리말 참조: (머리말인가, 종류, 관계 id). 첫 구역 것을 쓴다.
-    let mut header_refs: Vec<(bool, String, String)> = Vec::new();
-    let mut sections_seen = 0usize;
+    // 머리말·꼬리말 참조: (구역, 머리말인가, 종류, 관계 id).
+    let mut header_refs: Vec<(usize, bool, String, String)> = Vec::new();
     let mut title_page = false;
+    // 구역마다 시작 방식(`w:type`, 없으면 새 쪽). 구역 속성은 구역 끝에 오므로 다음 구역 첫 자리에 자리 표시를 두고
+    // 다 읽은 뒤 나누기 표시로 바꾼다.
+    let mut section_types: Vec<String> = Vec::new();
+    let mut in_sect = false;
+    let mut section_ends_here = false;
     // 구역마다 쪽 설정과 문단 수. rhwp 문서는 구역 하나라서 문단이 가장 많은 구역의 쪽 설정을 쓴다
     // (표지 구역만 여백이 큰 문서 등). 정하지 않은 값은 Word 기본값(Letter, 여백 1 인치, 머리말 0.5 인치).
     const WORD_PAGE: WordPage = WordPage {
@@ -973,6 +993,14 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
     let mut ilvl = 0usize;
     // 지금 런의 글자(이미 HTML 이스케이프됨). 런이 끝나거나 탭·줄바꿈을 만나면 서식 span 으로 내보낸다.
     let mut run_text = String::new();
+    // 머리말·꼬리말 필드: 복합 필드 명령 글자, 결과(캐시된 쪽 번호) 건너뛰기, 단순 필드 결과 건너뛰기
+    let mut field_instr = String::new();
+    let mut in_instr = false;
+    let mut field_marker: Option<char> = None;
+    let mut skip_field_result = false;
+    let mut skip_simple = false;
+    // Papy 가 쓴 주 번호 꾸밈 런(`papy:noteMark`): 글로 읽지 않는다.
+    let mut note_mark_run = false;
     let flush = |para_html: &mut String,
                  run_text: &mut String,
                  run: &RunProps,
@@ -1098,14 +1126,25 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
                     }
                     "sectPr" => {
                         page = WORD_PAGE;
+                        section_types.push("nextPage".into());
+                        if in_ppr {
+                            section_ends_here = true;
+                        }
                         if empty {
                             section_pages.push((page, paragraphs - section_start));
                             section_start = paragraphs;
                         } else {
-                            sections_seen += 1;
+                            in_sect = true;
                         }
                     }
-                    "titlePg" if sections_seen == 1 => title_page = toggle(&e),
+                    "titlePg" if in_sect && section_pages.is_empty() => title_page = toggle(&e),
+                    "type" if in_sect => {
+                        if let (Some(kind), Some(last)) =
+                            (attr(&e, "val"), section_types.last_mut())
+                        {
+                            *last = kind;
+                        }
+                    }
                     "pgSz" => {
                         let v = |k| attr(&e, k).and_then(|v| v.parse::<f64>().ok());
                         if let (Some(w), Some(h)) = (v("w"), v("h")) {
@@ -1135,9 +1174,14 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
                             page.column_gap = gap as i64;
                         }
                     }
-                    kind @ ("headerReference" | "footerReference") if sections_seen == 1 => {
+                    kind @ ("headerReference" | "footerReference") if in_sect => {
                         if let (Some(kind_attr), Some(id)) = (attr(&e, "type"), attr(&e, "id")) {
-                            header_refs.push((kind == "headerReference", kind_attr, id));
+                            header_refs.push((
+                                section_pages.len(),
+                                kind == "headerReference",
+                                kind_attr,
+                                id,
+                            ));
                         }
                     }
                     kind @ ("footnoteReference" | "endnoteReference") if in_run => {
@@ -1165,11 +1209,42 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
                     "r" if in_para => {
                         in_run = true;
                         run = RunProps::default();
+                        note_mark_run = attr(&e, "noteMark").is_some();
                     }
                     "rPr" => in_rpr = true,
                     _ if in_rpr && in_run => apply_run_prop(&mut run, &e),
                     "t" => in_text = true,
-                    "tab" if in_run => {
+                    "instrText" if header && !empty => in_instr = true,
+                    "fldChar" if header => match attr(&e, "fldCharType").as_deref() {
+                        Some("begin") => {
+                            field_instr.clear();
+                            field_marker = None;
+                        }
+                        Some("separate") | Some("end") => {
+                            if field_marker.is_none() && cell.is_empty() {
+                                field_marker = page_field_mark(&field_instr);
+                                if let Some(mark) = field_marker {
+                                    run_text.push(mark);
+                                }
+                            }
+                            field_instr.clear();
+                            skip_field_result = attr(&e, "fldCharType").as_deref()
+                                == Some("separate")
+                                && field_marker.is_some();
+                            if !skip_field_result {
+                                field_marker = None;
+                            }
+                        }
+                        _ => {}
+                    },
+                    "fldSimple" if header && cell.is_empty() => {
+                        if let Some(mark) = attr(&e, "instr").as_deref().and_then(page_field_mark) {
+                            run_text.push(mark);
+                            skip_simple = !empty;
+                        }
+                    }
+                    // 위치 탭(ptab, 머리말의 왼쪽·가운데·오른쪽 칸 나누기)도 탭으로
+                    "tab" | "ptab" if in_run => {
                         flush(
                             &mut para_html,
                             &mut run_text,
@@ -1396,6 +1471,9 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
                     current.end(local(e.name().as_ref()));
                 }
             }
+            Event::Text(text) if in_instr => field_instr.push_str(&text.xml10_content()),
+            Event::Text(_) | Event::GeneralRef(_)
+                if skip_field_result || skip_simple || (note_mark_run && in_run) => {}
             Event::Text(text) if in_text => {
                 let text = text.xml10_content();
                 para_plain.push_str(&text);
@@ -1421,6 +1499,7 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
             }
             Event::End(e) => match local(e.name().as_ref()) {
                 "sectPr" => {
+                    in_sect = false;
                     section_pages.push((page, paragraphs - section_start));
                     section_start = paragraphs;
                 }
@@ -1503,6 +1582,8 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
                     }
                 }
                 "t" => in_text = false,
+                "instrText" => in_instr = false,
+                "fldSimple" => skip_simple = false,
                 "rPr" => in_rpr = false,
                 "pPr" => in_ppr = false,
                 "tblBorders" => in_tbl_borders = false,
@@ -1567,6 +1648,9 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
                         let html = format!("<p{style}>{mark}{label}{para_html}</p>");
                         out(&mut body, &mut cell, &html);
                     }
+                    if std::mem::take(&mut section_ends_here) && cell.is_empty() {
+                        body.push_str(&format!("<!--papy-section-{}-->", section_pages.len()));
+                    }
                     let level = para_outline.or(para_style.2).filter(|&level| level < 9);
                     let text = para_plain.trim();
                     if let (Some(level), true, false) = (level, cell.is_empty(), text.is_empty()) {
@@ -1619,6 +1703,33 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
     // 머리말·꼬리말: 짝수 쪽 것이 있으면 기본(default)은 홀수 쪽이다. 첫 쪽 것은 rhwp 에 맞는 자리가 없어
     // 첫 쪽에서 기본 것을 감추고(Word 도 첫 쪽 것이 없으면 아무것도 안 보인다), 글자가 있으면 빠진 것으로 센다.
     // 짝수 쪽 것은 설정(evenAndOddHeaders)이 켜졌을 때만 쓴다. 꺼져 있으면 Word 는 모든 쪽에 기본 것을 쓴다.
+    if header {
+        return Ok((format!("<html><body>{body}</body></html>"), report));
+    }
+    // 구역이 시작하는 자리: 구역 시작 방식대로 나누기 표시와 구역 표시를 첫 문단 앞에 둔다.
+    // 구역이 표로 시작하면 표시만 담은 문단을 앞에 둔다.
+    for section in 1..section_pages.len() {
+        let placeholder = format!("<!--papy-section-{section}-->");
+        let Some(at) = body.find(&placeholder) else {
+            continue;
+        };
+        body.replace_range(at..at + placeholder.len(), "");
+        let mut marks = String::new();
+        match section_types.get(section).map(String::as_str) {
+            Some("continuous") => {}
+            Some("nextColumn") => marks.push(COLUMN_BREAK_MARK),
+            _ => marks.push(PAGE_BREAK_MARK),
+        }
+        // 구역 표시는 모든 구역에 둔다(papy-hwp 가 표시 차례로 구역을 찾는다).
+        marks.push(SECTION_MARK);
+        let rest = &body[at..];
+        if rest.starts_with("<p>") || rest.starts_with("<p ") {
+            let close = at + rest.find('>').unwrap_or(0) + 1;
+            body.insert_str(close, &marks);
+        } else {
+            body.insert_str(at, &format!("<p>{marks}</p>"));
+        }
+    }
     let even_and_odd = read_part(&mut archive, "word/settings.xml")?.is_some_and(|xml| {
         xml.split("<w:evenAndOddHeaders")
             .nth(1)
@@ -1628,10 +1739,10 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
             })
     });
     if !even_and_odd {
-        header_refs.retain(|(_, kind, _)| kind != "even");
+        header_refs.retain(|(_, _, kind, _)| kind != "even");
     }
-    let has_even = header_refs.iter().any(|(_, kind, _)| kind == "even");
-    for (is_header, kind, id) in header_refs {
+    let has_even = header_refs.iter().any(|r| r.2 == "even");
+    for (section, is_header, kind, id) in header_refs {
         let Some(path) = rels.get(&id).filter(|path| !path.is_empty()) else {
             continue;
         };
@@ -1639,20 +1750,22 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
             continue;
         };
         let paragraphs = header_footer_texts(&xml);
-        let blank = paragraphs.iter().all(|p| p.trim().is_empty());
+        let rich = rich_header_footer(&xml);
+        let blank = !rich && paragraphs.iter().all(|p| p.trim().is_empty());
         let apply_to = match kind.as_str() {
             "default" if has_even => 2,
             "default" => 0,
             "even" => 1,
             "first" => {
-                if title_page && !blank {
+                if section == 0 && title_page && !blank {
                     report.dropped_notes += 1;
                 }
                 continue;
             }
             _ => continue,
         };
-        if blank {
+        // 뒤 구역의 빈 머리말은 앞 구역 것을 끊으므로 남긴다.
+        if blank && section == 0 {
             continue;
         }
         let target = if is_header {
@@ -1660,15 +1773,45 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
         } else {
             &mut report.footers
         };
-        if !target.iter().any(|existing| existing.apply_to == apply_to) {
+        if !target
+            .iter()
+            .any(|existing| (existing.section, existing.apply_to) == (section, apply_to))
+        {
+            // 본문처럼 HTML 로도 바꾼다: 표·그림과 문단 서식(가운데 정렬 쪽 번호 등)·글자 모양이 남는다.
+            // 못 하면 글자만 옮긴다.
+            let html = if !blank {
+                part_to_html(bytes, path, true).ok().map(|(html, part)| {
+                    // 머리말에 둘 수 없는 것(떠 있는 도형·각주·나누기)은 표시 글자를 빼고 빠진 것으로 센다.
+                    report.dropped_drawings += part.dropped_drawings + part.shapes.len();
+                    report.dropped_notes += part.footnotes.len() + part.endnotes.len();
+                    report.images += part.images;
+                    html.chars()
+                        .filter(|c| {
+                            !matches!(
+                                *c,
+                                SHAPE_MARK
+                                    | FOOTNOTE_MARK
+                                    | ENDNOTE_MARK
+                                    | PAGE_BREAK_MARK
+                                    | COLUMN_BREAK_MARK
+                            )
+                        })
+                        .collect()
+                })
+            } else {
+                None
+            };
             target.push(HeaderFooterText {
+                section,
                 apply_to,
                 paragraphs,
+                html,
             });
         }
     }
     if title_page {
-        report.hide_first_page = (!report.headers.is_empty(), !report.footers.is_empty());
+        let first = |items: &[HeaderFooterText]| items.iter().any(|item| item.section == 0);
+        report.hide_first_page = (first(&report.headers), first(&report.footers));
     }
     Ok((format!("<html><body>{body}</body></html>"), report))
 }

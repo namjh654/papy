@@ -998,6 +998,17 @@ impl Document for HwpDocument {
         Ok(out)
     }
 
+    fn structure(&mut self) -> Result<papy_render::Structure> {
+        self.check()?;
+        let mut out = guard(|| crate::audit::structure(self.doc.document()))?;
+        // DOCX 에서 연 메모는 rhwp 문서 밖에 둔다.
+        let comments = self.docx_review.0.len() as u64;
+        if comments > 0 {
+            *out.entry("comments".into()).or_default() += comments;
+        }
+        Ok(out)
+    }
+
     fn review(&mut self) -> Result<Review> {
         self.check()?;
         let (docx, insertions, deletions) = self.docx_review.clone();

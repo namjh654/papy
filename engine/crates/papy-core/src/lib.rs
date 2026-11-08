@@ -29,6 +29,7 @@ pub use papy_model::{
 };
 pub use papy_render::{
     BackendOpenOptions, Bitmap, CancelToken, Document, FormatBackend, RenderRequest, Source,
+    Structure,
 };
 
 /// 엔진 버전(crate 버전).
@@ -393,6 +394,13 @@ impl Engine {
         let session = self.session(id)?;
         let mut doc = lock(&session.document);
         doc.outline()
+    }
+
+    /// 문서 구조 요약(요소 이름 → 수). 변환·저장 왕복에서 빠진 요소를 찾는 점검용.
+    pub fn structure(&self, id: SessionId) -> Result<Structure> {
+        let session = self.session(id)?;
+        let mut doc = lock(&session.document);
+        doc.structure()
     }
 
     /// 메모와 변경 추적(검토 내용).

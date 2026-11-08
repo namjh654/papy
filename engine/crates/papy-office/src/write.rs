@@ -999,7 +999,7 @@ fn write_note(
                 String::new()
             } else {
                 format!(
-                    r#"<w:r>{raise}<w:t xml:space="preserve">{}</w:t></w:r>"#,
+                    r#"<w:r {NOTE_MARK_RUN}>{raise}<w:t xml:space="preserve">{}</w:t></w:r>"#,
                     xml_escape(t)
                 )
             }
@@ -1010,7 +1010,7 @@ fn write_note(
     let mut body = String::new();
     for (index, paragraph) in paragraphs.iter().enumerate() {
         let prefix = if index == 0 {
-            format!(r#"{mark}<w:r><w:t xml:space="preserve"> </w:t></w:r>"#)
+            format!(r#"{mark}<w:r {NOTE_MARK_RUN}><w:t xml:space="preserve"> </w:t></w:r>"#)
         } else {
             String::new()
         };
@@ -1023,6 +1023,10 @@ fn write_note(
     out.push_str(&decorate(&format!(r#"<w:{tag}Reference w:id="{id}"/>"#)));
     Ok(())
 }
+
+/// 주 번호를 꾸미는 글(앞뒤 글자·번호 뒤 빈칸) 런 표시. Word 는 무시하고(`mc:Ignorable`), Papy 는 다시 열 때
+/// 이 런을 건너뛴다 — 주 번호 모양이 이미 그 글자를 그리므로 글로 읽으면 왕복마다 글자가 는다.
+pub(crate) const NOTE_MARK_RUN: &str = r#"papy:noteMark="1""#;
 
 /// 문단 안 자리에 놓이는 개체: 각주 참조, 그림, 도형.
 fn write_inline(
@@ -1051,6 +1055,8 @@ fn write_inline(
                 }
             };
             let body = match number.number_type {
+                // 주 안 번호: 주 번호 표시(footnoteRef)가 대신한다. 글로 쓰면 다시 열 때 번호가 겹친다.
+                Kind::Footnote | Kind::Endnote => return Ok(()),
                 Kind::Page => page_field(false, number.format),
                 Kind::TotalPage => page_field(true, number.format),
                 // 그림·표·수식 번호 등은 매겨 둔 번호를 글로
@@ -1136,6 +1142,20 @@ fn write_paragraph_with(
             )
         });
     if table_only {
+        // 표만 든 문단의 쪽·단 나누기: Word 는 표에 걸 수 없어 표 앞 1pt 문단에 건다(전에는 빠졌다).
+        if depth == 0 {
+            use rhwp::model::paragraph::ColumnBreakType;
+            match paragraph.column_type {
+                ColumnBreakType::Page => {
+                    out.push_str(&TINY_PARAGRAPH.replace("<w:pPr>", "<w:pPr><w:pageBreakBefore/>"))
+                }
+                ColumnBreakType::Column => out.push_str(&TINY_PARAGRAPH.replace(
+                    "</w:pPr></w:p>",
+                    r#"</w:pPr><w:r><w:br w:type="column"/></w:r></w:p>"#,
+                )),
+                _ => {}
+            }
+        }
         let tables: Vec<&Table> = paragraph
             .controls
             .iter()
@@ -1174,6 +1194,16 @@ fn write_paragraph_with(
             && (!matches!(table.common.vert_rel_to, VertRelTo::Para)
                 || (table.common.vertical_offset as i32) < first_line)
     };
+    // 쪽 나누기 문단의 표를 문단 앞에 쓰면 표가 앞 쪽에 남는다: 나누기를 표 앞 1pt 문단으로 옮긴다.
+    let break_before_tables = depth == 0
+        && paragraph.column_type == rhwp::model::paragraph::ColumnBreakType::Page
+        && paragraph
+            .controls
+            .iter()
+            .any(|c| matches!(c, Control::Table(table) if table_first(table)));
+    if break_before_tables {
+        out.push_str(&TINY_PARAGRAPH.replace("<w:pPr>", "<w:pPr><w:pageBreakBefore/>"));
+    }
     for control in &paragraph.controls {
         if let Control::Table(table) = control {
             if table_first(table) {
@@ -1183,7 +1213,12 @@ fn write_paragraph_with(
     }
     out.push_str("<w:p>");
     let list = list_of(info, media, paragraph);
-    out.push_str(&para_props_with(info, paragraph, list));
+    let props = para_props_with(info, paragraph, list);
+    if break_before_tables {
+        out.push_str(&props.replacen("<w:pageBreakBefore/>", "", 1));
+    } else {
+        out.push_str(&props);
+    }
     out.push_str(prefix);
     // 단 나누기(문단 앞). 쪽 나누기는 문단 속성(pageBreakBefore)으로 쓴다.
     if paragraph.column_type == rhwp::model::paragraph::ColumnBreakType::Column && depth == 0 {
@@ -1825,20 +1860,28 @@ fn note_num_format(format: rhwp::model::footnote::NumberFormat) -> &'static str 
 
 /// 단 정의가 바뀌는 자리마다 나눈 영역: (시작 구역, 시작 문단, 단 정의). 첫 영역은 문서 처음부터.
 /// rhwp 는 한 구역 안에서도 문단마다 단 정의를 새로 둘 수 있어(1단 ↔ 2단 등), DOCX 에서는 이어지는 구역으로 나눈다.
+/// 구역 중간 문단에 놓인 머리말·꼬리말(그 쪽부터 바뀐다)도 Word 에서는 구역마다라서 그 문단에서 영역을 나눈다.
 fn column_regions(document: &Document) -> Vec<(usize, usize, Option<&ColumnDef>)> {
     let mut regions: Vec<(usize, usize, Option<&ColumnDef>)> = vec![(0, 0, None)];
     for (s, section) in document.sections.iter().enumerate() {
         for (p, paragraph) in section.paragraphs.iter().enumerate() {
-            let Some(def) = paragraph.controls.iter().find_map(|c| match c {
+            let def = paragraph.controls.iter().find_map(|c| match c {
                 Control::ColumnDef(def) => Some(def),
                 _ => None,
-            }) else {
+            });
+            let header = paragraph
+                .controls
+                .iter()
+                .any(|c| matches!(c, Control::Header(_) | Control::Footer(_)));
+            // 한글 구역은 첫 문단에 단 정의가 없어도 새 쪽 영역으로 시작한다.
+            if def.is_none() && !(header && p > 0) && !(s > 0 && p == 0) {
                 continue;
-            };
+            }
+            let def = def.or_else(|| regions.last().and_then(|r| r.2));
             if (s, p) == (0, 0) {
-                regions[0].2 = Some(def);
+                regions[0].2 = def;
             } else {
-                regions.push((s, p, Some(def)));
+                regions.push((s, p, def));
             }
         }
     }
@@ -1972,20 +2015,58 @@ const STYLES: &str = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 
 const NAMESPACES: &str = r#"xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape" xmlns:wpg="http://schemas.microsoft.com/office/word/2010/wordprocessingGroup" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" xmlns:papy="urn:papy:docx" mc:Ignorable="papy""#;
 
-/// 첫 구역의 머리말·꼬리말을 부분으로 쓰고 sectPr 참조를 돌려준다. 같은 종류·쪽은 처음 것만.
+/// 문단의 머리말·꼬리말 컨트롤. 한글(HWPX)은 표 칸 문단에도 머리말을 둘 수 있어 칸 안도 찾는다.
+fn nested_header_footers<'a>(
+    paragraph: &'a Paragraph,
+    depth: usize,
+    found: &mut impl FnMut(&'a Control),
+) {
+    for control in &paragraph.controls {
+        match control {
+            Control::Header(_) | Control::Footer(_) => found(control),
+            Control::Table(table) if depth < 8 => {
+                for cell in &table.cells {
+                    for inner in &cell.paragraphs {
+                        nested_header_footers(inner, depth + 1, found);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+/// 머리말·꼬리말을 부분으로 쓰고 영역([`column_regions`])마다 sectPr 참조를 돌려준다. 영역 안 본문 문단에 놓인
+/// 머리말·꼬리말을 그 영역 것으로 쓰고, 영역 안에서 같은 종류·쪽은 처음 것만 쓴다. 머리말이 없는 영역은 참조를
+/// 두지 않는다 — Word 는 앞 구역 것을 이어 쓴다(한글도 다음 구역에 앞 구역 머리말이 이어진다).
 fn header_footer_parts(
     document: &Document,
+    regions: &[(usize, usize, Option<&ColumnDef>)],
     media: &mut Media,
     parts: &mut Vec<Part>,
-) -> Result<(String, &'static str)> {
+) -> Result<(Vec<String>, &'static str)> {
     let info = &document.doc_info;
-    let mut seen: Vec<(bool, &'static str)> = Vec::new();
-    let mut references = (String::new(), String::new());
+    let mut seen: Vec<(usize, bool, &'static str)> = Vec::new();
+    let mut per_region: Vec<(String, String)> = vec![Default::default(); regions.len()];
     let mut defaults: [Option<String>; 2] = [None, None];
     let Some(section) = document.sections.first() else {
-        return Ok((String::new(), ""));
+        return Ok((vec![String::new(); regions.len()], ""));
     };
-    for control in section.paragraphs.iter().flat_map(|p| &p.controls) {
+    let mut controls: Vec<(usize, &Control)> = Vec::new();
+    let mut region = 0usize;
+    for (s, body) in document.sections.iter().enumerate() {
+        for (p, paragraph) in body.paragraphs.iter().enumerate() {
+            while regions
+                .get(region + 1)
+                .is_some_and(|r| (r.0, r.1) <= (s, p))
+            {
+                region += 1;
+            }
+            nested_header_footers(paragraph, 0, &mut |c| controls.push((region, c)));
+        }
+    }
+    for (region, control) in controls {
+        let references = &mut per_region[region];
         let (is_header, apply, paragraphs) = match control {
             Control::Header(header) => (true, header.apply_to, &header.paragraphs),
             Control::Footer(footer) => (false, footer.apply_to, &footer.paragraphs),
@@ -1995,10 +2076,10 @@ fn header_footer_parts(
             HeaderFooterApply::Even => "even",
             _ => "default",
         };
-        if seen.contains(&(is_header, kind)) {
+        if seen.contains(&(region, is_header, kind)) {
             continue;
         }
-        seen.push((is_header, kind));
+        seen.push((region, is_header, kind));
         let (tag, name) = if is_header {
             ("hdr", "header")
         } else {
@@ -2018,7 +2099,7 @@ fn header_footer_parts(
         let _ = write!(xml, "</w:{tag}>");
         let rel = format!("rIdPart{index}");
         let reference = format!(r#"<w:{name}Reference w:type="{kind}" r:id="{rel}"/>"#);
-        if kind == "default" {
+        if kind == "default" && region == 0 {
             defaults[usize::from(!is_header)] = Some(rel.clone());
         }
         // sectPr 안에서는 머리말 참조가 꼬리말 참조보다 앞에 온다.
@@ -2045,6 +2126,7 @@ fn header_footer_parts(
             Control::PageNumberPos(p) if p.position != 0 => Some(p.clone()),
             _ => None,
         });
+    let references = &mut per_region[0];
     if let Some(pnp) = page_number {
         // 1·2·3·7·9 = 위(머리말), 그 밖 = 아래(꼬리말). 1·4 왼쪽, 3·6 오른쪽, 그 밖 가운데.
         let top = matches!(pnp.position, 1..=3 | 7 | 9);
@@ -2131,7 +2213,7 @@ fn header_footer_parts(
         .map(|s| s.section_def.default_tab_spacing / 2)
         .filter(|v| *v > 0)
         .unwrap_or(4000);
-    let even = if seen.iter().any(|(_, kind)| *kind == "even") {
+    let even = if seen.iter().any(|(_, _, kind)| *kind == "even") {
         "<w:evenAndOddHeaders/>"
     } else {
         ""
@@ -2172,7 +2254,10 @@ fn header_footer_parts(
             }
         }
     }
-    Ok((references.0 + &references.1, title_page))
+    Ok((
+        per_region.into_iter().map(|(h, f)| h + &f).collect(),
+        title_page,
+    ))
 }
 
 /// rhwp 문서를 DOCX 바이트로 쓴다.
@@ -2259,7 +2344,7 @@ pub fn docx_from_document_with(
         }
     }
     let mut extra: Vec<Part> = Vec::new();
-    let (references, title_page) = header_footer_parts(document, &mut media, &mut extra)?;
+    let (references, title_page) = header_footer_parts(document, &regions, &mut media, &mut extra)?;
     for (notes, tag, kind, rel) in [
         (&media.footnotes, "footnote", "footnotes", "rIdFootnotes"),
         (&media.endnotes, "endnote", "endnotes", "rIdEndnotes"),
@@ -2305,7 +2390,7 @@ pub fn docx_from_document_with(
             _ => r#"<w:type w:val="continuous"/>"#,
         };
         let title = if k == 0 { title_page } else { "" };
-        region_props(document, &references, title, columns, start)
+        region_props(document, &references[k], title, columns, start)
     };
     for k in 0..region_ends {
         body = body.replacen(&format!("<!--papy-region-{k}-->"), &props(k), 1);

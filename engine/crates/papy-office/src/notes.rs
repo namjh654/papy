@@ -21,10 +21,31 @@ pub const COLUMN_BREAK_MARK: char = '\u{E0F5}';
 /// 머리말·꼬리말 하나.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct HeaderFooterText {
+    /// Word 구역(0 부터). 0 이 아니면 본문의 그 차례 [`SECTION_MARK`] 문단부터 쓴다.
+    pub section: usize,
     /// 적용 쪽: 0 = 모든 쪽, 1 = 짝수 쪽, 2 = 홀수 쪽(rhwp 의 apply_to 값과 같다).
     pub apply_to: u8,
     /// 문단별 글자
     pub paragraphs: Vec<String>,
+    /// 머리말·꼬리말의 HTML(본문과 같은 꼴, 서식·표·그림 포함). 쪽 번호·전체 쪽 수 필드(표 밖)는
+    /// [`PAGE_NUMBER_MARK`]·[`PAGE_COUNT_MARK`] 글자다. 있으면 `paragraphs` 대신 이것을 붙여넣는다.
+    pub html: Option<String>,
+}
+
+/// Word 구역(첫 구역 뒤)이 시작하는 본문 문단 표시. 구역마다 하나씩 문서 순서로 둔다.
+pub const SECTION_MARK: char = '\u{E0F8}';
+
+/// HTML 머리말·꼬리말의 쪽 번호 필드 자리 표시(붙여넣은 뒤 [`PAGE_NUMBER_FIELD`] 로 바꾼다).
+pub const PAGE_NUMBER_MARK: char = '\u{E0F6}';
+/// HTML 머리말·꼬리말의 전체 쪽 수 필드 자리 표시(붙여넣은 뒤 [`PAGE_COUNT_FIELD`] 로 바꾼다).
+pub const PAGE_COUNT_MARK: char = '\u{E0F7}';
+
+/// 필드 명령이 쪽 번호·전체 쪽 수이면 그 자리 표시 글자.
+pub fn page_field_mark(instr: &str) -> Option<char> {
+    match field_char(instr)? {
+        PAGE_NUMBER_FIELD => Some(PAGE_NUMBER_MARK),
+        _ => Some(PAGE_COUNT_MARK),
+    }
 }
 
 /// 머리말·꼬리말의 쪽 번호 필드 글자: rhwp 머리말·꼬리말은 이 글자를 지금 쪽 번호·전체 쪽 수로 그린다.
@@ -66,11 +87,14 @@ fn texts(xml: &str, fields: bool) -> Vec<String> {
     let mut in_instr = false;
     let mut skip_result = false;
     let mut simple_depth = 0usize;
+    // 주 번호 꾸밈 런(Papy 가 쓴 `papy:noteMark`)
+    let mut note_mark = false;
     loop {
         match reader.read_event() {
             Ok(Event::Eof) | Err(_) => break,
             Ok(Event::Start(e)) => match local(e.name().as_ref()) {
                 "p" => current = Some(String::new()),
+                "r" => note_mark = attr(&e, "noteMark").is_some(),
                 "t" => in_text = true,
                 "instrText" if fields => in_instr = true,
                 "fldSimple" if fields => {
@@ -83,7 +107,7 @@ fn texts(xml: &str, fields: bool) -> Vec<String> {
             },
             Ok(Event::Empty(e)) => match local(e.name().as_ref()) {
                 "p" => paragraphs.push(String::new()),
-                "tab" => current.get_or_insert_default().push('\t'),
+                "tab" | "ptab" => current.get_or_insert_default().push('\t'),
                 "br" | "cr" => current.get_or_insert_default().push(' '),
                 "fldSimple" if fields => {
                     if let Some(ch) = attr(&e, "instr").as_deref().and_then(field_char) {
@@ -112,6 +136,7 @@ fn texts(xml: &str, fields: bool) -> Vec<String> {
             },
             Ok(Event::End(e)) => match local(e.name().as_ref()) {
                 "p" => paragraphs.extend(current.take()),
+                "r" => note_mark = false,
                 "t" => in_text = false,
                 "instrText" => in_instr = false,
                 "fldSimple" if simple_depth > 0 => simple_depth -= 1,
@@ -122,7 +147,7 @@ fn texts(xml: &str, fields: bool) -> Vec<String> {
                     instr.push_str(&text.xml10_content());
                 }
             }
-            Ok(Event::Text(_)) if in_text && (skip_result || simple_depth > 0) => {}
+            Ok(Event::Text(_)) if in_text && (skip_result || simple_depth > 0 || note_mark) => {}
             Ok(Event::Text(text)) if in_text => {
                 if let Some(current) = current.as_mut() {
                     current.push_str(&text.xml10_content());

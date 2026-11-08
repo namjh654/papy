@@ -1578,8 +1578,10 @@ pub fn doc_to_html_with_password(
             &mut report.footers
         };
         target.push(HeaderFooterText {
+            section: 0,
             apply_to,
             paragraphs,
+            html: None,
         });
     }
     if title_page {
