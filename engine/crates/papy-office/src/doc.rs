@@ -19,7 +19,7 @@ use crate::doc_art::{Art, Picture, find_picture};
 use crate::notes::HeaderFooterText;
 use crate::read::{DocxHeading, DocxReadReport, image_mime};
 use crate::shapes::{DocxShape, Relative, SHAPE_MARK, ShapeImage, ShapeKind, Wrap};
-use crate::{ENDNOTE_MARK, FOOTNOTE_MARK, PAGE_BREAK_MARK};
+use crate::{COLUMN_BREAK_MARK, ENDNOTE_MARK, FOOTNOTE_MARK, PAGE_BREAK_MARK};
 
 /// 스트림 하나의 상한
 const MAX_STREAM_BYTES: u64 = 256 * 1024 * 1024;
@@ -892,6 +892,8 @@ struct Reader<'a> {
     art: Art,
     /// 글상자 이야기마다 cp 범위
     textboxes: Vec<(u32, u32)>,
+    /// 구역 나누기 글자 cp → 뒤 구역의 시작 방식(bkc: 0 이어서, 1 새 단, 그 밖은 새 쪽)
+    section_breaks: HashMap<u32, u8>,
 }
 
 /// 글자처럼 놓은 그림
@@ -1055,8 +1057,8 @@ impl Reader<'_> {
         let mut run_css = String::new();
         // 필드: 단계마다 (지시문 안인가)
         let mut fields: Vec<bool> = Vec::new();
-        // 앞 문단이 쪽·구역 나누기(0x0C)로 끝났다
-        let mut break_pending = false;
+        // 앞 문단이 쪽·구역 나누기(0x0C)로 끝나 뒤 문단 앞에 넣을 표시(쪽 또는 단 나누기)
+        let mut break_pending: Option<char> = None;
         let flush = |para: &mut String, run: &mut String, run_css: &str| {
             if run.is_empty() {
                 return;
@@ -1182,6 +1184,15 @@ impl Reader<'_> {
                         continue;
                     }
                     '\u{1F}' => continue,
+                    '\u{E}' if pap.depth == 0 && tables.is_empty() => {
+                        // 단 나누기: 문단 맨 앞이면 이 문단 앞에서, 아니면 끊고 뒤 문단 앞에서.
+                        flush(&mut para, &mut run, &run_css);
+                        if !para.is_empty() {
+                            para.push_str("</p><p>");
+                        }
+                        para.push(COLUMN_BREAK_MARK);
+                        continue;
+                    }
                     c if (c as u32) < 0x20 => continue,
                     _ => {}
                 }
@@ -1208,14 +1219,23 @@ impl Reader<'_> {
             };
             let label = if pap.list { "• " } else { "" };
             let depth_now = pap.depth as usize;
-            let mark = if (break_pending || pap.page_break) && depth_now == 0 && tables.is_empty() {
-                break_pending = false;
-                PAGE_BREAK_MARK.to_string()
-            } else {
-                String::new()
+            let at_top = depth_now == 0 && tables.is_empty();
+            let mark = match break_pending {
+                _ if !at_top => String::new(),
+                _ if pap.page_break => PAGE_BREAK_MARK.to_string(),
+                Some(mark) => mark.to_string(),
+                None => String::new(),
             };
+            if at_top {
+                break_pending = None;
+            }
             if terminator == Some('\u{C}') {
-                break_pending = true;
+                // 구역 나누기면 뒤 구역의 시작 방식을 따른다(이어서는 나누지 않는다).
+                break_pending = match self.section_breaks.get(&(cp - 1)) {
+                    Some(0) => None,
+                    Some(1) => Some(COLUMN_BREAK_MARK),
+                    _ => Some(PAGE_BREAK_MARK),
+                };
             }
             let paragraph = format!("<p{align}>{mark}{label}{para}</p>");
             let depth = (pap.depth as usize).min(MAX_TABLE_DEPTH);
@@ -1460,6 +1480,7 @@ pub fn doc_to_html_with_password(
         image_budget: MAX_TOTAL_IMAGE_BYTES,
         art: Art::parse(&word, &table, pair(40), pair(50)),
         textboxes: Vec::new(),
+        section_breaks: section_breaks(&word, &table, pair(6)),
     };
 
     let mut report = DocxReadReport::default();
@@ -1584,6 +1605,25 @@ fn longest_section(table: &[u8], (fc, lcb): (u32, u32)) -> usize {
         .rev()
         .max_by_key(|&(_, len)| len)
         .map_or(0, |(i, _)| i)
+}
+
+/// 구역 나누기 글자(앞 구역의 마지막 cp) → 뒤 구역의 시작 방식(sprmSBkc, 기본값 2 = 새 쪽).
+fn section_breaks(word: &[u8], table: &[u8], (fc, lcb): (u32, u32)) -> HashMap<u32, u8> {
+    let cps = plc_cps(table, fc, lcb, 12);
+    let mut breaks = HashMap::new();
+    let last = cps.len().saturating_sub(1);
+    for (index, &start) in cps.iter().enumerate().take(last).skip(1) {
+        let bkc = section_sprms(word, table, (fc, lcb), index)
+            .iter()
+            .rev()
+            .find(|(sprm, _)| *sprm == 0x3009)
+            .and_then(|(_, op)| op.first().copied())
+            .unwrap_or(2);
+        if let Some(cp) = start.checked_sub(1) {
+            breaks.insert(cp, bkc);
+        }
+    }
+    breaks
 }
 
 /// `index` 번째 구역의 구역 속성(SEPX) sprm 목록. 없으면 빈 목록(모두 기본값).
