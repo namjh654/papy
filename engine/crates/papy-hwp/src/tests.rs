@@ -1987,3 +1987,76 @@ fn docx_comments_and_changes_are_reviewed() {
     );
     assert_eq!(comment.page, Some(1), "{comment:?}");
 }
+
+/// 바깥 표 한 칸 안에 표를 담은 DOCX. `inner` 는 안쪽 표 XML.
+fn docx_with_nested_table(inner: &str) -> Vec<u8> {
+    let document = format!(
+        r#"<w:document xmlns:w="w"><w:body><w:p><w:r><w:t>앞 문단</w:t></w:r></w:p><w:tbl><w:tblPr><w:tblBorders><w:top w:val="single" w:sz="8"/><w:left w:val="single" w:sz="8"/><w:bottom w:val="single" w:sz="8"/><w:right w:val="single" w:sz="8"/></w:tblBorders></w:tblPr><w:tblGrid><w:gridCol w:w="9000"/></w:tblGrid><w:tr><w:tc><w:tcPr><w:tcW w:w="9000" w:type="dxa"/></w:tcPr><w:p><w:r><w:t>바깥 칸 위</w:t></w:r></w:p>{inner}<w:p><w:r><w:t>바깥 칸 아래</w:t></w:r></w:p></w:tc></w:tr></w:tbl><w:p><w:r><w:t>뒤 문단</w:t></w:r></w:p><w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"/></w:sectPr></w:body></w:document>"#
+    );
+    zip_parts(&[
+        ("[Content_Types].xml", "<Types/>"),
+        ("word/document.xml", &document),
+    ])
+}
+
+fn grid_table(rows: usize, cols: usize, width: u32, label: &str) -> String {
+    let borders = r#"<w:tblBorders><w:top w:val="single" w:sz="4"/><w:left w:val="single" w:sz="4"/><w:bottom w:val="single" w:sz="4"/><w:right w:val="single" w:sz="4"/><w:insideH w:val="single" w:sz="4"/><w:insideV w:val="single" w:sz="4"/></w:tblBorders>"#;
+    let grid: String = (0..cols)
+        .map(|_| format!(r#"<w:gridCol w:w="{width}"/>"#))
+        .collect();
+    let body: String = (0..rows)
+        .map(|r| {
+            let cells: String = (0..cols)
+                .map(|c| {
+                    format!(
+                        r#"<w:tc><w:tcPr><w:tcW w:w="{width}" w:type="dxa"/></w:tcPr><w:p><w:r><w:t>{label}{r}-{c}</w:t></w:r></w:p></w:tc>"#
+                    )
+                })
+                .collect();
+            format!("<w:tr>{cells}</w:tr>")
+        })
+        .collect();
+    format!("<w:tbl><w:tblPr>{borders}</w:tblPr><w:tblGrid>{grid}</w:tblGrid>{body}</w:tbl>")
+}
+
+#[test]
+fn docx_nested_table_longer_than_page_splits() {
+    let bytes = docx_with_nested_table(&grid_table(90, 2, 2000, "안쪽"));
+    let mut doc = open(HwpBackend::docx(), bytes, &options()).unwrap();
+    let pages = doc.info().page_count;
+    let all: String = (0..pages).map(|p| doc.extract_text(p).unwrap()).collect();
+    // 잘리지 않고 마지막 행까지 보인다.
+    for part in ["안쪽0-0", "안쪽89-1", "바깥 칸 아래", "뒤 문단"] {
+        assert!(all.contains(part), "{part}: {pages}쪽");
+    }
+    assert_eq!(pages, 2);
+    // 첫 쪽에 앞부분 행이 함께 놓인다(통째로 다음 쪽으로 넘기지 않는다).
+    assert!(doc.extract_text(0).unwrap().contains("안쪽0-0"));
+    assert!(doc.extract_text(1).unwrap().contains("안쪽89-1"));
+}
+
+#[test]
+fn docx_nested_table_wider_than_cell_fits() {
+    let bytes = docx_with_nested_table(&grid_table(12, 10, 1500, "W"));
+    let mut doc = open(HwpBackend::docx(), bytes, &options()).unwrap();
+    let page = doc.render_page(0, &RenderRequest::with_scale(2.0)).unwrap();
+    let (w, h) = (page.width as usize, page.height as usize);
+    // 세로로 긴 검은 줄(표 선) 자리를 센다: 바깥 표 왼쪽 + 안쪽 표 11 줄(안쪽 오른쪽 선은 바깥 오른쪽 선과 붙는다).
+    // 칸 밖이 잘리면 안쪽 표 선이 7 줄만 보인다.
+    let dark = |x: usize, y: usize| {
+        let p = &page.pixels[(y * w + x) * 4..(y * w + x) * 4 + 4];
+        p[3] > 0 && p[0] < 160 && p[1] < 160 && p[2] < 160
+    };
+    let long: Vec<usize> = (0..w)
+        .filter(|&x| (0..h).filter(|&y| dark(x, y)).count() > 300)
+        .collect();
+    let mut lines = 0;
+    let mut last = usize::MAX - 1;
+    for &x in &long {
+        if x != last + 1 {
+            lines += 1;
+        }
+        last = x;
+    }
+    assert!(lines >= 12, "{lines} {long:?}");
+}

@@ -310,6 +310,74 @@ fn shrink_floating_table_lines(doc: &mut Rhwp, paragraphs: &[usize]) {
     }
 }
 
+/// 칸 안 표(겹친 표)를 쪽·칸에 맞춘다.
+/// - 쪽 경계에서 나눌 수 있게 한다. 붙여넣은 표는 "나누지 않음"이라 rhwp 가 칸 안 표를 한 덩어리로 다뤄,
+///   쪽보다 긴 칸 안 표는 다음 쪽으로 통째 넘어간 뒤 아래가 잘렸다. "셀 단위로 나눔"이면 행마다 쪽을 나눈다.
+/// - 담는 칸보다 넓은 칸 안 표는 칸 너비에 맞게 줄인다(칸 밖은 잘려 보이지 않았다).
+fn split_nested_tables(doc: &mut Rhwp) {
+    use rhwp::model::control::Control;
+    use rhwp::model::paragraph::Paragraph;
+    use rhwp::model::table::{Table, TablePageBreak};
+    /// 행마다 칸 너비 합 중 가장 큰 값(HWPUNIT)
+    fn table_width(table: &Table) -> u32 {
+        (0..table.row_count)
+            .map(|row| {
+                table
+                    .cells
+                    .iter()
+                    .filter(|cell| cell.row == row)
+                    .map(|cell| cell.width)
+                    .sum::<u32>()
+            })
+            .max()
+            .unwrap_or(0)
+    }
+    fn walk(paragraphs: &mut [Paragraph], depth: usize, room: Option<u32>, changed: &mut bool) {
+        if depth > 16 {
+            return;
+        }
+        for paragraph in paragraphs {
+            for control in &mut paragraph.controls {
+                let Control::Table(table) = control else {
+                    continue;
+                };
+                if depth > 0 {
+                    if table.row_count >= 2 && matches!(table.page_break, TablePageBreak::None) {
+                        table.page_break = TablePageBreak::CellBreak;
+                        *changed = true;
+                    }
+                    let width = table_width(table);
+                    let margins = u32::from(table.outer_margin_left.max(0) as u16)
+                        + u32::from(table.outer_margin_right.max(0) as u16);
+                    let room = room.map(|room| room.saturating_sub(margins));
+                    if let Some(room) = room.filter(|&room| room > 0 && width > room + 50) {
+                        let scale = f64::from(room) / f64::from(width);
+                        for cell in &mut table.cells {
+                            cell.width = (f64::from(cell.width) * scale).floor() as u32;
+                        }
+                        table.common.width = (f64::from(table.common.width) * scale).floor() as u32;
+                        *changed = true;
+                    }
+                }
+                for cell in &mut table.cells {
+                    let padding = u32::from(cell.padding.left.max(0) as u16)
+                        + u32::from(cell.padding.right.max(0) as u16);
+                    let room = cell.width.saturating_sub(padding);
+                    walk(&mut cell.paragraphs, depth + 1, Some(room), changed);
+                }
+            }
+        }
+    }
+    let mut document = doc.document().clone();
+    let mut changed = false;
+    for section in &mut document.sections {
+        walk(&mut section.paragraphs, 0, None, &mut changed);
+    }
+    if changed {
+        doc.set_document(document);
+    }
+}
+
 /// rhwp 표 붙여넣기는 표를 담는 문단에 1 번 문단 모양("본문")을 쓴다. 빈 문서의 "본문"은 왼쪽 여백이 15pt 라
 /// 모든 표(칸 안 표 포함)가 5mm 오른쪽으로 밀려 칸 글이 접히고 쪽이 는다. 그런 문단을 0 번(바탕글, 여백 없음)으로 바꾼다.
 fn unindent_table_paragraphs(doc: &mut Rhwp) {
@@ -432,6 +500,7 @@ fn open_converted(
             }
         }
         unindent_table_paragraphs(&mut doc);
+        split_nested_tables(&mut doc);
         split_tables_across_pages(&mut doc, &report.table_indents, &report.table_places)?;
         // 붙여넣은 표 칸은 한 줄로만 잡혀 있다. 칸 너비로 다시 나눠 긴 글이 잘리지 않게 한다.
         doc.reflow_table_cells_native(0)?;
