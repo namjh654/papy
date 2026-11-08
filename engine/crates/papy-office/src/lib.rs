@@ -11,12 +11,13 @@
 
 mod chart;
 mod doc;
+mod doc_crypt;
 mod notes;
 mod read;
 mod shapes;
 mod write;
 
-pub use doc::{doc_to_html, is_doc};
+pub use doc::{doc_to_html, doc_to_html_with_password, is_doc};
 pub use notes::{
     COLUMN_BREAK_MARK, ENDNOTE_MARK, FOOTNOTE_MARK, HeaderFooterText, PAGE_BREAK_MARK,
 };

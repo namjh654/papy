@@ -59,6 +59,50 @@ fn hwp3_opens_view_only() {
     engine.close(id).unwrap();
 }
 
+/// 암호 걸린 옛 Word(.doc): RC4(버전 1.1)·RC4 CryptoAPI 를 암호로 풀어 연다. 암호가 없거나 틀리면 PasswordRequired.
+#[test]
+fn encrypted_word97_doc_opens_with_password() {
+    let engine = Engine::new(Limits::default());
+    for (name, password, text) in [
+        (
+            "poi/password_tika_binaryrc4.doc",
+            "tika",
+            "This is an encrypted Word 2007 File",
+        ),
+        (
+            "poi/password_password_cryptoapi.doc",
+            "password",
+            "This is a test",
+        ),
+    ] {
+        for wrong in [None, Some("wrong")] {
+            let error = engine
+                .open(
+                    DocumentSource::Path(fixture(name)),
+                    OpenOptions {
+                        password: wrong.map(str::to_string),
+                        ..OpenOptions::default()
+                    },
+                )
+                .unwrap_err();
+            assert_eq!(error.code, ErrorCode::PasswordRequired, "{name} {wrong:?}");
+        }
+        let id = engine
+            .open(
+                DocumentSource::Path(fixture(name)),
+                OpenOptions {
+                    password: Some(password.into()),
+                    ..OpenOptions::default()
+                },
+            )
+            .unwrap();
+        assert_eq!(engine.info(id).unwrap().format, DocumentFormat::Doc);
+        let first = engine.extract_text(id, 0).unwrap();
+        assert!(first.contains(text), "{name}: {first:?}");
+        engine.close(id).unwrap();
+    }
+}
+
 /// 옛 Word(.doc): 열고, 첫 쪽 머리말을 감추고, 병합 칸 표를 옮기고, DOCX·PDF 로 내보낸다.
 #[test]
 fn word97_doc_opens_and_converts() {

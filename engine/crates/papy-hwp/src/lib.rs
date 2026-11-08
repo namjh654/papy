@@ -141,7 +141,8 @@ impl FormatBackend for HwpBackend {
             return self.open_docx(bytes, options);
         }
         if self.format == DocumentFormat::CompoundFile && papy_office::is_doc(bytes) {
-            let (html, report) = papy_office::doc_to_html(bytes)?;
+            let (html, report) =
+                papy_office::doc_to_html_with_password(bytes, options.password.as_deref())?;
             return open_converted(bytes, &html, report, DocumentFormat::Doc, options);
         }
         self.open_hwp(bytes, options)

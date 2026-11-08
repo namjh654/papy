@@ -54,7 +54,9 @@ const work = mkdtempSync(join(tmpdir(), "papy-pdfium-"));
 try {
   const archive = join(work, asset);
   writeFileSync(archive, data);
-  execFileSync("tar", ["-xzf", archive, "-C", work]);
+  // Windows 에서는 시스템 tar(bsdtar)를 쓴다. Git Bash 의 GNU tar 는 "C:\..." 를 원격 호스트로 읽는다.
+  const tar = process.platform === "win32" ? join(process.env.SystemRoot ?? "C:\\Windows", "System32", "tar.exe") : "tar";
+  execFileSync(tar, ["-xzf", archive, "-C", work]);
   rmSync(outDir, { recursive: true, force: true });
   mkdirSync(outDir, { recursive: true });
   cpSync(join(work, libPath), join(outDir, libPath.split("/").pop()));

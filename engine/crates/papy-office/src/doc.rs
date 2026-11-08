@@ -1328,10 +1328,20 @@ fn dib_to_bmp(dib: &[u8]) -> Vec<u8> {
 }
 
 /// .doc 바이트를 rhwp 가 붙여넣을 수 있는 HTML 과 머리말·각주 정보로 바꾼다.
+/// 암호 걸린 문서는 `PasswordRequired` — [`doc_to_html_with_password`] 를 쓴다.
 pub fn doc_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
+    doc_to_html_with_password(bytes, None)
+}
+
+/// [`doc_to_html`] 과 같고, 암호 걸린 문서(RC4·RC4 CryptoAPI)는 `password` 로 푼다.
+/// 암호가 없거나 틀리면 `PasswordRequired`.
+pub fn doc_to_html_with_password(
+    bytes: &[u8],
+    password: Option<&str>,
+) -> Result<(String, DocxReadReport)> {
     let mut file =
         cfb::CompoundFile::open(Cursor::new(bytes)).map_err(|_| invalid("not a compound file"))?;
-    let word = read_stream(&mut file, "/WordDocument")?
+    let mut word = read_stream(&mut file, "/WordDocument")?
         .ok_or_else(|| Error::new(ErrorCode::UnsupportedFormat, "not a Word document"))?;
     if u16_at(&word, 0) != Some(0xA5EC) {
         return Err(Error::new(
@@ -1348,20 +1358,26 @@ pub fn doc_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
         ));
     }
     let flags = u16_at(&word, 0x0A).unwrap_or(0);
-    if flags & 0x0100 != 0 {
-        return Err(Error::new(
-            ErrorCode::PasswordRequired,
-            "encrypted Word document",
-        ));
-    }
     let table_name = if flags & 0x0200 != 0 {
         "/1Table"
     } else {
         "/0Table"
     };
-    let table = read_stream(&mut file, table_name)?
+    let mut table = read_stream(&mut file, table_name)?
         .ok_or_else(|| invalid("Word table stream is missing"))?;
-    let data = read_stream(&mut file, "/Data")?;
+    let mut data = read_stream(&mut file, "/Data")?;
+    if flags & 0x0100 != 0 {
+        if flags & 0x8000 != 0 {
+            // XOR 난독화(Word 95 방식 암호)는 풀지 않는다.
+            return Err(Error::new(
+                ErrorCode::PasswordRequired,
+                "obfuscated Word document",
+            ));
+        }
+        crate::doc_crypt::decrypt(password, &mut word, &mut table, data.as_mut())?;
+    }
+    let word = word;
+    let table = table;
 
     // FIB: FibBase(32) + csw + FibRgW97 + cslw + FibRgLw97 + cbRgFcLcb + FibRgFcLcb
     let csw = u16_at(&word, 32).unwrap_or(0) as usize;

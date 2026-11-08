@@ -1226,6 +1226,7 @@ dependencies = [
  "papy-model",
  "quick-xml",
  "rhwp",
+ "sha1",
  "zip",
 ]
 
