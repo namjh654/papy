@@ -961,6 +961,8 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
     let mut in_tc_borders = false;
     let mut in_tbl_cell_mar = false;
     let mut row_height: Option<f32> = None;
+    // 이 칸 위·아래 테두리 가운데 굵은 것(pt). Word 의 행 높이는 테두리를 빼고 잰다.
+    let mut cell_border: f32 = 0.0;
     let mut run = RunProps::default();
     let mut in_run = false;
     let mut in_rpr = false;
@@ -1230,15 +1232,19 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
                             .filter(|h| *h > 0.0)
                             .map(|h| h / 20.0);
                     }
-                    "tc" => cell.push(Some(CellBuild {
-                        span: 1,
-                        width: None,
-                        vmerge: None,
-                        style: row_height
-                            .map(|h| format!("height:{h:.1}pt;"))
-                            .unwrap_or_default(),
-                        html: String::new(),
-                    })),
+                    "tc" => {
+                        // 테두리 굵기는 아래 tcBorders 에서 높이에 더한다.
+                        cell_border = 0.0;
+                        cell.push(Some(CellBuild {
+                            span: 1,
+                            width: None,
+                            vmerge: None,
+                            style: row_height
+                                .map(|h| format!("height:{h:.1}pt;"))
+                                .unwrap_or_default(),
+                            html: String::new(),
+                        }));
+                    }
                     "tblpPr" => {
                         if let Some(table) = tables.last_mut() {
                             table.place = float_place(&e);
@@ -1301,6 +1307,20 @@ pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
                                 }
                             };
                             current.style.push_str(&format!("border-{side}:{css};"));
+                            // 한글 칸 높이는 테두리를 품는다: 위·아래 테두리 가운데 굵은 것을 행 높이에 더한다.
+                            let width = attr(&e, "sz")
+                                .and_then(|v| v.parse::<f32>().ok())
+                                .filter(|_| css != "none")
+                                .map_or(0.0, |sz| sz / 8.0);
+                            if let (Some(h), true) = (row_height, matches!(side, "top" | "bottom"))
+                            {
+                                if width > cell_border {
+                                    let old = format!("height:{:.1}pt;", h + cell_border);
+                                    let new = format!("height:{:.1}pt;", h + width);
+                                    current.style = current.style.replacen(&old, &new, 1);
+                                    cell_border = width;
+                                }
+                            }
                         }
                     }
                     "shd" if !cell.is_empty() && !in_para => {

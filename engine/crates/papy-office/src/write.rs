@@ -12,6 +12,7 @@ use rhwp::model::control::{Control, Equation, FormObject, FormType};
 use rhwp::model::document::{DocInfo, Document};
 use rhwp::model::header_footer::HeaderFooterApply;
 use rhwp::model::image::Picture;
+use rhwp::model::page::ColumnDef;
 use rhwp::model::paragraph::Paragraph as NoteParagraph;
 use rhwp::model::paragraph::Paragraph;
 use rhwp::model::shape::{HorzRelTo, ShapeObject, TextWrap, VertRelTo};
@@ -802,6 +803,48 @@ fn numbering_xml(info: &DocInfo, lists: &[(bool, u16)]) -> String {
 }
 
 /// 문단 속성. `list` 는 Word 번호 목록(numId, 수준).
+/// 탭 정의 → `w:tabs`. 위치는 단 왼쪽 끝에서 잰 값으로 문단 여백처럼 2배 단위로 저장된다.
+fn tab_stops(info: &DocInfo, tab_def_id: u16) -> String {
+    let Some(def) = info.tab_defs.get(tab_def_id as usize) else {
+        return String::new();
+    };
+    let mut out = String::new();
+    for tab in def.tabs.iter().filter(|t| t.position > 0) {
+        let kind = match tab.tab_type {
+            1 => "right",
+            2 => "center",
+            3 => "decimal",
+            _ => "left",
+        };
+        // 채움: 0 없음, 1 실선, 2 파선, 3 점선, 7 원형 점선, 그 밖은 점선으로
+        let leader = match tab.fill_type {
+            0 => "",
+            1 | 8..=11 => r#" w:leader="underscore""#,
+            2 | 6 => r#" w:leader="hyphen""#,
+            7 => r#" w:leader="middleDot""#,
+            _ => r#" w:leader="dot""#,
+        };
+        let _ = write!(
+            out,
+            r#"<w:tab w:val="{kind}"{leader} w:pos="{}"/>"#,
+            twips(tab.position / 2)
+        );
+    }
+    if out.is_empty() {
+        return out;
+    }
+    format!("<w:tabs>{out}</w:tabs>")
+}
+
+/// 문단에 줄 높이를 키우는 개체(그림·도형·수식·글자처럼 놓은 표·양식)가 있는가.
+fn has_inline_object(paragraph: &Paragraph) -> bool {
+    paragraph.controls.iter().any(|control| match control {
+        Control::Picture(_) | Control::Shape(_) | Control::Equation(_) | Control::Form(_) => true,
+        Control::Table(table) => table.common.treat_as_char,
+        _ => false,
+    })
+}
+
 fn para_props_with(info: &DocInfo, paragraph: &Paragraph, list: Option<(usize, u8)>) -> String {
     let Some(shape) = info.para_shapes.get(paragraph.para_shape_id as usize) else {
         return String::new();
@@ -827,6 +870,7 @@ fn para_props_with(info: &DocInfo, paragraph: &Paragraph, list: Option<(usize, u
             r#"<w:numPr><w:ilvl w:val="{level}"/><w:numId w:val="{num_id}"/></w:numPr>"#
         );
     }
+    props.push_str(&tab_stops(info, shape.tab_def_id));
     // 문단 여백·간격은 HWPUNIT 의 2배 단위로 저장된다(rhwp ParaShape 규약).
     let half = |v: i32| twips(u32::try_from(v.max(0) / 2).unwrap_or(0));
     let mut spacing = String::new();
@@ -851,10 +895,17 @@ fn para_props_with(info: &DocInfo, paragraph: &Paragraph, list: Option<(usize, u
                 .unwrap_or(1000);
             // 1/100 pt × % ÷ 100 → twip(× 20 ÷ 100)
             let line = size * shape.line_spacing / 500;
+            // 글꼴 고유 줄 높이(약 1.3배)보다 좁은 줄은 "최소"면 Word 가 고유 높이로 늘린다. 글자만 든 문단은
+            // 한글처럼 고정 높이로 쓴다(그림·수식·글자처럼 놓은 표가 있으면 잘리지 않게 "최소").
+            let rule = if shape.line_spacing < 130 && !has_inline_object(paragraph) {
+                "exact"
+            } else {
+                "atLeast"
+            };
             // Papy 가 다시 열 때는 원래 % 를 쓴다(Word 는 모르는 papy: 속성을 무시한다).
             let _ = write!(
                 spacing,
-                r#" w:line="{line}" w:lineRule="atLeast" papy:linePercent="{}""#,
+                r#" w:line="{line}" w:lineRule="{rule}" papy:linePercent="{}""#,
                 shape.line_spacing
             );
         }
@@ -1240,6 +1291,26 @@ fn write_paragraph_with(
     Ok(())
 }
 
+/// 영역 `k` 를 끝내는 자리(`<!--papy-region-k-->`, 뒤에 구역 속성으로 바꾼다)를 본문 끝 문단 속성에 넣는다.
+/// 끝이 표 뒤 1pt 문단이면 그 문단에, 마지막 문단(`last_start` 에서 시작)이 문단 하나면 그 문단 속성 끝에,
+/// 그 밖은 1pt 문단을 더해 넣는다.
+fn end_region(body: &mut String, last_start: usize, k: usize) {
+    let marker = format!("<!--papy-region-{k}-->");
+    if body.ends_with(TINY_PARAGRAPH) {
+        let at = body.len() - "</w:pPr></w:p>".len();
+        body.insert_str(at, &marker);
+        return;
+    }
+    let last = &body[last_start..];
+    if last.starts_with("<w:p><w:pPr>") && last.ends_with("</w:p>") {
+        if let Some(end) = last.find("</w:pPr>") {
+            body.insert_str(last_start + end, &marker);
+            return;
+        }
+    }
+    body.push_str(&TINY_PARAGRAPH.replace("</w:pPr>", &format!("{marker}</w:pPr>")));
+}
+
 /// 표 뒤에 Word 가 요구하는 문단을 거의 높이 없이(1pt 고정 줄, 1pt 글자) 둔다.
 const TINY_PARAGRAPH: &str = r#"<w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="20" w:lineRule="exact"/><w:rPr><w:sz w:val="2"/></w:rPr></w:pPr></w:p>"#;
 
@@ -1363,10 +1434,19 @@ fn write_table(
             .unwrap_or(0);
         let mut row_props = String::new();
         if height > 0 {
+            // 한글 칸 높이는 테두리를 품지만 Word 는 행 높이에 테두리 굵기를 더한다(쪽을 꽉 채운 서식 표가 넘친다).
+            let border = table
+                .cells
+                .iter()
+                .filter(|cell| cell.row as usize == row)
+                .map(|cell| cell_border_twips(info, cell.border_fill_id))
+                .max()
+                .unwrap_or(0);
+            let value = twips(height);
             let _ = write!(
                 row_props,
                 r#"<w:trHeight w:val="{}" w:hRule="atLeast"/>"#,
-                twips(height)
+                value.saturating_sub(border).max(value / 2)
             );
         }
         if table.repeat_header
@@ -1569,6 +1649,26 @@ const BORDER_WIDTH_MM: [f32; 16] = [
 ];
 
 /// 칸 테두리(`w:tcBorders`)와 배경(`w:shd`).
+/// 칸 위·아래 테두리 가운데 굵은 것(twip). 테두리가 없으면 0.
+fn cell_border_twips(info: &DocInfo, border_fill_id: u16) -> u32 {
+    let Some(fill) = border_fill_id
+        .checked_sub(1)
+        .and_then(|i| info.border_fills.get(i as usize))
+    else {
+        return 0;
+    };
+    [2usize, 3]
+        .iter()
+        .map(|&index| &fill.borders[index])
+        .filter(|line| line.line_type != rhwp::model::style::BorderLineType::None)
+        .map(|line| {
+            let mm = BORDER_WIDTH_MM[usize::from(line.width.min(15))];
+            (mm * 72.0 / 25.4 * 20.0).round() as u32
+        })
+        .max()
+        .unwrap_or(0)
+}
+
 fn cell_style(info: &DocInfo, border_fill_id: u16) -> String {
     let Some(fill) = border_fill_id
         .checked_sub(1)
@@ -1723,7 +1823,56 @@ fn note_num_format(format: rhwp::model::footnote::NumberFormat) -> &'static str 
     }
 }
 
-fn section_props(document: &Document, references: &str, title_page: &str) -> String {
+/// 단 정의가 바뀌는 자리마다 나눈 영역: (시작 구역, 시작 문단, 단 정의). 첫 영역은 문서 처음부터.
+/// rhwp 는 한 구역 안에서도 문단마다 단 정의를 새로 둘 수 있어(1단 ↔ 2단 등), DOCX 에서는 이어지는 구역으로 나눈다.
+fn column_regions(document: &Document) -> Vec<(usize, usize, Option<&ColumnDef>)> {
+    let mut regions: Vec<(usize, usize, Option<&ColumnDef>)> = vec![(0, 0, None)];
+    for (s, section) in document.sections.iter().enumerate() {
+        for (p, paragraph) in section.paragraphs.iter().enumerate() {
+            let Some(def) = paragraph.controls.iter().find_map(|c| match c {
+                Control::ColumnDef(def) => Some(def),
+                _ => None,
+            }) else {
+                continue;
+            };
+            if (s, p) == (0, 0) {
+                regions[0].2 = Some(def);
+            } else {
+                regions.push((s, p, Some(def)));
+            }
+        }
+    }
+    regions
+}
+
+/// 영역 하나의 구역 속성. `start` 는 이 영역이 어떻게 시작하는가(`w:type`, 첫 영역은 빈 문자열).
+fn region_props(
+    document: &Document,
+    references: &str,
+    title_page: &str,
+    columns: Option<&ColumnDef>,
+    start: &str,
+) -> String {
+    let columns = columns
+        .filter(|def| def.column_count > 1)
+        .map(|def| {
+            format!(
+                r#"<w:cols w:num="{}" w:space="{}"/>"#,
+                def.column_count.min(16),
+                twips(u32::try_from(def.spacing.max(0)).unwrap_or(0))
+            )
+        })
+        .unwrap_or_default();
+    section_props(document, references, title_page, &columns, start)
+}
+
+fn section_props(
+    document: &Document,
+    references: &str,
+    title_page: &str,
+    columns: &str,
+    start: &str,
+) -> String {
     let Some(page) = document.sections.first().map(|s| &s.section_def.page_def) else {
         return String::new();
     };
@@ -1739,22 +1888,6 @@ fn section_props(document: &Document, references: &str, title_page: &str) -> Str
     } else {
         ""
     };
-    // 다단: 첫 구역의 단 정의(같은 너비로 본다).
-    let columns = document
-        .sections
-        .first()
-        .into_iter()
-        .flat_map(|s| s.paragraphs.iter().take(1))
-        .flat_map(|p| &p.controls)
-        .find_map(|c| match c {
-            Control::ColumnDef(def) if def.column_count > 1 => Some(format!(
-                r#"<w:cols w:num="{}" w:space="{}"/>"#,
-                def.column_count.min(16),
-                twips(u32::try_from(def.spacing.max(0)).unwrap_or(0))
-            )),
-            _ => None,
-        })
-        .unwrap_or_default();
     let notes = document
         .sections
         .first()
@@ -1770,7 +1903,7 @@ fn section_props(document: &Document, references: &str, title_page: &str) -> Str
         })
         .unwrap_or_default();
     format!(
-        r#"<w:sectPr>{references}{notes}<w:pgSz w:w="{width}" w:h="{height}"{orient}/><w:pgMar w:top="{}" w:right="{}" w:bottom="{}" w:left="{}" w:header="{}" w:footer="{}" w:gutter="{}"/>{columns}{title_page}</w:sectPr>"#,
+        r#"<w:sectPr>{references}{notes}{start}<w:pgSz w:w="{width}" w:h="{height}"{orient}/><w:pgMar w:top="{}" w:right="{}" w:bottom="{}" w:left="{}" w:header="{}" w:footer="{}" w:gutter="{}"/>{columns}{title_page}</w:sectPr>"#,
         twips(page.margin_top + page.margin_header),
         twips(page.margin_right),
         twips(page.margin_bottom + page.margin_footer),
@@ -1991,17 +2124,28 @@ fn header_footer_parts(
             }
         }
     }
-    if seen.iter().any(|(_, kind)| *kind == "even") {
-        parts.push(Part {
-            name: "settings.xml".into(),
-            rel: Some("rIdSettings".into()),
-            kind: "settings",
-            xml: format!(
-                r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:settings {NAMESPACES}><w:evenAndOddHeaders/></w:settings>"#
-            ),
-        });
-    }
+    // 기본 탭 간격(한글 기본 40pt, Word 기본 36pt)과 짝수·홀수 쪽 머리말.
+    let tab = document
+        .sections
+        .first()
+        .map(|s| s.section_def.default_tab_spacing / 2)
+        .filter(|v| *v > 0)
+        .unwrap_or(4000);
+    let even = if seen.iter().any(|(_, kind)| *kind == "even") {
+        "<w:evenAndOddHeaders/>"
+    } else {
+        ""
+    };
+    parts.push(Part {
+        name: "settings.xml".into(),
+        rel: Some("rIdSettings".into()),
+        kind: "settings",
+        xml: format!(
+            r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:settings {NAMESPACES}><w:defaultTabStop w:val="{}"/>{even}</w:settings>"#,
+            twips(tab)
+        ),
+    });
     // 첫 쪽 감추기: titlePg 로 첫 쪽 머리말·꼬리말을 비우고, 감추지 않은 쪽은 기본 것을 첫 쪽에도 건다.
     let hide = section
         .paragraphs
@@ -2091,9 +2235,23 @@ pub fn docx_from_document_with(
         endnotes: Vec::new(),
     };
     let mut body = String::new();
+    let regions = column_regions(document);
+    // 영역이 바뀌는 문단 앞에서 앞 영역을 끝낸다: 앞 문단 속성에 구역 속성을 넣는다(구역 속성은 머리말 관계를 만든 뒤
+    // 채운다). 따로 문단을 더하면 쪽을 꽉 채운 영역 뒤에 빈 쪽이 생긴다.
+    let mut region_ends = 0usize;
+    let mut last_start = 0usize;
     for (section_index, section) in document.sections.iter().enumerate() {
         for (paragraph_index, paragraph) in section.paragraphs.iter().enumerate() {
+            if regions
+                .iter()
+                .skip(1)
+                .any(|r| (r.0, r.1) == (section_index, paragraph_index))
+            {
+                end_region(&mut body, last_start, region_ends);
+                region_ends += 1;
+            }
             let start = body.len();
+            last_start = start;
             write_paragraph(&mut body, info, &mut media, paragraph, 0)?;
             if let Some(&level) = outline.get(&(section_index, paragraph_index)) {
                 set_outline_level(&mut body, start, level);
@@ -2138,10 +2296,24 @@ pub fn docx_from_document_with(
             xml: numbering_xml(info, &media.lists),
         });
     }
+    // 영역 k 의 구역 속성: 첫 영역만 "첫 쪽 다르게", 뒤 영역은 이어서(구역 첫 문단에서 바뀌면 새 쪽).
+    let props = |k: usize| {
+        let (s, p, columns) = regions[k];
+        let start = match (k, p) {
+            (0, _) => "",
+            (_, 0) if s > 0 => r#"<w:type w:val="nextPage"/>"#,
+            _ => r#"<w:type w:val="continuous"/>"#,
+        };
+        let title = if k == 0 { title_page } else { "" };
+        region_props(document, &references, title, columns, start)
+    };
+    for k in 0..region_ends {
+        body = body.replacen(&format!("<!--papy-region-{k}-->"), &props(k), 1);
+    }
     let xml = format!(
         r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document {NAMESPACES}><w:body>{body}{}</w:body></w:document>"#,
-        section_props(document, &references, title_page)
+        props(regions.len() - 1)
     );
 
     let mut buffer = Cursor::new(Vec::new());

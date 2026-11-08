@@ -546,8 +546,9 @@ fn table_cells_keep_borders_fill_alignment_and_height() {
         "{xml}"
     );
     assert!(xml.contains(r#"<w:vAlign w:val="center"/>"#), "{xml}");
+    // 행 높이는 칸 테두리 굵기(0.35pt ≈ 7 twip)를 뺀다(Word 는 행 높이에 테두리를 더한다). 다시 읽으면 더한다.
     assert!(
-        xml.contains(r#"<w:trHeight w:val="300" w:hRule="atLeast"/>"#),
+        xml.contains(r#"<w:trHeight w:val="293" w:hRule="atLeast"/>"#),
         "{xml}"
     );
     // 다시 읽으면 rhwp 표 붙여넣기가 읽는 CSS 로 옮긴다.
@@ -560,6 +561,67 @@ fn table_cells_keep_borders_fill_alignment_and_height() {
     ] {
         assert!(html.contains(css), "{css}: {html}");
     }
+}
+
+/// 구역 안에서 단 정의가 바뀌면 이어지는 구역으로 나누고, 문단 탭 정의·기본 탭 간격을 쓴다.
+#[test]
+fn column_changes_and_tab_stops_are_written() {
+    use rhwp::model::control::Control;
+    use rhwp::model::page::ColumnDef;
+    let mut core = rhwp::document_core::DocumentCore::new_empty();
+    core.create_blank_document_native().unwrap();
+    core.insert_text_native(0, 0, 0, "하나둘셋").unwrap();
+    core.split_paragraph_native(0, 0, 2, None).unwrap();
+    core.split_paragraph_native(0, 1, 1, None).unwrap();
+    let mut document = core.document().clone();
+    let two = ColumnDef {
+        column_count: 2,
+        spacing: 1000,
+        ..Default::default()
+    };
+    let paragraphs = &mut document.sections[0].paragraphs;
+    assert_eq!(paragraphs.len(), 3);
+    paragraphs[1].controls.push(Control::ColumnDef(two));
+    paragraphs[2].controls.push(Control::ColumnDef(ColumnDef {
+        column_count: 1,
+        ..Default::default()
+    }));
+    // 탭: 2배 단위 14500 → 7250 HWPUNIT = 1450 twip, 오른쪽 탭·점선 채움
+    let mut tabs = rhwp::model::style::TabDef::default();
+    tabs.tabs.push(rhwp::model::style::TabItem {
+        position: 14500,
+        tab_type: 1,
+        fill_type: 3,
+    });
+    document.doc_info.tab_defs.push(tabs);
+    let tab_id = (document.doc_info.tab_defs.len() - 1) as u16;
+    let shape = paragraphs[0].para_shape_id as usize;
+    document.doc_info.para_shapes[shape].tab_def_id = tab_id;
+    let bytes = docx_from_document(&document).unwrap();
+    let xml = part_text(&bytes, "word/document.xml");
+    // 영역 셋: 1단(첫 문단) · 2단(이어서) · 1단(이어서). 구역 속성은 따로 문단을 더하지 않고 영역 끝 문단에 든다.
+    assert_eq!(xml.matches("<w:sectPr>").count(), 3, "{xml}");
+    assert_eq!(
+        xml.matches(r#"<w:type w:val="continuous"/>"#).count(),
+        2,
+        "{xml}"
+    );
+    assert_eq!(xml.matches(r#"<w:cols w:num="2""#).count(), 1, "{xml}");
+    assert_eq!(xml.matches("<w:p>").count(), 3, "{xml}");
+    let second = xml.split("<w:p>").nth(2).unwrap();
+    assert!(
+        second.contains(r#"<w:cols w:num="2" w:space="200"/>"#),
+        "{xml}"
+    );
+    assert!(
+        xml.contains(r#"<w:tabs><w:tab w:val="right" w:leader="dot" w:pos="1450"/></w:tabs>"#),
+        "{xml}"
+    );
+    let settings = part_text(&bytes, "word/settings.xml");
+    assert!(
+        settings.contains(r#"<w:defaultTabStop w:val="800"/>"#),
+        "{settings}"
+    );
 }
 
 #[test]

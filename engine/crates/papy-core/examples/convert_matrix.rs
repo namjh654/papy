@@ -6,6 +6,7 @@
 //! `PAPY_SOFFICE=<LibreOffice soffice 경로>` 면 저장한 DOCX 를 LibreOffice 로 PDF 로 바꿔(Word 와 비슷한 조판)
 //! 쪽 수·글 보존율을 `docx@lo` 줄로 더 적는다(Papy 로 다시 연 값과 별도. `PAPY_PDFIUM_LIBRARY` 필요).
 //! `PAPY_SOFFICE_FONTS=<글꼴 폴더>` 는 LibreOffice 가 쓸 글꼴(따로 만든 프로필에 넣는다, 한글 글꼴이 없는 환경용).
+//! `PAPY_SAVE_DIR=<폴더>` 면 저장한 파일을 `<문서 이름>.<대상>` 으로 남긴다(Word 등 다른 프로그램으로 따로 잴 때).
 //! 출력 열: 파일 · 원본 쪽 수 · 대상 · 결과(ok 또는 오류) · 다시 연 쪽 수 · 글 보존율(0~1) · 저장 ms.
 
 use std::collections::HashMap;
@@ -74,8 +75,12 @@ fn main() {
     if soffice.is_some() {
         let _ = std::fs::create_dir_all(&lo_dir);
     }
+    let save_dir = std::env::var_os("PAPY_SAVE_DIR").map(PathBuf::from);
+    if let Some(dir) = &save_dir {
+        let _ = std::fs::create_dir_all(dir);
+    }
     for path in list.lines().map(str::trim).filter(|l| !l.is_empty()) {
-        let name = path.rsplit('/').next().unwrap_or(path);
+        let name = path.rsplit(['/', '\\']).next().unwrap_or(path);
         let Ok(id) = engine.open(
             DocumentSource::Path(PathBuf::from(path)),
             OpenOptions::default(),
@@ -91,6 +96,9 @@ fn main() {
             let ms = started.elapsed().as_millis();
             let bytes = match saved {
                 Ok(bytes) => {
+                    if let Some(dir) = &save_dir {
+                        let _ = std::fs::write(dir.join(format!("{name}.{target}")), &bytes);
+                    }
                     if target == "docx" && soffice.is_some() {
                         let file = lo_dir.join(format!("{}.docx", lo_jobs.len()));
                         if std::fs::write(&file, &bytes).is_ok() {
