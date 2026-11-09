@@ -646,7 +646,12 @@ impl Drawing {
             Paint::Unset => self.has_style.then_some(theme),
         };
         let line_kind = kind == ShapeKind::Line;
-        let has_text = self.text.iter().any(|t| !t.trim().is_empty());
+        // 글자가 없어도 그림·표가 든 글상자(빈칸 + 그림 둘 같은 것)는 글상자로 둔다.
+        let has_text = self.text.iter().any(|t| !t.trim().is_empty())
+            || self
+                .html
+                .as_deref()
+                .is_some_and(|html| html.contains("<img") || html.contains("<table"));
         Some(DocxShape {
             kind,
             width,

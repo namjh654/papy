@@ -2349,7 +2349,7 @@ fn docx_round_trip_keeps_structure() {
 <w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr></w:pPr><w:r><w:t>번호 하나</w:t></w:r></w:p>
 <w:p><w:pPr><w:numPr><w:ilvl w:val="1"/><w:numId w:val="1"/></w:numPr></w:pPr><w:r><w:t>번호 둘</w:t></w:r></w:p>
 <w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="2"/></w:numPr></w:pPr><w:r><w:t>글머리</w:t></w:r></w:p>
-<w:tbl><w:tblPr/><w:tblGrid><w:gridCol w:w="4000"/></w:tblGrid><w:tr><w:tc><w:tcPr><w:tcW w:w="4000" w:type="dxa"/></w:tcPr><w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr></w:pPr><w:r><w:t>칸 번호</w:t></w:r></w:p><w:p><w:sdt><w:sdtPr><w:alias w:val="칸 안내"/></w:sdtPr><w:sdtContent><w:r><w:t>칸값</w:t></w:r></w:sdtContent></w:sdt></w:p></w:tc></w:tr></w:tbl>
+<w:tbl><w:tblPr/><w:tblGrid><w:gridCol w:w="4000"/></w:tblGrid><w:tr><w:tc><w:tcPr><w:tcW w:w="4000" w:type="dxa"/></w:tcPr><w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr></w:pPr><w:r><w:t>칸 번호</w:t></w:r></w:p><w:p><w:sdt><w:sdtPr><w:alias w:val="칸 안내"/></w:sdtPr><w:sdtContent><w:r><w:t>칸값</w:t></w:r></w:sdtContent></w:sdt></w:p><w:p><w:sdt><w:sdtPr><w:tag w:val="papy-formula|0|=SUM(A?:A?)??%g,;;1,234"/></w:sdtPr><w:sdtContent><w:r><w:t>1,234</w:t></w:r></w:sdtContent></w:sdt></w:p></w:tc></w:tr></w:tbl>
 <w:sectPr><w:headerReference w:type="default" r:id="rIdH2"/><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1701" w:right="1440" w:bottom="1440" w:left="1440" w:header="851" w:footer="992" w:gutter="0"/></w:sectPr></w:body></w:document>"#
     );
     let header = r#"<w:hdr xmlns:w="w"><w:tbl><w:tblPr/><w:tblGrid><w:gridCol w:w="4000"/><w:gridCol w:w="4000"/></w:tblGrid><w:tr><w:tc><w:tcPr><w:tcW w:w="4000" w:type="dxa"/></w:tcPr><w:p><w:r><w:t>머리 왼쪽</w:t></w:r></w:p></w:tc><w:tc><w:tcPr><w:tcW w:w="4000" w:type="dxa"/></w:tcPr><w:p><w:r><w:t>머리 오른쪽</w:t></w:r></w:p></w:tc></w:tr></w:tbl><w:p/></w:hdr>"#;
@@ -2416,7 +2416,8 @@ fn docx_round_trip_keeps_structure() {
         ("chars.textbox", 7),
         ("chars.caption", 3),
         ("comments", 1),
-        ("fields", 1),
+        // 하이퍼링크 하나와 계산식 하나(Papy 가 쓴 콘텐츠 컨트롤)
+        ("fields", 2),
         ("bookmarks", 1),
         ("headers", 2),
         ("footers", 1),

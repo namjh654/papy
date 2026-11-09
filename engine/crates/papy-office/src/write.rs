@@ -1198,6 +1198,7 @@ fn field_spans(
                 memo: field.memo_text().unwrap_or("").to_owned(),
                 name: field.field_name().unwrap_or("").to_owned(),
                 editable: field.is_editable_in_form(),
+                formula: None,
             };
             let empty = start >= end;
             let open = format!(
@@ -1219,6 +1220,22 @@ fn field_spans(
                 end.max(start),
                 open,
                 format!("{placeholder}</w:sdtContent></w:sdt>"),
+            ));
+        } else if field.field_type == FieldType::Formula && !field.command.is_empty() {
+            // 계산식 → 결과 글자를 담은 콘텐츠 컨트롤(한글 명령은 tag 에). Word 에서는 계산하지 않는다.
+            let formula = crate::ClickHere {
+                editable: field.is_editable_in_form(),
+                formula: Some(field.command.clone()),
+                ..Default::default()
+            };
+            spans.push((
+                start,
+                end.max(start),
+                format!(
+                    r#"<w:sdt><w:sdtPr><w:tag w:val="{}"/><w:text/></w:sdtPr><w:sdtContent>"#,
+                    xml_escape(&formula.tag())
+                ),
+                "</w:sdtContent></w:sdt>".into(),
             ));
         } else if field.command.starts_with("MEMO/") && depth < MAX_DEPTH {
             // 한글 메모: `MEMO/<모양>/<번호>/<id>/<id>/<작성자>/…`

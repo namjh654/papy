@@ -3,12 +3,13 @@
 //! papy-office 는 본문·표 칸·글상자 문단의 콘텐츠 컨트롤 내용을 [`papy_office::FIELD_START_MARK`]·
 //! [`papy_office::FIELD_END_MARK`] 로 감싸고 안내문·이름·메모를 [`papy_office::ClickHere`] 로 넘긴다.
 //! 표시를 지우고, 시작 자리에 빈 누름틀을 넣은 뒤 그 끝을 내용 끝까지 늘린다. 글상자 안 것은 바로 넣는다.
+//! 한글 계산식 필드도 같은 길로 되돌린다([`papy_office::ClickHere::formula`], 결과 글자를 감싼다).
 //! 종전에는 누름틀을 DOCX 로 저장하면 글만 남아 다시 열었을 때 양식 칸이 사라졌다.
 
 use papy_office::{ClickHere, FIELD_END_MARK, FIELD_START_MARK, field_index};
 use rhwp::model::control::{Control, Field, FieldType};
 use rhwp::model::paragraph::{FieldRange, Paragraph};
-use rhwp::parser::tags::FIELD_CLICKHERE;
+use rhwp::parser::tags::{FIELD_CLICKHERE, FIELD_FORMULA};
 
 use crate::Rhwp;
 
@@ -52,6 +53,16 @@ pub(crate) fn apply(doc: &mut Rhwp, fields: &[ClickHere]) {
         };
         if let Some(paragraph) = paragraph_mut(doc.document_mut(), section, para, &path) {
             fix_tab_offsets(paragraph);
+            // 계산식은 rhwp 에 넣는 길이 없어 바로 넣는다.
+            if field.formula.is_some() {
+                if insert_direct(paragraph, start, end, field, next_id) {
+                    next_id += 1;
+                }
+                continue;
+            }
+        }
+        if field.formula.is_some() {
+            continue;
         }
         let inserted = if path.is_empty() {
             doc.insert_click_here_field_at(
@@ -407,15 +418,25 @@ fn insert_direct(
     }
     paragraph.controls.insert(
         insert_idx,
-        Control::Field(Field {
-            field_type: FieldType::ClickHere,
-            command: Field::build_clickhere_command(&field.guide, &field.memo),
-            properties: u32::from(field.editable),
-            extra_properties: 0x09,
-            field_id: id,
-            ctrl_id: FIELD_CLICKHERE,
-            ctrl_data_name: (!field.name.is_empty()).then(|| field.name.clone()),
-            ..Default::default()
+        Control::Field(match &field.formula {
+            Some(command) => Field {
+                field_type: FieldType::Formula,
+                command: command.clone(),
+                properties: u32::from(field.editable),
+                field_id: id,
+                ctrl_id: FIELD_FORMULA,
+                ..Default::default()
+            },
+            None => Field {
+                field_type: FieldType::ClickHere,
+                command: Field::build_clickhere_command(&field.guide, &field.memo),
+                properties: u32::from(field.editable),
+                extra_properties: 0x09,
+                field_id: id,
+                ctrl_id: FIELD_CLICKHERE,
+                ctrl_data_name: (!field.name.is_empty()).then(|| field.name.clone()),
+                ..Default::default()
+            },
         }),
     );
     let records = paragraph.controls.len() - 1;

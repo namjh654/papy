@@ -119,6 +119,8 @@ pub(crate) fn strip_field_marks(html: &str) -> String {
 }
 /// Papy 가 누름틀을 Word 콘텐츠 컨트롤(`w:sdt`)로 쓸 때 `w:tag` 앞머리: `papy-clickhere|<1·0 편집>|<이름>|<메모>`.
 pub const CLICK_HERE_TAG: &str = "papy-clickhere";
+/// 한글 계산식 필드를 `w:sdt` 로 쓸 때 `w:tag` 앞머리: `papy-formula|<1·0 편집>|<한글 명령>`(내용은 계산 결과 글자).
+pub const FORMULA_TAG: &str = "papy-formula";
 
 /// 누름틀 하나(한글 ClickHere 필드 ↔ Word 글 콘텐츠 컨트롤).
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -131,11 +133,16 @@ pub struct ClickHere {
     pub name: String,
     /// 양식 모드에서 고칠 수 있는가
     pub editable: bool,
+    /// 누름틀이 아니라 한글 계산식 필드면 그 명령(`=SUM(B?:D?)??%g,;;3,520` 같은 것)
+    pub formula: Option<String>,
 }
 
 impl ClickHere {
     /// `w:tag` 값
     pub fn tag(&self) -> String {
+        if let Some(command) = &self.formula {
+            return format!("{FORMULA_TAG}|{}|{command}", u8::from(self.editable));
+        }
         format!(
             "{CLICK_HERE_TAG}|{}|{}|{}",
             u8::from(self.editable),
@@ -147,6 +154,16 @@ impl ClickHere {
     /// `w:alias`·`w:tag` 값에서
     pub fn from_word(alias: Option<String>, tag: Option<String>) -> Self {
         let guide = alias.unwrap_or_default();
+        if let Some(rest) = tag.as_deref().and_then(|t| t.strip_prefix(FORMULA_TAG)) {
+            let mut parts = rest.trim_start_matches('|').splitn(2, '|');
+            let editable = parts.next() == Some("1");
+            let command = parts.next().unwrap_or("").to_owned();
+            return Self {
+                editable,
+                formula: Some(command),
+                ..Self::default()
+            };
+        }
         match tag.as_deref().and_then(|t| t.strip_prefix(CLICK_HERE_TAG)) {
             Some(rest) => {
                 let mut parts = rest.trim_start_matches('|').splitn(3, '|');
@@ -158,6 +175,7 @@ impl ClickHere {
                     memo,
                     name,
                     editable,
+                    formula: None,
                 }
             }
             None => Self {
@@ -165,6 +183,7 @@ impl ClickHere {
                 memo: String::new(),
                 name: tag.unwrap_or_default(),
                 editable: true,
+                formula: None,
             },
         }
     }
