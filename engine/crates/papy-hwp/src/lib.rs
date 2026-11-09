@@ -266,8 +266,14 @@ fn split_tables_across_pages(
             }
             // 쪽·종이 기준 자리: 그 자리에 놓고 쪽을 나누지 않는다(결재란 등).
             Some(place) => {
+                // 글 앞·뒤 표는 그 배치를 쓴다(place 에 textWrap 이 있다).
+                let wrap = if place.contains(r#""textWrap""#) {
+                    ""
+                } else {
+                    r#","textWrap":"TopAndBottom""#
+                };
                 format!(
-                    r#"{{"treatAsChar":false,"textWrap":"TopAndBottom","outerLeft":0,"keepWithAnchor":true{place}}}"#
+                    r#"{{"treatAsChar":false,"outerLeft":0,"keepWithAnchor":true{wrap}{place}}}"#
                 )
             }
             None => {

@@ -732,9 +732,16 @@ fn parse_styles(xml: &str) -> Styles {
 
 /// `w:tblpPr` → rhwp 표 속성 JSON 조각. 쪽(`margin`)·종이(`page`) 기준만 옮긴다(글 기준은 본문 흐름).
 fn float_place(element: &BytesStart) -> String {
+    // Papy 가 쓴 글 앞·뒤 표(`papy:wrap`)는 글 기준이어도 떠 있는 채로 되돌린다.
+    let wrap = match attr(element, "wrap").as_deref() {
+        Some("front") => Some("InFrontOfText"),
+        Some("behind") => Some("BehindText"),
+        _ => None,
+    };
     let vert = match attr(element, "vertAnchor").as_deref() {
         Some("page") => "Paper",
         Some("margin") => "Page",
+        _ if wrap.is_some() => "Para",
         _ => return String::new(),
     };
     let number = |key: &str| {
@@ -743,6 +750,9 @@ fn float_place(element: &BytesStart) -> String {
             .map(|v| (v * 5.0) as i64)
     };
     let mut json = format!(r#","vertRelTo":"{vert}""#);
+    if let Some(wrap) = wrap {
+        json.push_str(&format!(r#","textWrap":"{wrap}""#));
+    }
     match attr(element, "tblpYSpec").as_deref() {
         Some("center") => json.push_str(r#","vertAlign":"Center""#),
         Some("bottom") => json.push_str(r#","vertAlign":"Bottom""#),
@@ -756,6 +766,7 @@ fn float_place(element: &BytesStart) -> String {
     let horz = match attr(element, "horzAnchor").as_deref() {
         Some("page") => "Paper",
         Some("margin") => "Page",
+        _ if wrap.is_some() => "Para",
         _ => "Column",
     };
     json.push_str(&format!(r#","horzRelTo":"{horz}""#));
@@ -810,6 +821,8 @@ struct Sdt {
     tag: Option<String>,
     in_pr: bool,
     placeholder: bool,
+    /// 내용 잠금(`w:lock` contentLocked·sdtContentLocked)
+    locked: bool,
     /// 누름틀 시작 표시를 넣었는가
     marked: bool,
 }
@@ -1285,13 +1298,18 @@ fn xml_to_html(
                         }
                     }
                     "sdt" if !empty => sdt_stack.push(in_para.then(Sdt::default)),
-                    "sdtPr" | "alias" | "tag" | "showingPlcHdr" => {
+                    "sdtPr" | "alias" | "tag" | "showingPlcHdr" | "lock" => {
                         if let Some(Some(sdt)) = sdt_stack.last_mut() {
                             match name {
                                 "sdtPr" => sdt.in_pr = !empty,
                                 "alias" if sdt.in_pr => sdt.alias = attr(&e, "val"),
                                 "tag" if sdt.in_pr => sdt.tag = attr(&e, "val"),
                                 "showingPlcHdr" if sdt.in_pr => sdt.placeholder = true,
+                                "lock" if sdt.in_pr => {
+                                    sdt.locked = attr(&e, "val").is_some_and(|v| {
+                                        v == "contentLocked" || v == "sdtContentLocked"
+                                    })
+                                }
                                 _ => {}
                             }
                         }
@@ -1310,6 +1328,9 @@ fn xml_to_html(
                                 &para_style.0,
                                 &defaults,
                             );
+                            // 자리 표시 글은 건너뛴다. 단 내용을 고칠 수 없게 잠근 것은 채울 자리가 아니라
+                            // 보이는 글이다(showingPlcHdr 이어도 글을 넣어 둔다, POI 55966).
+                            sdt.placeholder &= !sdt.locked;
                             para_html.push_str(&crate::field_start(report.click_here.len()));
                             report.click_here.push(crate::ClickHere::from_word(
                                 sdt.alias.take(),
@@ -1873,7 +1894,10 @@ fn xml_to_html(
                 }
                 "drawing" => {
                     let Some(done) = drawing.take() else { continue };
-                    if !done.is_picture() {
+                    // 본문·표 칸의 떠 있는 그림(글 뒤 배경 그림 등)은 도형 자리로 넣어 위치·배치를 지킨다.
+                    // 전에는 글자처럼 놓인 그림으로 읽어 자리를 차지했다(시험지 편지 배경 그림이 단을 넘침).
+                    let floating = done.is_floating_picture() && !header && depth == 0;
+                    if !done.is_picture() || floating {
                         flush(
                             &mut para_html,
                             &mut run_text,

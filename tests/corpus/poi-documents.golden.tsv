@@ -13,7 +13,7 @@
 53379.doc	DOC	32	871f2ab5b3c51325	71eab8d332495782	0
 53446.doc	DOC	11	4aeeb11594393f6d	c833a1d2055c0454	1
 55733.docx	DOCX	1	e5989f18eb184be8	ca5397a35bfe6fab	0
-55966.docx	DOCX	1	e5989f18eb184be8	3e4c982d8b52feac	0
+55966.docx	DOCX	1	e5989f18eb184be8	04c9d5fe8862c2ec	0
 56392.docx	DOCX	1	e5989f18eb184be8	1692083ffa079f8c	0
 56880.doc	DOC	1	250c5d3886b33e0d	24126ba9fe776d5a	0
 57312.docx	DOCX	1	e5989f18eb184be8	2c6ad1a53464f5a9	0
@@ -99,7 +99,7 @@ Bug60942.doc	DOC	2	22d10a52556263a1	06a2bd69afa1ccb1	0
 Bug60942b.doc	DOC	1	e5989f18eb184be8	07ecd9895e1e624a	0
 Bug61268.doc	DOC	137	90ccc4a34033862a	72f6e666a2053e0d	0
 Bug62859.docx	DOCX	1	250c5d3886b33e0d	af63c14c8601beab	0
-Bug64561.docx	DOCX	1	e5989f18eb184be8	e7bcd55a2a512439	0
+Bug64561.docx	DOCX	1	e5989f18eb184be8	08b09d2eab746fb5	0
 Bug66263-paragraph.docx	DOCX	1	e5989f18eb184be8	7b29b75863264e23	0
 Bug66263-table.docx	DOCX	1	e5989f18eb184be8	ab309c846c069d3a	0
 Bug66988.docx	DOCX	1	e5989f18eb184be8	bf58a7ec1a24cff5	0
@@ -157,7 +157,7 @@ ThreeColHeadFoot.docx	DOCX	2	34a07278ce85fe05	6e8acbda92852d9c	0
 Tika-792.docx	DOCX	1	250c5d3886b33e0d	2f85e0189cc86f33	0
 VariousPictures.docx	DOCX	1	e5989f18eb184be8	46901ecaddc216c9	0
 WithArtShapes.doc	DOC	1	e5989f18eb184be8	af63c14c8601beab	0
-WithGIF.docx	DOCX	1	e5989f18eb184be8	cc4bf7301962ed43	0
+WithGIF.docx	DOCX	1	e5989f18eb184be8	2622f12d01bec7af	0
 WithTabs.docx	DOCX	1	e5989f18eb184be8	6e90e681eadd03f1	0
 Word6.doc	DOC	1	e5989f18eb184be8	75c4b2d9092c3294	0
 Word6_sections.doc	DOC	3	8ed5a02a4e09555c	e378496665ce198c	0
@@ -208,7 +208,7 @@ clusterfuzz-testcase-minimized-POIXWPFFuzzer-5569740188549120.docx	error	Unsuppo
 clusterfuzz-testcase-minimized-POIXWPFFuzzer-6061520554164224.docx	error	UnsupportedFormat
 clusterfuzz-testcase-minimized-POIXWPFFuzzer-6120975439364096.docx	error	UnsupportedFormat
 clusterfuzz-testcase-minimized-POIXWPFFuzzer-6442791109263360.docx	error	UnsupportedFormat
-clusterfuzz-testcase-minimized-POIXWPFFuzzer-6733884933668864.docx	DOCX	1	e5989f18eb184be8	3e4c982d8b52feac	0
+clusterfuzz-testcase-minimized-POIXWPFFuzzer-6733884933668864.docx	DOCX	1	e5989f18eb184be8	04c9d5fe8862c2ec	0
 cn.orthodox.www_divenbog_APRIL_30-APRIL.DOC	DOC	2	22d10a52556263a1	1ce3a7e6c17d9b38	0
 comment.docx	DOCX	1	e5989f18eb184be8	af63c14c8601beab	0
 crash-517626e815e0afa9decd0ebb6d1dee63fb9907dd.docx	error	UnsupportedFormat

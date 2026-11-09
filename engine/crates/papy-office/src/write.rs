@@ -1834,15 +1834,24 @@ fn write_table(
 /// 쪽·종이 기준으로 놓은 떠 있는 표(결재란을 쪽 아래에 붙이는 공문서 등) → `w:tblpPr`.
 /// 문단 기준·글자처럼 놓은 표는 본문 흐름 그대로 둔다.
 fn float_table_position(table: &Table) -> String {
-    use rhwp::model::shape::{HorzAlign, VertAlign};
+    use rhwp::model::shape::{HorzAlign, TextWrap, VertAlign};
     let common = &table.common;
-    if common.treat_as_char || !matches!(common.vert_rel_to, VertRelTo::Page | VertRelTo::Paper) {
+    // 글 앞·뒤에 띄운 표(그림 테두리 위에 겹친 안내문 표 등): Word 에는 그런 배치가 없어 글 기준 떠 있는 표로
+    // 쓰고 배치를 `papy:wrap` 에 남긴다(Papy 로 다시 열면 겹친 채로 되돌린다. 전에는 위아래 배치가 되어 높이를 차지했다).
+    let wrap = match common.text_wrap {
+        TextWrap::InFrontOfText if !common.treat_as_char => r#" papy:wrap="front""#,
+        TextWrap::BehindText if !common.treat_as_char => r#" papy:wrap="behind""#,
+        _ => "",
+    };
+    if common.treat_as_char
+        || (wrap.is_empty() && !matches!(common.vert_rel_to, VertRelTo::Page | VertRelTo::Paper))
+    {
         return String::new();
     }
-    let vert_anchor = if matches!(common.vert_rel_to, VertRelTo::Paper) {
-        "page"
-    } else {
-        "margin"
+    let vert_anchor = match common.vert_rel_to {
+        VertRelTo::Paper => "page",
+        VertRelTo::Page => "margin",
+        _ => "text",
     };
     let vertical = match common.vert_align {
         VertAlign::Center => r#" w:tblpYSpec="center""#.to_owned(),
@@ -1860,7 +1869,7 @@ fn float_table_position(table: &Table) -> String {
         _ => format!(r#" w:tblpX="{}""#, common.horizontal_offset as i32 / 5),
     };
     format!(
-        r#"<w:tblpPr w:leftFromText="0" w:rightFromText="0" w:vertAnchor="{vert_anchor}" w:horzAnchor="{horz_anchor}"{horizontal}{vertical}/>"#
+        r#"<w:tblpPr w:leftFromText="0" w:rightFromText="0" w:vertAnchor="{vert_anchor}" w:horzAnchor="{horz_anchor}"{horizontal}{vertical}{wrap}/>"#
     )
 }
 

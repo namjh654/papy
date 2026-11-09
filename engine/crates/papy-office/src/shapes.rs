@@ -368,6 +368,11 @@ impl Drawing {
         self.embed.is_some() && (self.picture || !self.shape)
     }
 
+    /// 문단에 떠 있는(`wp:anchor`) 그림인가. 글자처럼 놓인 그림(`wp:inline`)은 아니다.
+    pub fn is_floating_picture(&self) -> bool {
+        self.is_picture() && !self.inline && self.picture && self.group.is_none()
+    }
+
     /// 요소 시작(빈 요소 포함).
     pub fn start(&mut self, name: &str, e: &BytesStart<'_>, empty: bool) {
         if let (Some(group), false) = (self.group.as_mut(), self.group_done) {
