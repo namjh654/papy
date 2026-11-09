@@ -26,6 +26,9 @@ struct LicensesScreen: View {
                     Section {
                         Text(String(format: String(localized: "licenses_intro"), notices.items.count))
                             .papyFont(PapyFont.body)
+                        Text(String(localized: "licenses_notice"))
+                            .papyFont(PapyFont.caption)
+                            .foregroundStyle(PapyColor.onSurfaceVariant)
                     }
                     ForEach(shown, id: \.title) { notice in
                         DisclosureGroup {

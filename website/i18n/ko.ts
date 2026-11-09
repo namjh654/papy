@@ -12,7 +12,9 @@ export const ko: Messages = {
     home: "Papy 홈",
     mainNav: "주 메뉴",
     language: "언어",
-    licenseNote: "비상업적 용도 무료",
+    licenseNote: "비상업적 용도 무료 · 상업적 이용은 별도 라이선스",
+    legal:
+      "본 제품은 한컴의 HWP 문서 파일(.hwp) 공개 문서를 참고하여 개발하였습니다. “한글”, “한컴”, “HWP”, “HWPX”는 주식회사 한글과컴퓨터의 등록 상표이고, Microsoft Word 는 Microsoft Corporation 의 상표입니다. Papy 는 이들 회사와 제휴·후원·승인 관계가 없는 독립 제품입니다.",
     github: "GitHub",
     editPage: "이 페이지 수정 제안",
     privacy: "개인정보 처리방침",

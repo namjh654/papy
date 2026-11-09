@@ -12,7 +12,9 @@ export const en: Messages = {
     home: "Papy home",
     mainNav: "Main menu",
     language: "Language",
-    licenseNote: "Free for noncommercial use",
+    licenseNote: "Free for noncommercial use · commercial license available",
+    legal:
+      "This product was developed with reference to Hancom's published HWP document file (.hwp) format documents. “Hangul”, “Hancom”, “HWP” and “HWPX” are registered trademarks of Hancom Inc.; Microsoft Word is a trademark of Microsoft Corporation. Papy is an independent product with no affiliation, sponsorship or endorsement by these companies.",
     github: "GitHub",
     editPage: "Suggest an edit to this page",
     privacy: "Privacy policy",

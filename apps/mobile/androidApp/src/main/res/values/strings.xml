@@ -149,7 +149,8 @@
     <string name="fonts_failed">받지 못했습니다. 인터넷 연결을 확인하고 다시 시도해 주세요.</string>
     <string name="fonts_download">글꼴 받기</string>
     <string name="licenses_title">오픈소스 라이선스</string>
-    <string name="licenses_intro">Papy 는 PolyForm Noncommercial 1.0.0 라이선스로 배포됩니다(비상업적 사용). 앱에 들어 있는 다른 구성요소 %1$d개와 그 라이선스입니다.</string>
+    <string name="licenses_intro">Papy 는 PolyForm Noncommercial 1.0.0 라이선스로 배포됩니다(비상업적 사용, 상업적 이용은 별도 상용 라이선스). 앱에 들어 있는 다른 구성요소 %1$d개와 그 라이선스입니다.</string>
+    <string name="licenses_notice">본 제품은 한컴의 HWP 문서 파일(.hwp) 공개 문서를 참고하여 개발하였습니다.\n“한글”, “한컴”, “HWP”, “HWPX”는 주식회사 한글과컴퓨터의 등록 상표이고, Microsoft Word 는 Microsoft Corporation 의 상표입니다. Papy 는 한글과컴퓨터·Microsoft 와 제휴·후원·승인 관계가 없는 독립 제품입니다.</string>
     <string name="licenses_missing">라이선스 고지 파일이 없습니다. 개발 빌드에서는 node scripts/third-party-notices.mjs mobile 로 만듭니다.</string>
     <string name="licenses_search">구성요소 찾기</string>
     <string name="viewer_insert_table">표 넣기</string>

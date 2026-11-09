@@ -46,6 +46,11 @@ export function LicensesDialog({ onClose }: Props) {
           <strong>PolyForm Noncommercial 1.0.0</strong>
           {t.about.licenseAfter}
         </p>
+        <div className="notices muted">
+          {t.about.notices.map((line) => (
+            <p key={line}>{line}</p>
+          ))}
+        </div>
         <label className="language-pick">
           {t.about.language}{" "}
           <select value={locale} onChange={(event) => setLocale(event.target.value as Locale)}>

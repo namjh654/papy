@@ -67,6 +67,7 @@ export interface Messages {
     mainNav: string;
     language: string;
     licenseNote: string;
+    legal: string;
     github: string;
     editPage: string;
     privacy: string;

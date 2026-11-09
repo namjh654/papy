@@ -99,4 +99,13 @@ cd apps/mobile && scripts/orca.sh check
 - 불허: 상업적 목적의 사용 — 별도 라이선스가 필요하면 [문의](https://papy-omega.vercel.app/contact/)
 - 재배포 시 `LICENSE` 전문(또는 URL)과 `Required Notice:` 줄을 함께 전달해야 합니다.
 - OSI 가 승인한 오픈소스 라이선스가 아니므로 Papy 는 "소스 공개(source-available)" 프로젝트입니다.
-- 포함된 서드파티 구성요소는 각자의 라이선스를 따릅니다 — [docs/development/licensing.md](docs/development/licensing.md).
+- 포함된 서드파티 구성요소는 각자의 라이선스를 따릅니다 — [docs/development/licensing.md](docs/development/licensing.md), [NOTICE](NOTICE).
+- 저작권자는 같은 코드를 별도 상용 라이선스로도 제공할 수 있습니다(이중 라이선스).
+
+## 고지
+
+- 본 제품은 한컴의 HWP 문서 파일(.hwp) 공개 문서를 참고하여 개발하였습니다.
+- “한글”, “한컴”, “HWP”, “HWPX”는 주식회사 한글과컴퓨터의 등록 상표이고, Microsoft Word 는 Microsoft Corporation 의 상표입니다.
+  Papy 는 한글과컴퓨터·Microsoft 와 제휴·후원·승인 관계가 없는 독립 제품입니다.
+- PDF 엔진(PDFium) 고지: This software is based in part on the work of the Independent JPEG Group.
+  Portions of this software are copyright © 2006 The FreeType Project (www.freetype.org). All rights reserved.

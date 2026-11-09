@@ -63,7 +63,12 @@ export const ko = {
     title: "Papy 정보",
     engine: "엔진",
     licenseBefore: "Papy 는 ",
-    licenseAfter: "(polyformproject.org)으로 배포됩니다. 개인·학습·연구·비영리 용도는 무료이고, 상업적 이용은 허용되지 않습니다.",
+    licenseAfter: "(polyformproject.org)으로 배포됩니다. 개인·학습·연구·비영리 용도는 무료이고, 상업적 이용에는 별도 상용 라이선스가 필요합니다.",
+    notices: [
+      "본 제품은 한컴의 HWP 문서 파일(.hwp) 공개 문서를 참고하여 개발하였습니다.",
+      "“한글”, “한컴”, “HWP”, “HWPX”는 주식회사 한글과컴퓨터의 등록 상표이고, Microsoft Word 는 Microsoft Corporation 의 상표입니다. Papy 는 한글과컴퓨터·Microsoft 와 제휴·후원·승인 관계가 없는 독립 제품입니다.",
+      "PDF 엔진(PDFium): This software is based in part on the work of the Independent JPEG Group. Portions of this software are copyright © 2006 The FreeType Project (www.freetype.org). All rights reserved.",
+    ],
     language: "언어",
     openSource: "오픈소스 라이선스",
     noticesMissing: "라이선스 고지 파일을 찾지 못했습니다. 설치 폴더의 licenses/ 를 확인해 주세요.",

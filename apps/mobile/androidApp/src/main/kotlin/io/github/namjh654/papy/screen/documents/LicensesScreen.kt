@@ -69,6 +69,7 @@ fun LicensesScreen(onBack: () -> Unit) {
                     item(key = "intro") {
                         Column(verticalArrangement = Arrangement.spacedBy(PapySpacing.sm)) {
                             Text(stringResource(R.string.licenses_intro, all.size), style = PapyTheme.typography.body, color = PapyTheme.colors.onSurface)
+                            Text(stringResource(R.string.licenses_notice), style = PapyTheme.typography.caption, color = PapyTheme.colors.onSurfaceVariant)
                             PapyTextField(value = query, onValueChange = { query = it }, placeholder = stringResource(R.string.licenses_search))
                         }
                     }

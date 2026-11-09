@@ -238,7 +238,7 @@ if (!mobile && existsSync(studioOut) && existsSync(studioSrc)) {
 
 // ---- 쓰기 ----
 const rule = "=".repeat(78);
-let out = `Papy — Third-party notices\n\nPapy itself is licensed under PolyForm Noncommercial 1.0.0 (see LICENSE).\nThis file lists third-party components distributed with the ${mobile ? "mobile (Android, iOS)" : "desktop"} app and their licenses.\nComponents: ${sections.length}\n`;
+let out = `Papy — Third-party notices\n\nPapy itself is licensed under PolyForm Noncommercial 1.0.0 (see LICENSE).\nThis file lists third-party components distributed with the ${mobile ? "mobile (Android, iOS)" : "desktop"} app and their licenses.\nComponents: ${sections.length}\n\nNotices:\n- 본 제품은 한컴의 HWP 문서 파일(.hwp) 공개 문서를 참고하여 개발하였습니다.\n  (This product was developed with reference to Hancom's published HWP document file (.hwp) format documents.)\n- "Hangul", "Hancom", "HWP" and "HWPX" are registered trademarks of Hancom Inc.; Microsoft Word is a trademark of Microsoft Corporation.\n  Papy is an independent product with no affiliation, sponsorship or endorsement by Hancom or Microsoft.\n${mobile ? "" : "- This software is based in part on the work of the Independent JPEG Group.\n- Portions of this software are copyright © 2006 The FreeType Project (www.freetype.org). All rights reserved.\n"}`;
 // 같은 본문(흔한 MIT·Apache 전문)은 처음 한 번만 싣고 뒤에서는 가리킨다. 저작권 줄이 다르면 다른 본문이다.
 const firstSeen = new Map();
 for (const section of sections) {
