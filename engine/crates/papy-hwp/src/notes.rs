@@ -5,10 +5,11 @@
 
 use papy_office::{
     DocxReadReport, ENDNOTE_MARK, FOOTNOTE_MARK, HeaderFooterText, PAGE_BREAK_MARK,
-    PAGE_COUNT_FIELD, PAGE_COUNT_MARK, PAGE_NUMBER_FIELD, PAGE_NUMBER_MARK, SECTION_MARK,
+    SECTION_MARK,
 };
 use rhwp::HwpError;
 use rhwp::model::control::Control;
+use rhwp::model::paragraph::Paragraph;
 
 use crate::Rhwp;
 
@@ -36,8 +37,11 @@ pub(crate) fn apply(doc: &mut Rhwp, report: &DocxReadReport) -> Result<usize, Hw
         // 첫 문단은 첫 쪽에 있다. 감추기는 그 문단이 놓인 쪽에만 듣는다.
         doc.set_page_hide_native(0, 0, hide_header, hide_footer, false, false, false, false)?;
     }
-    dropped += notes(doc, &report.footnotes, FOOTNOTE_MARK)?;
-    dropped += notes(doc, &report.endnotes, ENDNOTE_MARK)?;
+    let footnotes = rich_notes(doc, &report.footnotes, &report.footnote_html)?;
+    let endnotes = rich_notes(doc, &report.endnotes, &report.endnote_html)?;
+    dropped += notes(doc, &footnotes, FOOTNOTE_MARK)?;
+    dropped += notes(doc, &endnotes, ENDNOTE_MARK)?;
+    fill_rich_notes(doc, &footnotes, &endnotes);
     Ok(dropped)
 }
 
@@ -123,7 +127,7 @@ fn header_footer(doc: &mut Rhwp, is_header: bool, item: &HeaderFooterText) -> Re
     if let Some(html) = &item.html {
         // 표·그림이 있는 머리말: 글자만 넣기로 물러서지 않게 실패하면 글자로 넣는다.
         let saved = doc.document().clone();
-        match header_footer_html(doc, is_header, item.apply_to, html) {
+        match header_footer_html(doc, is_header, item, html) {
             Ok(()) => return Ok(()),
             Err(_) => doc.set_document(saved),
         }
@@ -153,45 +157,19 @@ fn header_footer(doc: &mut Rhwp, is_header: bool, item: &HeaderFooterText) -> Re
 fn header_footer_html(
     doc: &mut Rhwp,
     is_header: bool,
-    apply_to: u8,
+    item: &HeaderFooterText,
     html: &str,
 ) -> Result<(), HwpError> {
     use rhwp::model::header_footer::HeaderFooterApply;
-    // 끝 문단을 나누면 문단 끝에 놓인 그림·도형 컨트롤이 새 문단(→ 머리말)으로 넘어간다. 빈 문단을 따로 더한다.
-    let count = doc.document().sections[0].paragraphs.len();
-    doc.insert_paragraph_native(0, count)?;
-    // 빈 문단에 붙여넣으면 첫 문단이 그 문단 모양을 쓴다. 빈 문단을 앞에 두어 첫 문단을 새 문단으로 만든다.
-    let padded = match html.find("<body>").map(|i| i + "<body>".len()) {
-        Some(at) => format!("{}<p></p>{}", &html[..at], &html[at..]),
-        None => format!("<p></p>{html}"),
-    };
-    doc.paste_html_native(0, count, 0, &padded)?;
-    crate::unindent_table_paragraphs(doc);
-    doc.reflow_table_cells_native(0)?;
+    let apply_to = item.apply_to;
+    let mut moved = crate::fragment::paste(doc, html)?;
+    // 머리말 도형·그림(떠 있는 로고 등): 본문 끝에서 만들어 머리말 문단 자리로 옮긴다.
+    let mut shapes = crate::shapes::build(doc, &item.shapes)?;
+    let mut cell_shapes = crate::shapes::build(doc, &item.cell_shapes)?;
+    crate::shapes::place(&mut moved, &mut shapes, papy_office::SHAPE_MARK, false);
+    crate::shapes::place(&mut moved, &mut cell_shapes, papy_office::CELL_SHAPE_MARK, true);
     let mut document = doc.document().clone();
     let section = &mut document.sections[0];
-    let mut moved: Vec<_> = section.paragraphs.drain(count..).collect();
-    // 앞에 둔 빈 문단과 끝 빈 문단은 뺀다.
-    let blank = |p: &rhwp::model::paragraph::Paragraph| p.text.is_empty() && p.controls.is_empty();
-    if moved.first().is_some_and(blank) && moved.len() > 1 {
-        moved.remove(0);
-    }
-    while moved.len() > 1 && moved.last().is_some_and(blank) {
-        moved.pop();
-    }
-    for paragraph in &mut moved {
-        if paragraph.text.contains([PAGE_NUMBER_MARK, PAGE_COUNT_MARK]) {
-            paragraph.text = paragraph
-                .text
-                .chars()
-                .map(|c| match c {
-                    PAGE_NUMBER_MARK => PAGE_NUMBER_FIELD,
-                    PAGE_COUNT_MARK => PAGE_COUNT_FIELD,
-                    c => c,
-                })
-                .collect();
-        }
-    }
     let apply = match apply_to {
         1 => HeaderFooterApply::Even,
         2 => HeaderFooterApply::Odd,
@@ -213,9 +191,163 @@ fn header_footer_html(
     Ok(())
 }
 
+/// 넣을 주 하나: 글자(문단마다)와, 서식째 옮길 수 있으면 그 문단들.
+struct Note {
+    text: Vec<String>,
+    rich: Option<Vec<Paragraph>>,
+}
+
+/// 주 안 서식 문단 자리 표시: 주를 만들 때 첫 문단 글자로 `{표시}{차례}` 를 넣어 두고, 다 만든 뒤 그 주의 문단을
+/// 서식 문단으로 바꾼다(칸으로 옮긴 주도 같은 방법으로 찾는다).
+const RICH_NOTE_MARK: char = '\u{E0FF}';
+
+/// 주 HTML 을 한꺼번에(한 번 붙여넣어) 문단으로 바꾼다. 주마다 붙여넣으면 매번 쪽을 다시 짜서 주가 많은
+/// 문서(시험지 미주 수백 개)가 느려진다. 주 사이에 자리 표시 문단을 두어 나눈다.
+fn rich_notes(
+    doc: &mut Rhwp,
+    texts: &[Vec<String>],
+    html: &[Option<String>],
+) -> Result<Vec<Note>, HwpError> {
+    let mut notes: Vec<Note> = texts
+        .iter()
+        .map(|text| Note {
+            text: text.clone(),
+            rich: None,
+        })
+        .collect();
+    let body = |html: &str| -> String {
+        let start = html.find("<body>").map_or(0, |i| i + "<body>".len());
+        let end = html.rfind("</body>").unwrap_or(html.len()).max(start);
+        html[start..end].to_owned()
+    };
+    let mut joined = String::new();
+    for (index, html) in html.iter().enumerate().take(notes.len()) {
+        if let Some(html) = html {
+            joined.push_str(&format!("<p>{RICH_NOTE_MARK}{index}</p>{}", body(html)));
+        }
+    }
+    if joined.is_empty() {
+        return Ok(notes);
+    }
+    let saved = doc.document().clone();
+    let pasted = match crate::fragment::paste(doc, &format!("<html><body>{joined}</body></html>")) {
+        Ok(pasted) => pasted,
+        Err(_) => {
+            doc.set_document(saved);
+            return Ok(notes);
+        }
+    };
+    let mut current: Option<usize> = None;
+    for paragraph in pasted {
+        if let Some(index) = paragraph
+            .text
+            .strip_prefix(RICH_NOTE_MARK)
+            .and_then(|rest| rest.trim().parse::<usize>().ok())
+        {
+            current = Some(index);
+            if let Some(note) = notes.get_mut(index) {
+                note.rich = Some(Vec::new());
+            }
+            continue;
+        }
+        if let Some(rich) = current
+            .and_then(|i| notes.get_mut(i))
+            .and_then(|n| n.rich.as_mut())
+        {
+            rich.push(paragraph);
+        }
+    }
+    for note in &mut notes {
+        // 빈 주는 글자로 둔다(빈 문단 하나가 필요하다).
+        if note.rich.as_ref().is_some_and(Vec::is_empty) {
+            note.rich = None;
+        }
+    }
+    Ok(notes)
+}
+
+/// [`RICH_NOTE_MARK`] 로 표시해 둔 주(본문·칸·글상자 안)의 문단을 서식 문단으로 바꾼다. 줄은 본문 너비로 다시 나눈다.
+fn fill_rich_notes(doc: &mut Rhwp, footnotes: &[Note], endnotes: &[Note]) {
+    if footnotes.iter().chain(endnotes).all(|n| n.rich.is_none()) {
+        return;
+    }
+    let mut document = doc.document().clone();
+    let page = &document.sections[0].section_def.page_def;
+    let width = page
+        .width
+        .saturating_sub(page.margin_left + page.margin_right + page.margin_gutter);
+    fn walk(
+        doc: &Rhwp,
+        paragraphs: &mut [Paragraph],
+        notes: [&[Note]; 2],
+        width: u32,
+        depth: usize,
+    ) {
+        if depth > 16 {
+            return;
+        }
+        for paragraph in paragraphs {
+            for control in &mut paragraph.controls {
+                let (list, paragraphs) = match control {
+                    Control::Footnote(note) => (notes[0], &mut note.paragraphs),
+                    Control::Endnote(note) => (notes[1], &mut note.paragraphs),
+                    Control::Table(table) => {
+                        for cell in &mut table.cells {
+                            walk(doc, &mut cell.paragraphs, notes, width, depth + 1);
+                        }
+                        continue;
+                    }
+                    _ => continue,
+                };
+                let index = paragraphs
+                    .first()
+                    .and_then(|p| p.text.strip_prefix(RICH_NOTE_MARK))
+                    // 주 번호 뒤 빈칸 등이 붙는다.
+                    .and_then(|rest| rest.trim().parse::<usize>().ok());
+                let Some(rich) = index
+                    .and_then(|i| list.get(i))
+                    .and_then(|n| n.rich.as_ref())
+                else {
+                    continue;
+                };
+                let mut rich = rich.clone();
+                // 주 번호(새로 만든 주 첫 문단 맨 앞의 자동 번호)를 옮겨 둔다.
+                let numbers: Vec<Control> = paragraphs
+                    .first()
+                    .map(|p| {
+                        p.controls
+                            .iter()
+                            .filter(|c| matches!(c, Control::AutoNumber(_)))
+                            .cloned()
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                if let Some(first) = rich.first_mut() {
+                    for number in numbers.into_iter().rev() {
+                        first.insert_inline_control(0, number);
+                    }
+                }
+                doc.reflow_paragraphs_to_width(&mut rich, width);
+                *paragraphs = rich;
+            }
+        }
+    }
+    for section in &mut document.sections {
+        walk(
+            doc,
+            &mut section.paragraphs,
+            [footnotes, endnotes],
+            width,
+            0,
+        );
+        section.raw_stream = None;
+    }
+    doc.set_document(document);
+}
+
 /// 본문·표 칸의 각주(미주) 자리 표시를 각주(미주)로 바꾼다(문서 순서 = 목록 순서).
 /// 자리 표시보다 주가 모자라거나 남으면 남는 것을 센다.
-fn notes(doc: &mut Rhwp, notes: &[Vec<String>], mark: char) -> Result<usize, HwpError> {
+fn notes(doc: &mut Rhwp, notes: &[Note], mark: char) -> Result<usize, HwpError> {
     let mut next = 0usize;
     let mut failed = 0usize;
     let paragraph_count = doc
@@ -230,8 +362,8 @@ fn notes(doc: &mut Rhwp, notes: &[Vec<String>], mark: char) -> Result<usize, Hwp
             let Some(note) = notes.get(next) else {
                 continue;
             };
+            insert_note(doc, para, offset, &note_text(next, note), mark)?;
             next += 1;
-            insert_note(doc, para, offset, note, mark)?;
         }
         // 표 칸 안 자리 표시: 본문에 만들어 글자를 채운 뒤 칸으로 옮긴다.
         let tables: Vec<usize> = doc.document().sections[0].paragraphs[para]
@@ -265,8 +397,8 @@ fn notes(doc: &mut Rhwp, notes: &[Vec<String>], mark: char) -> Result<usize, Hwp
                         let Some(note) = notes.get(next) else {
                             continue;
                         };
+                        let control = insert_note(doc, para, 0, &note_text(next, note), mark)?;
                         next += 1;
-                        let control = insert_note(doc, para, 0, note, mark)?;
                         if doc
                             .move_note_into_cell_native(
                                 0, para, control, para, table, cell, cell_para, offset,
@@ -281,6 +413,15 @@ fn notes(doc: &mut Rhwp, notes: &[Vec<String>], mark: char) -> Result<usize, Hwp
         }
     }
     Ok(failed + notes.len().saturating_sub(next))
+}
+
+/// 주를 만들 때 넣을 글자: 서식 문단이 있으면 자리 표시(뒤에 바꾼다), 없으면 글자.
+fn note_text(index: usize, note: &Note) -> Vec<String> {
+    if note.rich.is_some() {
+        vec![format!("{RICH_NOTE_MARK}{index}")]
+    } else {
+        note.text.clone()
+    }
 }
 
 fn find_mark(text: &str, mark: char) -> Option<usize> {

@@ -7,10 +7,12 @@ use std::collections::HashMap;
 use std::io::{Cursor, Read};
 
 use crate::notes::{
-    COLUMN_BREAK_MARK, ENDNOTE_MARK, FOOTNOTE_MARK, HeaderFooterText, Numbering, PAGE_BREAK_MARK,
-    SECTION_MARK, header_footer_texts, page_field_mark, parse_endnotes, parse_footnotes,
+    BOOKMARK_MARK, CAPTION_MARKS, CAPTION_MORE_MARK, COLUMN_BREAK_MARK, COMMENT_MARK, ENDNOTE_MARK,
+    FOOTNOTE_MARK, HeaderFooterText, LINK_END_MARK, LINK_START_MARK, Numbering, PAGE_BREAK_MARK,
+    SECTION_MARK, header_footer_texts, note_parts, page_field_mark, parse_endnotes,
+    parse_footnotes,
 };
-use crate::shapes::{DocxShape, Drawing, Pending, SHAPE_MARK, ShapeImage};
+use crate::shapes::{CELL_SHAPE_MARK, DocxShape, Drawing, Pending, SHAPE_MARK, ShapeImage};
 use papy_model::{Error, ErrorCode, Result};
 use quick_xml::Reader;
 use quick_xml::events::{BytesStart, Event};
@@ -35,10 +37,22 @@ pub struct DocxReadReport {
     pub endnotes: Vec<Vec<String>>,
     /// 본문 각주(글자만), 본문의 [`FOOTNOTE_MARK`] 와 같은 순서.
     pub footnotes: Vec<Vec<String>>,
+    /// 본문·표 칸의 책갈피 이름, [`crate::BOOKMARK_MARK`] 와 같은 차례.
+    pub bookmarks: Vec<String>,
+    /// 본문·표 칸의 하이퍼링크 주소, [`crate::LINK_START_MARK`] 와 같은 차례.
+    pub hyperlinks: Vec<String>,
+    /// 본문·표 칸의 [`crate::COMMENT_MARK`] 자리마다 메모 글(문단마다), 같은 차례.
+    pub comment_marks: Vec<Vec<String>>,
+    /// 각주 내용 HTML(서식·표·그림 포함, `footnotes` 와 같은 차례). 비었거나 None 이면 글자만 넣는다.
+    pub footnote_html: Vec<Option<String>>,
+    /// 미주 내용 HTML(`endnotes` 와 같은 차례).
+    pub endnote_html: Vec<Option<String>>,
     /// 옮기지 못한 각주·미주 수(표 안 각주·미주, 첫 쪽 머리말 등).
     pub dropped_notes: usize,
     /// 본문 도형, 본문의 [`SHAPE_MARK`] 와 같은 순서.
     pub shapes: Vec<DocxShape>,
+    /// 표 칸 안 도형, 칸 문단의 [`crate::CELL_SHAPE_MARK`] 와 같은 순서(바깥 표부터 문서 순서).
+    pub cell_shapes: Vec<DocxShape>,
     /// 본문 제목 문단(스타일·문단의 개요 수준이 있는 것), 문서 순서. 목차로 쓴다. 표 안 문단은 넣지 않는다.
     pub headings: Vec<DocxHeading>,
     /// 첫 쪽에서 감출 (머리말, 꼬리말). 첫 구역이 "첫 쪽 다르게"(`w:titlePg`)일 때 켠다.
@@ -54,6 +68,8 @@ pub struct DocxReadReport {
     pub table_indents: Vec<i32>,
     /// 본문 맨 바깥 표마다 쪽·종이 기준 자리(`w:tblpPr`): rhwp 표 속성 JSON 조각(`"vertRelTo":…`). 없으면 빈 글.
     pub table_places: Vec<String>,
+    /// 본문 맨 바깥 표마다 Papy 가 쓴 한글 "글자처럼 취급" 표인가(`papy:inline`, 문서 순서).
+    pub table_inline: Vec<bool>,
     /// 첫 구역의 쪽 크기·여백·다단(`w:pgSz`·`w:pgMar`·`w:cols`). 없거나 이상하면 None(빈 문서 기본값을 쓴다).
     pub page: Option<PageSetup>,
 }
@@ -215,6 +231,28 @@ const MAX_TOTAL_IMAGE_BYTES: u64 = 256 * 1024 * 1024;
 const EMU_PER_PX: f64 = 9525.0;
 
 /// 본문 관계(rId → 파일 경로, word/ 기준으로 푼 값).
+/// 바깥 대상 관계(하이퍼링크 주소): 관계 id → 주소.
+fn parse_links(xml: &str) -> HashMap<String, String> {
+    let mut links = HashMap::new();
+    let mut reader = Reader::from_str(xml);
+    while let Ok(event) = reader.read_event() {
+        match event {
+            Event::Eof => break,
+            Event::Start(e) | Event::Empty(e) if local(e.name().as_ref()) == "Relationship" => {
+                let external = attr(&e, "TargetMode").as_deref() == Some("External");
+                let hyperlink = attr(&e, "Type").is_some_and(|t| t.ends_with("/hyperlink"));
+                if let (Some(id), Some(target), true) =
+                    (attr(&e, "Id"), attr(&e, "Target"), external && hyperlink)
+                {
+                    links.insert(id, target);
+                }
+            }
+            _ => {}
+        }
+    }
+    links
+}
+
 fn parse_rels(xml: &str) -> HashMap<String, String> {
     let mut rels = HashMap::new();
     let mut reader = Reader::from_str(xml);
@@ -257,6 +295,22 @@ pub(crate) fn normalize_path(path: &str) -> String {
 }
 
 /// 그림 파일 형식. rhwp 가 넣을 수 있는 것만.
+/// 그림 형식: 비트맵([`image_mime`])과 메타파일(WMF·EMF). Word 와 rhwp 는 메타파일 그림을 그대로 그린다.
+pub(crate) fn picture_mime(bytes: &[u8]) -> Option<&'static str> {
+    image_mime(bytes).or_else(|| {
+        if bytes.starts_with(&[0xD7, 0xCD, 0xC6, 0x9A])
+            || bytes.starts_with(&[0x01, 0x00, 0x09, 0x00])
+        {
+            Some("image/x-wmf")
+        } else if bytes.len() >= 44 && bytes.starts_with(&[1, 0, 0, 0]) && &bytes[40..44] == b" EMF"
+        {
+            Some("image/x-emf")
+        } else {
+            None
+        }
+    })
+}
+
 pub(crate) fn image_mime(bytes: &[u8]) -> Option<&'static str> {
     if bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
         Some("image/png")
@@ -751,6 +805,8 @@ struct TableBuild {
     indent: i32,
     /// 쪽·종이 기준 자리(rhwp 표 속성 JSON 조각)
     place: String,
+    /// 한글에서 글자처럼 취급한 표(`papy:inline`)
+    inline: bool,
 }
 
 struct CellBuild {
@@ -762,6 +818,8 @@ struct CellBuild {
     /// 칸 테두리·배경·세로 정렬·행 높이 CSS(rhwp 표 붙여넣기가 읽는 것)
     style: String,
     html: String,
+    /// 이 칸 마지막 표 뒤의 1pt 문단(Papy 가 Word 때문에 둔 것)을 뺐다: 그 뒤 빈 문단은 원본 문단이다.
+    tiny_after_table: bool,
 }
 
 impl TableBuild {
@@ -876,6 +934,20 @@ fn resolve_image(
     }
 }
 
+/// `papy:caption` 값(`bottom`, 이어지는 문단은 `bottom+`) → 캡션 문단 표시 글자.
+fn caption_mark(value: &str) -> char {
+    if value.ends_with('+') {
+        return CAPTION_MORE_MARK;
+    }
+    let index = match value {
+        "left" => 0,
+        "right" => 1,
+        "top" => 2,
+        _ => 3,
+    };
+    CAPTION_MARKS[index]
+}
+
 /// DOCX 바이트를 rhwp 가 붙여넣을 수 있는 HTML 로 바꾼다.
 pub fn docx_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
     part_to_html(bytes, "word/document.xml", false)
@@ -893,11 +965,85 @@ fn part_to_html(bytes: &[u8], part: &str, header: bool) -> Result<(String, DocxR
         zip::ZipArchive::new(Cursor::new(bytes)).map_err(|_| invalid("not a ZIP container"))?;
     let document = read_part(&mut archive, part)?
         .ok_or_else(|| Error::new(ErrorCode::UnsupportedFormat, "not a DOCX document"))?;
-    // 부분의 관계: word/header1.xml → word/_rels/header1.xml.rels
-    let rels_path = match part.rsplit_once('/') {
+    xml_to_html(bytes, &document, &rels_path_of(part), header, 0)
+}
+
+/// 부분의 관계: word/header1.xml → word/_rels/header1.xml.rels
+fn rels_path_of(part: &str) -> String {
+    match part.rsplit_once('/') {
         Some((dir, name)) => format!("{dir}/_rels/{name}.rels"),
         None => format!("_rels/{part}.rels"),
-    };
+    }
+}
+
+/// 글상자·각주처럼 부분 안 조각(`w:p`·`w:tbl` 들)을 HTML 로 바꾼다. 관계는 그 조각이 든 부분의 것(`rels_path`).
+/// 머리말처럼 읽는다(쪽 번호 필드는 표시 글자, 구역·쪽 설정은 읽지 않는다). 조각 안에 둘 수 없는 것
+/// (떠 있는 도형·각주·나누기)은 표시 글자를 빼고 빠진 것으로 센다.
+pub(crate) fn fragment_to_html(
+    bytes: &[u8],
+    fragment: &str,
+    rels_path: &str,
+    depth: usize,
+) -> Result<(String, DocxReadReport)> {
+    if depth >= MAX_FRAGMENT_DEPTH {
+        return Err(Error::new(
+            ErrorCode::LimitExceeded,
+            "text boxes are nested too deeply",
+        ));
+    }
+    let wrapped = format!("<w:body>{fragment}</w:body>");
+    let (html, mut report) = xml_to_html(bytes, &wrapped, rels_path, true, depth + 1)?;
+    report.dropped_drawings += report.shapes.len() + report.cell_shapes.len();
+    report.cell_shapes.clear();
+    report.dropped_notes += report.footnotes.len() + report.endnotes.len();
+    report.shapes.clear();
+    report.footnotes.clear();
+    report.endnotes.clear();
+    Ok((strip_marks(&html), report))
+}
+
+/// 본문 밖(머리말·글상자 등)에 둘 수 없는 자리 표시 글자(도형·각주·나누기·캡션)를 뺀다.
+fn strip_marks(html: &str) -> String {
+    html.chars()
+        .filter(|c| !matches!(*c, SHAPE_MARK | CELL_SHAPE_MARK) && !outside_body_mark(*c))
+        .collect()
+}
+
+/// [`strip_marks`] 처럼 빼되 도형 자리 표시는 남긴다(머리말 도형).
+fn strip_marks_keeping_shapes(html: &str) -> String {
+    html.chars().filter(|c| !outside_body_mark(*c)).collect()
+}
+
+/// 본문에서만 쓰는 자리 표시 글자(도형 것은 빼고)
+fn outside_body_mark(c: char) -> bool {
+    matches!(
+        c,
+        BOOKMARK_MARK
+            | COMMENT_MARK
+            | LINK_START_MARK
+            | LINK_END_MARK
+            | CAPTION_MORE_MARK
+            | '\u{E0F9}'..='\u{E0FC}'
+            | FOOTNOTE_MARK
+            | ENDNOTE_MARK
+            | PAGE_BREAK_MARK
+            | COLUMN_BREAK_MARK
+    )
+}
+
+/// 글상자 안 글상자 조각 깊이 상한.
+const MAX_FRAGMENT_DEPTH: usize = 4;
+
+/// 부분 XML(`document`) 하나를 HTML 로 바꾼다. `rels_path` 는 그 부분의 관계, `depth` 는 조각 깊이(본문·머리말은 0).
+fn xml_to_html(
+    bytes: &[u8],
+    document: &str,
+    rels_path: &str,
+    header: bool,
+    depth: usize,
+) -> Result<(String, DocxReadReport)> {
+    let mut archive =
+        zip::ZipArchive::new(Cursor::new(bytes)).map_err(|_| invalid("not a ZIP container"))?;
     let Styles {
         run: defaults,
         para: para_defaults,
@@ -912,9 +1058,11 @@ fn part_to_html(bytes: &[u8], part: &str, header: bool) -> Result<(String, DocxR
         .map(|id| resolve_style(&styles, id))
         .unwrap_or_default();
 
-    let rels = read_part(&mut archive, &rels_path)?
-        .map(|xml| parse_rels(&xml))
-        .unwrap_or_default();
+    let rels_xml = read_part(&mut archive, rels_path)?;
+    let rels = rels_xml.as_deref().map(parse_rels).unwrap_or_default();
+    let links = rels_xml.as_deref().map(parse_links).unwrap_or_default();
+    // 열린 하이퍼링크(`w:hyperlink`) 깊이마다 표시를 넣었는가
+    let mut link_stack: Vec<bool> = Vec::new();
     let comments = read_part(&mut archive, "word/comments.xml")?
         .map(|xml| parse_comments(&xml))
         .unwrap_or_default();
@@ -926,6 +1074,20 @@ fn part_to_html(bytes: &[u8], part: &str, header: bool) -> Result<(String, DocxR
     let endnotes = read_part(&mut archive, "word/endnotes.xml")?
         .map(|xml| parse_endnotes(&xml))
         .unwrap_or_default();
+    // 주 내용 XML 조각(본문에서만, 다 읽은 뒤 서식째 HTML 로 바꾼다).
+    let note_xml = |archive: &mut zip::ZipArchive<Cursor<&[u8]>>, part: &str, element: &str| {
+        Ok::<_, Error>(if depth == 0 && !header {
+            read_part(archive, part)?
+                .map(|xml| note_parts(&xml, element))
+                .unwrap_or_default()
+        } else {
+            HashMap::new()
+        })
+    };
+    let footnote_parts = note_xml(&mut archive, "word/footnotes.xml", "footnote")?;
+    let endnote_parts = note_xml(&mut archive, "word/endnotes.xml", "endnote")?;
+    // 가리킨 차례대로 주 id(각주, 미주)
+    let mut note_ids: [Vec<String>; 2] = [Vec::new(), Vec::new()];
     let mut numbering = read_part(&mut archive, "word/numbering.xml")?
         .map(|xml| Numbering::parse(&xml))
         .unwrap_or_default();
@@ -959,9 +1121,14 @@ fn part_to_html(bytes: &[u8], part: &str, header: bool) -> Result<(String, DocxR
     let mut drawing: Option<Drawing> = None;
     // 건너뛰는 요소 깊이(mc:Fallback — 같은 내용의 옛 형식, VML)
     let mut skip = 0usize;
+    // 그리기 안 글상자 내용(`w:txbxContent`) 깊이와 맨 바깥 것이 시작한 자리(XML 바이트)
+    let mut textbox_depth = 0usize;
+    let mut textbox_start = 0usize;
+    // 그리기 안 그리기(글상자 안 그림 등) 깊이: 안쪽 `</w:drawing>` 에서 바깥 그리기를 끝내지 않는다.
+    let mut inner_drawings = 0usize;
 
     let mut report = DocxReadReport::default();
-    let mut reader = Reader::from_str(&document);
+    let mut reader = Reader::from_str(document);
     // 출력 대상: 본문 또는 열린 표 칸들(중첩 표 지원).
     let mut body = String::new();
     let mut tables: Vec<TableBuild> = Vec::new();
@@ -976,6 +1143,12 @@ fn part_to_html(bytes: &[u8], part: &str, header: bool) -> Result<(String, DocxR
     let mut para_outline: Option<u8> = None;
     let mut para_plain = String::new();
     let mut page_break_before = false;
+    // Papy 가 쓴 캡션 문단(`papy:caption`): 문단 맨 앞 표시 글자. 표 뒤 캡션 다음의 1pt 문단도 표 뒤처럼 뺀다.
+    let mut para_caption: Option<char> = None;
+    // 문단 탭(`w:tabs`): rhwp 붙여넣기 CSS `tab-stops` 로 옮긴다(패치 0017).
+    let mut in_tabs = false;
+    let mut para_tabs: Vec<String> = Vec::new();
+    let mut caption_after_table = false;
     let mut in_ppr = false;
     let mut in_tbl_borders = false;
     let mut in_tc_borders = false;
@@ -1056,14 +1229,70 @@ fn part_to_html(bytes: &[u8], part: &str, header: bool) -> Result<(String, DocxR
                     continue;
                 }
                 if let Some(current) = drawing.as_mut() {
+                    if name == "drawing" && !empty {
+                        inner_drawings += 1;
+                    }
+                    if name == "txbxContent" && !empty {
+                        if textbox_depth == 0 {
+                            textbox_start = reader.buffer_position() as usize;
+                        }
+                        textbox_depth += 1;
+                    }
                     current.start(name, &e, empty);
                     continue;
                 }
                 match name {
                     "ins" if !empty => report.insertions += 1,
                     "del" if !empty => report.deletions += 1,
+                    // 책갈피(Word 가 스스로 두는 `_GoBack`·`_Toc…` 같은 숨은 책갈피는 뺀다)
+                    "bookmarkStart" if in_para && !header && depth == 0 => {
+                        if let Some(name) = attr(&e, "name").filter(|n| !n.starts_with('_')) {
+                            flush(
+                                &mut para_html,
+                                &mut run_text,
+                                &run,
+                                &para_style.0,
+                                &defaults,
+                            );
+                            para_html.push(BOOKMARK_MARK);
+                            report.bookmarks.push(name);
+                        }
+                    }
+                    "hyperlink" if !empty && in_para => {
+                        let uri = attr(&e, "id")
+                            .and_then(|id| links.get(&id))
+                            .filter(|_| !header && depth == 0);
+                        if let Some(uri) = uri {
+                            flush(
+                                &mut para_html,
+                                &mut run_text,
+                                &run,
+                                &para_style.0,
+                                &defaults,
+                            );
+                            para_html.push(LINK_START_MARK);
+                            report.hyperlinks.push(uri.clone());
+                        }
+                        link_stack.push(uri.is_some());
+                    }
                     "commentReference" => {
                         if let Some(id) = attr(&e, "id") {
+                            // 본문·칸 메모는 그 자리에 숨은 설명으로 넣는다(머리말·글상자 안 것은 빼고).
+                            if let (Some((_, _, text)), true, true) =
+                                (comments.get(&id), in_para, !header && depth == 0)
+                            {
+                                flush(
+                                    &mut para_html,
+                                    &mut run_text,
+                                    &run,
+                                    &para_style.0,
+                                    &defaults,
+                                );
+                                para_html.push(COMMENT_MARK);
+                                report
+                                    .comment_marks
+                                    .push(text.split('\n').map(str::to_owned).collect());
+                            }
                             if comments.contains_key(&id) && !pending_comments.contains(&id) {
                                 pending_comments.push(id);
                             }
@@ -1082,6 +1311,8 @@ fn part_to_html(bytes: &[u8], part: &str, header: bool) -> Result<(String, DocxR
                         para_align = None;
                         para_outline = None;
                         page_break_before = false;
+                        para_caption = attr(&e, "caption").map(|value| caption_mark(&value));
+                        para_tabs.clear();
                         para_plain.clear();
                         list_item = false;
                         num_id = None;
@@ -1106,6 +1337,28 @@ fn part_to_html(bytes: &[u8], part: &str, header: bool) -> Result<(String, DocxR
                             .is_some_and(|v| v.to_ascii_lowercase().contains("grid"));
                         if let (true, Some(table)) = (grid, tables.last_mut()) {
                             table.bordered = true;
+                        }
+                    }
+                    "tabs" if in_ppr && !empty => in_tabs = true,
+                    "tab" if in_tabs => {
+                        let kind = match attr(&e, "val").as_deref() {
+                            Some("right" | "end") => Some(1),
+                            Some("center") => Some(2),
+                            Some("decimal") => Some(3),
+                            Some("clear" | "bar") => None,
+                            _ => Some(0),
+                        };
+                        // 채움: Papy 쓰기의 반대(점선 3, 실선 1, 파선 2, 가운뎃점 7)
+                        let fill = match attr(&e, "leader").as_deref() {
+                            Some("dot") => 3,
+                            Some("underscore" | "heavy") => 1,
+                            Some("hyphen") => 2,
+                            Some("middleDot") => 7,
+                            _ => 0,
+                        };
+                        let pos = attr(&e, "pos").and_then(|v| v.parse::<f32>().ok());
+                        if let (Some(kind), Some(pos)) = (kind, pos.filter(|p| *p > 0.0)) {
+                            para_tabs.push(format!("{:.2}pt/{kind}/{fill}", pos / 20.0));
                         }
                     }
                     "pStyle" if in_ppr => {
@@ -1166,6 +1419,10 @@ fn part_to_html(bytes: &[u8], part: &str, header: bool) -> Result<(String, DocxR
                                 *field = value as i64;
                             }
                         }
+                        // Papy 가 Word 다단 때문에 줄인 아래 여백의 원래 값
+                        if let Some(value) = v("hwpBottom") {
+                            page.bottom = value as i64;
+                        }
                     }
                     "cols" => {
                         let v = |k| attr(&e, k).and_then(|v| v.parse::<f64>().ok());
@@ -1192,16 +1449,28 @@ fn part_to_html(bytes: &[u8], part: &str, header: bool) -> Result<(String, DocxR
                             &para_style.0,
                             &defaults,
                         );
-                        let (notes, mark, out) = if kind == "footnoteReference" {
-                            (&footnotes, FOOTNOTE_MARK, &mut report.footnotes)
+                        let (notes, mark, out, ids) = if kind == "footnoteReference" {
+                            (
+                                &footnotes,
+                                FOOTNOTE_MARK,
+                                &mut report.footnotes,
+                                &mut note_ids[0],
+                            )
                         } else {
-                            (&endnotes, ENDNOTE_MARK, &mut report.endnotes)
+                            (
+                                &endnotes,
+                                ENDNOTE_MARK,
+                                &mut report.endnotes,
+                                &mut note_ids[1],
+                            )
                         };
-                        match attr(&e, "id").and_then(|id| notes.get(&id)) {
+                        let id = attr(&e, "id");
+                        match id.as_ref().and_then(|id| notes.get(id)) {
                             // 표 안 각주·미주는 papy-hwp 가 본문에서 만들어 칸으로 옮긴다(겹친 표 안은 빼고).
                             Some(note) if tables.len() <= 1 => {
                                 para_html.push(mark);
                                 out.push(note.clone());
+                                ids.push(id.unwrap_or_default());
                             }
                             _ => report.dropped_notes += 1,
                         }
@@ -1293,6 +1562,7 @@ fn part_to_html(bytes: &[u8], part: &str, header: bool) -> Result<(String, DocxR
                             padding: [5.4, 5.4, 0.0, 0.0],
                             indent: 0,
                             place: String::new(),
+                            inline: false,
                         });
                     }
                     "tr" => {
@@ -1318,7 +1588,16 @@ fn part_to_html(bytes: &[u8], part: &str, header: bool) -> Result<(String, DocxR
                                 .map(|h| format!("height:{h:.1}pt;"))
                                 .unwrap_or_default(),
                             html: String::new(),
+                            tiny_after_table: false,
                         }));
+                    }
+                    "tblPr" => {
+                        if let (Some(table), true) = (
+                            tables.last_mut(),
+                            attr(&e, "inline").as_deref() == Some("1"),
+                        ) {
+                            table.inline = true;
+                        }
                     }
                     "tblpPr" => {
                         if let Some(table) = tables.last_mut() {
@@ -1466,9 +1745,36 @@ fn part_to_html(bytes: &[u8], part: &str, header: bool) -> Result<(String, DocxR
                 }
             }
             Event::End(_) if skip > 0 => skip -= 1,
-            Event::End(e) if drawing.is_some() && local(e.name().as_ref()) != "drawing" => {
+            Event::End(e)
+                if drawing.is_some()
+                    && (local(e.name().as_ref()) != "drawing" || inner_drawings > 0) =>
+            {
+                let qname = e.name();
+                let name = local(qname.as_ref());
+                if name == "txbxContent" && textbox_depth > 0 {
+                    textbox_depth -= 1;
+                    let end = document[..(reader.buffer_position() as usize).min(document.len())]
+                        .rfind("</")
+                        .unwrap_or(textbox_start);
+                    // 글상자 내용을 본문처럼 HTML 로(서식·그림·수식 그림·표). 못 하면 글자만 쓴다.
+                    if textbox_depth == 0 && end > textbox_start {
+                        if let Ok((html, part)) =
+                            fragment_to_html(bytes, &document[textbox_start..end], rels_path, depth)
+                        {
+                            report.images += part.images;
+                            report.dropped_drawings += part.dropped_drawings;
+                            report.dropped_notes += part.dropped_notes;
+                            if let Some(current) = drawing.as_mut() {
+                                current.set_textbox_html(html);
+                            }
+                        }
+                    }
+                }
+                if name == "drawing" {
+                    inner_drawings -= 1;
+                }
                 if let Some(current) = drawing.as_mut() {
-                    current.end(local(e.name().as_ref()));
+                    current.end(name);
                 }
             }
             Event::Text(text) if in_instr => field_instr.push_str(&text.xml10_content()),
@@ -1530,15 +1836,21 @@ fn part_to_html(bytes: &[u8], part: &str, header: bool) -> Result<(String, DocxR
                                     continue;
                                 }
                             }
-                            if cell.is_empty() && in_para {
-                                para_html.push(SHAPE_MARK);
-                                report.shapes.push(shape);
-                            } else {
-                                // 표 안 도형은 rhwp 에 넣을 자리가 없어 글상자 글자만 남긴다.
-                                for text in shape.text.iter().filter(|t| !t.is_empty()) {
+                            if depth > 0 && in_para {
+                                // 글상자 안 도형(글상자 안 글상자 등): 넣을 자리가 없어 그 글자를 이 자리에 둔다.
+                                for text in shape.text.iter().filter(|t| !t.trim().is_empty()) {
                                     para_html.push_str(&escape(text));
                                     para_html.push(' ');
                                 }
+                                report.dropped_drawings += 1;
+                            } else if cell.is_empty() && in_para {
+                                para_html.push(SHAPE_MARK);
+                                report.shapes.push(shape);
+                            } else if in_para {
+                                // 표 칸 안 도형: papy-hwp 가 본문에서 만들어 칸 문단으로 옮긴다.
+                                para_html.push(CELL_SHAPE_MARK);
+                                report.cell_shapes.push(shape);
+                            } else {
                                 report.dropped_drawings += 1;
                             }
                         }
@@ -1552,7 +1864,7 @@ fn part_to_html(bytes: &[u8], part: &str, header: bool) -> Result<(String, DocxR
                         .and_then(|path| {
                             read_binary(&mut archive, path, MAX_IMAGE_BYTES.min(image_budget))
                         })
-                        .and_then(|bytes| image_mime(&bytes).map(|mime| (mime, bytes)));
+                        .and_then(|bytes| picture_mime(&bytes).map(|mime| (mime, bytes)));
                     match image {
                         Some((mime, bytes)) => {
                             image_budget = image_budget.saturating_sub(bytes.len() as u64);
@@ -1582,10 +1894,23 @@ fn part_to_html(bytes: &[u8], part: &str, header: bool) -> Result<(String, DocxR
                     }
                 }
                 "t" => in_text = false,
+                "hyperlink" => {
+                    if link_stack.pop() == Some(true) {
+                        flush(
+                            &mut para_html,
+                            &mut run_text,
+                            &run,
+                            &para_style.0,
+                            &defaults,
+                        );
+                        para_html.push(LINK_END_MARK);
+                    }
+                }
                 "instrText" => in_instr = false,
                 "fldSimple" => skip_simple = false,
                 "rPr" => in_rpr = false,
                 "pPr" => in_ppr = false,
+                "tabs" => in_tabs = false,
                 "tblBorders" => in_tbl_borders = false,
                 "tcBorders" => in_tc_borders = false,
                 "tblCellMar" => in_tbl_cell_mar = false,
@@ -1617,6 +1942,9 @@ fn part_to_html(bytes: &[u8], part: &str, header: bool) -> Result<(String, DocxR
                         .map(|a| format!("text-align:{};", align_css(&a)))
                         .unwrap_or_default();
                     css.push_str(&para_props.over(&para_style.3).over(&para_defaults).css());
+                    if !para_tabs.is_empty() {
+                        css.push_str(&format!("tab-stops:{};", para_tabs.join(" ")));
+                    }
                     let style = if css.is_empty() {
                         String::new()
                     } else {
@@ -1644,10 +1972,17 @@ fn part_to_html(bytes: &[u8], part: &str, header: bool) -> Result<(String, DocxR
                         Some(Some(current)) => current.html.ends_with("</table>"),
                         _ => body.ends_with("</table>"),
                     };
-                    if !(tiny && after_table) {
-                        let html = format!("<p{style}>{mark}{label}{para_html}</p>");
+                    let caption = para_caption.take();
+                    if tiny && (after_table || caption_after_table) {
+                        if let Some(Some(current)) = cell.last_mut() {
+                            current.tiny_after_table = true;
+                        }
+                    } else {
+                        let caption_text = caption.map(String::from).unwrap_or_default();
+                        let html = format!("<p{style}>{mark}{caption_text}{label}{para_html}</p>");
                         out(&mut body, &mut cell, &html);
                     }
+                    caption_after_table = caption.is_some() && (after_table || caption_after_table);
                     if std::mem::take(&mut section_ends_here) && cell.is_empty() {
                         body.push_str(&format!("<!--papy-section-{}-->", section_pages.len()));
                     }
@@ -1663,14 +1998,20 @@ fn part_to_html(bytes: &[u8], part: &str, header: bool) -> Result<(String, DocxR
                 "tc" => {
                     if let (Some(Some(mut done)), Some(table)) = (cell.pop(), tables.last_mut()) {
                         // Word 는 칸이 문단으로 끝나야 해서 칸 안 표 뒤에 빈 문단을 둔다. rhwp 칸은 그럴 필요가 없고
-                        // 빈 줄만큼 칸이 높아지니 뺀다.
-                        if let Some(end) = done.html.rfind("</table>").map(|i| i + "</table>".len())
+                        // 빈 줄만큼 칸이 높아지니 뺀다. Papy 가 쓴 문서는 그 자리에 1pt 문단을 두므로(이미 뺐다)
+                        // 뒤 빈 문단은 원본 것이라 남긴다.
+                        if let Some(end) = done
+                            .html
+                            .rfind("</table>")
+                            .map(|i| i + "</table>".len())
+                            .filter(|_| !done.tiny_after_table)
                         {
+                            // 빈 문단(`<p…></p>`)만 뺀다. 글이 든 문단(`<p><span>F</span></p>`)도 `></p>` 로 끝나
+                            // 전에는 칸 안 표 뒤 마지막 문단 글이 빠졌다.
                             let tail = &done.html[end..];
-                            if tail.starts_with("<p")
-                                && tail.ends_with("></p>")
-                                && tail.matches("<p").count() == 1
-                            {
+                            let empty = tail.starts_with("<p")
+                                && tail.find('>').is_some_and(|i| &tail[i + 1..] == "</p>");
+                            if empty {
                                 done.html.truncate(end);
                             }
                         }
@@ -1684,9 +2025,14 @@ fn part_to_html(bytes: &[u8], part: &str, header: bool) -> Result<(String, DocxR
                         if tables.is_empty() && cell.is_empty() {
                             report.table_indents.push(table.indent.saturating_mul(5));
                             report.table_places.push(table.place.clone());
+                            report.table_inline.push(table.inline);
                         }
                         let html = table.to_html();
                         out(&mut body, &mut cell, &html);
+                        caption_after_table = false;
+                        if let Some(Some(current)) = cell.last_mut() {
+                            current.tiny_after_table = false;
+                        }
                     }
                 }
                 _ => {}
@@ -1705,6 +2051,32 @@ fn part_to_html(bytes: &[u8], part: &str, header: bool) -> Result<(String, DocxR
     // 짝수 쪽 것은 설정(evenAndOddHeaders)이 켜졌을 때만 쓴다. 꺼져 있으면 Word 는 모든 쪽에 기본 것을 쓴다.
     if header {
         return Ok((format!("<html><body>{body}</body></html>"), report));
+    }
+    // 주 내용: 글자만이 아니라 서식·표·그림째 옮긴다. 못 바꾸면 None(글자만).
+    for (parts, rels, ids, out) in [
+        (
+            &footnote_parts,
+            "word/_rels/footnotes.xml.rels",
+            &note_ids[0],
+            &mut report.footnote_html,
+        ),
+        (
+            &endnote_parts,
+            "word/_rels/endnotes.xml.rels",
+            &note_ids[1],
+            &mut report.endnote_html,
+        ),
+    ] {
+        for id in ids {
+            let html = parts
+                .get(id)
+                .and_then(|xml| fragment_to_html(bytes, xml, rels, depth).ok());
+            if let Some((_, part)) = &html {
+                report.images += part.images;
+                report.dropped_drawings += part.dropped_drawings;
+            }
+            out.push(html.map(|(html, _)| html));
+        }
     }
     // 구역이 시작하는 자리: 구역 시작 방식대로 나누기 표시와 구역 표시를 첫 문단 앞에 둔다.
     // 구역이 표로 시작하면 표시만 담은 문단을 앞에 둔다.
@@ -1779,24 +2151,16 @@ fn part_to_html(bytes: &[u8], part: &str, header: bool) -> Result<(String, DocxR
         {
             // 본문처럼 HTML 로도 바꾼다: 표·그림과 문단 서식(가운데 정렬 쪽 번호 등)·글자 모양이 남는다.
             // 못 하면 글자만 옮긴다.
+            let (mut shapes, mut cell_shapes) = (Vec::new(), Vec::new());
             let html = if !blank {
                 part_to_html(bytes, path, true).ok().map(|(html, part)| {
-                    // 머리말에 둘 수 없는 것(떠 있는 도형·각주·나누기)은 표시 글자를 빼고 빠진 것으로 센다.
-                    report.dropped_drawings += part.dropped_drawings + part.shapes.len();
+                    // 머리말에 둘 수 없는 것(각주·나누기)은 표시 글자를 빼고 빠진 것으로 센다. 도형은 머리말에 넣는다.
+                    report.dropped_drawings += part.dropped_drawings;
                     report.dropped_notes += part.footnotes.len() + part.endnotes.len();
                     report.images += part.images;
-                    html.chars()
-                        .filter(|c| {
-                            !matches!(
-                                *c,
-                                SHAPE_MARK
-                                    | FOOTNOTE_MARK
-                                    | ENDNOTE_MARK
-                                    | PAGE_BREAK_MARK
-                                    | COLUMN_BREAK_MARK
-                            )
-                        })
-                        .collect()
+                    shapes = part.shapes;
+                    cell_shapes = part.cell_shapes;
+                    strip_marks_keeping_shapes(&html)
                 })
             } else {
                 None
@@ -1806,6 +2170,8 @@ fn part_to_html(bytes: &[u8], part: &str, header: bool) -> Result<(String, DocxR
                 apply_to,
                 paragraphs,
                 html,
+                shapes,
+                cell_shapes,
             });
         }
     }

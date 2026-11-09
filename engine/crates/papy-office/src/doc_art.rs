@@ -410,6 +410,7 @@ impl Art {
             flip_h,
             flip_v,
             text: Vec::new(),
+            html: None,
             image: None,
             pending: None,
         };

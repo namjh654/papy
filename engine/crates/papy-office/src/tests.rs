@@ -283,6 +283,7 @@ fn numbering_footnotes_headers_and_footers() {
             apply_to: 0,
             paragraphs: vec!["머리 글".into()],
             html: Some("<html><body><p>머리 글</p></body></html>".into()),
+            ..HeaderFooterText::default()
         }]
     );
     assert_eq!(report.footers[0].paragraphs, vec!["꼬리\t글".to_string()]);
@@ -393,7 +394,7 @@ fn forms_and_equations_are_written() {
     // 그리는 함수가 있으면 그림으로 넣고, 기준선 아래 부분(30%)만큼 내린다.
     let render = |_: &Equation| Some(PNG_1X1.to_vec());
     let pictured =
-        docx_from_document_with(&document, &std::collections::HashMap::new(), Some(&render))
+        docx_from_document_with(&document, &std::collections::HashMap::new(), Some(&render), true)
             .unwrap();
     let xml = part_text(&pictured, "word/document.xml");
     assert!(
@@ -602,6 +603,14 @@ fn column_changes_and_tab_stops_are_written() {
         tab_type: 1,
         fill_type: 3,
     });
+    // 음수 위치(u32 로 넘친 값)·Word 범위 밖 탭은 뺀다(전에는 w:pos="429470700" 같은 값이 나갔다).
+    for position in [(-1600i32) as u32, 70_000_000] {
+        tabs.tabs.push(rhwp::model::style::TabItem {
+            position,
+            tab_type: 0,
+            fill_type: 0,
+        });
+    }
     document.doc_info.tab_defs.push(tabs);
     let tab_id = (document.doc_info.tab_defs.len() - 1) as u16;
     let shape = paragraphs[0].para_shape_id as usize;
@@ -622,6 +631,15 @@ fn column_changes_and_tab_stops_are_written() {
         second.contains(r#"<w:cols w:num="2" w:space="200"/>"#),
         "{xml}"
     );
+    // 다단 영역만 아래 여백을 줄 간격 여분(10pt 160% → 6pt = 120 twip)만큼 줄이고 원래 값을 남긴다.
+    // Word 는 단 마지막 줄의 줄 간격까지 단 안에 넣어야 해서 한글 단 나누기가 한 단씩 밀렸다.
+    assert_eq!(xml.matches("papy:hwpBottom=").count(), 1, "{xml}");
+    let margin = |sect: &str| {
+        let at = sect.find(r#"w:bottom=""#).unwrap() + r#"w:bottom=""#.len();
+        sect[at..sect[at..].find('"').unwrap() + at].parse::<i32>().unwrap()
+    };
+    let sections: Vec<&str> = xml.split("<w:sectPr>").skip(1).collect();
+    assert_eq!(margin(sections[0]) - margin(sections[1]), 120, "{xml}");
     assert!(
         xml.contains(r#"<w:tabs><w:tab w:val="right" w:leader="dot" w:pos="1450"/></w:tabs>"#),
         "{xml}"
@@ -1061,4 +1079,154 @@ fn header_footers_are_written_per_section() {
         headers.contains("칸 속 머리말") && headers.contains("둘째 머리말"),
         "{headers}"
     );
+}
+
+#[test]
+fn pictures_captions_inline_tables_links_and_memos_are_written() {
+    use rhwp::model::bin_data::BinDataContent;
+    use rhwp::model::control::{Control, Field, FieldType};
+    use rhwp::model::image::Picture;
+    use rhwp::model::paragraph::{FieldRange, Paragraph};
+    use rhwp::model::shape::{Caption, CaptionDirection};
+    let mut core = rhwp::document_core::DocumentCore::new_empty();
+    core.create_blank_document_native().unwrap();
+    core.insert_text_native(0, 0, 0, "링크 글").unwrap();
+    core.create_table_native(0, 0, 4, 1, 1).unwrap();
+    let mut document = core.document().clone();
+    // 그림 자료: 차례(1부터)와 저장 id 가 다르다. 그림은 차례 1(= id 4, WMF)을 가리킨다.
+    // 전에는 id 로 찾아 그림이 빠졌고, WMF 는 Word 가 못 읽는 형식으로 보고 뺐다.
+    let mut wmf = vec![0x01, 0x00, 0x09, 0x00, 0x00, 0x03];
+    wmf.resize(64, 0);
+    document.bin_data_content = vec![
+        BinDataContent {
+            id: 4,
+            data: wmf.into(),
+            extension: "wmf".into(),
+        },
+        BinDataContent {
+            id: 3,
+            data: PNG_1X1.to_vec().into(),
+            extension: "png".into(),
+        },
+    ];
+    let mut caption_paragraph = Paragraph::new_empty();
+    caption_paragraph.insert_text_at(0, "그림 캡션");
+    let mut picture = Picture::default();
+    picture.image_attr.bin_data_id = 1;
+    picture.common.treat_as_char = true;
+    (picture.common.width, picture.common.height) = (1000, 1000);
+    picture.caption = Some(Caption {
+        direction: CaptionDirection::Bottom,
+        paragraphs: vec![caption_paragraph.clone()],
+        ..Caption::default()
+    });
+    let paragraphs = &mut document.sections[0].paragraphs;
+    // 하이퍼링크(0..2)와 한글 메모(3..4) 필드
+    let link = Field {
+        field_type: FieldType::Hyperlink,
+        command: r"https\://example.com/;1;0;0;".into(),
+        ..Field::default()
+    };
+    let memo = Field {
+        field_type: FieldType::Unknown,
+        command: "MEMO/65535/1/1/1/검토자/".into(),
+        memo_paragraphs: vec![caption_paragraph.clone()],
+        ..Field::default()
+    };
+    let first = &mut paragraphs[0];
+    let base = first.controls.len();
+    first.controls.push(Control::Field(link));
+    first.controls.push(Control::Field(memo));
+    first.field_ranges.push(FieldRange {
+        start_char_idx: 0,
+        end_char_idx: 2,
+        control_idx: base,
+        ..FieldRange::default()
+    });
+    first.field_ranges.push(FieldRange {
+        start_char_idx: 3,
+        end_char_idx: 4,
+        control_idx: base + 1,
+        ..FieldRange::default()
+    });
+    first.controls.push(Control::Picture(Box::new(picture)));
+    // 표: 글자처럼 취급, 위 캡션
+    for paragraph in paragraphs.iter_mut() {
+        for control in &mut paragraph.controls {
+            if let Control::Table(table) = control {
+                table.common.treat_as_char = true;
+                table.caption = Some(Caption {
+                    direction: CaptionDirection::Top,
+                    paragraphs: vec![caption_paragraph.clone()],
+                    ..Caption::default()
+                });
+            }
+        }
+    }
+    let bytes = docx_from_document(&document).unwrap();
+    let xml = part_text(&bytes, "word/document.xml");
+    let rels = part_text(&bytes, "word/_rels/document.xml.rels");
+    assert!(rels.contains(r#"Target="media/image1.wmf""#), "{rels}");
+    assert!(
+        part_text(&bytes, "[Content_Types].xml").contains(r#"Extension="wmf""#),
+        "content types"
+    );
+    // 캡션 문단: 그림 아래(문단 뒤), 표 위(표 앞)
+    assert!(xml.contains(r#"<w:p papy:caption="bottom">"#), "{xml}");
+    let top = xml
+        .find(r#"<w:p papy:caption="top">"#)
+        .expect("top caption");
+    assert!(top < xml.find("<w:tbl>").unwrap_or(0), "{xml}");
+    assert!(xml.contains(r#"<w:tblPr papy:inline="1">"#), "{xml}");
+    // 하이퍼링크·메모
+    assert!(xml.contains(r#"<w:hyperlink r:id="rIdLink1">"#), "{xml}");
+    assert!(
+        rels.contains(r#"Target="https://example.com/" TargetMode="External""#),
+        "{rels}"
+    );
+    assert!(
+        xml.contains(r#"<w:commentRangeStart w:id="0"/>"#)
+            && xml.contains(r#"<w:commentReference w:id="0"/>"#),
+        "{xml}"
+    );
+    let comments = part_text(&bytes, "word/comments.xml");
+    assert!(
+        comments.contains(r#"w:author="검토자""#) && comments.contains("그림 캡션"),
+        "{comments}"
+    );
+}
+
+#[test]
+fn tab_stops_short_rows_and_cell_tails_are_read_and_written() {
+    // 문단 탭 → 붙여넣기 CSS tab-stops(위치 pt/종류/채움). 지우기 탭은 뺀다.
+    let document = format!(
+        r#"<w:document {NS}><w:body><w:p><w:pPr><w:tabs><w:tab w:val="right" w:leader="dot" w:pos="1450"/><w:tab w:val="clear" w:pos="900"/><w:tab w:val="left" w:pos="3000"/></w:tabs></w:pPr><w:r><w:t>탭</w:t></w:r></w:p>
+        <w:tbl><w:tr><w:tc><w:tbl><w:tr><w:tc><w:p><w:r><w:t>안</w:t></w:r></w:p></w:tc></w:tr></w:tbl><w:p><w:r><w:t>칸 끝 글</w:t></w:r></w:p></w:tc>
+        <w:tc><w:tbl><w:tr><w:tc><w:p/></w:tc></w:tr></w:tbl><w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="20" w:lineRule="exact"/></w:pPr></w:p><w:p/></w:tc>
+        <w:tc><w:tbl><w:tr><w:tc><w:p/></w:tc></w:tr></w:tbl><w:p/></w:tc></w:tr></w:tbl><w:p/></w:body></w:document>"#
+    );
+    let (html, _) = docx_to_html(&docx(&document, None)).unwrap();
+    assert!(html.contains("tab-stops:72.50pt/1/3 150.00pt/0/0;"), "{html}");
+    // 칸 안 표 뒤 글이 든 문단은 남는다(전에는 `></p>` 로 끝나 Word 가 요구한 빈 문단으로 보고 뺐다).
+    assert!(html.contains("칸 끝 글"), "{html}");
+    // Papy 가 쓴 칸(표 → 1pt 문단 → 빈 문단): 빈 문단은 원본 것이라 남는다.
+    assert!(html.contains("</table><p></p></td><td>"), "{html}");
+    // Word 칸(표 → 빈 문단): Word 가 요구한 빈 문단이라 뺀다.
+    assert!(html.contains("</table></td></tr></table><p></p></body>"), "{html}");
+
+    // 짧은 행(끝 격자 칸이 비었다): 빈 칸을 만들지 않고 w:gridAfter 로 쓴다.
+    let mut core = rhwp::document_core::DocumentCore::new_empty();
+    core.create_blank_document_native().unwrap();
+    core.create_table_native(0, 0, 0, 2, 2).unwrap();
+    let mut document = core.document().clone();
+    for paragraph in &mut document.sections[0].paragraphs {
+        for control in &mut paragraph.controls {
+            if let rhwp::model::control::Control::Table(table) = control {
+                table.cells.retain(|c| !(c.row == 1 && c.col == 1));
+            }
+        }
+    }
+    let xml = part_text(&docx_from_document(&document).unwrap(), "word/document.xml");
+    assert!(xml.contains(r#"<w:gridAfter w:val="1"/>"#), "{xml}");
+    assert_eq!(xml.matches("<w:tc>").count(), 3, "{xml}");
 }

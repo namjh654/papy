@@ -899,16 +899,20 @@ fn docx_shapes_are_kept_and_saved() {
 
 #[test]
 fn docx_unsupported_drawings_are_counted() {
-    // 빈 묶음 도형과 표 안 글상자: 빈 묶음은 빠진 것으로 세고, 표 안 글상자는 글자만 남긴다.
+    // 빈 묶음 도형과 표 안 글상자: 빈 묶음은 빠진 것으로 세고, 표 안 글상자는 칸 안 글상자로 남긴다.
     let document = r#"<w:document xmlns:w="w" xmlns:wp="wp" xmlns:a="a" xmlns:wps="wps" xmlns:wpg="wpg"><w:body><w:p><w:r><w:drawing><wp:inline><wp:extent cx="100000" cy="100000"/><a:graphic><a:graphicData><wpg:wgp><wps:wsp/></wpg:wgp></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p><w:tbl><w:tr><w:tc><w:p><w:r><w:drawing><wp:inline><wp:extent cx="100000" cy="100000"/><a:graphic><a:graphicData><wps:wsp><wps:txbx><w:txbxContent><w:p><w:r><w:t>칸 안 상자</w:t></w:r></w:p></w:txbxContent></wps:txbx></wps:wsp></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p></w:tc></w:tr></w:tbl><w:p/></w:body></w:document>"#;
     let bytes = zip_parts(&[
         ("[Content_Types].xml", "<Types/>"),
         ("word/document.xml", document),
     ]);
     let mut doc = open(HwpBackend::docx(), bytes, &options()).unwrap();
-    assert_eq!(doc.info().dropped_objects, 2);
-    let text = doc.extract_text(0).unwrap();
-    assert!(text.contains("칸 안 상자"), "{text:?}");
+    assert_eq!(doc.info().dropped_objects, 1);
+    // 글상자가 좁아(약 3mm) 글자마다 줄이 바뀐다.
+    let text: String = doc.extract_text(0).unwrap().split_whitespace().collect();
+    assert!(text.contains("칸안상자"), "{text:?}");
+    let structure = doc.structure().unwrap();
+    assert_eq!(structure.get("shapes.in_cell"), Some(&1), "{structure:?}");
+    assert_eq!(structure.get("chars.textbox"), Some(&4), "{structure:?}");
 }
 
 #[test]
@@ -2308,8 +2312,26 @@ fn docx_header_table_keeps_body_last_picture() {
 fn docx_round_trip_keeps_structure() {
     use std::io::Write;
     let nested = r#"<w:tbl><w:tblPr/><w:tblGrid><w:gridCol w:w="1500"/><w:gridCol w:w="1500"/></w:tblGrid><w:tr><w:tc><w:tcPr><w:tcW w:w="1500" w:type="dxa"/></w:tcPr><w:p/></w:tc><w:tc><w:tcPr><w:tcW w:w="1500" w:type="dxa"/></w:tcPr><w:p><w:r><w:t>안 칸</w:t></w:r></w:p></w:tc></w:tr></w:tbl>"#;
+    // 글상자(굵은 글·글 속 그림 — 수식 그림처럼 그리기 안 그리기), 칸 안 글상자, 표 캡션(Papy 가 쓰는 꼴),
+    // 메모·하이퍼링크·책갈피. 전에는 글상자 글이 본문으로 가거나 글상자가 그림이 되고, 칸 안 글상자·캡션·메모·
+    // 하이퍼링크·책갈피는 빠졌다.
+    let picture = r#"<w:r><w:drawing><wp:inline><wp:extent cx="190500" cy="190500"/><a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="rIdImg"/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>"#;
+    let text_box = |cx: u32, body: &str| {
+        format!(
+            r#"<w:r><w:drawing><wp:inline><wp:extent cx="{cx}" cy="571500"/><a:graphic><a:graphicData><wps:wsp><wps:spPr><a:prstGeom prst="rect"/></wps:spPr><wps:txbx><w:txbxContent>{body}</w:txbxContent></wps:txbx></wps:wsp></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>"#
+        )
+    };
+    let boxed = text_box(
+        1905000,
+        &format!(r#"<w:p><w:r><w:rPr><w:b/></w:rPr><w:t>상자 굵게</w:t></w:r>{picture}</w:p>"#),
+    );
+    let cell_box = text_box(952500, r#"<w:p><w:r><w:t>칸 상자</w:t></w:r></w:p>"#);
     let document = format!(
-        r#"<w:document xmlns:w="w" xmlns:wp="wp" xmlns:a="a" xmlns:pic="pic" xmlns:r="r"><w:body>
+        r#"<w:document xmlns:w="w" xmlns:wp="wp" xmlns:a="a" xmlns:pic="pic" xmlns:r="r" xmlns:wps="wps" xmlns:papy="papy"><w:body>
+<w:p><w:r><w:t xml:space="preserve">상자 앞 </w:t></w:r>{boxed}</w:p>
+<w:tbl><w:tblPr/><w:tblGrid><w:gridCol w:w="6000"/></w:tblGrid><w:tr><w:tc><w:tcPr><w:tcW w:w="6000" w:type="dxa"/></w:tcPr><w:p><w:r><w:t xml:space="preserve">칸 앞 </w:t></w:r>{cell_box}</w:p></w:tc></w:tr></w:tbl>
+<w:p papy:caption="bottom"><w:r><w:t>표 캡션</w:t></w:r></w:p>
+<w:p><w:bookmarkStart w:id="0" w:name="표지"/><w:bookmarkEnd w:id="0"/><w:r><w:t xml:space="preserve">메모 </w:t></w:r><w:r><w:commentReference w:id="0"/></w:r><w:hyperlink r:id="rIdL"><w:r><w:t>링크</w:t></w:r></w:hyperlink><w:r><w:footnoteReference w:id="3"/></w:r></w:p>
 <w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:rPr><w:b/><w:sz w:val="32"/></w:rPr><w:t>제목</w:t></w:r></w:p>
 <w:p><w:r><w:t xml:space="preserve">보통 </w:t></w:r><w:r><w:rPr><w:i/><w:u w:val="single"/><w:color w:val="FF0000"/></w:rPr><w:t>기울임</w:t></w:r><w:r><w:footnoteReference w:id="2"/></w:r></w:p>
 <w:tbl><w:tblPr/><w:tblGrid><w:gridCol w:w="4000"/><w:gridCol w:w="4000"/></w:tblGrid>
@@ -2324,8 +2346,10 @@ fn docx_round_trip_keeps_structure() {
     let header = r#"<w:hdr xmlns:w="w"><w:tbl><w:tblPr/><w:tblGrid><w:gridCol w:w="4000"/><w:gridCol w:w="4000"/></w:tblGrid><w:tr><w:tc><w:tcPr><w:tcW w:w="4000" w:type="dxa"/></w:tcPr><w:p><w:r><w:t>머리 왼쪽</w:t></w:r></w:p></w:tc><w:tc><w:tcPr><w:tcW w:w="4000" w:type="dxa"/></w:tcPr><w:p><w:r><w:t>머리 오른쪽</w:t></w:r></w:p></w:tc></w:tr></w:tbl><w:p/></w:hdr>"#;
     let header2 = r#"<w:hdr xmlns:w="w"><w:p><w:r><w:t>둘째 머리말</w:t></w:r></w:p></w:hdr>"#;
     let footer = r#"<w:ftr xmlns:w="w"><w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:t>꼬리말</w:t></w:r><w:r><w:ptab w:relativeTo="margin" w:alignment="right" w:leader="none"/><w:t>오른쪽</w:t></w:r></w:p></w:ftr>"#;
-    let footnotes = r#"<w:footnotes xmlns:w="w"><w:footnote w:id="2"><w:p><w:r><w:t>각주 글</w:t></w:r></w:p></w:footnote></w:footnotes>"#;
-    let rels = r#"<Relationships xmlns="r"><Relationship Id="rIdH" Type="header" Target="header1.xml"/><Relationship Id="rIdH2" Type="header" Target="header2.xml"/><Relationship Id="rIdF" Type="footer" Target="footer1.xml"/><Relationship Id="rIdImg" Type="image" Target="media/red.png"/></Relationships>"#;
+    // 표가 든 각주(전에는 각주 글자만 옮겨 표가 빠졌다)
+    let footnotes = r#"<w:footnotes xmlns:w="w"><w:footnote w:id="2"><w:p><w:r><w:t>각주 글</w:t></w:r></w:p></w:footnote><w:footnote w:id="3"><w:p><w:r><w:t>표 각주</w:t></w:r></w:p><w:tbl><w:tblPr/><w:tblGrid><w:gridCol w:w="3000"/></w:tblGrid><w:tr><w:tc><w:tcPr><w:tcW w:w="3000" w:type="dxa"/></w:tcPr><w:p><w:r><w:t>주 칸</w:t></w:r></w:p></w:tc></w:tr></w:tbl><w:p/></w:footnote></w:footnotes>"#;
+    let comments = r#"<w:comments xmlns:w="w"><w:comment w:id="0" w:author="검토자"><w:p><w:r><w:t>메모 글</w:t></w:r></w:p></w:comment></w:comments>"#;
+    let rels = r#"<Relationships xmlns="r"><Relationship Id="rIdH" Type="header" Target="header1.xml"/><Relationship Id="rIdH2" Type="header" Target="header2.xml"/><Relationship Id="rIdF" Type="footer" Target="footer1.xml"/><Relationship Id="rIdImg" Type="image" Target="media/red.png"/><Relationship Id="rIdL" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.com/" TargetMode="External"/></Relationships>"#;
     let mut buffer = std::io::Cursor::new(Vec::new());
     let mut zip = zip::ZipWriter::new(&mut buffer);
     for (name, bytes) in [
@@ -2336,6 +2360,7 @@ fn docx_round_trip_keeps_structure() {
         ("word/header2.xml", header2.as_bytes()),
         ("word/footer1.xml", footer.as_bytes()),
         ("word/footnotes.xml", footnotes.as_bytes()),
+        ("word/comments.xml", comments.as_bytes()),
         ("word/media/red.png", RED_PNG),
     ] {
         zip.start_file(name, zip::write::SimpleFileOptions::default())
@@ -2352,12 +2377,21 @@ fn docx_round_trip_keeps_structure() {
     let get = |key: &str| source.get(key).copied().unwrap_or(0);
     // 원본에서 요소가 다 들어왔는지(점검이 빈 것끼리 비교하지 않게)
     for (key, expected) in [
-        ("tables", 3),
+        ("tables", 5),
         ("tables.nested", 1),
         ("tables.in_header", 1),
+        ("tables.in_note", 1),
         ("cells.merged", 1),
-        ("footnotes", 1),
-        ("pictures", 1),
+        ("footnotes", 2),
+        ("pictures", 2),
+        ("pictures.in_textbox", 1),
+        ("shapes.textboxes", 2),
+        ("shapes.in_cell", 1),
+        ("chars.textbox", 7),
+        ("chars.caption", 3),
+        ("comments", 1),
+        ("fields", 1),
+        ("bookmarks", 1),
         ("headers", 2),
         ("footers", 1),
         ("break.page", 2),

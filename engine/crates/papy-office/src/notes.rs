@@ -18,6 +18,23 @@ pub const PAGE_BREAK_MARK: char = '\u{E0F4}';
 /// 단 나누기 표시 글자(문단 앞). papy-hwp 가 붙여넣은 뒤 단 나누기로 바꾼다.
 pub const COLUMN_BREAK_MARK: char = '\u{E0F5}';
 
+/// 캡션 문단 표시(문단 맨 앞, 사용자 영역 글자). 차례로 왼쪽·오른쪽·위·아래 캡션의 첫 문단이다. papy-hwp 가
+/// 지우고 그 문단을 앞(위 캡션이면 뒤) 문단의 표·그림 캡션으로 옮긴다.
+pub const CAPTION_MARKS: [char; 4] = ['\u{E0F9}', '\u{E0FA}', '\u{E0FB}', '\u{E0FC}'];
+/// 캡션의 둘째 문단부터 붙는 표시(앞 캡션 문단에 이어진다).
+pub const CAPTION_MORE_MARK: char = '\u{E0FD}';
+
+/// 메모 자리 표시(사용자 영역 글자). papy-hwp 가 지우고 그 자리에 한글 숨은 설명을 넣는다.
+pub const COMMENT_MARK: char = '\u{E0F0}';
+
+/// 책갈피 자리 표시(사용자 영역 글자). papy-hwp 가 지우고 그 자리에 책갈피를 넣는다.
+pub const BOOKMARK_MARK: char = '\u{E0ED}';
+
+/// 하이퍼링크 시작·끝 표시(사용자 영역 글자). papy-hwp 가 지우고 그 사이 글에 하이퍼링크를 건다.
+pub const LINK_START_MARK: char = '\u{E0EE}';
+/// 하이퍼링크 끝 표시.
+pub const LINK_END_MARK: char = '\u{E0EF}';
+
 /// 머리말·꼬리말 하나.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct HeaderFooterText {
@@ -30,6 +47,10 @@ pub struct HeaderFooterText {
     /// 머리말·꼬리말의 HTML(본문과 같은 꼴, 서식·표·그림 포함). 쪽 번호·전체 쪽 수 필드(표 밖)는
     /// [`PAGE_NUMBER_MARK`]·[`PAGE_COUNT_MARK`] 글자다. 있으면 `paragraphs` 대신 이것을 붙여넣는다.
     pub html: Option<String>,
+    /// `html` 의 도형: 문단의 [`crate::SHAPE_MARK`] 자리마다(같은 차례). 칸 안 것은 `cell_shapes`.
+    pub shapes: Vec<crate::DocxShape>,
+    /// `html` 의 표 칸 안 도형([`crate::CELL_SHAPE_MARK`] 자리, 같은 차례)
+    pub cell_shapes: Vec<crate::DocxShape>,
 }
 
 /// Word 구역(첫 구역 뒤)이 시작하는 본문 문단 표시. 구역마다 하나씩 문서 순서로 둔다.
@@ -188,6 +209,35 @@ pub fn parse_footnotes(xml: &str) -> HashMap<String, Vec<String>> {
 /// `word/endnotes.xml` 의 미주(id → 문단 글자).
 pub fn parse_endnotes(xml: &str) -> HashMap<String, Vec<String>> {
     parse_notes(xml, "endnote")
+}
+
+/// 각주(`footnote`)·미주(`endnote`) 부분의 주마다 XML 조각(그 요소 전체). 구분선 등 특수 주는 뺀다.
+pub(crate) fn note_parts(xml: &str, element: &str) -> HashMap<String, String> {
+    let mut notes = HashMap::new();
+    let mut reader = Reader::from_str(xml);
+    let mut start = None;
+    let mut id = None;
+    loop {
+        let position = reader.buffer_position() as usize;
+        match reader.read_event() {
+            Ok(Event::Eof) | Err(_) => break,
+            Ok(Event::Start(e)) if local_name(&e) == element => {
+                let separator = attr(&e, "type").is_some_and(|t| t != "normal");
+                id = attr(&e, "id").filter(|_| !separator);
+                start = Some(position);
+            }
+            Ok(Event::End(e)) if local(e.name().as_ref()) == element => {
+                let end = reader.buffer_position() as usize;
+                if let (Some(id), Some(start)) = (id.take(), start.take()) {
+                    if let Some(part) = xml.get(start..end) {
+                        notes.insert(id, part.to_owned());
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    notes
 }
 
 fn parse_notes(xml: &str, element: &str) -> HashMap<String, Vec<String>> {

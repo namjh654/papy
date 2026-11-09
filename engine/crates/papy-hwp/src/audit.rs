@@ -41,6 +41,8 @@ impl Place {
 
 struct Counter<'a> {
     doc: &'a Document,
+    /// 문서 첫 본문 문단
+    first: *const Paragraph,
     out: Structure,
     fonts: BTreeSet<String>,
 }
@@ -66,6 +68,17 @@ impl Counter<'_> {
         };
         let chars: Vec<char> = paragraph.text.chars().collect();
         let count = chars.iter().filter(|c| visible(**c)).count() as u64;
+        // 머리말·꼬리말의 쪽 번호·전체 쪽 수 필드 글자(DOCX 에서 연 문서): 한글 쪽 번호 컨트롤과 같게 센다.
+        let fields = chars
+            .iter()
+            .filter(|c| {
+                matches!(
+                    **c,
+                    papy_office::PAGE_NUMBER_FIELD | papy_office::PAGE_COUNT_FIELD
+                )
+            })
+            .count() as u64;
+        self.add("page_numbers", fields);
         self.add("chars", count);
         self.add(&format!("chars.{}", place.name()), count);
         // 글자 모양: 런마다 덮는 글자 수(char_offsets 와 같은 단위의 시작 위치). rhwp 처럼 첫 런 앞 글자는 첫 런
@@ -109,11 +122,15 @@ impl Counter<'_> {
             if shape.text_color & 0x00FF_FFFF != 0 {
                 self.add("chars.colored", covered);
             }
-            // 크기별(pt, 반올림): 글자 크기가 바뀌면 줄 높이·쪽 수가 바뀐다.
-            self.add(
-                &format!("chars.size.{}pt", (shape.base_size + 50) / 100),
-                covered,
-            );
+            // 크기별(반 pt 로 반올림 — Word 가 담는 단위): 글자 크기가 바뀌면 줄 높이·쪽 수가 바뀐다.
+            // 1 pt 로 반올림하면 11.48 pt(→ 11)가 Word 를 거쳐 11.5 pt(→ 12)가 되어 바뀐 것처럼 보였다.
+            let half = (shape.base_size + 25) / 50;
+            let size = if half % 2 == 0 {
+                format!("{}", half / 2)
+            } else {
+                format!("{}.5", half / 2)
+            };
+            self.add(&format!("chars.size.{size}pt"), covered);
             for (lang, id) in shape.font_ids.iter().enumerate().take(2) {
                 if let Some(font) = info.font_faces.get(lang).and_then(|f| f.get(*id as usize)) {
                     self.fonts.insert(font.name.clone());
@@ -135,7 +152,9 @@ impl Counter<'_> {
                 self.add("para.list", 1);
             }
         }
-        if place == Place::Body {
+        // 문서 첫 문단의 나누기는 보이지 않고 Word·rhwp 로 옮기면 사라진다(세지 않는다).
+        let first = std::ptr::eq(paragraph, self.first);
+        if place == Place::Body && !first {
             match paragraph.column_type {
                 ColumnBreakType::Page => self.add("break.page", 1),
                 ColumnBreakType::Column => self.add("break.column", 1),
@@ -214,6 +233,8 @@ impl Counter<'_> {
             Control::Form(_) => self.add("forms", 1),
             Control::Hyperlink(_) => self.add("hyperlinks", 1),
             Control::Bookmark(_) => self.add("bookmarks", 1),
+            // 한글 메모(메모 필드)는 Word 메모·숨은 설명과 같은 것으로 센다.
+            Control::Field(field) if field.command.starts_with("MEMO/") => self.add("comments", 1),
             Control::Field(_) => self.add("fields", 1),
             Control::HiddenComment(_) => self.add("comments", 1),
             Control::AutoNumber(number) => match number.number_type {
@@ -256,13 +277,14 @@ impl Counter<'_> {
     }
 }
 
-/// 글이나 개체(표·그림 등)가 있는가.
+/// 글이나 개체(표·그림·쪽 번호 필드 글자 등)가 있는가.
 fn has_text(paragraphs: &[Paragraph]) -> bool {
     paragraphs.iter().any(|p| {
         !p.controls.is_empty()
-            || p.text
-                .chars()
-                .any(|c| !c.is_whitespace() && !c.is_control())
+            || p.text.chars().any(|c| {
+                (!c.is_whitespace() && !c.is_control())
+                    || matches!(c, papy_office::PAGE_NUMBER_FIELD | papy_office::PAGE_COUNT_FIELD)
+            })
     })
 }
 
@@ -270,6 +292,11 @@ fn has_text(paragraphs: &[Paragraph]) -> bool {
 pub(crate) fn structure(doc: &Document) -> Structure {
     let mut counter = Counter {
         doc,
+        first: doc
+            .sections
+            .first()
+            .and_then(|s| s.paragraphs.first())
+            .map_or(std::ptr::null(), |p| p as *const Paragraph),
         out: Structure::new(),
         fonts: BTreeSet::new(),
     };

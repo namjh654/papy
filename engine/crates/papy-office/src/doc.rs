@@ -1024,6 +1024,7 @@ impl Reader<'_> {
                     flip_h: false,
                     flip_v: false,
                     text: Vec::new(),
+                    html: None,
                     image: Some(ShapeImage::Svg(svg)),
                     pending: None,
                 }))
@@ -1582,6 +1583,7 @@ pub fn doc_to_html_with_password(
             apply_to,
             paragraphs,
             html: None,
+            ..HeaderFooterText::default()
         });
     }
     if title_page {

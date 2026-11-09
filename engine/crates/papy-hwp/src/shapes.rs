@@ -2,8 +2,12 @@
 //!
 //! 본문 문단의 [`papy_office::SHAPE_MARK`] 자리마다 그 글자를 지우고 도형을 만든다(문서 순서 = 목록 순서).
 
-use papy_office::{DocxShape, Relative, SHAPE_MARK, ShapeImage, ShapeKind, Wrap};
+use papy_office::{CELL_SHAPE_MARK, DocxShape, Relative, SHAPE_MARK, ShapeImage, ShapeKind, Wrap};
+use std::collections::VecDeque;
+
 use rhwp::HwpError;
+use rhwp::model::control::Control;
+use rhwp::model::paragraph::Paragraph;
 use serde_json::{Value, json};
 
 use crate::Rhwp;
@@ -75,6 +79,96 @@ pub(crate) fn apply(doc: &mut Rhwp, shapes: &[DocxShape]) -> Result<usize, HwpEr
     Ok(failed + shapes.len().saturating_sub(next))
 }
 
+/// 도형들을 만들어 컨트롤로 돌려준다(차례대로, 못 만든 것은 None). rhwp 는 칸·머리말 안에 도형을 만들지 못해서,
+/// 도형마다 본문 끝에 빈 문단을 더해 그 안에 만든 뒤 한꺼번에 떼어 낸다(본문은 전과 같다).
+pub(crate) fn build(
+    doc: &mut Rhwp,
+    shapes: &[DocxShape],
+) -> Result<VecDeque<Option<Control>>, HwpError> {
+    if shapes.is_empty() {
+        return Ok(VecDeque::new());
+    }
+    let start = doc.document().sections[0].paragraphs.len();
+    for (index, shape) in shapes.iter().enumerate() {
+        doc.insert_paragraph_native(0, start + index)?;
+        // 못 만든 도형은 그 문단에 컨트롤이 없어 아래에서 None 이 된다.
+        let _ = insert(doc, start + index, 0, shape);
+    }
+    let mut document = doc.document().clone();
+    let section = &mut document.sections[0];
+    let controls = section
+        .paragraphs
+        .drain(start..)
+        .map(|mut paragraph| {
+            let at = paragraph
+                .controls
+                .iter()
+                .rposition(|c| matches!(c, Control::Shape(_) | Control::Picture(_)))?;
+            Some(paragraph.controls.remove(at))
+        })
+        .collect();
+    section.raw_stream = None;
+    doc.set_document(document);
+    Ok(controls)
+}
+
+/// 문단들(칸 안 포함)의 `mark` 자리마다 `controls` 를 차례로 넣는다. `cells_only` 면 칸 안 문단만 본다.
+/// 넣은 수를 돌려준다.
+pub(crate) fn place(
+    paragraphs: &mut [Paragraph],
+    controls: &mut VecDeque<Option<Control>>,
+    mark: char,
+    cells_only: bool,
+) -> usize {
+    fn walk(
+        paragraphs: &mut [Paragraph],
+        controls: &mut VecDeque<Option<Control>>,
+        mark: char,
+        cells_only: bool,
+        placed: &mut usize,
+        depth: usize,
+    ) {
+        if depth > 16 {
+            return;
+        }
+        for paragraph in paragraphs {
+            if depth > 0 || !cells_only {
+                while let Some(offset) = paragraph.text.chars().position(|c| c == mark) {
+                    paragraph.delete_text_at(offset, 1);
+                    if let Some(Some(control)) = controls.pop_front() {
+                        paragraph.insert_inline_control(offset, control);
+                        *placed += 1;
+                    }
+                }
+            }
+            for control in &mut paragraph.controls {
+                if let Control::Table(table) = control {
+                    for cell in &mut table.cells {
+                        walk(&mut cell.paragraphs, controls, mark, cells_only, placed, depth + 1);
+                    }
+                }
+            }
+        }
+    }
+    let mut placed = 0;
+    walk(paragraphs, controls, mark, cells_only, &mut placed, 0);
+    placed
+}
+
+/// 표 칸 문단의 [`CELL_SHAPE_MARK`] 자리에 도형을 넣는다(문서 순서 = 목록 순서). 넣지 못한 수를 돌려준다.
+pub(crate) fn apply_in_cells(doc: &mut Rhwp, shapes: &[DocxShape]) -> Result<usize, HwpError> {
+    if shapes.is_empty() {
+        return Ok(0);
+    }
+    let mut controls = build(doc, shapes)?;
+    let mut document = doc.document().clone();
+    let section = &mut document.sections[0];
+    let placed = place(&mut section.paragraphs, &mut controls, CELL_SHAPE_MARK, true);
+    section.raw_stream = None;
+    doc.set_document(document);
+    Ok(shapes.len().saturating_sub(placed))
+}
+
 fn insert(doc: &mut Rhwp, para: usize, offset: usize, shape: &DocxShape) -> Result<(), HwpError> {
     if let Some(image) = &shape.image {
         return insert_picture(doc, para, offset, shape, image);
@@ -137,6 +231,14 @@ fn insert(doc: &mut Rhwp, para: usize, offset: usize, shape: &DocxShape) -> Resu
     }
     doc.set_shape_properties_native(0, para, control, &props.to_string())?;
 
+    // 글상자 내용 HTML(서식·그림·표): 못 넣으면 글자만 넣는다.
+    if let Some(html) = shape.html.as_deref() {
+        let saved = doc.document().clone();
+        match fill_text_box(doc, para, control, html) {
+            Ok(()) => return Ok(()),
+            Err(_) => doc.set_document(saved),
+        }
+    }
     for (index, text) in shape.text.iter().enumerate() {
         if index > 0 {
             let previous = shape.text[index - 1].chars().count();
@@ -147,6 +249,66 @@ fn insert(doc: &mut Rhwp, para: usize, offset: usize, shape: &DocxShape) -> Resu
         }
     }
     Ok(())
+}
+
+/// 본문 문단 `para` 의 도형 `control`(글상자) 내용을 HTML 조각으로 채운다. 줄은 글상자 안 너비로 다시 나눈다.
+fn fill_text_box(doc: &mut Rhwp, para: usize, control: usize, html: &str) -> Result<(), HwpError> {
+    use rhwp::model::control::Control;
+    let mut paragraphs = crate::fragment::paste(doc, html)?;
+    let mut document = doc.document().clone();
+    let missing = || HwpError::RenderError("글상자가 없습니다".into());
+    let Some(Control::Shape(shape)) = document.sections[0]
+        .paragraphs
+        .get_mut(para)
+        .and_then(|p| p.controls.get_mut(control))
+    else {
+        return Err(missing());
+    };
+    let width = shape.common().width;
+    let text_box = shape
+        .drawing_mut()
+        .and_then(|d| d.text_box.as_mut())
+        .ok_or_else(missing)?;
+    let padding = u32::from(text_box.margin_left.max(0) as u16)
+        + u32::from(text_box.margin_right.max(0) as u16);
+    // 글상자 안 쪽 번호 필드 글자 → 쪽 번호 컨트롤. rhwp 는 머리말 문단의 필드 글자만 HWPX 쪽 번호로 쓴다
+    // (머리말 묶음 안 글상자 쪽 번호가 HWPX 로 저장하면 빠졌다).
+    page_number_controls(&mut paragraphs);
+    doc.reflow_paragraphs_to_width(&mut paragraphs, width.saturating_sub(padding));
+    text_box.paragraphs = paragraphs;
+    document.sections[0].raw_stream = None;
+    doc.set_document(document);
+    Ok(())
+}
+
+/// 문단의 쪽 번호·전체 쪽 수 필드 글자를 쪽 번호 컨트롤로 바꾼다.
+fn page_number_controls(paragraphs: &mut [Paragraph]) {
+    use papy_office::{PAGE_COUNT_FIELD, PAGE_NUMBER_FIELD};
+    use rhwp::model::control::{AutoNumber, AutoNumberType};
+    for paragraph in paragraphs {
+        while let Some((offset, c)) = paragraph
+            .text
+            .chars()
+            .enumerate()
+            .find(|(_, c)| matches!(*c, PAGE_NUMBER_FIELD | PAGE_COUNT_FIELD))
+        {
+            paragraph.delete_text_at(offset, 1);
+            let number_type = if c == PAGE_COUNT_FIELD {
+                AutoNumberType::TotalPage
+            } else {
+                AutoNumberType::Page
+            };
+            paragraph.insert_inline_control(
+                offset,
+                Control::AutoNumber(AutoNumber {
+                    number_type,
+                    number: 1,
+                    assigned_number: 1,
+                    ..AutoNumber::default()
+                }),
+            );
+        }
+    }
 }
 
 /// 차트 그림 해상도(쪽 크기 1 px 당 점 수). 확대해도 거칠지 않게 2배로 그린다.

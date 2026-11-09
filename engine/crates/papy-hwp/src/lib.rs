@@ -19,7 +19,11 @@ use resvg::{tiny_skia, usvg};
 use rhwp::wasm_api::HwpDocument as Rhwp;
 
 mod audit;
+mod captions;
+mod comments;
 mod document;
+mod fragment;
+mod links;
 mod notes;
 mod repair;
 mod shapes;
@@ -225,6 +229,7 @@ fn split_tables_across_pages(
     doc: &mut Rhwp,
     indents: &[i32],
     places: &[String],
+    inline: &[bool],
 ) -> std::result::Result<(), rhwp::HwpError> {
     let tables: Vec<(usize, usize)> = doc
         .document()
@@ -246,7 +251,15 @@ fn split_tables_across_pages(
     let mut floating = Vec::new();
     for (index, (para, control)) in tables.into_iter().enumerate() {
         let float = places.get(index).filter(|p| same_order && !p.is_empty());
+        let keep_inline = same_order && inline.get(index).copied().unwrap_or(false);
         let json = match float {
+            // 한글에서 글자처럼 취급한 표(Papy 가 쓴 DOCX): 글자처럼 둔다. 쪽 경계에서는 셀 단위로 나눈다.
+            None if keep_inline => {
+                format!(
+                    r#"{{"treatAsChar":true,"pageBreak":1,"outerTop":141,"outerBottom":141,"outerLeft":{}}}"#,
+                    indents[index].max(0)
+                )
+            }
             // 쪽·종이 기준 자리: 그 자리에 놓고 쪽을 나누지 않는다(결재란 등).
             Some(place) => {
                 format!(
@@ -500,12 +513,31 @@ fn open_converted(
                 doc.paste_html_native(0, 0, 0, html)?;
             }
         }
+        // 붙여넣은 뒤 고치기(표 속성·하이퍼링크·각주·도형 등)는 편집마다 쪽을 다시 짜지 않고 끝에서 한 번 짠다.
+        // 하이퍼링크가 수백 개인 문서가 링크마다 쪽을 다시 짜 열기에 십수 초 걸렸다.
+        doc.begin_batch_native()?;
         unindent_table_paragraphs(&mut doc);
         split_nested_tables(&mut doc);
-        split_tables_across_pages(&mut doc, &report.table_indents, &report.table_places)?;
+        split_tables_across_pages(
+            &mut doc,
+            &report.table_indents,
+            &report.table_places,
+            &report.table_inline,
+        )?;
         // 붙여넣은 표 칸은 한 줄로만 잡혀 있다. 칸 너비로 다시 나눠 긴 글이 잘리지 않게 한다.
         doc.reflow_table_cells_native(0)?;
-        let dropped = notes::apply(&mut doc, &report)? + shapes::apply(&mut doc, &report.shapes)?;
+        links::apply(&mut doc, &report.hyperlinks);
+        let mut dropped =
+            notes::apply(&mut doc, &report)? + shapes::apply(&mut doc, &report.shapes)?;
+        dropped += shapes::apply_in_cells(&mut doc, &report.cell_shapes)?;
+        if !report.cell_shapes.is_empty() {
+            // 칸에 넣은 도형만큼 칸 줄 높이를 다시 잡는다.
+            doc.reflow_table_cells_native(0)?;
+        }
+        captions::apply(&mut doc);
+        dropped += comments::apply(&mut doc, &report.comment_marks);
+        comments::bookmarks(&mut doc, &report.bookmarks);
+        doc.end_batch_native()?;
         Ok((doc, dropped))
     })?
     .map_err(|_| {

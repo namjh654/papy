@@ -15,7 +15,7 @@ use rhwp::model::image::Picture;
 use rhwp::model::page::ColumnDef;
 use rhwp::model::paragraph::Paragraph as NoteParagraph;
 use rhwp::model::paragraph::Paragraph;
-use rhwp::model::shape::{HorzRelTo, ShapeObject, TextWrap, VertRelTo};
+use rhwp::model::shape::{Caption, CaptionDirection, HorzRelTo, ShapeObject, TextWrap, VertRelTo};
 use rhwp::model::style::FillType;
 use rhwp::model::style::{Alignment, HeadType, LineSpacingType, UnderlineType};
 use rhwp::model::table::Table;
@@ -44,6 +44,12 @@ struct Media<'a> {
     footnotes: Vec<String>,
     /// 미주 본문 XML(`<w:endnote>` 안쪽). 미주 id 는 순서 + 1.
     endnotes: Vec<String>,
+    /// 메모(작성자, 본문 XML — `<w:comment>` 안쪽; 한글 메모·숨은 설명). 메모 id 는 순서(0 부터).
+    comments: Vec<(String, String)>,
+    /// 하이퍼링크 주소(관계 id 는 `rIdLink{차례 + 1}`)
+    links: Vec<String>,
+    /// 쓴 책갈피 수(책갈피 id)
+    bookmarks: u32,
 }
 
 impl Media<'_> {
@@ -56,10 +62,14 @@ impl Media<'_> {
         {
             return Some(format!("rIdImg{}", index + 1));
         }
-        let content = self
-            .contents
-            .iter()
-            .find(|content| content.id == bin_data_id)?;
+        // rhwp 와 같은 규칙: 1 부터 매긴 차례로 먼저 찾고, 범위 밖이면(HWPX 차트 등) id 로 찾는다.
+        // id 로만 찾으면 저장 id 와 차례가 다른 문서(그림 자료 순서가 바뀐 HWP)에서 그림이 빠진다.
+        let index = usize::from(bin_data_id).checked_sub(1)?;
+        let content = self.contents.get(index).or_else(|| {
+            self.contents
+                .iter()
+                .find(|content| content.id == bin_data_id)
+        })?;
         let bytes = content.data.load();
         self.push(Some(bin_data_id), bytes)
     }
@@ -76,10 +86,12 @@ impl Media<'_> {
                 bytes = png;
             }
         }
-        let extension = crate::read::image_mime(&bytes).map(|mime| match mime {
+        let extension = crate::read::picture_mime(&bytes).map(|mime| match mime {
             "image/png" => "png",
             "image/jpeg" => "jpeg",
             "image/gif" => "gif",
+            "image/x-wmf" => "wmf",
+            "image/x-emf" => "emf",
             _ => "bmp",
         })?;
         let index = self.files.len() + 1;
@@ -809,7 +821,13 @@ fn tab_stops(info: &DocInfo, tab_def_id: u16) -> String {
         return String::new();
     };
     let mut out = String::new();
-    for tab in def.tabs.iter().filter(|t| t.position > 0) {
+    // 한글 탭 위치는 부호 있는 값이다(음수 = 큰 u32). Word 탭은 0~31680 twip(22 인치)만 받는다.
+    const WORD_MAX_TAB: u32 = 31680;
+    for tab in def
+        .tabs
+        .iter()
+        .filter(|t| (t.position as i32) > 0 && twips(t.position / 2) <= WORD_MAX_TAB)
+    {
         let kind = match tab.tab_type {
             1 => "right",
             2 => "center",
@@ -1073,9 +1091,127 @@ fn write_inline(
             );
         }
         Control::Form(form) => write_form(out, form),
+        Control::Bookmark(bookmark) => {
+            let id = media.bookmarks;
+            media.bookmarks += 1;
+            let _ = write!(
+                out,
+                r#"<w:bookmarkStart w:id="{id}" w:name="{}"/><w:bookmarkEnd w:id="{id}"/>"#,
+                xml_escape(&bookmark.name)
+            );
+        }
+        // 숨은 설명 → Word 메모(그 자리에 메모 표시). 작성자는 한글에 없어 "Papy" 로 둔다.
+        Control::HiddenComment(comment) if depth < MAX_DEPTH => {
+            let mut body = String::new();
+            for paragraph in &comment.paragraphs {
+                write_paragraph(&mut body, info, media, paragraph, depth + 1)?;
+            }
+            if comment.paragraphs.is_empty() {
+                body.push_str("<w:p/>");
+            }
+            let id = media.comments.len();
+            media.comments.push(("Papy".into(), body));
+            let _ = write!(out, r#"<w:r><w:commentReference w:id="{id}"/></w:r>"#);
+        }
         _ => {}
     }
     Ok(())
+}
+
+/// 문단 안 필드 범위(하이퍼링크, 한글 메모)를 Word 로: 하이퍼링크는 `w:hyperlink`, 메모는 메모 범위와 메모.
+struct FieldSpans {
+    /// (시작, 끝, 여는 XML, 닫는 XML) — 글자 위치
+    spans: Vec<(usize, usize, String, String)>,
+    /// 열린 범위(닫는 XML, 끝)
+    open: Vec<(String, usize)>,
+}
+
+impl FieldSpans {
+    /// `position` 에서 끝나는 범위를 닫고 시작하는 범위를 연다.
+    fn emit(&mut self, out: &mut String, position: usize) {
+        while let Some(at) = self.open.iter().rposition(|(_, end)| *end <= position) {
+            let (close, _) = self.open.remove(at);
+            out.push_str(&close);
+        }
+        for (start, end, open, close) in &self.spans {
+            if *start == position {
+                out.push_str(open);
+                self.open.push((close.clone(), *end));
+            }
+        }
+    }
+
+    /// `position` 뒤 첫 범위 경계(런을 거기서 끊는다).
+    fn next_boundary(&self, position: usize) -> usize {
+        self.spans
+            .iter()
+            .flat_map(|(start, end, _, _)| [*start, *end])
+            .filter(|&p| p > position)
+            .min()
+            .unwrap_or(usize::MAX)
+    }
+
+    fn close_all(&mut self, out: &mut String) {
+        while let Some((close, _)) = self.open.pop() {
+            out.push_str(&close);
+        }
+    }
+}
+
+/// 문단의 하이퍼링크·메모 필드 범위. 메모 본문은 여기서 써 둔다.
+fn field_spans(
+    info: &DocInfo,
+    media: &mut Media,
+    paragraph: &Paragraph,
+    len: usize,
+    depth: usize,
+) -> Result<FieldSpans> {
+    use rhwp::model::control::FieldType;
+    let mut spans = Vec::new();
+    for range in &paragraph.field_ranges {
+        let Some(Control::Field(field)) = paragraph.controls.get(range.control_idx) else {
+            continue;
+        };
+        let (start, end) = (range.start_char_idx.min(len), range.end_char_idx.min(len));
+        if field.field_type == FieldType::Hyperlink {
+            let uri = rhwp::model::hyperlink::command_uri(&field.command);
+            if uri.is_empty() || start >= end {
+                continue;
+            }
+            media.links.push(uri);
+            let id = media.links.len();
+            spans.push((
+                start,
+                end,
+                format!(r#"<w:hyperlink r:id="rIdLink{id}">"#),
+                "</w:hyperlink>".into(),
+            ));
+        } else if field.command.starts_with("MEMO/") && depth < MAX_DEPTH {
+            // 한글 메모: `MEMO/<모양>/<번호>/<id>/<id>/<작성자>/…`
+            let author = field.command.split('/').nth(5).unwrap_or("").to_owned();
+            let mut body = String::new();
+            for memo in &field.memo_paragraphs {
+                write_paragraph(&mut body, info, media, memo, depth + 1)?;
+            }
+            if field.memo_paragraphs.is_empty() {
+                body.push_str("<w:p/>");
+            }
+            let id = media.comments.len();
+            media.comments.push((author, body));
+            spans.push((
+                start,
+                end.max(start),
+                format!(r#"<w:commentRangeStart w:id="{id}"/>"#),
+                format!(
+                    r#"<w:commentRangeEnd w:id="{id}"/><w:r><w:commentReference w:id="{id}"/></w:r>"#
+                ),
+            ));
+        }
+    }
+    Ok(FieldSpans {
+        spans,
+        open: Vec::new(),
+    })
 }
 
 /// `body[start..]` 의 첫 문단 속성에 개요 수준(1부터)을 넣는다. 이미 있으면 그대로 둔다.
@@ -1139,6 +1275,7 @@ fn write_paragraph_with(
                     | Control::Shape(_)
                     | Control::Equation(_)
                     | Control::Form(_)
+                    | Control::HiddenComment(_)
             )
         });
     if table_only {
@@ -1211,6 +1348,17 @@ fn write_paragraph_with(
             }
         }
     }
+    let captions: Vec<&Caption> = paragraph
+        .controls
+        .iter()
+        .filter_map(|c| match c {
+            Control::Picture(picture) => picture.caption.as_ref(),
+            _ => None,
+        })
+        .collect();
+    for caption in captions.iter().filter(|c| caption_on_top(c)) {
+        write_caption(out, info, media, caption, depth)?;
+    }
     out.push_str("<w:p>");
     let list = list_of(info, media, paragraph);
     let props = para_props_with(info, paragraph, list);
@@ -1240,18 +1388,25 @@ fn write_paragraph_with(
                     | Control::Equation(_)
                     | Control::Form(_)
                     | Control::AutoNumber(_)
+                    | Control::HiddenComment(_)
+                    | Control::Bookmark(_)
             )
         })
         .collect();
     // 같은 자리면 문서 순서를 지킨다(안정 정렬).
     notes.sort_by_key(|(position, _)| *position);
     let mut notes = notes.into_iter().peekable();
+    let mut spans = field_spans(info, media, paragraph, chars.len(), depth)?;
     let mut start = 0;
     while start < chars.len() {
+        spans.emit(out, start);
         while let Some((_, control)) = notes.next_if(|(position, _)| *position <= start) {
             write_inline(out, info, media, control, depth)?;
         }
-        let next_note = notes.peek().map_or(usize::MAX, |(position, _)| *position);
+        let next_note = notes
+            .peek()
+            .map_or(usize::MAX, |(position, _)| *position)
+            .min(spans.next_boundary(start));
         let shape_of = |index: usize| {
             let raw = paragraph
                 .char_offsets
@@ -1312,7 +1467,11 @@ fn write_paragraph_with(
     for (_, control) in notes {
         write_inline(out, info, media, control, depth)?;
     }
+    spans.close_all(out);
     out.push_str("</w:p>");
+    for caption in captions.iter().filter(|c| !caption_on_top(c)) {
+        write_caption(out, info, media, caption, depth)?;
+    }
     for control in &paragraph.controls {
         if let Control::Table(table) = control {
             if table_first(table) {
@@ -1345,6 +1504,42 @@ fn end_region(body: &mut String, last_start: usize, k: usize) {
     }
     body.push_str(&TINY_PARAGRAPH.replace("</w:pPr>", &format!("{marker}</w:pPr>")));
 }
+
+/// 표·그림 캡션이 개체 위에 놓이는가(나머지 — 아래·왼쪽·오른쪽 — 는 개체 뒤 문단으로 쓴다).
+fn caption_on_top(caption: &Caption) -> bool {
+    caption.direction == CaptionDirection::Top
+}
+
+/// 캡션 문단들. Word 에는 캡션 자리가 없어 개체 앞(위 캡션)·뒤 문단으로 쓰고, 첫 문단에 방향을
+/// (`papy:caption`, Word 는 무시), 이어지는 문단에 `+` 를 붙여 Papy 가 다시 열 때 캡션으로 되돌린다.
+fn write_caption(
+    out: &mut String,
+    info: &DocInfo,
+    media: &mut Media,
+    caption: &Caption,
+    depth: usize,
+) -> Result<()> {
+    let direction = match caption.direction {
+        CaptionDirection::Left => "left",
+        CaptionDirection::Right => "right",
+        CaptionDirection::Top => "top",
+        CaptionDirection::Bottom => "bottom",
+    };
+    for (index, paragraph) in caption.paragraphs.iter().enumerate() {
+        let mut body = String::new();
+        write_paragraph(&mut body, info, media, paragraph, depth)?;
+        let more = if index == 0 { "" } else { "+" };
+        let tag = format!(r#"<w:p {CAPTION_ATTR}="{direction}{more}">"#);
+        if let Some(at) = body.find("<w:p>") {
+            body.replace_range(at..at + "<w:p>".len(), &tag);
+        }
+        out.push_str(&body);
+    }
+    Ok(())
+}
+
+/// 캡션 문단 표시 속성(Word 는 무시한다, `mc:Ignorable`).
+pub(crate) const CAPTION_ATTR: &str = "papy:caption";
 
 /// 표 뒤에 Word 가 요구하는 문단을 거의 높이 없이(1pt 고정 줄, 1pt 글자) 둔다.
 const TINY_PARAGRAPH: &str = r#"<w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="20" w:lineRule="exact"/><w:rPr><w:sz w:val="2"/></w:rPr></w:pPr></w:p>"#;
@@ -1409,6 +1604,9 @@ fn write_table(
         return Ok(());
     }
     let widths = grid_widths(table, cols);
+    if let Some(caption) = table.caption.as_ref().filter(|c| caption_on_top(c)) {
+        write_caption(out, info, media, caption, depth)?;
+    }
     // 테두리는 칸마다 쓴다(한글 표는 칸마다 테두리·배경이 다르다). 머리글 행은 쪽마다 되풀이.
     // 왼쪽 자리: 바깥 여백 + (문단·단 기준 떠 있는 표면) 가로 위치. 맨 바깥 표만.
     let mut indent = i32::from(table.common.margin.left);
@@ -1426,8 +1624,14 @@ fn write_table(
     } else {
         String::new()
     };
+    // 한글 "글자처럼 취급" 표: Papy 가 다시 열 때 그대로 둔다(Word 는 무시한다).
+    let inline = if table.common.treat_as_char {
+        r#" papy:inline="1""#
+    } else {
+        ""
+    };
     let mut properties = format!(
-        r#"<w:tbl><w:tblPr>{float}<w:tblW w:w="0" w:type="auto"/><w:tblInd w:w="{indent}" w:type="dxa"/><w:tblLayout w:type="fixed"/>"#
+        r#"<w:tbl><w:tblPr{inline}>{float}<w:tblW w:w="0" w:type="auto"/><w:tblInd w:w="{indent}" w:type="dxa"/><w:tblLayout w:type="fixed"/>"#
     );
     let margin = |v: i16| twips(u32::try_from(v.max(0)).unwrap_or(0));
     let _ = write!(
@@ -1492,11 +1696,30 @@ fn write_table(
         {
             row_props.push_str("<w:tblHeader/>");
         }
+        // 행 끝의 빈 격자 칸(원본 행이 짧다): 빈 셀을 만들지 않고 `w:gridAfter` 로 둔다. 빈 셀로 채우면
+        // 다시 열 때 칸이 는다.
+        let trailing = {
+            let mut col = 0;
+            let mut end = 0;
+            while col < cols {
+                if let Some(cell) = start_at(row, col).or_else(|| covered_from_above(row, col)) {
+                    col += (cell.col_span.max(1) as usize).min(cols - col);
+                    end = col;
+                } else {
+                    col += 1;
+                }
+            }
+            cols - end
+        };
+        if trailing > 0 && trailing < cols {
+            let _ = write!(row_props, r#"<w:gridAfter w:val="{trailing}"/>"#);
+        }
         if !row_props.is_empty() {
             let _ = write!(out, "<w:trPr>{row_props}</w:trPr>");
         }
         let mut col = 0;
-        while col < cols {
+        let cols_in_row = if trailing < cols { cols - trailing } else { cols };
+        while col < cols_in_row {
             if let Some(cell) = start_at(row, col) {
                 let span = (cell.col_span.max(1) as usize).min(cols - col);
                 out.push_str("<w:tc><w:tcPr>");
@@ -1545,6 +1768,9 @@ fn write_table(
         out.push_str("</w:tr>");
     }
     out.push_str("</w:tbl>");
+    if let Some(caption) = table.caption.as_ref().filter(|c| !caption_on_top(c)) {
+        write_caption(out, info, media, caption, depth)?;
+    }
     Ok(())
 }
 
@@ -1895,7 +2121,9 @@ fn region_props(
     title_page: &str,
     columns: Option<&ColumnDef>,
     start: &str,
+    column_leading: u32,
 ) -> String {
+    let multi = columns.is_some_and(|def| def.column_count > 1);
     let columns = columns
         .filter(|def| def.column_count > 1)
         .map(|def| {
@@ -1906,7 +2134,55 @@ fn region_props(
             )
         })
         .unwrap_or_default();
-    section_props(document, references, title_page, &columns, start)
+    // 다단: 한글은 단 마지막 줄의 줄 간격(글자 아래 빈 곳)이 본문 아래로 넘쳐도 되지만 Word 는 줄 높이 전체가
+    // 단 안에 들어야 해서 단마다 그만큼(본문 10~11pt 160% 면 6~7pt) 넘쳐 단 나누기가 한 단씩 밀렸다(2단 시험지).
+    // 아래 여백을 그만큼 줄여 글자가 한글과 같은 자리에서 끝나게 한다.
+    let extend = if multi { column_leading } else { 0 };
+    section_props(document, references, title_page, &columns, start, extend)
+}
+
+/// 본문 글(글자 수로 무게)에서 흔히 쓰인 줄 간격 여분(twip) 가운데 가장 큰 것: 배수 줄 간격의 (줄 높이 − 글자 크기), 고정 줄 간격의 (간격 − 글자 크기).
+fn body_leading(document: &Document) -> u32 {
+    let info = &document.doc_info;
+    let mut counts: HashMap<u32, usize> = HashMap::new();
+    for paragraph in document.sections.iter().flat_map(|s| &s.paragraphs) {
+        if paragraph.text.trim().is_empty() {
+            continue;
+        }
+        let Some(shape) = info.para_shapes.get(paragraph.para_shape_id as usize) else {
+            continue;
+        };
+        let size = paragraph
+            .char_shapes
+            .iter()
+            .filter_map(|r| info.char_shapes.get(r.char_shape_id as usize))
+            .map(|c| c.base_size)
+            .max()
+            .filter(|s| *s > 0)
+            .unwrap_or(1000);
+        // 1/100 pt → twip(× 20 ÷ 100)
+        let leading = match shape.line_spacing_type {
+            LineSpacingType::Percent if shape.line_spacing > 100 => {
+                size * (shape.line_spacing - 100) / 500
+            }
+            LineSpacingType::Fixed => (twips(shape.line_spacing.max(0) as u32) as i32)
+                .saturating_sub(size / 5),
+            _ => 0,
+        };
+        // 글자 수로 무게를 단다(짧은 보기 문단이 많아도 본문 글의 줄 간격을 고른다).
+        *counts
+            .entry(u32::try_from(leading.max(0)).unwrap_or(0))
+            .or_default() += paragraph.text.chars().count();
+    }
+    // 글의 5% 넘게 쓰인 줄 간격 가운데 가장 큰 것: 단 마지막 줄이 어느 것이어도 들어가게 한다
+    // (시험지: 본문 11.5pt 150% 는 5.75pt, 지문 13.5pt 150% 는 6.75pt — Word 실측 넘침 7pt).
+    let total: usize = counts.values().sum();
+    counts
+        .into_iter()
+        .filter(|(_, count)| *count * 20 >= total)
+        .map(|(leading, _)| leading)
+        .max()
+        .map_or(0, |leading| leading.min(400))
 }
 
 fn section_props(
@@ -1915,6 +2191,7 @@ fn section_props(
     title_page: &str,
     columns: &str,
     start: &str,
+    extend_bottom: u32,
 ) -> String {
     let Some(page) = document.sections.first().map(|s| &s.section_def.page_def) else {
         return String::new();
@@ -1926,6 +2203,14 @@ fn section_props(
     if width == 0 || height == 0 {
         return String::new();
     }
+    // 아래 여백(본문 아래 + 꼬리말). 줄인 경우 원래 값을 `papy:hwpBottom` 으로 남겨 Papy 가 다시 열 때 쓴다.
+    let bottom = twips(page.margin_bottom + page.margin_footer);
+    let extend = extend_bottom.min(twips(page.margin_bottom));
+    let hwp_bottom = if extend > 0 {
+        format!(r#" papy:hwpBottom="{bottom}""#)
+    } else {
+        String::new()
+    };
     let orient = if width > height {
         r#" w:orient="landscape""#
     } else {
@@ -1946,10 +2231,10 @@ fn section_props(
         })
         .unwrap_or_default();
     format!(
-        r#"<w:sectPr>{references}{notes}{start}<w:pgSz w:w="{width}" w:h="{height}"{orient}/><w:pgMar w:top="{}" w:right="{}" w:bottom="{}" w:left="{}" w:header="{}" w:footer="{}" w:gutter="{}"/>{columns}{title_page}</w:sectPr>"#,
+        r#"<w:sectPr>{references}{notes}{start}<w:pgSz w:w="{width}" w:h="{height}"{orient}/><w:pgMar w:top="{}" w:right="{}" w:bottom="{}"{hwp_bottom} w:left="{}" w:header="{}" w:footer="{}" w:gutter="{}"/>{columns}{title_page}</w:sectPr>"#,
         twips(page.margin_top + page.margin_header),
         twips(page.margin_right),
-        twips(page.margin_bottom + page.margin_footer),
+        bottom.saturating_sub(extend).max(twips(page.margin_footer)),
         twips(page.margin_left),
         twips(page.margin_header),
         twips(page.margin_footer),
@@ -1958,7 +2243,7 @@ fn section_props(
 }
 
 const CONTENT_TYPES: &str = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Default Extension="jpeg" ContentType="image/jpeg"/><Default Extension="gif" ContentType="image/gif"/><Default Extension="bmp" ContentType="image/bmp"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>"#;
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Default Extension="jpeg" ContentType="image/jpeg"/><Default Extension="gif" ContentType="image/gif"/><Default Extension="bmp" ContentType="image/bmp"/><Default Extension="wmf" ContentType="image/x-wmf"/><Default Extension="emf" ContentType="image/x-emf"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>"#;
 
 const ROOT_RELS: &str = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>"#;
@@ -1997,6 +2282,14 @@ fn rels_xml(media: &Media, extra: &[Part], styles: bool) -> String {
                 part.kind, part.name
             );
         }
+    }
+    for (index, link) in media.links.iter().enumerate() {
+        let _ = write!(
+            rels,
+            r#"<Relationship Id="rIdLink{}" Type="{REL}/hyperlink" Target="{}" TargetMode="External"/>"#,
+            index + 1,
+            xml_escape(link)
+        );
     }
     for (index, file) in media.files.iter().enumerate() {
         let _ = write!(
@@ -2271,16 +2564,25 @@ pub fn docx_from_document_with_outline(
     document: &Document,
     outline: &HashMap<(usize, usize), u8>,
 ) -> Result<Vec<u8>> {
-    docx_from_document_with(document, outline, None)
+    docx_from_document_with(document, outline, None, true)
 }
 
 /// [`docx_from_document_with_outline`] 에 더해, 수식을 `render_equation` 이 그린 PNG 그림으로 넣는다.
+///
+/// `hangul_source` 면 한글 문서(HWP·HWPX)다: 다단 구역의 아래 여백을 한글 조판에 맞춘다([`body_leading`]).
+/// DOCX·DOC 에서 연 문서는 Word 조판 그대로라 맞추지 않는다.
 pub fn docx_from_document_with(
     document: &Document,
     outline: &HashMap<(usize, usize), u8>,
     render_equation: Option<EquationRenderer<'_>>,
+    hangul_source: bool,
 ) -> Result<Vec<u8>> {
     let info = &document.doc_info;
+    let column_leading = if hangul_source {
+        body_leading(document)
+    } else {
+        0
+    };
     let mut media = Media {
         contents: &document.bin_data_content,
         files: Vec::new(),
@@ -2318,6 +2620,9 @@ pub fn docx_from_document_with(
         next_object: 0,
         footnotes: Vec::new(),
         endnotes: Vec::new(),
+        comments: Vec::new(),
+        links: Vec::new(),
+        bookmarks: 0,
     };
     let mut body = String::new();
     let regions = column_regions(document);
@@ -2367,6 +2672,26 @@ pub fn docx_from_document_with(
             xml,
         });
     }
+    if !media.comments.is_empty() {
+        let mut xml = format!(
+            r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:comments {NAMESPACES}>"#
+        );
+        for (id, (author, comment)) in media.comments.iter().enumerate() {
+            let author = xml_escape(author);
+            let _ = write!(
+                xml,
+                r#"<w:comment w:id="{id}" w:author="{author}">{comment}</w:comment>"#
+            );
+        }
+        xml.push_str("</w:comments>");
+        extra.push(Part {
+            name: "comments.xml".into(),
+            rel: Some("rIdComments".into()),
+            kind: "comments",
+            xml,
+        });
+    }
     extra.push(Part {
         name: "fontTable.xml".into(),
         rel: Some("rIdFontTable".into()),
@@ -2390,7 +2715,7 @@ pub fn docx_from_document_with(
             _ => r#"<w:type w:val="continuous"/>"#,
         };
         let title = if k == 0 { title_page } else { "" };
-        region_props(document, &references[k], title, columns, start)
+        region_props(document, &references[k], title, columns, start, column_leading)
     };
     for k in 0..region_ends {
         body = body.replacen(&format!("<!--papy-region-{k}-->"), &props(k), 1);
