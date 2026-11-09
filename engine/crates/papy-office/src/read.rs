@@ -70,6 +70,8 @@ pub struct DocxReadReport {
     pub table_places: Vec<String>,
     /// 본문 맨 바깥 표마다 Papy 가 쓴 한글 "글자처럼 취급" 표인가(`papy:inline`, 문서 순서).
     pub table_inline: Vec<bool>,
+    /// 본문·표 칸 번호 목록 문단의 정의([`crate::LIST_MARK`] 뒤 글자가 가리킨다). 머리말·주석·글상자 안 목록은 번호 글자로 읽는다.
+    pub lists: Vec<crate::ListDef>,
     /// 첫 구역의 쪽 크기·여백·다단(`w:pgSz`·`w:pgMar`·`w:cols`). 없거나 이상하면 None(빈 문서 기본값을 쓴다).
     pub page: Option<PageSetup>,
 }
@@ -1942,7 +1944,25 @@ fn xml_to_html(
                     let mut css = align
                         .map(|a| format!("text-align:{};", align_css(&a)))
                         .unwrap_or_default();
-                    css.push_str(&para_props.over(&para_style.3).over(&para_defaults).css());
+                    // 들여쓰기 차례: 문단 직접 > 번호 목록 수준 > 스타일
+                    let level_props = match &num_id {
+                        Some(id) => {
+                            let (left, first_line) = numbering.level_indent(id, ilvl);
+                            ParaProps {
+                                left,
+                                first_line,
+                                ..ParaProps::default()
+                            }
+                        }
+                        None => ParaProps::default(),
+                    };
+                    css.push_str(
+                        &para_props
+                            .over(&level_props)
+                            .over(&para_style.3)
+                            .over(&para_defaults)
+                            .css(),
+                    );
                     if !para_tabs.is_empty() {
                         css.push_str(&format!("tab-stops:{};", para_tabs.join(" ")));
                     }
@@ -1951,14 +1971,24 @@ fn xml_to_html(
                     } else {
                         format!(" style=\"{css}\"")
                     };
+                    // 본문·칸의 번호 목록은 한글 문단 번호로(표시 글자), 그 밖(머리말·주석·글상자)이나 한글로 옮길 수
+                    // 없는 형식은 번호 글자로.
+                    let list_mark = match (&num_id, list_item) {
+                        (Some(_), _) | (None, true) if !header && depth == 0 => {
+                            numbering.list_mark(num_id.as_deref(), ilvl)
+                        }
+                        _ => None,
+                    };
                     let label = match (&num_id, list_item) {
+                        _ if list_mark.is_some() => None,
                         (Some(id), _) => numbering.label(id, ilvl),
                         (None, true) => Some("•".into()),
                         (None, false) => None,
                     };
-                    let label = label
-                        .map(|label| format!("{} ", escape(&label)))
-                        .unwrap_or_default();
+                    let label = list_mark.unwrap_or_default()
+                        + &label
+                            .map(|label| format!("{} ", escape(&label)))
+                            .unwrap_or_default();
                     let mark = if page_break_before && cell.is_empty() {
                         PAGE_BREAK_MARK.to_string()
                     } else {
@@ -2041,6 +2071,7 @@ fn xml_to_html(
             _ => {}
         }
     }
+    report.lists = std::mem::take(&mut numbering.lists);
     // 문단이 가장 많은 구역(같으면 앞 구역).
     report.page = section_pages
         .iter()

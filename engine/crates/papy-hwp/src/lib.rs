@@ -26,6 +26,7 @@ mod comments;
 mod document;
 mod fragment;
 mod links;
+mod lists;
 mod notes;
 mod repair;
 mod shapes;
@@ -539,6 +540,7 @@ fn open_converted(
         captions::apply(&mut doc);
         dropped += comments::apply(&mut doc, &report.comment_marks);
         comments::bookmarks(&mut doc, &report.bookmarks);
+        lists::apply(&mut doc, &report.lists);
         doc.end_batch_native()?;
         Ok((doc, dropped))
     })?

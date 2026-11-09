@@ -722,7 +722,7 @@ fn word_num_format(code: u8) -> &'static str {
         8 => "ganada",
         10 => "chosung",
         12 => "koreanCounting",
-        13 => "ideographTraditional",
+        13 => "chineseCounting",
         _ => "decimal",
     }
 }

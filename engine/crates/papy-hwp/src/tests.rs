@@ -2341,6 +2341,10 @@ fn docx_round_trip_keeps_structure() {
 <w:p><w:r><w:drawing><wp:inline><wp:extent cx="381000" cy="190500"/><a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="rIdImg"/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>
 <w:p><w:pPr><w:sectPr><w:headerReference w:type="default" r:id="rIdH"/><w:footerReference w:type="default" r:id="rIdF"/><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1701" w:right="1440" w:bottom="1440" w:left="1440" w:header="851" w:footer="992" w:gutter="0"/></w:sectPr></w:pPr><w:r><w:t>첫 구역 끝</w:t></w:r></w:p>
 <w:p><w:r><w:t>둘째 구역</w:t></w:r></w:p>
+<w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr></w:pPr><w:r><w:t>번호 하나</w:t></w:r></w:p>
+<w:p><w:pPr><w:numPr><w:ilvl w:val="1"/><w:numId w:val="1"/></w:numPr></w:pPr><w:r><w:t>번호 둘</w:t></w:r></w:p>
+<w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="2"/></w:numPr></w:pPr><w:r><w:t>글머리</w:t></w:r></w:p>
+<w:tbl><w:tblPr/><w:tblGrid><w:gridCol w:w="4000"/></w:tblGrid><w:tr><w:tc><w:tcPr><w:tcW w:w="4000" w:type="dxa"/></w:tcPr><w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr></w:pPr><w:r><w:t>칸 번호</w:t></w:r></w:p></w:tc></w:tr></w:tbl>
 <w:sectPr><w:headerReference w:type="default" r:id="rIdH2"/><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1701" w:right="1440" w:bottom="1440" w:left="1440" w:header="851" w:footer="992" w:gutter="0"/></w:sectPr></w:body></w:document>"#
     );
     let header = r#"<w:hdr xmlns:w="w"><w:tbl><w:tblPr/><w:tblGrid><w:gridCol w:w="4000"/><w:gridCol w:w="4000"/></w:tblGrid><w:tr><w:tc><w:tcPr><w:tcW w:w="4000" w:type="dxa"/></w:tcPr><w:p><w:r><w:t>머리 왼쪽</w:t></w:r></w:p></w:tc><w:tc><w:tcPr><w:tcW w:w="4000" w:type="dxa"/></w:tcPr><w:p><w:r><w:t>머리 오른쪽</w:t></w:r></w:p></w:tc></w:tr></w:tbl><w:p/></w:hdr>"#;
@@ -2348,6 +2352,8 @@ fn docx_round_trip_keeps_structure() {
     let footer = r#"<w:ftr xmlns:w="w"><w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:t>꼬리말</w:t></w:r><w:r><w:ptab w:relativeTo="margin" w:alignment="right" w:leader="none"/><w:t>오른쪽</w:t></w:r></w:p></w:ftr>"#;
     // 표가 든 각주(전에는 각주 글자만 옮겨 표가 빠졌다)
     let footnotes = r#"<w:footnotes xmlns:w="w"><w:footnote w:id="2"><w:p><w:r><w:t>각주 글</w:t></w:r></w:p></w:footnote><w:footnote w:id="3"><w:p><w:r><w:t>표 각주</w:t></w:r></w:p><w:tbl><w:tblPr/><w:tblGrid><w:gridCol w:w="3000"/></w:tblGrid><w:tr><w:tc><w:tcPr><w:tcW w:w="3000" w:type="dxa"/></w:tcPr><w:p><w:r><w:t>주 칸</w:t></w:r></w:p></w:tc></w:tr></w:tbl><w:p/></w:footnote></w:footnotes>"#;
+    // 번호 목록·글머리표(전에는 번호를 글자로 넣어 한글 문단 번호가 아니었다)
+    let numbering = r#"<w:numbering xmlns:w="w"><w:abstractNum w:abstractNumId="0"><w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="decimal"/><w:lvlText w:val="%1."/></w:lvl><w:lvl w:ilvl="1"><w:start w:val="1"/><w:numFmt w:val="ganada"/><w:lvlText w:val="%2)"/></w:lvl></w:abstractNum><w:abstractNum w:abstractNumId="1"><w:lvl w:ilvl="0"><w:numFmt w:val="bullet"/><w:lvlText w:val="■"/></w:lvl></w:abstractNum><w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num><w:num w:numId="2"><w:abstractNumId w:val="1"/></w:num></w:numbering>"#;
     let comments = r#"<w:comments xmlns:w="w"><w:comment w:id="0" w:author="검토자"><w:p><w:r><w:t>메모 글</w:t></w:r></w:p></w:comment></w:comments>"#;
     let rels = r#"<Relationships xmlns="r"><Relationship Id="rIdH" Type="header" Target="header1.xml"/><Relationship Id="rIdH2" Type="header" Target="header2.xml"/><Relationship Id="rIdF" Type="footer" Target="footer1.xml"/><Relationship Id="rIdImg" Type="image" Target="media/red.png"/><Relationship Id="rIdL" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.com/" TargetMode="External"/></Relationships>"#;
     let mut buffer = std::io::Cursor::new(Vec::new());
@@ -2361,6 +2367,7 @@ fn docx_round_trip_keeps_structure() {
         ("word/footer1.xml", footer.as_bytes()),
         ("word/footnotes.xml", footnotes.as_bytes()),
         ("word/comments.xml", comments.as_bytes()),
+        ("word/numbering.xml", numbering.as_bytes()),
         ("word/media/red.png", RED_PNG),
     ] {
         zip.start_file(name, zip::write::SimpleFileOptions::default())
@@ -2370,6 +2377,13 @@ fn docx_round_trip_keeps_structure() {
     zip.finish().unwrap();
     let mut doc = open(HwpBackend::docx(), buffer.into_inner(), &options()).unwrap();
     assert_eq!(doc.info().dropped_objects, 0);
+    // 번호는 한글이 그린다(표시 글자가 남지 않는다)
+    let last = doc.info().page_count - 1;
+    let text = doc.extract_text(last).unwrap();
+    assert!(
+        !text.contains('\u{E0EC}') && text.contains("번호 하나"),
+        "{text:?}"
+    );
     // 위치 탭(ptab)은 탭으로 읽는다(전에는 빠져 "꼬리말오른쪽" 으로 붙었다).
     let text = doc.extract_text(0).unwrap();
     assert!(text.contains("꼬리말\t오른쪽"), "{text:?}");
@@ -2377,7 +2391,7 @@ fn docx_round_trip_keeps_structure() {
     let get = |key: &str| source.get(key).copied().unwrap_or(0);
     // 원본에서 요소가 다 들어왔는지(점검이 빈 것끼리 비교하지 않게)
     for (key, expected) in [
-        ("tables", 5),
+        ("tables", 6),
         ("tables.nested", 1),
         ("tables.in_header", 1),
         ("tables.in_note", 1),
@@ -2397,6 +2411,7 @@ fn docx_round_trip_keeps_structure() {
         ("break.page", 2),
         ("para.center", 2),
         ("para.right", 1),
+        ("para.list", 4),
     ] {
         assert_eq!(get(key), expected, "{key}: {source:?}");
     }

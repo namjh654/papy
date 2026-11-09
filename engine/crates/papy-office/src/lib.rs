@@ -21,8 +21,9 @@ mod write;
 pub use doc::{doc_to_html, doc_to_html_with_password, is_doc};
 pub use notes::{
     BOOKMARK_MARK, CAPTION_MARKS, CAPTION_MORE_MARK, COLUMN_BREAK_MARK, COMMENT_MARK, ENDNOTE_MARK,
-    FOOTNOTE_MARK, HeaderFooterText, LINK_END_MARK, LINK_START_MARK, PAGE_BREAK_MARK,
-    PAGE_COUNT_FIELD, PAGE_COUNT_MARK, PAGE_NUMBER_FIELD, PAGE_NUMBER_MARK, SECTION_MARK,
+    FOOTNOTE_MARK, HeaderFooterText, LINK_END_MARK, LINK_START_MARK, LIST_CODE_BASE, LIST_MARK,
+    ListDef, MAX_LIST_DEFS, PAGE_BREAK_MARK, PAGE_COUNT_FIELD, PAGE_COUNT_MARK, PAGE_NUMBER_FIELD,
+    PAGE_NUMBER_MARK, SECTION_MARK,
 };
 pub use read::{DocxComment, DocxHeading, DocxReadReport, PageSetup, docx_to_html, is_docx};
 pub use shapes::{CELL_SHAPE_MARK, DocxShape, Relative, SHAPE_MARK, ShapeImage, ShapeKind, Wrap};

@@ -57,8 +57,11 @@ fn paragraphs_runs_styles_and_entities() {
     );
     assert!(html.contains("<p></p>"));
     assert!(
-        // 탭은 런 서식 안에 둔다(밖에 두면 기본 글꼴로 빠진다)
-        html.contains("<p>• <span style=\"font-size:11pt;\">항목\t끝</span>"),
+        // 정의 없는 목록 문단은 글머리표 "•" 로(한글 문단 머리 표시). 탭은 런 서식 안에 둔다(밖에 두면 기본 글꼴로 빠진다).
+        html.contains(&format!(
+            "<p>{}<span style=\"font-size:11pt;\">항목\t끝</span>",
+            list_mark(0, 0)
+        )),
         "{html}"
     );
     assert_eq!(report.dropped_drawings, 1);
@@ -258,10 +261,27 @@ pub(crate) fn notes_docx() -> Vec<u8> {
 #[test]
 fn numbering_footnotes_headers_and_footers() {
     let (html, report) = docx_to_html(&notes_docx()).unwrap();
-    assert!(html.contains("<p>1. 첫째</p>"), "{html}");
-    assert!(html.contains("<p>1-가) 하위</p>"), "{html}");
-    assert!(html.contains("<p>2. 둘째</p>"), "{html}");
-    assert!(html.contains("<p>• 점</p>"), "{html}");
+    // 본문 번호 목록은 한글 문단 번호로 옮길 표시(정의·수준)와 정의로 읽는다.
+    assert!(
+        html.contains(&format!("<p>{}첫째</p>", list_mark(0, 0))),
+        "{html}"
+    );
+    assert!(
+        html.contains(&format!("<p>{}하위</p>", list_mark(0, 1))),
+        "{html}"
+    );
+    assert!(
+        html.contains(&format!("<p>{}둘째</p>", list_mark(0, 0))),
+        "{html}"
+    );
+    assert!(
+        html.contains(&format!("<p>{}점</p>", list_mark(1, 0))),
+        "{html}"
+    );
+    assert_eq!(report.lists[0].bullet, None);
+    assert_eq!(report.lists[0].levels[0], (0, "^1.".to_string(), 1));
+    assert_eq!(report.lists[0].levels[1], (8, "^1-^2)".to_string(), 1));
+    assert_eq!(report.lists[1].bullet, Some('•'));
     assert!(
         html.contains(&format!("본문{FOOTNOTE_MARK} 계속")),
         "{html}"
@@ -954,7 +974,7 @@ fn numbering_note_marks_and_page_fields_are_written() {
         footer.contains(r#"<w:jc w:val="center"/></w:pPr><w:r><w:t xml:space="preserve">- </w:t></w:r><w:fldSimple w:instr=" PAGE ">"#),
         "{footer}"
     );
-    // 다시 읽기: 머리말·꼬리말의 쪽 번호 필드는 rhwp 필드 글자로, 번호 목록은 번호 글자로.
+    // 다시 읽기: 머리말·꼬리말의 쪽 번호 필드는 rhwp 필드 글자로, 본문 번호 목록은 한글 문단 번호 정의로.
     assert_eq!(
         crate::notes::header_footer_texts(&footer),
         vec![format!("- {} -", crate::notes::PAGE_NUMBER_FIELD)]
@@ -964,8 +984,17 @@ fn numbering_note_marks_and_page_fields_are_written() {
         crate::notes::header_footer_texts(complex),
         vec![format!("{}쪽", crate::notes::PAGE_COUNT_FIELD)]
     );
-    let (html, _) = docx_to_html(&bytes).unwrap();
-    assert!(html.contains("가.1) "), "{html}");
+    // 다시 읽으면 같은 번호 모양의 한글 문단 번호 정의(가나다 → 표 43 코드 8)
+    let (html, report) = docx_to_html(&bytes).unwrap();
+    assert!(html.contains(LIST_MARK), "{html}");
+    assert!(
+        report.lists[0]
+            .levels
+            .iter()
+            .any(|(_, text, _)| text == "^1.^2)"),
+        "{:?}",
+        report.lists
+    );
 }
 
 #[test]
@@ -1261,4 +1290,12 @@ fn latin_and_east_asian_fonts_are_kept_apart() {
         "{html}"
     );
     assert!(html.contains("font-family:'바탕';\">같음"), "{html}");
+}
+
+/// 번호 목록 표시 글자(정의 번호, 수준)
+fn list_mark(def: u32, level: u32) -> String {
+    format!(
+        "{LIST_MARK}{}",
+        char::from_u32(crate::LIST_CODE_BASE + def * 8 + level).unwrap()
+    )
 }

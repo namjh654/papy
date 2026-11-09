@@ -29,6 +29,13 @@ pub const COMMENT_MARK: char = '\u{E0F0}';
 
 /// 책갈피 자리 표시(사용자 영역 글자). papy-hwp 가 지우고 그 자리에 책갈피를 넣는다.
 pub const BOOKMARK_MARK: char = '\u{E0ED}';
+/// 번호 목록 문단 맨 앞 표시: 바로 뒤 한 글자가 `LIST_CODE_BASE + 정의 번호 × 8 + 수준` 이다
+/// ([`DocxReadReport::lists`](crate::DocxReadReport::lists) 의 정의를 한글 문단 번호·글머리표로 바꾼다).
+pub const LIST_MARK: char = '\u{E0EC}';
+/// [`LIST_MARK`] 뒤 글자의 시작. 정의 224개(× 수준 8)까지.
+pub const LIST_CODE_BASE: u32 = 0xF100;
+/// [`LIST_MARK`] 로 나타낼 수 있는 정의 수.
+pub const MAX_LIST_DEFS: usize = 224;
 
 /// 하이퍼링크 시작·끝 표시(사용자 영역 글자). papy-hwp 가 지우고 그 사이 글에 하이퍼링크를 건다.
 pub const LINK_START_MARK: char = '\u{E0EE}';
@@ -278,11 +285,69 @@ struct Level {
     format: String,
     text: String,
     start: u32,
+    /// 수준 들여쓰기(twip, `w:lvl/w:pPr/w:ind`): 왼쪽, 첫 줄(+ 들여쓰기, - 내어쓰기)
+    left: Option<i64>,
+    first_line: Option<i64>,
+}
+
+/// 한글 문단 번호·글머리표로 옮길 번호 목록 정의 하나(Word `w:num` 하나, 글머리표는 글자 하나).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ListDef {
+    /// 글머리표면 그 글자(수준과 무관)
+    pub bullet: Option<char>,
+    /// 번호면 수준(0~6)마다 (한글 번호 형식 코드(표 43), 한글 번호 모양(`^1.`), 시작 번호)
+    pub levels: Vec<(u8, String, u32)>,
+}
+
+/// Word `w:numFmt` → 한글 번호 형식 코드(표 43). 한글에 없는 형식은 None(번호 글자로 읽는다).
+fn hwp_num_format(format: &str) -> Option<u8> {
+    Some(match format {
+        "decimal" => 0,
+        "decimalEnclosedCircle" | "decimalEnclosedCircleChinese" => 1,
+        "upperRoman" => 2,
+        "lowerRoman" => 3,
+        "upperLetter" => 4,
+        "lowerLetter" => 5,
+        "ganada" => 8,
+        "chosung" => 10,
+        "koreanCounting" => 12,
+        "chineseCounting"
+        | "japaneseCounting"
+        | "chineseCountingThousand"
+        | "ideographTraditional" => 13,
+        _ => return None,
+    })
+}
+
+/// Word 번호 모양(`%1.%2.`) → 한글 번호 모양(`^1.^2.`). 8·9 수준을 가리키면 None.
+fn hwp_level_text(text: &str) -> Option<String> {
+    let mut out = String::new();
+    let mut chars = text.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '%' {
+            match chars.next() {
+                Some(d @ '1'..='7') => {
+                    out.push('^');
+                    out.push(d);
+                }
+                _ => return None,
+            }
+        } else if c == '^' {
+            return None;
+        } else {
+            out.push(c);
+        }
+    }
+    Some(out)
 }
 
 /// `word/numbering.xml` 과 지금까지 센 번호.
 #[derive(Debug, Default)]
 pub struct Numbering {
+    /// [`Numbering::list_mark`] 가 만든 정의(표시 글자의 정의 번호 차례). 글머리표는 글자마다, 번호는 numId 마다.
+    pub lists: Vec<ListDef>,
+    /// 정의 번호: numId(번호) 또는 "•글자"(글머리표)
+    list_keys: Vec<String>,
     /// numId → abstractNumId
     nums: HashMap<String, String>,
     /// abstractNumId → 수준(ilvl 순)
@@ -335,6 +400,8 @@ impl Numbering {
                                 format: "decimal".into(),
                                 text: format!("%{}.", index + 1),
                                 start: 1,
+                                left: None,
+                                first_line: None,
                             },
                         ));
                     }
@@ -356,6 +423,15 @@ impl Numbering {
                         level.start = value;
                     }
                 }
+                "ind" => {
+                    if let Some((_, level)) = level.as_mut() {
+                        let number = |key: &str| attr(&e, key).and_then(|v| v.parse::<i64>().ok());
+                        level.left = number("left").or_else(|| number("start"));
+                        level.first_line = number("hanging")
+                            .map(|h| -h)
+                            .or_else(|| number("firstLine"));
+                    }
+                }
                 "num" if !empty => num_id = attr(&e, "numId"),
                 "abstractNumId" => {
                     if let (Some(id), Some(value)) = (&num_id, attr(&e, "val")) {
@@ -366,6 +442,87 @@ impl Numbering {
             }
         }
         numbering
+    }
+
+    /// 번호 목록 문단을 한글 문단 번호로 옮길 표시 글자([`LIST_MARK`] + 정의·수준). 한글로 옮길 수 없는
+    /// 형식(번호 없음, 8·9 수준, 한글에 없는 번호 형식, 정의가 너무 많음)이면 None — 그때는 [`Numbering::label`] 로
+    /// 번호 글자를 넣는다. `num_id` 가 None 이면(정의 없는 목록 문단) 글머리표 "•".
+    pub fn list_mark(&mut self, num_id: Option<&str>, ilvl: usize) -> Option<String> {
+        if ilvl > 6 || num_id == Some("0") {
+            return None;
+        }
+        let level_of =
+            |levels: &Vec<Option<Level>>, index: usize| levels.get(index).cloned().flatten();
+        let (key, def) = match num_id.and_then(|id| {
+            self.nums
+                .get(id)
+                .and_then(|a| self.abstracts.get(a))
+                .map(|l| (id, l))
+        }) {
+            None => (
+                "•".to_string(),
+                ListDef {
+                    bullet: Some('•'),
+                    levels: Vec::new(),
+                },
+            ),
+            Some((id, levels)) => {
+                let level = level_of(levels, ilvl)?;
+                if level.format == "bullet" {
+                    let ch = bullet(&level.text).chars().next().unwrap_or('•');
+                    (
+                        format!("•{ch}"),
+                        ListDef {
+                            bullet: Some(ch),
+                            levels: Vec::new(),
+                        },
+                    )
+                } else {
+                    let mut hwp_levels = Vec::new();
+                    for index in 0..7 {
+                        let entry = match level_of(levels, index) {
+                            Some(l) if l.format != "bullet" && l.format != "none" => {
+                                match (hwp_num_format(&l.format), hwp_level_text(&l.text)) {
+                                    (Some(code), Some(text)) => (code, text, l.start),
+                                    _ if index == ilvl => return None,
+                                    _ => (0, format!("^{}.", index + 1), 1),
+                                }
+                            }
+                            _ if index == ilvl => return None,
+                            _ => (0, format!("^{}.", index + 1), 1),
+                        };
+                        hwp_levels.push(entry);
+                    }
+                    (
+                        id.to_string(),
+                        ListDef {
+                            bullet: None,
+                            levels: hwp_levels,
+                        },
+                    )
+                }
+            }
+        };
+        let index = match self.list_keys.iter().position(|k| *k == key) {
+            Some(index) => index,
+            None if self.lists.len() < MAX_LIST_DEFS => {
+                self.list_keys.push(key);
+                self.lists.push(def);
+                self.lists.len() - 1
+            }
+            None => return None,
+        };
+        let code = char::from_u32(LIST_CODE_BASE + (index * 8 + ilvl) as u32)?;
+        Some(format!("{LIST_MARK}{code}"))
+    }
+
+    /// 번호 목록 수준의 들여쓰기(twip): (왼쪽, 첫 줄). 문단에 직접 준 들여쓰기가 없을 때 쓴다(Word 와 같은 차례).
+    pub fn level_indent(&self, num_id: &str, ilvl: usize) -> (Option<i64>, Option<i64>) {
+        self.nums
+            .get(num_id)
+            .and_then(|id| self.abstracts.get(id))
+            .and_then(|levels| levels.get(ilvl.min(8)).cloned().flatten())
+            .map_or((None, None), |level| (level.left, level.first_line))
     }
 
     /// 문단 번호 글자("1.", "가.", "•" 등). numId 가 0 이면 번호 없음. 정의를 못 찾으면 "•".
