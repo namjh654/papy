@@ -24,6 +24,7 @@ mod audit;
 mod captions;
 mod comments;
 mod document;
+mod fields;
 mod fragment;
 mod links;
 mod lists;
@@ -537,6 +538,8 @@ fn open_converted(
             // 칸에 넣은 도형만큼 칸 줄 높이를 다시 잡는다.
             doc.reflow_table_cells_native(0)?;
         }
+        // 누름틀은 글상자가 생긴 뒤에 넣는다(글상자 안 것도 있다).
+        fields::apply(&mut doc, &report.click_here);
         captions::apply(&mut doc);
         dropped += comments::apply(&mut doc, &report.comment_marks);
         comments::bookmarks(&mut doc, &report.bookmarks);

@@ -5,7 +5,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use rhwp::model::control::{AutoNumberType, Control};
+use rhwp::model::control::{AutoNumberType, Control, FieldType};
 use rhwp::model::document::Document;
 use rhwp::model::paragraph::{ColumnBreakType, Paragraph};
 use rhwp::model::shape::ShapeObject;
@@ -161,6 +161,15 @@ impl Counter<'_> {
                 _ => {}
             }
         }
+        // 누름틀 내용 글자 수(빈 누름틀이 되거나 내용이 밖으로 빠지면 바뀐다)
+        for range in &paragraph.field_ranges {
+            if let Some(Control::Field(field)) = paragraph.controls.get(range.control_idx) {
+                if field.field_type == FieldType::ClickHere {
+                    let len = range.end_char_idx.saturating_sub(range.start_char_idx);
+                    self.add("chars.clickhere", len as u64);
+                }
+            }
+        }
         for control in &paragraph.controls {
             self.control(control, place, depth);
         }
@@ -235,6 +244,9 @@ impl Counter<'_> {
             Control::Bookmark(_) => self.add("bookmarks", 1),
             // 한글 메모(메모 필드)는 Word 메모·숨은 설명과 같은 것으로 센다.
             Control::Field(field) if field.command.starts_with("MEMO/") => self.add("comments", 1),
+            Control::Field(field) if field.field_type == FieldType::ClickHere => {
+                self.add("fields.clickhere", 1)
+            }
             Control::Field(_) => self.add("fields", 1),
             Control::HiddenComment(_) => self.add("comments", 1),
             Control::AutoNumber(number) => match number.number_type {

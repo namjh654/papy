@@ -2325,7 +2325,11 @@ fn docx_round_trip_keeps_structure() {
         1905000,
         &format!(r#"<w:p><w:r><w:rPr><w:b/></w:rPr><w:t>상자 굵게</w:t></w:r>{picture}</w:p>"#),
     );
-    let cell_box = text_box(952500, r#"<w:p><w:r><w:t>칸 상자</w:t></w:r></w:p>"#);
+    // 글상자 안 누름틀(rhwp 에 넣는 길이 없어 Papy 가 바로 넣는다)
+    let cell_box = text_box(
+        952500,
+        r#"<w:p><w:r><w:t xml:space="preserve">칸 </w:t></w:r><w:sdt><w:sdtPr><w:alias w:val="상자 안내"/></w:sdtPr><w:sdtContent><w:r><w:t>상자</w:t></w:r></w:sdtContent></w:sdt></w:p>"#,
+    );
     let document = format!(
         r#"<w:document xmlns:w="w" xmlns:wp="wp" xmlns:a="a" xmlns:pic="pic" xmlns:r="r" xmlns:wps="wps" xmlns:papy="papy"><w:body>
 <w:p><w:r><w:t xml:space="preserve">상자 앞 </w:t></w:r>{boxed}</w:p>
@@ -2341,10 +2345,11 @@ fn docx_round_trip_keeps_structure() {
 <w:p><w:r><w:drawing><wp:inline><wp:extent cx="381000" cy="190500"/><a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="rIdImg"/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>
 <w:p><w:pPr><w:sectPr><w:headerReference w:type="default" r:id="rIdH"/><w:footerReference w:type="default" r:id="rIdF"/><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1701" w:right="1440" w:bottom="1440" w:left="1440" w:header="851" w:footer="992" w:gutter="0"/></w:sectPr></w:pPr><w:r><w:t>첫 구역 끝</w:t></w:r></w:p>
 <w:p><w:r><w:t>둘째 구역</w:t></w:r></w:p>
+<w:p><w:r><w:t xml:space="preserve">성명: </w:t></w:r><w:sdt><w:sdtPr><w:alias w:val="이름을 적으세요"/><w:tag w:val="성명"/><w:text/></w:sdtPr><w:sdtContent><w:r><w:t>홍길동</w:t></w:r></w:sdtContent></w:sdt><w:r><w:t xml:space="preserve"> 날짜: </w:t></w:r><w:sdt><w:sdtPr><w:alias w:val="날짜"/><w:showingPlcHdr/></w:sdtPr><w:sdtContent><w:r><w:t>여기를 누르세요</w:t></w:r></w:sdtContent></w:sdt></w:p>
 <w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr></w:pPr><w:r><w:t>번호 하나</w:t></w:r></w:p>
 <w:p><w:pPr><w:numPr><w:ilvl w:val="1"/><w:numId w:val="1"/></w:numPr></w:pPr><w:r><w:t>번호 둘</w:t></w:r></w:p>
 <w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="2"/></w:numPr></w:pPr><w:r><w:t>글머리</w:t></w:r></w:p>
-<w:tbl><w:tblPr/><w:tblGrid><w:gridCol w:w="4000"/></w:tblGrid><w:tr><w:tc><w:tcPr><w:tcW w:w="4000" w:type="dxa"/></w:tcPr><w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr></w:pPr><w:r><w:t>칸 번호</w:t></w:r></w:p></w:tc></w:tr></w:tbl>
+<w:tbl><w:tblPr/><w:tblGrid><w:gridCol w:w="4000"/></w:tblGrid><w:tr><w:tc><w:tcPr><w:tcW w:w="4000" w:type="dxa"/></w:tcPr><w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr></w:pPr><w:r><w:t>칸 번호</w:t></w:r></w:p><w:p><w:sdt><w:sdtPr><w:alias w:val="칸 안내"/></w:sdtPr><w:sdtContent><w:r><w:t>칸값</w:t></w:r></w:sdtContent></w:sdt></w:p></w:tc></w:tr></w:tbl>
 <w:sectPr><w:headerReference w:type="default" r:id="rIdH2"/><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1701" w:right="1440" w:bottom="1440" w:left="1440" w:header="851" w:footer="992" w:gutter="0"/></w:sectPr></w:body></w:document>"#
     );
     let header = r#"<w:hdr xmlns:w="w"><w:tbl><w:tblPr/><w:tblGrid><w:gridCol w:w="4000"/><w:gridCol w:w="4000"/></w:tblGrid><w:tr><w:tc><w:tcPr><w:tcW w:w="4000" w:type="dxa"/></w:tcPr><w:p><w:r><w:t>머리 왼쪽</w:t></w:r></w:p></w:tc><w:tc><w:tcPr><w:tcW w:w="4000" w:type="dxa"/></w:tcPr><w:p><w:r><w:t>머리 오른쪽</w:t></w:r></w:p></w:tc></w:tr></w:tbl><w:p/></w:hdr>"#;
@@ -2380,6 +2385,13 @@ fn docx_round_trip_keeps_structure() {
     // 번호는 한글이 그린다(표시 글자가 남지 않는다)
     let last = doc.info().page_count - 1;
     let text = doc.extract_text(last).unwrap();
+    // 누름틀: 내용은 남고 자리 표시 글(showingPlcHdr)·표시 글자는 빠진다
+    assert!(
+        text.contains("성명: 홍길동 날짜: ")
+            && !text.contains("여기를 누르세요")
+            && !text.contains('\u{E0EA}'),
+        "{text:?}"
+    );
     assert!(
         !text.contains('\u{E0EC}') && text.contains("번호 하나"),
         "{text:?}"
@@ -2412,6 +2424,8 @@ fn docx_round_trip_keeps_structure() {
         ("para.center", 2),
         ("para.right", 1),
         ("para.list", 4),
+        ("fields.clickhere", 4),
+        ("chars.clickhere", 7),
     ] {
         assert_eq!(get(key), expected, "{key}: {source:?}");
     }

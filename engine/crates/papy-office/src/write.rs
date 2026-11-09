@@ -1136,7 +1136,12 @@ impl FieldSpans {
         for (start, end, open, close) in &self.spans {
             if *start == position {
                 out.push_str(open);
-                self.open.push((close.clone(), *end));
+                if *end <= position {
+                    // 빈 범위(빈 누름틀·메모 자리)는 바로 닫는다. 열어 두면 뒤 글이 그 안에 들어간다.
+                    out.push_str(close);
+                } else {
+                    self.open.push((close.clone(), *end));
+                }
             }
         }
     }
@@ -1158,7 +1163,7 @@ impl FieldSpans {
     }
 }
 
-/// 문단의 하이퍼링크·메모 필드 범위. 메모 본문은 여기서 써 둔다.
+/// 문단의 하이퍼링크·누름틀·메모 필드 범위. 메모 본문은 여기서 써 둔다.
 fn field_spans(
     info: &DocInfo,
     media: &mut Media,
@@ -1185,6 +1190,35 @@ fn field_spans(
                 end,
                 format!(r#"<w:hyperlink r:id="rIdLink{id}">"#),
                 "</w:hyperlink>".into(),
+            ));
+        } else if field.field_type == FieldType::ClickHere {
+            // 누름틀 → 글 콘텐츠 컨트롤. 비었으면 안내문을 자리 표시 글로 둔다(Word 가 회색으로 보인다).
+            let click = crate::ClickHere {
+                guide: field.guide_text().unwrap_or("").to_owned(),
+                memo: field.memo_text().unwrap_or("").to_owned(),
+                name: field.field_name().unwrap_or("").to_owned(),
+                editable: field.is_editable_in_form(),
+            };
+            let empty = start >= end;
+            let open = format!(
+                r#"<w:sdt><w:sdtPr><w:alias w:val="{}"/><w:tag w:val="{}"/>{}<w:text/></w:sdtPr><w:sdtContent>"#,
+                xml_escape(&click.guide),
+                xml_escape(&click.tag()),
+                if empty { "<w:showingPlcHdr/>" } else { "" }
+            );
+            let placeholder = if empty && !click.guide.is_empty() {
+                format!(
+                    r#"<w:r><w:rPr><w:color w:val="808080"/></w:rPr><w:t xml:space="preserve">{}</w:t></w:r>"#,
+                    xml_escape(&click.guide)
+                )
+            } else {
+                String::new()
+            };
+            spans.push((
+                start,
+                end.max(start),
+                open,
+                format!("{placeholder}</w:sdtContent></w:sdt>"),
             ));
         } else if field.command.starts_with("MEMO/") && depth < MAX_DEPTH {
             // 한글 메모: `MEMO/<모양>/<번호>/<id>/<id>/<작성자>/…`
@@ -1464,6 +1498,8 @@ fn write_paragraph_with(
         out.push_str("</w:r>");
         start = end;
     }
+    // 문단 끝에서 열리는 범위(문단 끝의 빈 누름틀)
+    spans.emit(out, chars.len());
     for (_, control) in notes {
         write_inline(out, info, media, control, depth)?;
     }

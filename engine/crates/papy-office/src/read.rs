@@ -41,6 +41,8 @@ pub struct DocxReadReport {
     pub bookmarks: Vec<String>,
     /// 본문·표 칸의 하이퍼링크 주소, [`crate::LINK_START_MARK`] 와 같은 차례.
     pub hyperlinks: Vec<String>,
+    /// 본문·표 칸의 누름틀(글 콘텐츠 컨트롤 `w:sdt`), [`crate::FIELD_START_MARK`] 와 같은 차례.
+    pub click_here: Vec<crate::ClickHere>,
     /// 본문·표 칸의 [`crate::COMMENT_MARK`] 자리마다 메모 글(문단마다), 같은 차례.
     pub comment_marks: Vec<Vec<String>>,
     /// 각주 내용 HTML(서식·표·그림 포함, `footnotes` 와 같은 차례). 비었거나 None 이면 글자만 넣는다.
@@ -801,6 +803,17 @@ fn resolve_style(
     (run, align, outline, para)
 }
 
+/// 문단 안 콘텐츠 컨트롤(`w:sdt`) 읽는 중 상태
+#[derive(Default)]
+struct Sdt {
+    alias: Option<String>,
+    tag: Option<String>,
+    in_pr: bool,
+    placeholder: bool,
+    /// 누름틀 시작 표시를 넣었는가
+    marked: bool,
+}
+
 fn escape(text: &str) -> String {
     text.replace('&', "&amp;")
         .replace('<', "&lt;")
@@ -1074,6 +1087,8 @@ fn xml_to_html(
     let links = rels_xml.as_deref().map(parse_links).unwrap_or_default();
     // 열린 하이퍼링크(`w:hyperlink`) 깊이마다 표시를 넣었는가
     let mut link_stack: Vec<bool> = Vec::new();
+    // 열린 콘텐츠 컨트롤(`w:sdt`)마다: 문단 안 것만 Some. 자리 표시 글(`w:showingPlcHdr`)은 읽지 않는다.
+    let mut sdt_stack: Vec<Option<Sdt>> = Vec::new();
     let comments = read_part(&mut archive, "word/comments.xml")?
         .map(|xml| parse_comments(&xml))
         .unwrap_or_default();
@@ -1267,6 +1282,40 @@ fn xml_to_html(
                             );
                             para_html.push(BOOKMARK_MARK);
                             report.bookmarks.push(name);
+                        }
+                    }
+                    "sdt" if !empty => sdt_stack.push(in_para.then(Sdt::default)),
+                    "sdtPr" | "alias" | "tag" | "showingPlcHdr" => {
+                        if let Some(Some(sdt)) = sdt_stack.last_mut() {
+                            match name {
+                                "sdtPr" => sdt.in_pr = !empty,
+                                "alias" if sdt.in_pr => sdt.alias = attr(&e, "val"),
+                                "tag" if sdt.in_pr => sdt.tag = attr(&e, "val"),
+                                "showingPlcHdr" if sdt.in_pr => sdt.placeholder = true,
+                                _ => {}
+                            }
+                        }
+                    }
+                    // 본문·표 칸·글상자 안(조각은 depth > 0) 것만. 머리말 것은 글만 남긴다.
+                    "sdtContent"
+                        if !empty
+                            && (!header || depth > 0)
+                            && report.click_here.len() < crate::MAX_FIELDS =>
+                    {
+                        if let Some(Some(sdt)) = sdt_stack.last_mut() {
+                            flush(
+                                &mut para_html,
+                                &mut run_text,
+                                &run,
+                                &para_style.0,
+                                &defaults,
+                            );
+                            para_html.push_str(&crate::field_start(report.click_here.len()));
+                            report.click_here.push(crate::ClickHere::from_word(
+                                sdt.alias.take(),
+                                sdt.tag.take(),
+                            ));
+                            sdt.marked = true;
                         }
                     }
                     "hyperlink" if !empty && in_para => {
@@ -1767,6 +1816,10 @@ fn xml_to_html(
                             report.images += part.images;
                             report.dropped_drawings += part.dropped_drawings;
                             report.dropped_notes += part.dropped_notes;
+                            // 글상자 안 누름틀: 차례를 바깥 것 뒤로 옮겨 합친다.
+                            let html =
+                                crate::notes::shift_field_marks(&html, report.click_here.len());
+                            report.click_here.extend(part.click_here);
                             if let Some(current) = drawing.as_mut() {
                                 current.set_textbox_html(html);
                             }
@@ -1782,7 +1835,13 @@ fn xml_to_html(
             }
             Event::Text(text) if in_instr => field_instr.push_str(&text.xml10_content()),
             Event::Text(_) | Event::GeneralRef(_)
-                if skip_field_result || skip_simple || (note_mark_run && in_run) => {}
+                if skip_field_result
+                    || skip_simple
+                    || (note_mark_run && in_run)
+                    || sdt_stack
+                        .iter()
+                        .flatten()
+                        .any(|s| s.marked && s.placeholder) => {}
             Event::Text(text) if in_text => {
                 let text = text.xml10_content();
                 para_plain.push_str(&text);
@@ -1897,6 +1956,25 @@ fn xml_to_html(
                     }
                 }
                 "t" => in_text = false,
+                "sdtPr" => {
+                    if let Some(Some(sdt)) = sdt_stack.last_mut() {
+                        sdt.in_pr = false;
+                    }
+                }
+                "sdt" => {
+                    if let Some(Some(sdt)) = sdt_stack.pop() {
+                        if sdt.marked {
+                            flush(
+                                &mut para_html,
+                                &mut run_text,
+                                &run,
+                                &para_style.0,
+                                &defaults,
+                            );
+                            para_html.push(crate::FIELD_END_MARK);
+                        }
+                    }
+                }
                 "hyperlink" => {
                     if link_stack.pop() == Some(true) {
                         flush(
@@ -2107,7 +2185,7 @@ fn xml_to_html(
                 report.images += part.images;
                 report.dropped_drawings += part.dropped_drawings;
             }
-            out.push(html.map(|(html, _)| html));
+            out.push(html.map(|(html, _)| crate::notes::strip_field_marks(&html)));
         }
     }
     // 구역이 시작하는 자리: 구역 시작 방식대로 나누기 표시와 구역 표시를 첫 문단 앞에 둔다.
@@ -2192,7 +2270,7 @@ fn xml_to_html(
                     report.images += part.images;
                     shapes = part.shapes;
                     cell_shapes = part.cell_shapes;
-                    strip_marks_keeping_shapes(&html)
+                    crate::notes::strip_field_marks(&strip_marks_keeping_shapes(&html))
                 })
             } else {
                 None

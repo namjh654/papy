@@ -42,6 +42,134 @@ pub const LINK_START_MARK: char = '\u{E0EE}';
 /// 하이퍼링크 끝 표시.
 pub const LINK_END_MARK: char = '\u{E0EF}';
 
+/// 누름틀 시작·끝 표시(사용자 영역 글자). papy-hwp 가 지우고 그 사이 글을 누름틀(ClickHere)로 감싼다
+/// (시작 표시 차례 = [`DocxReadReport::click_here`](crate::DocxReadReport::click_here) 차례).
+pub const FIELD_START_MARK: char = '\u{E0EA}';
+/// 누름틀 끝 표시.
+pub const FIELD_END_MARK: char = '\u{E0EB}';
+/// [`FIELD_START_MARK`] 뒤 두 글자의 시작: `FIELD_CODE_BASE + 차례 / 1024`, `FIELD_CODE_BASE + 차례 % 1024`.
+/// 글상자 안 누름틀도 차례를 잃지 않게 표시에 차례를 담는다.
+pub const FIELD_CODE_BASE: u32 = 0xF400;
+/// 표시로 나타낼 수 있는 누름틀 수
+pub const MAX_FIELDS: usize = 1024 * 1024;
+
+/// 누름틀 시작 표시(차례 포함)
+pub fn field_start(index: usize) -> String {
+    let code = |n: usize| char::from_u32(FIELD_CODE_BASE + n as u32).unwrap_or('\u{F400}');
+    [
+        FIELD_START_MARK,
+        code(index / 1024 % 1024),
+        code(index % 1024),
+    ]
+    .into_iter()
+    .collect()
+}
+
+/// [`FIELD_START_MARK`] 뒤 두 글자 → 차례
+pub fn field_index(high: char, low: char) -> Option<usize> {
+    let digit = |c: char| {
+        u32::from(c)
+            .checked_sub(FIELD_CODE_BASE)
+            .filter(|n| *n < 1024)
+            .map(|n| n as usize)
+    };
+    Some(digit(high)? * 1024 + digit(low)?)
+}
+
+/// 조각 HTML 의 누름틀 차례를 `offset` 만큼 옮긴다(글상자 조각을 바깥 차례에 합칠 때).
+pub(crate) fn shift_field_marks(html: &str, offset: usize) -> String {
+    let chars: Vec<char> = html.chars().collect();
+    let mut out = String::with_capacity(html.len());
+    let mut i = 0;
+    while i < chars.len() {
+        if chars[i] == FIELD_START_MARK && i + 2 < chars.len() {
+            if let Some(index) = field_index(chars[i + 1], chars[i + 2]) {
+                out.push_str(&field_start(index + offset));
+                i += 3;
+                continue;
+            }
+        }
+        out.push(chars[i]);
+        i += 1;
+    }
+    out
+}
+
+/// 누름틀 표시를 모두 뺀다(누름틀을 넣지 않는 조각: 각주·미주).
+pub(crate) fn strip_field_marks(html: &str) -> String {
+    let chars: Vec<char> = html.chars().collect();
+    let mut out = String::with_capacity(html.len());
+    let mut i = 0;
+    while i < chars.len() {
+        match chars[i] {
+            FIELD_START_MARK => {
+                i += 1;
+                if i + 1 < chars.len() && field_index(chars[i], chars[i + 1]).is_some() {
+                    i += 2;
+                }
+            }
+            FIELD_END_MARK => i += 1,
+            c => {
+                out.push(c);
+                i += 1;
+            }
+        }
+    }
+    out
+}
+/// Papy 가 누름틀을 Word 콘텐츠 컨트롤(`w:sdt`)로 쓸 때 `w:tag` 앞머리: `papy-clickhere|<1·0 편집>|<이름>|<메모>`.
+pub const CLICK_HERE_TAG: &str = "papy-clickhere";
+
+/// 누름틀 하나(한글 ClickHere 필드 ↔ Word 글 콘텐츠 컨트롤).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ClickHere {
+    /// 안내문(비었을 때 보이는 글). Word `w:alias`.
+    pub guide: String,
+    /// 메모(도움말)
+    pub memo: String,
+    /// 필드 이름. Word `w:tag`(Papy 것이 아니면 그대로).
+    pub name: String,
+    /// 양식 모드에서 고칠 수 있는가
+    pub editable: bool,
+}
+
+impl ClickHere {
+    /// `w:tag` 값
+    pub fn tag(&self) -> String {
+        format!(
+            "{CLICK_HERE_TAG}|{}|{}|{}",
+            u8::from(self.editable),
+            self.name.replace('|', "/"),
+            self.memo
+        )
+    }
+
+    /// `w:alias`·`w:tag` 값에서
+    pub fn from_word(alias: Option<String>, tag: Option<String>) -> Self {
+        let guide = alias.unwrap_or_default();
+        match tag.as_deref().and_then(|t| t.strip_prefix(CLICK_HERE_TAG)) {
+            Some(rest) => {
+                let mut parts = rest.trim_start_matches('|').splitn(3, '|');
+                let editable = parts.next() != Some("0");
+                let name = parts.next().unwrap_or("").to_owned();
+                let memo = parts.next().unwrap_or("").to_owned();
+                Self {
+                    guide,
+                    memo,
+                    name,
+                    editable,
+                }
+            }
+            None => Self {
+                guide,
+                memo: String::new(),
+                name: tag.unwrap_or_default(),
+                editable: true,
+            },
+        }
+    }
+}
+
 /// 머리말·꼬리말 하나.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct HeaderFooterText {
