@@ -24,7 +24,7 @@ use crate::{COLUMN_BREAK_MARK, ENDNOTE_MARK, FOOTNOTE_MARK, PAGE_BREAK_MARK};
 /// 스트림 하나의 상한
 const MAX_STREAM_BYTES: u64 = 256 * 1024 * 1024;
 /// 본문 글자 수 상한
-const MAX_CHARS: u32 = 64 * 1024 * 1024;
+pub(crate) const MAX_CHARS: u32 = 64 * 1024 * 1024;
 /// 그림 하나·전체 상한
 const MAX_IMAGE_BYTES: usize = 32 * 1024 * 1024;
 const MAX_TOTAL_IMAGE_BYTES: usize = 256 * 1024 * 1024;
@@ -1388,6 +1388,12 @@ pub fn doc_to_html_with_password(
         cfb::CompoundFile::open(Cursor::new(bytes)).map_err(|_| invalid("not a compound file"))?;
     let mut word = read_stream(&mut file, "/WordDocument")?
         .ok_or_else(|| Error::new(ErrorCode::UnsupportedFormat, "not a Word document"))?;
+    if matches!(u16_at(&word, 0), Some(0xA5DC | 0xA699))
+        && matches!(u16_at(&word, 2), Some(0x65..=0x68))
+    {
+        // Word 6.0·95: 글과 문단만 읽는다([`crate::doc6`])
+        return crate::doc6::to_html(&word);
+    }
     if u16_at(&word, 0) != Some(0xA5EC) {
         return Err(Error::new(
             ErrorCode::UnsupportedFormat,

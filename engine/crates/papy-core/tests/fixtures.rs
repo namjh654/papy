@@ -189,3 +189,24 @@ fn word97_doc_opens_and_converts() {
         assert!(text.lines().any(|line| line == cell), "{cell}: {text:?}");
     }
 }
+
+#[test]
+fn word6_and_95_docs_open_as_text() {
+    // Word 6.0·95(옛 형식): 글과 문단만. 글은 언어·글꼴 문자 집합에 맞는 코드 페이지로 푼다(러시아어 1251).
+    let engine = Engine::new(Limits::default());
+    for (name, text) in [
+        (
+            "poi/Word6.doc",
+            "The quick brown fox jumps over the lazy dog",
+        ),
+        ("poi/Bug60942b.doc", "Четыре балла и семь лет"),
+    ] {
+        let id = engine
+            .open(DocumentSource::Path(fixture(name)), OpenOptions::default())
+            .unwrap();
+        assert_eq!(engine.info(id).unwrap().format, DocumentFormat::Doc);
+        let page = engine.extract_text(id, 0).unwrap();
+        assert!(page.contains(text), "{name}: {page:?}");
+        engine.close(id).unwrap();
+    }
+}

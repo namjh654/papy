@@ -11,6 +11,7 @@
 
 mod chart;
 mod doc;
+mod doc6;
 mod doc_art;
 mod doc_crypt;
 mod notes;

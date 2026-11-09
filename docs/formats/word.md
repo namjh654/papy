@@ -63,8 +63,8 @@ Word 문서는 `papy-office` 가 HTML(문서 구조)과 부가 정보(머리말�
 | 쪽 크기·여백·다단(글이 가장 긴 구역) | ○ |
 | 떠 있는 도형(사각형·타원·선, 채우기·선 색)·글상자·그림·묶음 도형 | ○ — 기준·위치·글 배치(위아래·어울림·글 앞/뒤)를 지킨다 |
 | OLE 개체(수식 등)·EMF/WMF 그림 | 미리보기 그림으로(EMF·WMF → SVG) |
-| Word 6/95(nFib < 0xC1) | `UnsupportedFormat` |
-| 암호 걸린 DOC | ○ — RC4(버전 1.1)·RC4 CryptoAPI 를 암호로 푼다. 암호가 없거나 틀리면 `PasswordRequired`, XOR 난독화는 `PasswordRequired` |
+| Word 6.0·95(`wIdent` 0xA5DC·0xA699, nFib 101~104) | 글과 문단만(표 칸은 탭, 쪽 나누기·필드 결과). 글은 언어(`lid`)·글꼴 문자 집합에 맞는 코드 페이지로 푼다(한국어 949, 러시아어 1251, 중부 유럽 1250 …). 글자 서식·표 구조·그림은 아직 읽지 않는다. Word 2(비 OLE)는 `UnsupportedFormat` |
+| 암호 걸린 DOC | ○ — RC4(버전 1.1)·RC4 CryptoAPI·XOR 난독화(MS-OFFCRYPTO Method 2)를 암호로 푼다. 암호가 없거나 틀리면 `PasswordRequired`. XOR 은 공개 표본이 없어 실제 Word 파일로는 확인하지 못했다 |
 
 DOC 는 같은 형식으로 쓰지 않는다. 데스크톱은 저장할 때 DOCX 를 먼저 권하고, 모바일은 DOC 를 보기·PDF 내보내기 전용으로 연다.
 

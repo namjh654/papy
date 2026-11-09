@@ -2968,6 +2968,7 @@ version = "0.3.4"
 dependencies = [
  "base64 0.23.1",
  "cfb 0.15.0",
+ "encoding_rs",
  "flate2",
  "image",
  "papy-model",
