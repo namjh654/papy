@@ -689,7 +689,7 @@ fn paragraph_spacing_indent_and_letter_spacing_round_trip() {
     );
     let (html, _) = docx_to_html(&docx(&document, Some(&styles))).unwrap();
     assert!(
-        html.contains(r#"<p style="margin-bottom:10.0pt;line-height:107%;">"#),
+        html.contains(r#"<p style="margin-bottom:10.0pt;line-height:108%;">"#),
         "{html}"
     );
     assert!(

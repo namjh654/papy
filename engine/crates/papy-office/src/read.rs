@@ -463,6 +463,8 @@ struct ParaProps {
     right: Option<i64>,
     /// 첫 줄 들여쓰기(+) 또는 내어쓰기(-)
     first_line: Option<i64>,
+    /// 한글 최소 공백(%, Papy 가 쓴 `papy:condense`)
+    condense: Option<i64>,
 }
 
 impl ParaProps {
@@ -474,6 +476,7 @@ impl ParaProps {
             left: self.left.or(base.left),
             right: self.right.or(base.right),
             first_line: self.first_line.or(base.first_line),
+            condense: self.condense.or(base.condense),
         }
     }
 
@@ -488,9 +491,10 @@ impl ParaProps {
             "spacing" => {
                 self.before = number("before").or(self.before);
                 self.after = number("after").or(self.after);
+                self.condense = number("condense").or(self.condense);
                 if let Some(percent) = number("linePercent") {
                     // Papy 가 쓴 원래 한글 배수 줄 간격(%) — 240 = 100% 기준으로 둔다.
-                    self.line = Some((percent * 240 / 100, "auto".into()));
+                    self.line = Some(((percent * 240 + 50) / 100, "auto".into()));
                 } else if let Some(line) = number("line") {
                     let rule = attr(element, "lineRule").unwrap_or_else(|| "auto".into());
                     self.line = Some((line, rule));
@@ -525,7 +529,8 @@ impl ParaProps {
                 css.push_str(&format!("line-height:{:.1}px;", pt(*line) * 96.0 / 72.0));
             }
             Some((line, rule)) if rule == "auto" && *line > 0 => {
-                let percent = (line * 100 / 240).clamp(50, 500);
+                // 반올림한다(버리면 Papy 가 쓴 143% 가 343 → 142% 로 줄어 쪽마다 줄이 밀렸다).
+                let percent = ((line * 100 + 120) / 240).clamp(50, 500);
                 css.push_str(&format!("line-height:{percent}%;"));
             }
             _ => {}
@@ -538,6 +543,9 @@ impl ParaProps {
         }
         if let Some(first) = self.first_line.filter(|v| *v != 0) {
             css.push_str(&format!("text-indent:{:.1}pt;", pt(first)));
+        }
+        if let Some(condense) = self.condense.filter(|v| (1..=75).contains(v)) {
+            css.push_str(&format!("papy-condense:{condense};"));
         }
         css
     }
