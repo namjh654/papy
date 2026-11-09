@@ -823,13 +823,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Papy is distributed under PolyForm Noncommercial 1.0.0 (non-commercial use). These are the %1$lld other components in the app and their licenses."
+            "value" : "Papy is distributed under PolyForm Noncommercial 1.0.0 (non-commercial use; commercial use needs a separate license). These are the %1$lld other components in the app and their licenses."
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Papy 는 PolyForm Noncommercial 1.0.0 라이선스로 배포됩니다(비상업적 사용). 앱에 들어 있는 다른 구성요소 %1$lld개와 그 라이선스입니다."
+            "value" : "Papy 는 PolyForm Noncommercial 1.0.0 라이선스로 배포됩니다(비상업적 사용, 상업적 이용은 별도 상용 라이선스). 앱에 들어 있는 다른 구성요소 %1$lld개와 그 라이선스입니다."
           }
         }
       }
@@ -847,6 +847,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "라이선스 고지 파일이 없습니다. 개발 빌드에서는 node scripts/third-party-notices.mjs mobile 로 만듭니다."
+          }
+        }
+      }
+    },
+    "licenses_notice" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This product was developed with reference to Hancom's published HWP document file (.hwp) format documents.\n“Hangul”, “Hancom”, “HWP” and “HWPX” are registered trademarks of Hancom Inc.; Microsoft Word is a trademark of Microsoft Corporation. Papy is an independent product with no affiliation, sponsorship or endorsement by Hancom or Microsoft."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "본 제품은 한컴의 HWP 문서 파일(.hwp) 공개 문서를 참고하여 개발하였습니다.\n“한글”, “한컴”, “HWP”, “HWPX”는 주식회사 한글과컴퓨터의 등록 상표이고, Microsoft Word 는 Microsoft Corporation 의 상표입니다. Papy 는 한글과컴퓨터·Microsoft 와 제휴·후원·승인 관계가 없는 독립 제품입니다."
           }
         }
       }

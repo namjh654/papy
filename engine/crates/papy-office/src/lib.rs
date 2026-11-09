@@ -11,17 +11,24 @@
 
 mod chart;
 mod doc;
+mod doc6;
+mod doc_art;
+mod doc_crypt;
 mod notes;
 mod read;
 mod shapes;
 mod write;
 
-pub use doc::{doc_to_html, is_doc};
+pub use doc::{doc_to_html, doc_to_html_with_password, is_doc};
 pub use notes::{
-    COLUMN_BREAK_MARK, ENDNOTE_MARK, FOOTNOTE_MARK, HeaderFooterText, PAGE_BREAK_MARK,
+    BOOKMARK_MARK, CAPTION_MARKS, CAPTION_MORE_MARK, CLICK_HERE_TAG, COLUMN_BREAK_MARK,
+    COMMENT_MARK, ClickHere, ENDNOTE_MARK, FIELD_CODE_BASE, FIELD_END_MARK, FIELD_START_MARK,
+    FOOTNOTE_MARK, FORMULA_TAG, HeaderFooterText, LINK_END_MARK, LINK_START_MARK, LIST_CODE_BASE,
+    LIST_MARK, ListDef, MAX_FIELDS, MAX_LIST_DEFS, PAGE_BREAK_MARK, PAGE_COUNT_FIELD,
+    PAGE_COUNT_MARK, PAGE_NUMBER_FIELD, PAGE_NUMBER_MARK, SECTION_MARK, field_index, field_start,
 };
 pub use read::{DocxComment, DocxHeading, DocxReadReport, PageSetup, docx_to_html, is_docx};
-pub use shapes::{DocxShape, Relative, SHAPE_MARK, ShapeImage, ShapeKind, Wrap};
+pub use shapes::{CELL_SHAPE_MARK, DocxShape, Relative, SHAPE_MARK, ShapeImage, ShapeKind, Wrap};
 pub use write::{
     EquationRenderer, docx_from_document, docx_from_document_with, docx_from_document_with_outline,
 };

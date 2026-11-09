@@ -11,6 +11,8 @@ use crate::read::attr;
 
 /// 본문 문단 안 도형 자리 표시(사용자 영역 글자).
 pub const SHAPE_MARK: char = '\u{E0F2}';
+/// 표 칸 문단 안 도형 자리 표시. 칸 도형은 [`crate::DocxReadReport::cell_shapes`] 에 같은 순서로 둔다.
+pub const CELL_SHAPE_MARK: char = '\u{E0FE}';
 
 /// 도형 모양.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -82,6 +84,8 @@ pub struct DocxShape {
     pub flip_v: bool,
     /// 글상자 문단(없으면 글상자가 아님)
     pub text: Vec<String>,
+    /// 글상자 내용의 HTML(본문과 같은 꼴, 서식·그림·표 포함). 있으면 `text` 대신 이것을 넣는다.
+    pub html: Option<String>,
     /// 그림으로 넣을 내용(묶음 안 그림, 차트). 있으면 도형 대신 이 그림을 넣는다.
     pub image: Option<ShapeImage>,
     /// 읽는 중에 찾은 그림·차트 관계 id. [`crate::docx_to_html`] 이 [`DocxShape::image`] 로 푼다.
@@ -148,9 +152,12 @@ pub(crate) struct Drawing {
     line_width: Option<i64>,
     flip_h: bool,
     flip_v: bool,
-    in_textbox: bool,
+    /// 글상자 내용(`w:txbxContent`) 깊이. 안의 그림·도형(수식 그림 등)은 이 도형 것이 아니다.
+    textbox_level: usize,
     in_text: bool,
     text: Vec<String>,
+    /// 글상자 내용 HTML([`Drawing::set_textbox_html`])
+    html: Option<String>,
     /// `a:xfrm` 안의 `a:off`·`a:ext`(묶음 안 도형의 자리, 묶음 좌표)
     in_xfrm: bool,
     xfrm_off: Option<(i64, i64)>,
@@ -328,6 +335,12 @@ impl Group {
             }
         }
     }
+
+    fn set_textbox_html(&mut self, html: String) {
+        if let (0, Some(child)) = (self.skip, self.child.as_mut()) {
+            child.set_textbox_html(html);
+        }
+    }
 }
 
 fn relative(value: Option<String>, horizontal: bool) -> Relative {
@@ -355,10 +368,27 @@ impl Drawing {
         self.embed.is_some() && (self.picture || !self.shape)
     }
 
+    /// 문단에 떠 있는(`wp:anchor`) 그림인가. 글자처럼 놓인 그림(`wp:inline`)은 아니다.
+    pub fn is_floating_picture(&self) -> bool {
+        self.is_picture() && !self.inline && self.picture && self.group.is_none()
+    }
+
     /// 요소 시작(빈 요소 포함).
     pub fn start(&mut self, name: &str, e: &BytesStart<'_>, empty: bool) {
         if let (Some(group), false) = (self.group.as_mut(), self.group_done) {
             group.start(name, e, empty);
+            return;
+        }
+        // 글상자 안: 글자만 모은다(안쪽 그림의 `pic`·`blip`·`wsp` 를 이 도형 것으로 읽으면 글상자가 그림이 된다).
+        if self.textbox_level > 0 {
+            match name {
+                "txbxContent" if !empty => self.textbox_level += 1,
+                "p" => self.text.push(String::new()),
+                "t" if !empty => self.in_text = true,
+                "tab" => self.push_text("\t"),
+                "br" => self.push_text(" "),
+                _ => {}
+            }
             return;
         }
         match name {
@@ -443,11 +473,7 @@ impl Drawing {
                 self.fill = Paint::Theme
             }
             "style" => self.has_style = true,
-            "txbxContent" if !empty => self.in_textbox = true,
-            "p" if self.in_textbox => self.text.push(String::new()),
-            "t" if self.in_textbox && !empty => self.in_text = true,
-            "tab" if self.in_textbox => self.push_text("\t"),
-            "br" if self.in_textbox => self.push_text(" "),
+            "txbxContent" if !empty => self.textbox_level = 1,
             _ => {}
         }
     }
@@ -461,6 +487,12 @@ impl Drawing {
             }
             // 맨 바깥 묶음이 끝났다. 이후 요소(anchor 끝 등)는 이 그리기 것이다.
             self.group_done = true;
+            return;
+        }
+        if self.textbox_level > 0 && name != "txbxContent" {
+            if name == "t" {
+                self.in_text = false;
+            }
             return;
         }
         match name {
@@ -478,7 +510,7 @@ impl Drawing {
             "xfrm" => self.in_xfrm = false,
             "ln" => self.in_line = false,
             "solidFill" => self.in_solid = false,
-            "txbxContent" => self.in_textbox = false,
+            "txbxContent" => self.textbox_level = self.textbox_level.saturating_sub(1),
             "t" => self.in_text = false,
             _ => {}
         }
@@ -495,6 +527,15 @@ impl Drawing {
         } else if self.in_text {
             self.push_text(text);
         }
+    }
+
+    /// 글상자 내용(`w:txbxContent`)을 HTML 로 바꾼 것. 묶음이면 읽는 중인 안쪽 도형 것이다.
+    pub fn set_textbox_html(&mut self, html: String) {
+        if let (Some(group), false) = (self.group.as_mut(), self.group_done) {
+            group.set_textbox_html(html);
+            return;
+        }
+        self.html = Some(html);
     }
 
     fn push_text(&mut self, text: &str) {
@@ -582,6 +623,7 @@ impl Drawing {
                 flip_h: self.flip_h,
                 flip_v: self.flip_v,
                 text: Vec::new(),
+                html: None,
                 image: None,
                 pending: Some(pending),
             });
@@ -609,7 +651,12 @@ impl Drawing {
             Paint::Unset => self.has_style.then_some(theme),
         };
         let line_kind = kind == ShapeKind::Line;
-        let has_text = self.text.iter().any(|t| !t.trim().is_empty());
+        // 글자가 없어도 그림·표가 든 글상자(빈칸 + 그림 둘 같은 것)는 글상자로 둔다.
+        let has_text = self.text.iter().any(|t| !t.trim().is_empty())
+            || self
+                .html
+                .as_deref()
+                .is_some_and(|html| html.contains("<img") || html.contains("<table"));
         Some(DocxShape {
             kind,
             width,
@@ -627,6 +674,7 @@ impl Drawing {
             line_width: self.line_width.unwrap_or(DEFAULT_LINE_WIDTH).max(0),
             flip_h: self.flip_h,
             flip_v: self.flip_v,
+            html: self.html.filter(|_| has_text && !line_kind),
             text: if has_text && !line_kind {
                 self.text
             } else {

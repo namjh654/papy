@@ -70,7 +70,12 @@ export const en: Messages = {
     engine: "Engine",
     licenseBefore: "Papy is distributed under the ",
     licenseAfter:
-      " license (polyformproject.org). It is free for personal, study, research and nonprofit use; commercial use is not permitted.",
+      " license (polyformproject.org). It is free for personal, study, research and nonprofit use; commercial use requires a separate commercial license.",
+    notices: [
+      "This product was developed with reference to Hancom's published HWP document file (.hwp) format documents.",
+      "“Hangul”, “Hancom”, “HWP” and “HWPX” are registered trademarks of Hancom Inc.; Microsoft Word is a trademark of Microsoft Corporation. Papy is an independent product with no affiliation, sponsorship or endorsement by Hancom or Microsoft.",
+      "PDF engine (PDFium): This software is based in part on the work of the Independent JPEG Group. Portions of this software are copyright © 2006 The FreeType Project (www.freetype.org). All rights reserved.",
+    ],
     language: "Language",
     openSource: "Open source licenses",
     noticesMissing: "The license notices file wasn't found. Check licenses/ in the install folder.",

@@ -4,6 +4,8 @@
 //! resvg 로 비트맵으로 바꿔 `papy-render` 계약에 맞춘다(ADR 0004). 같은 어댑터가 HWPX(ZIP)와
 //! HWP 5.x(OLE 복합 문서)를 모두 연다 — 포맷마다 [`HwpBackend`] 를 하나씩 등록한다.
 //!
+//! 본 제품은 한컴의 HWP 문서 파일(.hwp) 공개 문서를 참고하여 개발하였습니다(저장소 `NOTICE`).
+//!
 //! - rhwp 오류 메시지는 밖으로 내보내지 않는다(문서 내용이 섞일 수 있다). 고정 문구로 바꾼다.
 //! - rhwp 안의 패닉은 잡아서 `Internal` 오류로 바꾸고, 그 문서는 더 쓰지 않는다.
 //! - SVG 안의 외부 파일 참조는 따라가지 않는다(내장 data: 이미지만 그린다).
@@ -18,7 +20,14 @@ use papy_render::{BackendOpenOptions, Bitmap, Document, FormatBackend, Source};
 use resvg::{tiny_skia, usvg};
 use rhwp::wasm_api::HwpDocument as Rhwp;
 
+mod audit;
+mod captions;
+mod comments;
 mod document;
+mod fields;
+mod fragment;
+mod links;
+mod lists;
 mod notes;
 mod repair;
 mod shapes;
@@ -141,7 +150,8 @@ impl FormatBackend for HwpBackend {
             return self.open_docx(bytes, options);
         }
         if self.format == DocumentFormat::CompoundFile && papy_office::is_doc(bytes) {
-            let (html, report) = papy_office::doc_to_html(bytes)?;
+            let (html, report) =
+                papy_office::doc_to_html_with_password(bytes, options.password.as_deref())?;
             return open_converted(bytes, &html, report, DocumentFormat::Doc, options);
         }
         self.open_hwp(bytes, options)
@@ -223,6 +233,7 @@ fn split_tables_across_pages(
     doc: &mut Rhwp,
     indents: &[i32],
     places: &[String],
+    inline: &[bool],
 ) -> std::result::Result<(), rhwp::HwpError> {
     let tables: Vec<(usize, usize)> = doc
         .document()
@@ -244,11 +255,25 @@ fn split_tables_across_pages(
     let mut floating = Vec::new();
     for (index, (para, control)) in tables.into_iter().enumerate() {
         let float = places.get(index).filter(|p| same_order && !p.is_empty());
+        let keep_inline = same_order && inline.get(index).copied().unwrap_or(false);
         let json = match float {
+            // 한글에서 글자처럼 취급한 표(Papy 가 쓴 DOCX): 글자처럼 둔다. 쪽 경계에서는 셀 단위로 나눈다.
+            None if keep_inline => {
+                format!(
+                    r#"{{"treatAsChar":true,"pageBreak":1,"outerTop":141,"outerBottom":141,"outerLeft":{}}}"#,
+                    indents[index].max(0)
+                )
+            }
             // 쪽·종이 기준 자리: 그 자리에 놓고 쪽을 나누지 않는다(결재란 등).
             Some(place) => {
+                // 글 앞·뒤 표는 그 배치를 쓴다(place 에 textWrap 이 있다).
+                let wrap = if place.contains(r#""textWrap""#) {
+                    ""
+                } else {
+                    r#","textWrap":"TopAndBottom""#
+                };
                 format!(
-                    r#"{{"treatAsChar":false,"textWrap":"TopAndBottom","outerLeft":0,"keepWithAnchor":true{place}}}"#
+                    r#"{{"treatAsChar":false,"outerLeft":0,"keepWithAnchor":true{wrap}{place}}}"#
                 )
             }
             None => {
@@ -303,6 +328,74 @@ fn shrink_floating_table_lines(doc: &mut Rhwp, paragraphs: &[usize]) {
             seg.line_spacing = 600;
             changed = true;
         }
+    }
+    if changed {
+        doc.set_document(document);
+    }
+}
+
+/// 칸 안 표(겹친 표)를 쪽·칸에 맞춘다.
+/// - 쪽 경계에서 나눌 수 있게 한다. 붙여넣은 표는 "나누지 않음"이라 rhwp 가 칸 안 표를 한 덩어리로 다뤄,
+///   쪽보다 긴 칸 안 표는 다음 쪽으로 통째 넘어간 뒤 아래가 잘렸다. "셀 단위로 나눔"이면 행마다 쪽을 나눈다.
+/// - 담는 칸보다 넓은 칸 안 표는 칸 너비에 맞게 줄인다(칸 밖은 잘려 보이지 않았다).
+fn split_nested_tables(doc: &mut Rhwp) {
+    use rhwp::model::control::Control;
+    use rhwp::model::paragraph::Paragraph;
+    use rhwp::model::table::{Table, TablePageBreak};
+    /// 행마다 칸 너비 합 중 가장 큰 값(HWPUNIT)
+    fn table_width(table: &Table) -> u32 {
+        (0..table.row_count)
+            .map(|row| {
+                table
+                    .cells
+                    .iter()
+                    .filter(|cell| cell.row == row)
+                    .map(|cell| cell.width)
+                    .sum::<u32>()
+            })
+            .max()
+            .unwrap_or(0)
+    }
+    fn walk(paragraphs: &mut [Paragraph], depth: usize, room: Option<u32>, changed: &mut bool) {
+        if depth > 16 {
+            return;
+        }
+        for paragraph in paragraphs {
+            for control in &mut paragraph.controls {
+                let Control::Table(table) = control else {
+                    continue;
+                };
+                if depth > 0 {
+                    if table.row_count >= 2 && matches!(table.page_break, TablePageBreak::None) {
+                        table.page_break = TablePageBreak::CellBreak;
+                        *changed = true;
+                    }
+                    let width = table_width(table);
+                    let margins = u32::from(table.outer_margin_left.max(0) as u16)
+                        + u32::from(table.outer_margin_right.max(0) as u16);
+                    let room = room.map(|room| room.saturating_sub(margins));
+                    if let Some(room) = room.filter(|&room| room > 0 && width > room + 50) {
+                        let scale = f64::from(room) / f64::from(width);
+                        for cell in &mut table.cells {
+                            cell.width = (f64::from(cell.width) * scale).floor() as u32;
+                        }
+                        table.common.width = (f64::from(table.common.width) * scale).floor() as u32;
+                        *changed = true;
+                    }
+                }
+                for cell in &mut table.cells {
+                    let padding = u32::from(cell.padding.left.max(0) as u16)
+                        + u32::from(cell.padding.right.max(0) as u16);
+                    let room = cell.width.saturating_sub(padding);
+                    walk(&mut cell.paragraphs, depth + 1, Some(room), changed);
+                }
+            }
+        }
+    }
+    let mut document = doc.document().clone();
+    let mut changed = false;
+    for section in &mut document.sections {
+        walk(&mut section.paragraphs, 0, None, &mut changed);
     }
     if changed {
         doc.set_document(document);
@@ -430,11 +523,34 @@ fn open_converted(
                 doc.paste_html_native(0, 0, 0, html)?;
             }
         }
+        // 붙여넣은 뒤 고치기(표 속성·하이퍼링크·각주·도형 등)는 편집마다 쪽을 다시 짜지 않고 끝에서 한 번 짠다.
+        // 하이퍼링크가 수백 개인 문서가 링크마다 쪽을 다시 짜 열기에 십수 초 걸렸다.
+        doc.begin_batch_native()?;
         unindent_table_paragraphs(&mut doc);
-        split_tables_across_pages(&mut doc, &report.table_indents, &report.table_places)?;
+        split_nested_tables(&mut doc);
+        split_tables_across_pages(
+            &mut doc,
+            &report.table_indents,
+            &report.table_places,
+            &report.table_inline,
+        )?;
         // 붙여넣은 표 칸은 한 줄로만 잡혀 있다. 칸 너비로 다시 나눠 긴 글이 잘리지 않게 한다.
         doc.reflow_table_cells_native(0)?;
-        let dropped = notes::apply(&mut doc, &report)? + shapes::apply(&mut doc, &report.shapes)?;
+        links::apply(&mut doc, &report.hyperlinks);
+        let mut dropped =
+            notes::apply(&mut doc, &report)? + shapes::apply(&mut doc, &report.shapes)?;
+        dropped += shapes::apply_in_cells(&mut doc, &report.cell_shapes)?;
+        if !report.cell_shapes.is_empty() {
+            // 칸에 넣은 도형만큼 칸 줄 높이를 다시 잡는다.
+            doc.reflow_table_cells_native(0)?;
+        }
+        // 누름틀은 글상자가 생긴 뒤에 넣는다(글상자 안 것도 있다).
+        fields::apply(&mut doc, &report.click_here);
+        captions::apply(&mut doc);
+        dropped += comments::apply(&mut doc, &report.comment_marks);
+        comments::bookmarks(&mut doc, &report.bookmarks);
+        lists::apply(&mut doc, &report.lists);
+        doc.end_batch_native()?;
         Ok((doc, dropped))
     })?
     .map_err(|_| {

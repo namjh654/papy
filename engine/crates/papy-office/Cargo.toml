@@ -18,6 +18,12 @@ quick-xml = "0.42"
 base64 = "0.23"
 # 구형 DOC(OLE 복합 문서) 읽기. rhwp 가 이미 쓰는 버전이다.
 cfb = "0.15"
+# Word 6·95 의 한 바이트 코드 페이지 글자 풀기. rhwp 가 이미 쓰는 버전이다.
+encoding_rs = "0.8"
+# DOC 의 압축된 EMF·WMF 그림 풀기. rhwp 가 이미 쓰는 버전이다.
+flate2 = "1"
+# 암호 걸린 DOC(RC4 CryptoAPI) 키 만들기. rhwp 가 이미 쓰는 버전이다.
+sha1 = "0.11"
 # DOCX 에 넣는 BMP 그림을 PNG 로 줄인다. rhwp 가 이미 쓰는 버전이다.
 image = { version = "0.25", default-features = false, features = ["bmp", "png"] }
 

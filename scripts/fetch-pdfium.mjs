@@ -44,9 +44,22 @@ if (existsSync(stamp) && readFileSync(stamp, "utf8").trim() === `${RELEASE} ${sh
 
 const url = `https://github.com/bblanchon/pdfium-binaries/releases/download/${RELEASE}/${asset}`;
 console.log(`내려받는 중: ${url}`);
-const res = await fetch(url);
-if (!res.ok) throw new Error(`download failed: HTTP ${res.status}`);
-const data = Buffer.from(await res.arrayBuffer());
+// GitHub 릴리스 내려받기는 가끔 5xx·연결 오류로 실패한다(CI 504). 네 번까지 기다렸다 다시 받는다.
+async function download(url, tries = 4) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      const res = await fetch(url);
+      if (res.ok) return Buffer.from(await res.arrayBuffer());
+      if (res.status < 500 || attempt >= tries) throw new Error(`download failed: HTTP ${res.status}`);
+      console.log(`HTTP ${res.status}, 다시 받는 중 (${attempt}/${tries - 1})`);
+    } catch (error) {
+      if (attempt >= tries || String(error.message).startsWith("download failed: HTTP 4")) throw error;
+      console.log(`${error.message}, 다시 받는 중 (${attempt}/${tries - 1})`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 5000 * attempt));
+  }
+}
+const data = await download(url);
 const actual = createHash("sha256").update(data).digest("hex");
 if (actual !== sha256) throw new Error(`SHA-256 mismatch for ${asset}: expected ${sha256}, got ${actual}`);
 
@@ -54,7 +67,9 @@ const work = mkdtempSync(join(tmpdir(), "papy-pdfium-"));
 try {
   const archive = join(work, asset);
   writeFileSync(archive, data);
-  execFileSync("tar", ["-xzf", archive, "-C", work]);
+  // Windows 에서는 시스템 tar(bsdtar)를 쓴다. Git Bash 의 GNU tar 는 "C:\..." 를 원격 호스트로 읽는다.
+  const tar = process.platform === "win32" ? join(process.env.SystemRoot ?? "C:\\Windows", "System32", "tar.exe") : "tar";
+  execFileSync(tar, ["-xzf", archive, "-C", work]);
   rmSync(outDir, { recursive: true, force: true });
   mkdirSync(outDir, { recursive: true });
   cpSync(join(work, libPath), join(outDir, libPath.split("/").pop()));

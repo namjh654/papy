@@ -2968,10 +2968,13 @@ version = "0.3.4"
 dependencies = [
  "base64 0.23.1",
  "cfb 0.15.0",
+ "encoding_rs",
+ "flate2",
  "image",
  "papy-model",
  "quick-xml 0.42.0",
  "rhwp",
+ "sha1",
  "zip",
 ]
 

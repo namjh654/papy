@@ -6,122 +6,122 @@
 47950_upper.doc	error	InvalidDocument
 51921-Word-Crash067.doc	DOC	1	e5989f18eb184be8	af63c14c8601beab	0
 51921-Word-Crash067.docx	DOCX	1	e5989f18eb184be8	af63c14c8601beab	0
-52117.doc	error	UnsupportedFormat
+52117.doc	DOC	1	e5989f18eb184be8	7821f1ea134fbcfd	0
 52288.docx	DOCX	1	250c5d3886b33e0d	346cdc2a4bfb9bee	0
 52420.doc	DOC	1	e5989f18eb184be8	57e47ea1738a480d	0
 52449.docx	DOCX	1	250c5d3886b33e0d	485426e1972d923c	0
-53379.doc	DOC	32	871f2ab5b3c51325	546f987e980dac9e	2
+53379.doc	DOC	32	871f2ab5b3c51325	71eab8d332495782	0
 53446.doc	DOC	11	4aeeb11594393f6d	c833a1d2055c0454	1
 55733.docx	DOCX	1	e5989f18eb184be8	ca5397a35bfe6fab	0
-55966.docx	DOCX	1	e5989f18eb184be8	3e4c982d8b52feac	0
+55966.docx	DOCX	1	e5989f18eb184be8	04c9d5fe8862c2ec	0
 56392.docx	DOCX	1	e5989f18eb184be8	1692083ffa079f8c	0
 56880.doc	DOC	1	250c5d3886b33e0d	24126ba9fe776d5a	0
 57312.docx	DOCX	1	e5989f18eb184be8	2c6ad1a53464f5a9	0
 57603-seven_columns.doc	DOC	1	b419d911f520d03a	8d7ced58607403eb	0
-57843.doc	error	UnsupportedFormat
+57843.doc	DOC	2	22d10a52556263a1	8ad78027be84a976	0
 58067.docx	DOCX	1	e1ce00b9df03cf59	a92337abc0bc90e6	0
 58618.docx	DOCX	1	250c5d3886b33e0d	e459f0d8d8a89383	0
 58804.doc	DOC	1	e5989f18eb184be8	688560fe82287413	6
-58804_1.doc	DOC	1	e5989f18eb184be8	af63c14c8601beab	1
+58804_1.doc	DOC	1	e5989f18eb184be8	af63c14c8601beab	0
 59030.docx	DOCX	1	250c5d3886b33e0d	3d2b1b60434f3d3a	0
 59322.doc	DOC	1	c43f128efd282724	ae25fe404b43a9f7	0
 59378.docx	DOCX	1	e5989f18eb184be8	359f5a4bc5f8e203	0
 60279.doc	DOC	4	68365802b2132565	98bb9eda1404659d	0
 60293.docx	DOCX	3	af3b543cd2e8a2ed	d59822a1fc1c70d5	1
-60316.docx	DOCX	1	250c5d3886b33e0d	c758d94e3f0e7442	2
-60329.docx	DOCX	3	b5d7b599bd185dc5	91faaa335ecc6653	0
+60316.docx	DOCX	1	250c5d3886b33e0d	982a7339ccb4baa2	2
+60329.docx	DOCX	3	b5d7b599bd185dc5	41d44bb05784d95f	0
 61470.docx	DOCX	1	250c5d3886b33e0d	4e410a34c1df1c86	0
 61490.doc	DOC	1	e5989f18eb184be8	ef6e3cbc2f5f83a6	0
 61586.doc	DOC	1	e5989f18eb184be8	164a3643e94e61c5	0
 61745.docx	DOCX	1	e5989f18eb184be8	08547807b5083b23	0
-61787.docx	DOCX	2	34a07278ce85fe05	78802f0ad239e417	0
+61787.docx	DOCX	2	34a07278ce85fe05	1e96414dd5ffc205	0
 61911.doc	DOC	1	e5989f18eb184be8	62006fe015fb9314	0
 61991.docx	DOCX	1	250c5d3886b33e0d	92095d9fdede918d	0
 64132.doc	DOC	1	b419d911f520d03a	77556fa240eef8f6	0
 65099.docx	DOCX	1	e5989f18eb184be8	4444f536d67159fe	0
-AIOOB-Tap.doc	DOC	5	1b20d98cca9d1b52	3747537b3bdf34a1	0
+AIOOB-Tap.doc	DOC	5	1b20d98cca9d1b52	884833580c1cf7f1	0
 Bug28627.doc	DOC	1	250c5d3886b33e0d	8b07c7ba0681edad	0
-Bug33519.doc	DOC	4	cb34ff9c7c790a8d	405de9217950d9d2	0
+Bug33519.doc	DOC	4	cb34ff9c7c790a8d	ab86d2996ac65f96	0
 Bug34898.doc	DOC	1	e5989f18eb184be8	a839f7f3a80f2aec	0
-Bug41898.doc	DOC	1	e5989f18eb184be8	af63c14c8601beab	2
+Bug41898.doc	DOC	1	e5989f18eb184be8	4b3d61e0ac4cb3d1	1
 Bug44292.doc	DOC	1	250c5d3886b33e0d	884958c0be7e79c1	0
-Bug44431.doc	DOC	5	a98db8f3a1da7840	abab6e67396e7fca	0
+Bug44431.doc	DOC	3	8ed5a02a4e09555c	b53a3703fdc9322e	0
 Bug44603.doc	DOC	1	250c5d3886b33e0d	ea8e31f004b5cf67	0
 Bug45269.doc	DOC	1	e5989f18eb184be8	301f7d4951945c1e	0
 Bug45473.doc	DOC	1	e5989f18eb184be8	7248bdc0fb8885fb	0
-Bug45877.doc	DOC	6	633c8afaf6501d69	c86df94a1964debb	0
+Bug45877.doc	DOC	5	a98db8f3a1da7840	c8599d4a1953995d	0
 Bug46220.doc	DOC	1	e5989f18eb184be8	6f2a94a889f461de	0
 Bug46610_1.doc	DOC	1	e5989f18eb184be8	dfa861f7f4792cf4	0
 Bug46610_2.doc	DOC	1	e5989f18eb184be8	4177c5559fc4099f	0
 Bug46610_3.doc	DOC	3	af3b543cd2e8a2ed	0eb7cb21712cfa6a	0
-Bug46817.doc	DOC	1	e5989f18eb184be8	39051ef980afa5e5	4
-Bug47286.doc	DOC	2	22d10a52556263a1	ab36828be5632564	2
-Bug47287.doc	DOC	2	22d10a52556263a1	ab36828be5632564	2
-Bug47731.doc	DOC	1	250c5d3886b33e0d	af63c14c8601beab	4
+Bug46817.doc	DOC	1	e5989f18eb184be8	7e743fa1adc795b1	4
+Bug47286.doc	DOC	2	22d10a52556263a1	7599e5cd4f21a97c	0
+Bug47287.doc	DOC	2	22d10a52556263a1	7599e5cd4f21a97c	0
+Bug47731.doc	DOC	2	34a07278ce85fe05	2fc324189cfc90dd	0
 Bug47742.doc	DOC	2	22d10a52556263a1	6075632ed9b76fe6	0
-Bug47958.doc	DOC	2	34a07278ce85fe05	1074391856c54aef	1
+Bug47958.doc	DOC	1	250c5d3886b33e0d	4a599a9c4bbb1756	1
 Bug48065.doc	DOC	1	e5989f18eb184be8	4919b0752132e82b	0
 Bug48075.doc	DOC	14	b11f476de2290831	64287797109b54e2	0
 Bug49820.doc	DOC	1	e5989f18eb184be8	2818beb8ba455e6c	0
 Bug49908.doc	DOC	1	e5989f18eb184be8	a7071af255a12d1e	0
 Bug49919.doc	DOC	1	e5989f18eb184be8	14c907a03583f76a	0
-Bug49933.doc	error	UnsupportedFormat
+Bug49933.doc	DOC	8	d46677bace108b55	a001593653fa2cb7	0
 Bug50075.doc	DOC	1	e5989f18eb184be8	8df18f59910084ed	0
-Bug50936_1.doc	DOC	18	f026ebc1721fc705	40b12f14812a8bc4	27
+Bug50936_1.doc	DOC	18	f026ebc1721fc705	b315cca2dcf4172e	0
 Bug50936_2.doc	DOC	19	cc101f989bf8837c	71d99a5cb9eaea56	0
-Bug50936_3.doc	DOC	58	f6bfc41be7bdb9e5	8fa0264b7a04128e	6
-Bug50955.doc	error	UnsupportedFormat
-Bug51170.docx	DOCX	6	0bf5fb2d947fbb21	bf27e75a4c42f289	0
+Bug50936_3.doc	DOC	58	f6bfc41be7bdb9e5	30b56b60f23c75ec	1
+Bug50955.doc	DOC	189	81e917640d07d410	b5842df739e9ec6e	0
+Bug51170.docx	DOCX	6	0bf5fb2d947fbb21	d468fa8962b2438a	1
 Bug51604.doc	DOC	1	e5989f18eb184be8	7ce25260d460261c	0
 Bug51686.doc	DOC	1	250c5d3886b33e0d	e38dc91dede429c0	0
 Bug51834.doc	DOC	3	af3b543cd2e8a2ed	ea1e9b70f087ec0b	0
-Bug51890.doc	DOC	4	cb34ff9c7c790a8d	e9ecfa0de96eb653	11
-Bug51944.doc	error	UnsupportedFormat
+Bug51890.doc	DOC	4	cb34ff9c7c790a8d	1447d7e3e95ff457	11
+Bug51944.doc	DOC	2	22d10a52556263a1	4ab23e46c3d2b69e	0
 Bug52032_1.doc	DOC	2	b626881d2ccb58e5	db46ff3026dabb98	0
 Bug52032_2.doc	DOC	1	250c5d3886b33e0d	5590f52dd57c4ecc	0
-Bug52032_3.doc	DOC	16	f78edc38f99a8c25	985bad128bc674dc	0
+Bug52032_3.doc	DOC	16	f78edc38f99a8c25	8db087daf9d6b4da	0
 Bug52311.doc	DOC	1	e5989f18eb184be8	6619919bba7adcf2	0
 Bug52583.doc	DOC	1	e5989f18eb184be8	5a041096e0e385c8	0
 Bug53182.doc	DOC	1	e5989f18eb184be8	5d7f3a9f52e09570	0
-Bug53380_1.doc	DOC	11	358abfa246fec2cc	ba381cb338193acb	1
+Bug53380_1.doc	DOC	11	358abfa246fec2cc	da7ce33a681995d3	0
 Bug53380_2.doc	DOC	1	e5989f18eb184be8	af63c14c8601beab	0
-Bug53380_3.doc	DOC	32	871f2ab5b3c51325	546f987e980dac9e	2
+Bug53380_3.doc	DOC	32	871f2ab5b3c51325	71eab8d332495782	0
 Bug53380_4.doc	DOC	1	e5989f18eb184be8	af63c14c8601beab	0
-Bug53453Section.doc	DOC	2	22d10a52556263a1	99fb95d0ebb6de6e	0
+Bug53453Section.doc	DOC	1	e5989f18eb184be8	2281a2dbb1aac814	0
 Bug54771a.docx	DOCX	1	250c5d3886b33e0d	e81321986a49e220	0
 Bug54771b.docx	DOCX	1	250c5d3886b33e0d	f7b126fe0116924c	0
-Bug54849.docx	DOCX	1	250c5d3886b33e0d	6f0cd66c8d92dbc2	0
+Bug54849.docx	DOCX	1	250c5d3886b33e0d	f57f4400b243fe1e	0
 Bug55142.docx	DOCX	1	250c5d3886b33e0d	69dd58922f0c55ae	0
 Bug60337.docx	DOCX	1	250c5d3886b33e0d	e97a87f382e57be1	0
 Bug60341.docx	DOCX	1	250c5d3886b33e0d	24d701404f4f61f1	0
-Bug60936.doc	error	UnsupportedFormat
-Bug60942.doc	error	UnsupportedFormat
-Bug60942b.doc	error	UnsupportedFormat
-Bug61268.doc	DOC	130	cdb18d811e808c29	4c8094e04d36150d	57
+Bug60936.doc	DOC	1	e5989f18eb184be8	9c034c1f920c54ad	0
+Bug60942.doc	DOC	2	22d10a52556263a1	06a2bd69afa1ccb1	0
+Bug60942b.doc	DOC	1	e5989f18eb184be8	07ecd9895e1e624a	0
+Bug61268.doc	DOC	137	90ccc4a34033862a	72f6e666a2053e0d	0
 Bug62859.docx	DOCX	1	250c5d3886b33e0d	af63c14c8601beab	0
-Bug64561.docx	DOCX	1	e5989f18eb184be8	e7bcd55a2a512439	0
+Bug64561.docx	DOCX	1	e5989f18eb184be8	08b09d2eab746fb5	0
 Bug66263-paragraph.docx	DOCX	1	e5989f18eb184be8	7b29b75863264e23	0
 Bug66263-table.docx	DOCX	1	e5989f18eb184be8	ab309c846c069d3a	0
 Bug66988.docx	DOCX	1	e5989f18eb184be8	bf58a7ec1a24cff5	0
-ComplexNumberedLists.docx	DOCX	1	e5989f18eb184be8	915c1ee22f3ae4ce	0
+ComplexNumberedLists.docx	DOCX	1	e5989f18eb184be8	ea4a1cea8e8bed52	0
 DiffFirstPageHeadFoot.doc	DOC	2	34a07278ce85fe05	56351020ad6a0933	2
-DiffFirstPageHeadFoot.docx	DOCX	2	34a07278ce85fe05	0f5e322b17a859b3	2
+DiffFirstPageHeadFoot.docx	DOCX	2	34a07278ce85fe05	3e244140150d8627	2
 EmbeddedDocument.docx	DOCX	1	e5989f18eb184be8	abb52f86311877e2	1
-EmptyDocumentWithHeaderFooter.docx	DOCX	1	e5989f18eb184be8	90dd471ebc7e2f19	0
+EmptyDocumentWithHeaderFooter.docx	DOCX	1	e5989f18eb184be8	5175a703d3141bc9	0
 EnforcedWith.docx	DOCX	1	250c5d3886b33e0d	d1f5c25596e531d0	0
 ExternalEntityInText.docx	DOCX	1	e5989f18eb184be8	81d513ea2297bdf6	0
 FancyFoot.doc	DOC	2	34a07278ce85fe05	ff0ca0b60706bb5b	0
-FancyFoot.docx	DOCX	2	34a07278ce85fe05	7bd51874b651c4fa	0
+FancyFoot.docx	DOCX	2	34a07278ce85fe05	d2f27dfd69c97d4c	0
 FieldCodes.docx	DOCX	1	e5989f18eb184be8	d80a33af9f883c54	0
 FldSimple.docx	DOCX	1	e5989f18eb184be8	3d5c5bd05dd3d0e7	0
-FloatingPictures.doc	DOC	9	c8922096973e2a8d	815e3d892272c85b	5
-Fuzzed.doc	DOC	9	c8922096973e2a8d	5501c5e516e7c19d	6
-GaiaTest.doc	DOC	1	250c5d3886b33e0d	6915a394de661291	1
+FloatingPictures.doc	DOC	10	a1b4910ff14f8285	ee421d5f77bacf8b	0
+Fuzzed.doc	DOC	10	a1b4910ff14f8285	5798cf3cf0e642ad	1
+GaiaTest.doc	DOC	1	250c5d3886b33e0d	5e98dce4d0a6d149	0
 HeaderFooterProblematic.doc	DOC	10	c888f2e2907440d9	1f1d13b33a4126d1	0
 HeaderFooterUnicode.doc	DOC	2	34a07278ce85fe05	45c9c2002e21e2d7	0
-HeaderFooterUnicode.docx	DOCX	2	34a07278ce85fe05	e8e1e7bb0350911f	0
+HeaderFooterUnicode.docx	DOCX	2	34a07278ce85fe05	45c9c2002e21e2d7	0
 HeaderWithMacros.doc	DOC	1	250c5d3886b33e0d	96a6dbaf9eb24c7a	0
-Headers.docx	DOCX	1	e5989f18eb184be8	2d215ea8fa0e8d59	0
+Headers.docx	DOCX	3	8ed5a02a4e09555c	dfaa752542b43582	0
 IllustrativeCases.docx	DOCX	6	8d45a711edd37465	a76f7115e1501043	0
 ListEntryNoListTable.doc	DOC	1	e5989f18eb184be8	38484c7264ed4f2f	0
 Lists.doc	DOC	2	34a07278ce85fe05	33818bbba892b910	0
@@ -129,19 +129,19 @@ MarkAuthorsTable.doc	DOC	12	bde22a0cec0b59e5	cc17a8c19c30510a	0
 MultipleBodyBug.docx	DOCX	1	e5989f18eb184be8	f67686abfcbaaa07	0
 NoHeadFoot.doc	DOC	2	34a07278ce85fe05	a94cb03f2d4d8949	0
 NoHeadFoot.docx	DOCX	2	34a07278ce85fe05	a94cb03f2d4d8949	0
-Numbering.docx	DOCX	1	e5989f18eb184be8	a301481b3b9e0e3d	0
-NumberingWOverrides.docx	DOCX	1	e5989f18eb184be8	dbdf9cf35194b024	0
-NumberingWithOutOfOrderId.docx	DOCX	1	e5989f18eb184be8	af6c490f6f5ae08a	0
+Numbering.docx	DOCX	1	e5989f18eb184be8	5e5954153de439b1	0
+NumberingWOverrides.docx	DOCX	1	e5989f18eb184be8	5ab0cc81db65ccf0	0
+NumberingWithOutOfOrderId.docx	DOCX	1	e5989f18eb184be8	32454d3b3c3c04e0	0
 PageSpecificHeadFoot.doc	DOC	2	34a07278ce85fe05	ae54dd7749b3c291	0
-PageSpecificHeadFoot.docx	DOCX	2	34a07278ce85fe05	e5519f244b7ba318	0
+PageSpecificHeadFoot.docx	DOCX	2	34a07278ce85fe05	c655616548de0a2f	0
 PasswordProtected.doc	error	PasswordRequired
 Picture_Alternative_Text.doc	DOC	1	250c5d3886b33e0d	af63c14c8601beab	0
-PngPicture.doc	DOC	1	250c5d3886b33e0d	4967a2ca961416c6	1
-ProblemExtracting.doc	DOC	14	9922ffbca2a04f99	32878ca5520aa74b	0
+PngPicture.doc	DOC	1	250c5d3886b33e0d	75c4b2d9092c3294	0
+ProblemExtracting.doc	DOC	14	9922ffbca2a04f99	52238467e8d7ed3d	0
 SampleDoc.doc	DOC	2	7855fa571d77a329	816c99f78da7834a	0
 SampleDoc.docx	DOCX	2	7855fa571d77a329	816c99f78da7834a	0
 SimpleHeadThreeColFoot.doc	DOC	2	34a07278ce85fe05	014fa0b20f5e43da	0
-SimpleHeadThreeColFoot.docx	DOCX	2	34a07278ce85fe05	ed09075df88e8fb4	0
+SimpleHeadThreeColFoot.docx	DOCX	2	34a07278ce85fe05	b63ce5be80cc8e34	0
 SimpleMacro.doc	DOC	1	250c5d3886b33e0d	72963ea7b51785f4	0
 Styles.docx	DOCX	1	e5989f18eb184be8	992e8d50eb3b1892	0
 TestDocument.docx	DOCX	1	250c5d3886b33e0d	94121bcd4a53dca0	0
@@ -149,23 +149,23 @@ TestPoiXMLDocumentCorePropertiesGetKeywords.docx	DOCX	1	250c5d3886b33e0d	1c12a04
 TestTableCellAlign.docx	DOCX	1	250c5d3886b33e0d	3d2b1b60434f3d3a	0
 TestTableColumns.docx	DOCX	1	250c5d3886b33e0d	f9f9ec2d1ba18053	0
 ThreeColFoot.doc	DOC	2	34a07278ce85fe05	766ec155352fd367	0
-ThreeColFoot.docx	DOCX	2	34a07278ce85fe05	e0d029b90bb81295	0
+ThreeColFoot.docx	DOCX	2	34a07278ce85fe05	fde8223211c3190d	0
 ThreeColHead.doc	DOC	2	34a07278ce85fe05	158a3ba9c971d102	0
-ThreeColHead.docx	DOCX	2	34a07278ce85fe05	ba381f0c02ced02e	0
+ThreeColHead.docx	DOCX	2	34a07278ce85fe05	4ea9111f53d4ab02	0
 ThreeColHeadFoot.doc	DOC	2	34a07278ce85fe05	4e0bf19e1fb8896a	0
-ThreeColHeadFoot.docx	DOCX	2	34a07278ce85fe05	abbb699292b63094	0
+ThreeColHeadFoot.docx	DOCX	2	34a07278ce85fe05	6e8acbda92852d9c	0
 Tika-792.docx	DOCX	1	250c5d3886b33e0d	2f85e0189cc86f33	0
-VariousPictures.docx	DOCX	1	e5989f18eb184be8	46901ecaddc216c9	3
-WithArtShapes.doc	DOC	1	e5989f18eb184be8	af63c14c8601beab	2
-WithGIF.docx	DOCX	1	e5989f18eb184be8	cc4bf7301962ed43	0
+VariousPictures.docx	DOCX	1	e5989f18eb184be8	46901ecaddc216c9	0
+WithArtShapes.doc	DOC	1	e5989f18eb184be8	af63c14c8601beab	0
+WithGIF.docx	DOCX	1	e5989f18eb184be8	2622f12d01bec7af	0
 WithTabs.docx	DOCX	1	e5989f18eb184be8	6e90e681eadd03f1	0
-Word6.doc	error	UnsupportedFormat
-Word6_sections.doc	error	UnsupportedFormat
-Word6_sections2.doc	error	UnsupportedFormat
-Word95.doc	error	UnsupportedFormat
-WordWithAttachments.docx	DOCX	2	22d10a52556263a1	d266093ad506cc02	9
+Word6.doc	DOC	1	e5989f18eb184be8	75c4b2d9092c3294	0
+Word6_sections.doc	DOC	3	8ed5a02a4e09555c	e378496665ce198c	0
+Word6_sections2.doc	DOC	2	22d10a52556263a1	7069a1f81103e4be	0
+Word95.doc	DOC	1	e5989f18eb184be8	51cd318b5bfbc7a3	0
+WordWithAttachments.docx	DOCX	2	22d10a52556263a1	c57ed0fd7a0d01b4	9
 au.edu.utas.www___data_assets_word_doc_0003_154335_International-Travel-Approval-Request-Form.doc	DOC	4	cb34ff9c7c790a8d	04b86b8a3a1fa222	0
-bib-chernigovka.netdo.ru_download_docs_17459.docx	DOCX	12	d63ec331307e8fbd	684bd67afb7d6845	0
+bib-chernigovka.netdo.ru_download_docs_17459.docx	DOCX	12	d63ec331307e8fbd	182605251070bfa1	0
 bookmarks.docx	DOCX	1	250c5d3886b33e0d	fac5d9de78d86ca0	0
 bug-paragraph-alignment.docx	DOCX	1	e5989f18eb184be8	565e6443985f64a6	0
 bug53475-password-is-pass.docx	error	InvalidDocument
@@ -173,19 +173,19 @@ bug53475-password-is-solrcell.docx	error	UnsupportedFormat
 bug56075-changeTracking_off.docx	DOCX	1	250c5d3886b33e0d	5577da3f547bed45	0
 bug56075-changeTracking_on.docx	DOCX	1	250c5d3886b33e0d	d3054b54e409c031	0
 bug56076.docx	DOCX	1	e5989f18eb184be8	c27ddb98602cfaf7	0
-bug57031.docx	DOCX	12	bde22a0cec0b59e5	0a0d3d2b20aea9b8	3
-bug59058.docx	DOCX	81	7c9077927d3c3b0d	1c8c248bff71f2e2	1
+bug57031.docx	DOCX	12	bde22a0cec0b59e5	70d2a7cef15549d0	3
+bug59058.docx	DOCX	83	1de01ba539127fed	2223ce58affb56b4	1
 bug65255.doc	DOC	1	e5989f18eb184be8	f7ec269244ee8d60	0
-bug65649.docx	DOCX	61	f5fc1737404acc8c	197405c668ec61fd	0
+bug65649.docx	DOCX	65	1fc5e0e991d040a4	13046f67bd31586c	0
 bug65738.docx	DOCX	1	250c5d3886b33e0d	2441b55b79115210	0
 bug66312.docx	DOCX	1	e5989f18eb184be8	78416c03165e53a7	0
-bug69628.docx	DOCX	1	250c5d3886b33e0d	54e687bc69a16e7c	0
-ca.kwsymphony.www_education_School_Concert_Seat_Booking_Form_2011-12.doc	DOC	2	34a07278ce85fe05	a5cc4864c74313e1	8
-cap.stanford.edu_profiles_viewbiosketch_facultyid=4009&name=m_maciver.doc	DOC	5	ba04f7063c3d39cd	3a547ffa31d30791	1
+bug69628.docx	DOCX	1	250c5d3886b33e0d	f0669bf3e3a93c90	0
+ca.kwsymphony.www_education_School_Concert_Seat_Booking_Form_2011-12.doc	DOC	2	34a07278ce85fe05	48589ba83fd0d4c7	1
+cap.stanford.edu_profiles_viewbiosketch_facultyid=4009&name=m_maciver.doc	DOC	4	68365802b2132565	c0408f70e07e448d	1
 capitalized.doc	DOC	1	e5989f18eb184be8	7ec84f1a74ad5f8b	0
 capitalized.docx	DOCX	1	e5989f18eb184be8	7ec84f1a74ad5f8b	0
-chartex.docx	DOCX	2	22d10a52556263a1	720ac164b1484d0e	2
-checkboxes.docx	DOCX	1	250c5d3886b33e0d	99421a065dd3fadf	0
+chartex.docx	DOCX	2	22d10a52556263a1	e0321823d397dee0	2
+checkboxes.docx	DOCX	1	250c5d3886b33e0d	bac761e72d949e7d	0
 clusterfuzz-testcase-POIHWPFFuzzer-5696094627495936.doc	error	InvalidDocument
 clusterfuzz-testcase-minimized-POIFuzzer-6709287337197568.docx	error	UnsupportedFormat
 clusterfuzz-testcase-minimized-POIHWPFFuzzer-4892412469968896.doc	error	InvalidDocument
@@ -208,12 +208,12 @@ clusterfuzz-testcase-minimized-POIXWPFFuzzer-5569740188549120.docx	error	Unsuppo
 clusterfuzz-testcase-minimized-POIXWPFFuzzer-6061520554164224.docx	error	UnsupportedFormat
 clusterfuzz-testcase-minimized-POIXWPFFuzzer-6120975439364096.docx	error	UnsupportedFormat
 clusterfuzz-testcase-minimized-POIXWPFFuzzer-6442791109263360.docx	error	UnsupportedFormat
-clusterfuzz-testcase-minimized-POIXWPFFuzzer-6733884933668864.docx	DOCX	1	e5989f18eb184be8	3e4c982d8b52feac	0
-cn.orthodox.www_divenbog_APRIL_30-APRIL.DOC	error	UnsupportedFormat
+clusterfuzz-testcase-minimized-POIXWPFFuzzer-6733884933668864.docx	DOCX	1	e5989f18eb184be8	04c9d5fe8862c2ec	0
+cn.orthodox.www_divenbog_APRIL_30-APRIL.DOC	DOC	2	22d10a52556263a1	1ce3a7e6c17d9b38	0
 comment.docx	DOCX	1	e5989f18eb184be8	af63c14c8601beab	0
 crash-517626e815e0afa9decd0ebb6d1dee63fb9907dd.docx	error	UnsupportedFormat
 deep-table-cell.docx	error	LimitExceeded
-delins.docx	DOCX	1	e5989f18eb184be8	f8998ae63d380e59	0
+delins.docx	DOCX	1	e5989f18eb184be8	a31b7cbd011f81cd	0
 documentProperties.doc	DOC	1	e5989f18eb184be8	b5371933eaf6d235	0
 documentProperties.docx	DOCX	1	e1ce00b9df03cf59	9b8d7ace8e35535a	0
 documentProtection_comments_no_password.docx	DOCX	1	250c5d3886b33e0d	9d0e98c990a7202b	0
@@ -222,44 +222,44 @@ documentProtection_no_protection.docx	DOCX	1	250c5d3886b33e0d	bbc8e16a7d9e6883	0
 documentProtection_no_protection_tag_existing.docx	DOCX	1	250c5d3886b33e0d	3e85ea3e822c1643	0
 documentProtection_readonly_no_password.docx	DOCX	1	250c5d3886b33e0d	d77ba6b42c16d6eb	0
 documentProtection_trackedChanges_no_password.docx	DOCX	1	250c5d3886b33e0d	a6d1674bc2a1d5d9	0
-drawing.docx	DOCX	18	591b52204ff83bc1	ad4d4efcef711bec	6
+drawing.docx	DOCX	18	591b52204ff83bc1	bb440281c80227b6	6
 empty.doc	DOC	1	250c5d3886b33e0d	af63c14c8601beab	0
 emptyPPr.docx	DOCX	1	250c5d3886b33e0d	a20f65c830f6f40b	0
 endingnote.doc	DOC	1	e5989f18eb184be8	b623dce2a4ac7973	0
-endnotes.docx	DOCX	1	e5989f18eb184be8	26f9b70a29a4d0b3	0
-equation.doc	DOC	1	e5989f18eb184be8	af63c14c8601beab	1
+endnotes.docx	DOCX	1	e5989f18eb184be8	5f8dc0c8ad849e8b	0
+equation.doc	DOC	1	e5989f18eb184be8	af63c14c8601beab	0
 footnote.doc	DOC	1	e5989f18eb184be8	ba41e4d57c8742b7	0
-footnotes.docx	DOCX	1	e5989f18eb184be8	07a69b740839bb26	0
-form_footnotes.docx	DOCX	4	68365802b2132565	ef143f62253bfc54	4
+footnotes.docx	DOCX	1	e5989f18eb184be8	ab833f0816a30228	0
+form_footnotes.docx	DOCX	4	68365802b2132565	8d574b8919dc846e	4
 gh-issue-1126.doc	DOC	1	e5989f18eb184be8	5f09df4c812cfb87	0
 headerFooter.docx	DOCX	1	e1ce00b9df03cf59	8de53920cd2c36a2	0
-headerPic.docx	DOCX	1	b419d911f520d03a	af63c14c8601beab	0
+headerPic.docx	DOCX	1	b419d911f520d03a	08547807b5083b23	0
 header_footer_replace.doc	DOC	1	e5989f18eb184be8	f41bf4be9ee2a9fd	0
 header_image.doc	DOC	1	e5989f18eb184be8	af9a8a0a9ca44bae	0
 heading123.docx	DOCX	1	e1ce00b9df03cf59	561bb2386282cecd	0
 hyperlink.doc	DOC	1	e5989f18eb184be8	b9a2f462a6e9fe5b	0
 innertable.doc	DOC	1	e5989f18eb184be8	bd3661511e88faee	0
 issue_51265_1.docx	DOCX	1	e5989f18eb184be8	af63c14c8601beab	0
-issue_51265_2.docx	DOCX	1	e5989f18eb184be8	af63c14c8601beab	0
-issue_51265_3.docx	DOCX	1	e5989f18eb184be8	08547807b5083b23	0
+issue_51265_2.docx	DOCX	1	e5989f18eb184be8	08547807b5083b23	0
+issue_51265_3.docx	DOCX	1	e5989f18eb184be8	5b858d173d899ac6	0
 lists-margins.doc	DOC	1	e5989f18eb184be8	2d427813f84dcc77	0
 o_kurs.doc	DOC	7	d2b87922b6d1f6ce	8ed2563dd3aafc0a	1
-ob_is.doc	DOC	27	e4f5fa633b2ed126	a1e1b961fe7f5a09	5
+ob_is.doc	DOC	27	e4f5fa633b2ed126	a21f2d3efb438998	0
 page-break-before.doc	DOC	2	22d10a52556263a1	4577720fb7586d78	0
 page-break.doc	DOC	2	22d10a52556263a1	4577720fb7586d78	0
 pageref.doc	DOC	1	e5989f18eb184be8	7b1820d333cf553c	0
-parentinvguid.doc	DOC	76	fbc783e7d05ffde5	8c0d40c08f3a1b4e	0
+parentinvguid.doc	DOC	76	fbc783e7d05ffde5	eb75417c95f9e8ee	0
 password_password_cryptoapi.doc	error	PasswordRequired
 password_tika_binaryrc4.doc	error	PasswordRequired
-picture.doc	DOC	1	e5989f18eb184be8	a71be415e69c7776	1
-pictures_escher.doc	DOC	1	e5989f18eb184be8	3e8bbb7911a00b23	2
+picture.doc	DOC	1	e5989f18eb184be8	a71be415e69c7776	0
+pictures_escher.doc	DOC	1	e5989f18eb184be8	790c058ced785d1b	0
 protected_sample.docx	DOCX	1	250c5d3886b33e0d	88556826f9458931	0
 rasp.doc	DOC	2	7855fa571d77a329	2c7e4464c3db8a01	0
-rtl.docx	DOCX	1	e5989f18eb184be8	65e5073be0210c4f	0
+rtl.docx	DOCX	1	e5989f18eb184be8	ca0ad0cf5aa811a7	0
 sample.docx	DOCX	1	250c5d3886b33e0d	15b36817b8541989	0
 saut_page.docx	DOCX	3	8ed5a02a4e09555c	d9fc190dc616380b	0
-saved-by-table.doc	DOC	23	f80a6ec900a47994	d182feeec06544bb	1
-shapes-with-text.docx	DOCX	1	250c5d3886b33e0d	a2b18f73a53fa434	0
+saved-by-table.doc	DOC	23	f80a6ec900a47994	62a38a96e8dffe06	0
+shapes-with-text.docx	DOCX	1	250c5d3886b33e0d	847267e7d1a4d364	0
 simple-list.doc	DOC	1	250c5d3886b33e0d	bf56c338df48156d	0
 simple-table.doc	DOC	1	250c5d3886b33e0d	c34b5dd0df541c91	0
 simple-table2.doc	DOC	1	250c5d3886b33e0d	31c49c7e7b2c6778	0
@@ -268,13 +268,13 @@ smarttag-snippet.docx	DOCX	1	250c5d3886b33e0d	a754f10b2ec28979	0
 table-alignment.docx	DOCX	1	250c5d3886b33e0d	b2a9ce982c153123	0
 table-indent.docx	DOCX	1	e5989f18eb184be8	7dbaaf02eed2313b	0
 table-merges.doc	DOC	1	e5989f18eb184be8	fac0ab0aba06b5a3	0
-table_footnotes.docx	DOCX	1	e5989f18eb184be8	7758a62fd1a66338	0
-test-fields.doc	DOC	1	e5989f18eb184be8	f814e00af559d4e8	1
+table_footnotes.docx	DOCX	1	e5989f18eb184be8	4cc1198047f2d3ea	0
+test-fields.doc	DOC	1	e5989f18eb184be8	9474b96c1ab9079f	0
 test.doc	DOC	1	250c5d3886b33e0d	16396039c56d32de	0
 test2.doc	DOC	1	e5989f18eb184be8	188254e01f17236d	0
 testComment.docx	DOCX	1	250c5d3886b33e0d	abdf3b486d904e32	0
 testCroppedPictures.doc	DOC	1	e5989f18eb184be8	58fbca4a5978fb1e	0
-testPictures.doc	DOC	4	cb34ff9c7c790a8d	d254a1b1e832e08e	4
+testPictures.doc	DOC	4	cb34ff9c7c790a8d	a2b6feebe60fb1d0	2
 testRangeDelete.doc	DOC	1	250c5d3886b33e0d	13e37dcdbbcec524	0
 testRangeInsertion.doc	DOC	1	250c5d3886b33e0d	3845c7070ab8bb75	0
 testRangeReplacement.doc	DOC	1	250c5d3886b33e0d	e3ff8adfd401aa10	0
@@ -283,10 +283,10 @@ tika-3816.docx	DOCX	1	250c5d3886b33e0d	745890e152389eae	0
 truncated62886.docx	error	UnsupportedFormat
 two_images.doc	DOC	1	e5989f18eb184be8	379a0d3ba441b349	0
 unicode-path.docx	DOCX	1	250c5d3886b33e0d	0802f807b4c30a7b	0
-vector_image.doc	DOC	1	250c5d3886b33e0d	af63c14c8601beab	1
-watermark.doc	DOC	3	af3b543cd2e8a2ed	028b0162e54b150c	0
+vector_image.doc	DOC	1	250c5d3886b33e0d	af63c14c8601beab	0
+watermark.doc	DOC	1	250c5d3886b33e0d	657bb891b223e140	0
 word2.doc	error	UnsupportedFormat
-word95err.doc	error	UnsupportedFormat
-word_with_embeded.doc	DOC	1	250c5d3886b33e0d	0648eafc57d68601	4
-word_with_embeded_ooxml.doc	DOC	1	250c5d3886b33e0d	796b308d27eb8cf7	6
+word95err.doc	DOC	8	d46677bace108b55	a001593653fa2cb7	0
+word_with_embeded.doc	DOC	1	250c5d3886b33e0d	0648eafc57d68601	0
+word_with_embeded_ooxml.doc	DOC	2	34a07278ce85fe05	45be79eda14cc65f	0
 zero-length.docx	DOCX	1	e5989f18eb184be8	af63c14c8601beab	0

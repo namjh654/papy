@@ -18,13 +18,209 @@ pub const PAGE_BREAK_MARK: char = '\u{E0F4}';
 /// 단 나누기 표시 글자(문단 앞). papy-hwp 가 붙여넣은 뒤 단 나누기로 바꾼다.
 pub const COLUMN_BREAK_MARK: char = '\u{E0F5}';
 
+/// 캡션 문단 표시(문단 맨 앞, 사용자 영역 글자). 차례로 왼쪽·오른쪽·위·아래 캡션의 첫 문단이다. papy-hwp 가
+/// 지우고 그 문단을 앞(위 캡션이면 뒤) 문단의 표·그림 캡션으로 옮긴다.
+pub const CAPTION_MARKS: [char; 4] = ['\u{E0F9}', '\u{E0FA}', '\u{E0FB}', '\u{E0FC}'];
+/// 캡션의 둘째 문단부터 붙는 표시(앞 캡션 문단에 이어진다).
+pub const CAPTION_MORE_MARK: char = '\u{E0FD}';
+
+/// 메모 자리 표시(사용자 영역 글자). papy-hwp 가 지우고 그 자리에 한글 숨은 설명을 넣는다.
+pub const COMMENT_MARK: char = '\u{E0F0}';
+
+/// 책갈피 자리 표시(사용자 영역 글자). papy-hwp 가 지우고 그 자리에 책갈피를 넣는다.
+pub const BOOKMARK_MARK: char = '\u{E0ED}';
+/// 번호 목록 문단 맨 앞 표시: 바로 뒤 한 글자가 `LIST_CODE_BASE + 정의 번호 × 8 + 수준` 이다
+/// ([`DocxReadReport::lists`](crate::DocxReadReport::lists) 의 정의를 한글 문단 번호·글머리표로 바꾼다).
+pub const LIST_MARK: char = '\u{E0EC}';
+/// [`LIST_MARK`] 뒤 글자의 시작. 정의 224개(× 수준 8)까지.
+pub const LIST_CODE_BASE: u32 = 0xF100;
+/// [`LIST_MARK`] 로 나타낼 수 있는 정의 수.
+pub const MAX_LIST_DEFS: usize = 224;
+
+/// 하이퍼링크 시작·끝 표시(사용자 영역 글자). papy-hwp 가 지우고 그 사이 글에 하이퍼링크를 건다.
+pub const LINK_START_MARK: char = '\u{E0EE}';
+/// 하이퍼링크 끝 표시.
+pub const LINK_END_MARK: char = '\u{E0EF}';
+
+/// 누름틀 시작·끝 표시(사용자 영역 글자). papy-hwp 가 지우고 그 사이 글을 누름틀(ClickHere)로 감싼다
+/// (시작 표시 차례 = [`DocxReadReport::click_here`](crate::DocxReadReport::click_here) 차례).
+pub const FIELD_START_MARK: char = '\u{E0EA}';
+/// 누름틀 끝 표시.
+pub const FIELD_END_MARK: char = '\u{E0EB}';
+/// [`FIELD_START_MARK`] 뒤 두 글자의 시작: `FIELD_CODE_BASE + 차례 / 1024`, `FIELD_CODE_BASE + 차례 % 1024`.
+/// 글상자 안 누름틀도 차례를 잃지 않게 표시에 차례를 담는다.
+pub const FIELD_CODE_BASE: u32 = 0xF400;
+/// 표시로 나타낼 수 있는 누름틀 수
+pub const MAX_FIELDS: usize = 1024 * 1024;
+
+/// 누름틀 시작 표시(차례 포함)
+pub fn field_start(index: usize) -> String {
+    let code = |n: usize| char::from_u32(FIELD_CODE_BASE + n as u32).unwrap_or('\u{F400}');
+    [
+        FIELD_START_MARK,
+        code(index / 1024 % 1024),
+        code(index % 1024),
+    ]
+    .into_iter()
+    .collect()
+}
+
+/// [`FIELD_START_MARK`] 뒤 두 글자 → 차례
+pub fn field_index(high: char, low: char) -> Option<usize> {
+    let digit = |c: char| {
+        u32::from(c)
+            .checked_sub(FIELD_CODE_BASE)
+            .filter(|n| *n < 1024)
+            .map(|n| n as usize)
+    };
+    Some(digit(high)? * 1024 + digit(low)?)
+}
+
+/// 조각 HTML 의 누름틀 차례를 `offset` 만큼 옮긴다(글상자 조각을 바깥 차례에 합칠 때).
+pub(crate) fn shift_field_marks(html: &str, offset: usize) -> String {
+    let chars: Vec<char> = html.chars().collect();
+    let mut out = String::with_capacity(html.len());
+    let mut i = 0;
+    while i < chars.len() {
+        if chars[i] == FIELD_START_MARK && i + 2 < chars.len() {
+            if let Some(index) = field_index(chars[i + 1], chars[i + 2]) {
+                out.push_str(&field_start(index + offset));
+                i += 3;
+                continue;
+            }
+        }
+        out.push(chars[i]);
+        i += 1;
+    }
+    out
+}
+
+/// 누름틀 표시를 모두 뺀다(누름틀을 넣지 않는 조각: 각주·미주).
+pub(crate) fn strip_field_marks(html: &str) -> String {
+    let chars: Vec<char> = html.chars().collect();
+    let mut out = String::with_capacity(html.len());
+    let mut i = 0;
+    while i < chars.len() {
+        match chars[i] {
+            FIELD_START_MARK => {
+                i += 1;
+                if i + 1 < chars.len() && field_index(chars[i], chars[i + 1]).is_some() {
+                    i += 2;
+                }
+            }
+            FIELD_END_MARK => i += 1,
+            c => {
+                out.push(c);
+                i += 1;
+            }
+        }
+    }
+    out
+}
+/// Papy 가 누름틀을 Word 콘텐츠 컨트롤(`w:sdt`)로 쓸 때 `w:tag` 앞머리: `papy-clickhere|<1·0 편집>|<이름>|<메모>`.
+pub const CLICK_HERE_TAG: &str = "papy-clickhere";
+/// 한글 계산식 필드를 `w:sdt` 로 쓸 때 `w:tag` 앞머리: `papy-formula|<1·0 편집>|<한글 명령>`(내용은 계산 결과 글자).
+pub const FORMULA_TAG: &str = "papy-formula";
+
+/// 누름틀 하나(한글 ClickHere 필드 ↔ Word 글 콘텐츠 컨트롤).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ClickHere {
+    /// 안내문(비었을 때 보이는 글). Word `w:alias`.
+    pub guide: String,
+    /// 메모(도움말)
+    pub memo: String,
+    /// 필드 이름. Word `w:tag`(Papy 것이 아니면 그대로).
+    pub name: String,
+    /// 양식 모드에서 고칠 수 있는가
+    pub editable: bool,
+    /// 누름틀이 아니라 한글 계산식 필드면 그 명령(`=SUM(B?:D?)??%g,;;3,520` 같은 것)
+    pub formula: Option<String>,
+}
+
+impl ClickHere {
+    /// `w:tag` 값
+    pub fn tag(&self) -> String {
+        if let Some(command) = &self.formula {
+            return format!("{FORMULA_TAG}|{}|{command}", u8::from(self.editable));
+        }
+        format!(
+            "{CLICK_HERE_TAG}|{}|{}|{}",
+            u8::from(self.editable),
+            self.name.replace('|', "/"),
+            self.memo
+        )
+    }
+
+    /// `w:alias`·`w:tag` 값에서
+    pub fn from_word(alias: Option<String>, tag: Option<String>) -> Self {
+        let guide = alias.unwrap_or_default();
+        if let Some(rest) = tag.as_deref().and_then(|t| t.strip_prefix(FORMULA_TAG)) {
+            let mut parts = rest.trim_start_matches('|').splitn(2, '|');
+            let editable = parts.next() == Some("1");
+            let command = parts.next().unwrap_or("").to_owned();
+            return Self {
+                editable,
+                formula: Some(command),
+                ..Self::default()
+            };
+        }
+        match tag.as_deref().and_then(|t| t.strip_prefix(CLICK_HERE_TAG)) {
+            Some(rest) => {
+                let mut parts = rest.trim_start_matches('|').splitn(3, '|');
+                let editable = parts.next() != Some("0");
+                let name = parts.next().unwrap_or("").to_owned();
+                let memo = parts.next().unwrap_or("").to_owned();
+                Self {
+                    guide,
+                    memo,
+                    name,
+                    editable,
+                    formula: None,
+                }
+            }
+            None => Self {
+                guide,
+                memo: String::new(),
+                name: tag.unwrap_or_default(),
+                editable: true,
+                formula: None,
+            },
+        }
+    }
+}
+
 /// 머리말·꼬리말 하나.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct HeaderFooterText {
+    /// Word 구역(0 부터). 0 이 아니면 본문의 그 차례 [`SECTION_MARK`] 문단부터 쓴다.
+    pub section: usize,
     /// 적용 쪽: 0 = 모든 쪽, 1 = 짝수 쪽, 2 = 홀수 쪽(rhwp 의 apply_to 값과 같다).
     pub apply_to: u8,
     /// 문단별 글자
     pub paragraphs: Vec<String>,
+    /// 머리말·꼬리말의 HTML(본문과 같은 꼴, 서식·표·그림 포함). 쪽 번호·전체 쪽 수 필드(표 밖)는
+    /// [`PAGE_NUMBER_MARK`]·[`PAGE_COUNT_MARK`] 글자다. 있으면 `paragraphs` 대신 이것을 붙여넣는다.
+    pub html: Option<String>,
+    /// `html` 의 도형: 문단의 [`crate::SHAPE_MARK`] 자리마다(같은 차례). 칸 안 것은 `cell_shapes`.
+    pub shapes: Vec<crate::DocxShape>,
+    /// `html` 의 표 칸 안 도형([`crate::CELL_SHAPE_MARK`] 자리, 같은 차례)
+    pub cell_shapes: Vec<crate::DocxShape>,
+}
+
+/// Word 구역(첫 구역 뒤)이 시작하는 본문 문단 표시. 구역마다 하나씩 문서 순서로 둔다.
+pub const SECTION_MARK: char = '\u{E0F8}';
+
+/// HTML 머리말·꼬리말의 쪽 번호 필드 자리 표시(붙여넣은 뒤 [`PAGE_NUMBER_FIELD`] 로 바꾼다).
+pub const PAGE_NUMBER_MARK: char = '\u{E0F6}';
+/// HTML 머리말·꼬리말의 전체 쪽 수 필드 자리 표시(붙여넣은 뒤 [`PAGE_COUNT_FIELD`] 로 바꾼다).
+pub const PAGE_COUNT_MARK: char = '\u{E0F7}';
+
+/// 필드 명령이 쪽 번호·전체 쪽 수이면 그 자리 표시 글자.
+pub fn page_field_mark(instr: &str) -> Option<char> {
+    match field_char(instr)? {
+        PAGE_NUMBER_FIELD => Some(PAGE_NUMBER_MARK),
+        _ => Some(PAGE_COUNT_MARK),
+    }
 }
 
 /// 머리말·꼬리말의 쪽 번호 필드 글자: rhwp 머리말·꼬리말은 이 글자를 지금 쪽 번호·전체 쪽 수로 그린다.
@@ -66,11 +262,14 @@ fn texts(xml: &str, fields: bool) -> Vec<String> {
     let mut in_instr = false;
     let mut skip_result = false;
     let mut simple_depth = 0usize;
+    // 주 번호 꾸밈 런(Papy 가 쓴 `papy:noteMark`)
+    let mut note_mark = false;
     loop {
         match reader.read_event() {
             Ok(Event::Eof) | Err(_) => break,
             Ok(Event::Start(e)) => match local(e.name().as_ref()) {
                 "p" => current = Some(String::new()),
+                "r" => note_mark = attr(&e, "noteMark").is_some(),
                 "t" => in_text = true,
                 "instrText" if fields => in_instr = true,
                 "fldSimple" if fields => {
@@ -83,7 +282,7 @@ fn texts(xml: &str, fields: bool) -> Vec<String> {
             },
             Ok(Event::Empty(e)) => match local(e.name().as_ref()) {
                 "p" => paragraphs.push(String::new()),
-                "tab" => current.get_or_insert_default().push('\t'),
+                "tab" | "ptab" => current.get_or_insert_default().push('\t'),
                 "br" | "cr" => current.get_or_insert_default().push(' '),
                 "fldSimple" if fields => {
                     if let Some(ch) = attr(&e, "instr").as_deref().and_then(field_char) {
@@ -112,6 +311,7 @@ fn texts(xml: &str, fields: bool) -> Vec<String> {
             },
             Ok(Event::End(e)) => match local(e.name().as_ref()) {
                 "p" => paragraphs.extend(current.take()),
+                "r" => note_mark = false,
                 "t" => in_text = false,
                 "instrText" => in_instr = false,
                 "fldSimple" if simple_depth > 0 => simple_depth -= 1,
@@ -122,7 +322,7 @@ fn texts(xml: &str, fields: bool) -> Vec<String> {
                     instr.push_str(&text.xml10_content());
                 }
             }
-            Ok(Event::Text(_)) if in_text && (skip_result || simple_depth > 0) => {}
+            Ok(Event::Text(_)) if in_text && (skip_result || simple_depth > 0 || note_mark) => {}
             Ok(Event::Text(text)) if in_text => {
                 if let Some(current) = current.as_mut() {
                     current.push_str(&text.xml10_content());
@@ -165,6 +365,35 @@ pub fn parse_endnotes(xml: &str) -> HashMap<String, Vec<String>> {
     parse_notes(xml, "endnote")
 }
 
+/// 각주(`footnote`)·미주(`endnote`) 부분의 주마다 XML 조각(그 요소 전체). 구분선 등 특수 주는 뺀다.
+pub(crate) fn note_parts(xml: &str, element: &str) -> HashMap<String, String> {
+    let mut notes = HashMap::new();
+    let mut reader = Reader::from_str(xml);
+    let mut start = None;
+    let mut id = None;
+    loop {
+        let position = reader.buffer_position() as usize;
+        match reader.read_event() {
+            Ok(Event::Eof) | Err(_) => break,
+            Ok(Event::Start(e)) if local_name(&e) == element => {
+                let separator = attr(&e, "type").is_some_and(|t| t != "normal");
+                id = attr(&e, "id").filter(|_| !separator);
+                start = Some(position);
+            }
+            Ok(Event::End(e)) if local(e.name().as_ref()) == element => {
+                let end = reader.buffer_position() as usize;
+                if let (Some(id), Some(start)) = (id.take(), start.take()) {
+                    if let Some(part) = xml.get(start..end) {
+                        notes.insert(id, part.to_owned());
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    notes
+}
+
 fn parse_notes(xml: &str, element: &str) -> HashMap<String, Vec<String>> {
     let mut notes = HashMap::new();
     let mut reader = Reader::from_str(xml);
@@ -203,11 +432,69 @@ struct Level {
     format: String,
     text: String,
     start: u32,
+    /// 수준 들여쓰기(twip, `w:lvl/w:pPr/w:ind`): 왼쪽, 첫 줄(+ 들여쓰기, - 내어쓰기)
+    left: Option<i64>,
+    first_line: Option<i64>,
+}
+
+/// 한글 문단 번호·글머리표로 옮길 번호 목록 정의 하나(Word `w:num` 하나, 글머리표는 글자 하나).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ListDef {
+    /// 글머리표면 그 글자(수준과 무관)
+    pub bullet: Option<char>,
+    /// 번호면 수준(0~6)마다 (한글 번호 형식 코드(표 43), 한글 번호 모양(`^1.`), 시작 번호)
+    pub levels: Vec<(u8, String, u32)>,
+}
+
+/// Word `w:numFmt` → 한글 번호 형식 코드(표 43). 한글에 없는 형식은 None(번호 글자로 읽는다).
+fn hwp_num_format(format: &str) -> Option<u8> {
+    Some(match format {
+        "decimal" => 0,
+        "decimalEnclosedCircle" | "decimalEnclosedCircleChinese" => 1,
+        "upperRoman" => 2,
+        "lowerRoman" => 3,
+        "upperLetter" => 4,
+        "lowerLetter" => 5,
+        "ganada" => 8,
+        "chosung" => 10,
+        "koreanCounting" => 12,
+        "chineseCounting"
+        | "japaneseCounting"
+        | "chineseCountingThousand"
+        | "ideographTraditional" => 13,
+        _ => return None,
+    })
+}
+
+/// Word 번호 모양(`%1.%2.`) → 한글 번호 모양(`^1.^2.`). 8·9 수준을 가리키면 None.
+fn hwp_level_text(text: &str) -> Option<String> {
+    let mut out = String::new();
+    let mut chars = text.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '%' {
+            match chars.next() {
+                Some(d @ '1'..='7') => {
+                    out.push('^');
+                    out.push(d);
+                }
+                _ => return None,
+            }
+        } else if c == '^' {
+            return None;
+        } else {
+            out.push(c);
+        }
+    }
+    Some(out)
 }
 
 /// `word/numbering.xml` 과 지금까지 센 번호.
 #[derive(Debug, Default)]
 pub struct Numbering {
+    /// [`Numbering::list_mark`] 가 만든 정의(표시 글자의 정의 번호 차례). 글머리표는 글자마다, 번호는 numId 마다.
+    pub lists: Vec<ListDef>,
+    /// 정의 번호: numId(번호) 또는 "•글자"(글머리표)
+    list_keys: Vec<String>,
     /// numId → abstractNumId
     nums: HashMap<String, String>,
     /// abstractNumId → 수준(ilvl 순)
@@ -260,6 +547,8 @@ impl Numbering {
                                 format: "decimal".into(),
                                 text: format!("%{}.", index + 1),
                                 start: 1,
+                                left: None,
+                                first_line: None,
                             },
                         ));
                     }
@@ -281,6 +570,15 @@ impl Numbering {
                         level.start = value;
                     }
                 }
+                "ind" => {
+                    if let Some((_, level)) = level.as_mut() {
+                        let number = |key: &str| attr(&e, key).and_then(|v| v.parse::<i64>().ok());
+                        level.left = number("left").or_else(|| number("start"));
+                        level.first_line = number("hanging")
+                            .map(|h| -h)
+                            .or_else(|| number("firstLine"));
+                    }
+                }
                 "num" if !empty => num_id = attr(&e, "numId"),
                 "abstractNumId" => {
                     if let (Some(id), Some(value)) = (&num_id, attr(&e, "val")) {
@@ -291,6 +589,87 @@ impl Numbering {
             }
         }
         numbering
+    }
+
+    /// 번호 목록 문단을 한글 문단 번호로 옮길 표시 글자([`LIST_MARK`] + 정의·수준). 한글로 옮길 수 없는
+    /// 형식(번호 없음, 8·9 수준, 한글에 없는 번호 형식, 정의가 너무 많음)이면 None — 그때는 [`Numbering::label`] 로
+    /// 번호 글자를 넣는다. `num_id` 가 None 이면(정의 없는 목록 문단) 글머리표 "•".
+    pub fn list_mark(&mut self, num_id: Option<&str>, ilvl: usize) -> Option<String> {
+        if ilvl > 6 || num_id == Some("0") {
+            return None;
+        }
+        let level_of =
+            |levels: &Vec<Option<Level>>, index: usize| levels.get(index).cloned().flatten();
+        let (key, def) = match num_id.and_then(|id| {
+            self.nums
+                .get(id)
+                .and_then(|a| self.abstracts.get(a))
+                .map(|l| (id, l))
+        }) {
+            None => (
+                "•".to_string(),
+                ListDef {
+                    bullet: Some('•'),
+                    levels: Vec::new(),
+                },
+            ),
+            Some((id, levels)) => {
+                let level = level_of(levels, ilvl)?;
+                if level.format == "bullet" {
+                    let ch = bullet(&level.text).chars().next().unwrap_or('•');
+                    (
+                        format!("•{ch}"),
+                        ListDef {
+                            bullet: Some(ch),
+                            levels: Vec::new(),
+                        },
+                    )
+                } else {
+                    let mut hwp_levels = Vec::new();
+                    for index in 0..7 {
+                        let entry = match level_of(levels, index) {
+                            Some(l) if l.format != "bullet" && l.format != "none" => {
+                                match (hwp_num_format(&l.format), hwp_level_text(&l.text)) {
+                                    (Some(code), Some(text)) => (code, text, l.start),
+                                    _ if index == ilvl => return None,
+                                    _ => (0, format!("^{}.", index + 1), 1),
+                                }
+                            }
+                            _ if index == ilvl => return None,
+                            _ => (0, format!("^{}.", index + 1), 1),
+                        };
+                        hwp_levels.push(entry);
+                    }
+                    (
+                        id.to_string(),
+                        ListDef {
+                            bullet: None,
+                            levels: hwp_levels,
+                        },
+                    )
+                }
+            }
+        };
+        let index = match self.list_keys.iter().position(|k| *k == key) {
+            Some(index) => index,
+            None if self.lists.len() < MAX_LIST_DEFS => {
+                self.list_keys.push(key);
+                self.lists.push(def);
+                self.lists.len() - 1
+            }
+            None => return None,
+        };
+        let code = char::from_u32(LIST_CODE_BASE + (index * 8 + ilvl) as u32)?;
+        Some(format!("{LIST_MARK}{code}"))
+    }
+
+    /// 번호 목록 수준의 들여쓰기(twip): (왼쪽, 첫 줄). 문단에 직접 준 들여쓰기가 없을 때 쓴다(Word 와 같은 차례).
+    pub fn level_indent(&self, num_id: &str, ilvl: usize) -> (Option<i64>, Option<i64>) {
+        self.nums
+            .get(num_id)
+            .and_then(|id| self.abstracts.get(id))
+            .and_then(|levels| levels.get(ilvl.min(8)).cloned().flatten())
+            .map_or((None, None), |level| (level.left, level.first_line))
     }
 
     /// 문단 번호 글자("1.", "가.", "•" 등). numId 가 0 이면 번호 없음. 정의를 못 찾으면 "•".

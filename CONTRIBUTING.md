@@ -23,7 +23,13 @@ Papy 는 Issue → Branch → Pull Request → Review → Merge 흐름으로 개
 
 ## 라이선스
 
-Papy 는 [PolyForm Noncommercial 1.0.0](LICENSE) 을 따릅니다. PR 을 보내면 그 기여물을 같은 라이선스로 제공하는 데 동의한 것으로 봅니다.
+Papy 는 [PolyForm Noncommercial 1.0.0](LICENSE) 을 따릅니다. PR 을 보내면 아래 두 가지에 동의한 것으로 봅니다.
+
+1. 기여물을 같은 라이선스(PolyForm Noncommercial 1.0.0)로 제공한다.
+2. 저장소 소유자(Nam Jeong Hyeok)에게 기여물을 사용·수정·재라이선스(상용 라이선스 포함)·배포할 수 있는, 전 세계적·영구적·
+   무상·취소할 수 없는 비독점 권리를 준다. 기여자는 기여물을 이렇게 제공할 권리가 있음을 보증한다.
+
+Papy 는 비상업 라이선스와 별도의 상용 라이선스로 함께 제공될 수 있어 2번이 필요합니다. 동의하지 않으면 PR 대신 이슈로 알려 주세요.
 GPL·AGPL 등 상업적 사용 제한과 충돌하는 라이선스의 코드는 받을 수 없습니다.
 
 ## 규칙

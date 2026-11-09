@@ -998,6 +998,13 @@ impl Document for HwpDocument {
         Ok(out)
     }
 
+    fn structure(&mut self) -> Result<papy_render::Structure> {
+        self.check()?;
+        // DOCX 메모는 숨은 설명으로 문서 안에 들어 있다(검토 창은 작성자·날짜를 가진 `docx_review` 를 쓴다).
+        let out = guard(|| crate::audit::structure(self.doc.document()))?;
+        Ok(out)
+    }
+
     fn review(&mut self) -> Result<Review> {
         self.check()?;
         let (docx, insertions, deletions) = self.docx_review.clone();
@@ -1080,6 +1087,10 @@ impl Document for HwpDocument {
                         self.doc.document(),
                         &outline,
                         Some(&|equation| crate::equation_png(equation)),
+                        !matches!(
+                            self.info.format,
+                            papy_model::DocumentFormat::Docx | papy_model::DocumentFormat::Doc
+                        ),
                     )
                 })?
             }

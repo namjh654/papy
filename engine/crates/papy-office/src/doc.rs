@@ -4,10 +4,10 @@
 //! 만들고, papy-hwp 가 붙여넣은 뒤 나머지를 넣는다.
 //!
 //! 옮기는 것: 본문 글자(조각 표), 글자 서식(굵게·기울임·밑줄·취소선·크기·색·글꼴), 문단 정렬, 제목 스타일(목차),
-//! 표(겹친 표, 가로·세로 병합, 테두리), 글자처럼 놓은 그림(PNG·JPEG·DIB·GIF), 필드 결과 글자, 각주·미주(글자),
-//! 첫 구역 머리말·꼬리말(글자).
-//! 옮기지 않는 것(빠진 개체로 센다): 떠 있는 그림·도형·글상자, OLE 개체, WMF·EMF 그림. 번호 목록은 "•" 로 둔다.
-//! 암호 문서는 열지 않는다.
+//! 표(겹친 표, 가로·세로 병합, 테두리), 글자처럼 놓은 그림(PNG·JPEG·DIB·GIF, EMF·WMF 는 SVG 로), OLE 개체의
+//! 미리보기 그림, 떠 있는 그림·도형·글상자·묶음 도형([`crate::doc_art`]), 필드 결과 글자, 각주·미주(글자),
+//! 첫 구역 머리말·꼬리말(글자). 암호 문서(RC4·RC4 CryptoAPI·XOR 난독화)는 암호로 푼다([`crate::doc_crypt`]).
+//! 옮기지 않는 것(빠진 개체로 센다): 표 안의 도형·메타파일 그림, 머리말 안 도형. 번호 목록은 "•" 로 둔다.
 
 use std::collections::HashMap;
 use std::io::{Cursor, Read};
@@ -15,14 +15,16 @@ use std::io::{Cursor, Read};
 use base64::Engine as _;
 use papy_model::{Error, ErrorCode, Result};
 
+use crate::doc_art::{Art, Picture, find_picture};
 use crate::notes::HeaderFooterText;
 use crate::read::{DocxHeading, DocxReadReport, image_mime};
-use crate::{ENDNOTE_MARK, FOOTNOTE_MARK, PAGE_BREAK_MARK};
+use crate::shapes::{DocxShape, Relative, SHAPE_MARK, ShapeImage, ShapeKind, Wrap};
+use crate::{COLUMN_BREAK_MARK, ENDNOTE_MARK, FOOTNOTE_MARK, PAGE_BREAK_MARK};
 
 /// 스트림 하나의 상한
 const MAX_STREAM_BYTES: u64 = 256 * 1024 * 1024;
 /// 본문 글자 수 상한
-const MAX_CHARS: u32 = 64 * 1024 * 1024;
+pub(crate) const MAX_CHARS: u32 = 64 * 1024 * 1024;
 /// 그림 하나·전체 상한
 const MAX_IMAGE_BYTES: usize = 32 * 1024 * 1024;
 const MAX_TOTAL_IMAGE_BYTES: usize = 256 * 1024 * 1024;
@@ -886,6 +888,20 @@ struct Reader<'a> {
     fonts: Vec<String>,
     style_cache: HashMap<u16, (Chp, Pap)>,
     image_budget: usize,
+    /// 떠 있는 그리기 개체
+    art: Art,
+    /// 글상자 이야기마다 cp 범위
+    textboxes: Vec<(u32, u32)>,
+    /// 구역 나누기 글자 cp → 뒤 구역의 시작 방식(bkc: 0 이어서, 1 새 단, 그 밖은 새 쪽)
+    section_breaks: HashMap<u32, u8>,
+}
+
+/// 글자처럼 놓은 그림
+enum InlinePicture {
+    /// `<img>` 로 넣는 비트맵
+    Html(String),
+    /// 도형 자리로 넣는 그림(메타파일 → SVG)
+    Shape(DocxShape),
 }
 
 /// 본문(또는 주 이야기) 한 부분을 HTML 로.
@@ -896,6 +912,8 @@ struct Output {
     dropped: usize,
     /// 본문에서 만난 각주·미주 표시(cp 순서)
     notes: Vec<(u32, char)>,
+    /// 본문 도형([`SHAPE_MARK`] 순서)
+    shapes: Vec<DocxShape>,
 }
 
 impl Reader<'_> {
@@ -956,7 +974,7 @@ impl Reader<'_> {
     }
 
     /// 글자처럼 놓은 그림(PICF + OfficeArt BLIP)을 `<img>` 로.
-    fn picture(&mut self, offset: u32) -> Option<String> {
+    fn picture(&mut self, offset: u32) -> Option<InlinePicture> {
         let data = self.data.as_ref()?;
         let at = offset as usize;
         let lcb = u32_at(data, at)? as usize;
@@ -973,19 +991,53 @@ impl Reader<'_> {
             let len = *block.get(start)? as usize;
             start += 1 + len;
         }
-        let image = find_blip(block.get(start..)?)?;
-        if image.len() > MAX_IMAGE_BYTES || image.len() > self.image_budget {
+        let picture = find_picture(block.get(start..)?)?;
+        if picture.len() > MAX_IMAGE_BYTES || picture.len() > self.image_budget {
             return None;
         }
-        self.image_budget -= image.len();
-        let mime = image_mime(&image)?;
-        // twip → px(96 DPI): 1px = 15 twip
-        let width = (dxa_goal * mx / 1000.0 / 15.0).round().clamp(1.0, 20000.0);
-        let height = (dya_goal * my / 1000.0 / 15.0).round().clamp(1.0, 20000.0);
-        Some(format!(
-            "<img src=\"data:{mime};base64,{}\" width=\"{width}\" height=\"{height}\">",
-            base64::engine::general_purpose::STANDARD.encode(&image)
-        ))
+        self.image_budget -= picture.len();
+        let (width_twip, height_twip) = (dxa_goal * mx / 1000.0, dya_goal * my / 1000.0);
+        match picture {
+            Picture::Raster(image) => {
+                let mime = image_mime(&image)?;
+                // twip → px(96 DPI): 1px = 15 twip
+                let width = (width_twip / 15.0).round().clamp(1.0, 20000.0);
+                let height = (height_twip / 15.0).round().clamp(1.0, 20000.0);
+                Some(InlinePicture::Html(format!(
+                    "<img src=\"data:{mime};base64,{}\" width=\"{width}\" height=\"{height}\">",
+                    base64::engine::general_purpose::STANDARD.encode(&image)
+                )))
+            }
+            Picture::Svg(svg) => {
+                let emu = |twip: f64| (twip.clamp(15.0, 20000.0 * 15.0) * 635.0).round() as i64;
+                Some(InlinePicture::Shape(DocxShape {
+                    kind: ShapeKind::Rectangle,
+                    width: emu(width_twip),
+                    height: emu(height_twip),
+                    inline: true,
+                    horizontal: (Relative::Column, 0),
+                    vertical: (Relative::Paragraph, 0),
+                    wrap: Wrap::InFront,
+                    fill: None,
+                    line: None,
+                    line_width: 0,
+                    flip_h: false,
+                    flip_v: false,
+                    text: Vec::new(),
+                    html: None,
+                    image: Some(ShapeImage::Svg(svg)),
+                    pending: None,
+                }))
+            }
+        }
+    }
+
+    /// 글상자 이야기 하나의 문단
+    fn textbox(&self, index: usize) -> Vec<String> {
+        match self.textboxes.get(index) {
+            Some(&(a, b)) => self.story_paragraphs(a, b),
+            None => Vec::new(),
+        }
     }
 
     /// cp 범위를 HTML 로. `notes`: 이 범위 안의 각주·미주 참조 cp → 표시 글자.
@@ -996,6 +1048,7 @@ impl Reader<'_> {
             images: 0,
             dropped: 0,
             notes: Vec::new(),
+            shapes: Vec::new(),
         };
         let chars = self.text.chars(from, to);
         let mut tables: Vec<TableBuild> = Vec::new();
@@ -1005,8 +1058,8 @@ impl Reader<'_> {
         let mut run_css = String::new();
         // 필드: 단계마다 (지시문 안인가)
         let mut fields: Vec<bool> = Vec::new();
-        // 앞 문단이 쪽·구역 나누기(0x0C)로 끝났다
-        let mut break_pending = false;
+        // 앞 문단이 쪽·구역 나누기(0x0C)로 끝나 뒤 문단 앞에 넣을 표시(쪽 또는 단 나누기)
+        let mut break_pending: Option<char> = None;
         let flush = |para: &mut String, run: &mut String, run_css: &str| {
             if run.is_empty() {
                 return;
@@ -1069,23 +1122,43 @@ impl Reader<'_> {
                 match ch {
                     '\u{1}' if special => {
                         flush(&mut para, &mut run, &run_css);
-                        let image = if chp.ole == Some(true) {
-                            None
-                        } else {
-                            chp.pic.and_then(|offset| self.picture(offset))
-                        };
-                        match image {
-                            Some(img) => {
+                        // OLE 개체도 Data 스트림에 미리보기 그림(대개 EMF)이 있다.
+                        match chp.pic.and_then(|offset| self.picture(offset)) {
+                            Some(InlinePicture::Html(img)) => {
                                 para.push_str(&img);
                                 out.images += 1;
                             }
-                            None => out.dropped += 1,
+                            Some(InlinePicture::Shape(shape)) if pap.depth == 0 => {
+                                para.push(SHAPE_MARK);
+                                out.shapes.push(shape);
+                                out.images += 1;
+                            }
+                            // 표 안 도형 자리는 rhwp 에 넣을 곳이 없다.
+                            _ => out.dropped += 1,
                         }
                         continue;
                     }
                     // 떠 있는 도형·그림 자리
                     '\u{8}' if special => {
-                        out.dropped += 1;
+                        flush(&mut para, &mut run, &run_css);
+                        let shapes = self.art.shapes_at(this_cp, &mut |k| self.textbox(k));
+                        if shapes.is_empty() {
+                            out.dropped += 1;
+                        } else if pap.depth == 0 {
+                            for shape in shapes {
+                                para.push(SHAPE_MARK);
+                                out.shapes.push(shape);
+                            }
+                        } else {
+                            // 표 안: 글상자 글자만 남긴다.
+                            for shape in shapes {
+                                for text in shape.text.iter().filter(|t| !t.trim().is_empty()) {
+                                    para.push_str(&escape(text));
+                                    para.push(' ');
+                                }
+                                out.dropped += 1;
+                            }
+                        }
                         continue;
                     }
                     '\t' => {
@@ -1112,6 +1185,15 @@ impl Reader<'_> {
                         continue;
                     }
                     '\u{1F}' => continue,
+                    '\u{E}' if pap.depth == 0 && tables.is_empty() => {
+                        // 단 나누기: 문단 맨 앞이면 이 문단 앞에서, 아니면 끊고 뒤 문단 앞에서.
+                        flush(&mut para, &mut run, &run_css);
+                        if !para.is_empty() {
+                            para.push_str("</p><p>");
+                        }
+                        para.push(COLUMN_BREAK_MARK);
+                        continue;
+                    }
                     c if (c as u32) < 0x20 => continue,
                     _ => {}
                 }
@@ -1138,14 +1220,23 @@ impl Reader<'_> {
             };
             let label = if pap.list { "• " } else { "" };
             let depth_now = pap.depth as usize;
-            let mark = if (break_pending || pap.page_break) && depth_now == 0 && tables.is_empty() {
-                break_pending = false;
-                PAGE_BREAK_MARK.to_string()
-            } else {
-                String::new()
+            let at_top = depth_now == 0 && tables.is_empty();
+            let mark = match break_pending {
+                _ if !at_top => String::new(),
+                _ if pap.page_break => PAGE_BREAK_MARK.to_string(),
+                Some(mark) => mark.to_string(),
+                None => String::new(),
             };
+            if at_top {
+                break_pending = None;
+            }
             if terminator == Some('\u{C}') {
-                break_pending = true;
+                // 구역 나누기면 뒤 구역의 시작 방식을 따른다(이어서는 나누지 않는다).
+                break_pending = match self.section_breaks.get(&(cp - 1)) {
+                    Some(0) => None,
+                    Some(1) => Some(COLUMN_BREAK_MARK),
+                    _ => Some(PAGE_BREAK_MARK),
+                };
             }
             let paragraph = format!("<p{align}>{mark}{label}{para}</p>");
             let depth = (pap.depth as usize).min(MAX_TABLE_DEPTH);
@@ -1262,53 +1353,7 @@ fn plc_cps(table: &[u8], fc: u32, lcb: u32, size: usize) -> Vec<u32> {
     (0..=n).filter_map(|i| u32_at(data, i * 4)).collect()
 }
 
-/// OfficeArt 레코드에서 PNG·JPEG·DIB·GIF 그림을 찾는다.
-fn find_blip(data: &[u8]) -> Option<Vec<u8>> {
-    let mut i = 0;
-    while i + 8 <= data.len() {
-        let ver_inst = u16_at(data, i)?;
-        let kind = u16_at(data, i + 2)?;
-        let len = u32_at(data, i + 4)? as usize;
-        let body = data.get(i + 8..(i + 8).saturating_add(len).min(data.len()))?;
-        if ver_inst & 0x000F == 0x000F {
-            // 묶음 레코드: 안을 찾는다.
-            if let Some(found) = find_blip(body) {
-                return Some(found);
-            }
-        } else if kind == 0xF007 {
-            // OfficeArtFBSE: 36바이트 머리 + 이름 + 안에 BLIP 레코드
-            let name_len = *body.get(33)? as usize;
-            if let Some(found) = body.get(36 + name_len..).and_then(find_blip) {
-                return Some(found);
-            }
-        } else if (0xF018..=0xF117).contains(&kind) {
-            let instance = ver_inst >> 4;
-            // UID 16바이트(인스턴스에 따라 두 개) + 태그 1바이트
-            let double = matches!(
-                instance,
-                0x46B | 0x6E1 | 0x6E3 | 0x6E5 | 0x7A9 | 0x6E9 | 0x7A7
-            );
-            let skip = if double { 33 } else { 17 };
-            let payload = body.get(skip..)?;
-            match kind {
-                0xF01D | 0xF02A | 0xF01E | 0xF029 => {
-                    if image_mime(payload).is_some() {
-                        return Some(payload.to_vec());
-                    }
-                }
-                0xF01F => {
-                    // DIB: BMP 파일 머리를 붙인다.
-                    return Some(dib_to_bmp(payload));
-                }
-                _ => {}
-            }
-        }
-        i += 8 + len;
-    }
-    None
-}
-
-fn dib_to_bmp(dib: &[u8]) -> Vec<u8> {
+pub(crate) fn dib_to_bmp(dib: &[u8]) -> Vec<u8> {
     let header = u32_at(dib, 0).unwrap_or(40);
     let bits = u16_at(dib, 14).unwrap_or(24);
     let colors = u32_at(dib, 32).unwrap_or(0);
@@ -1328,11 +1373,27 @@ fn dib_to_bmp(dib: &[u8]) -> Vec<u8> {
 }
 
 /// .doc 바이트를 rhwp 가 붙여넣을 수 있는 HTML 과 머리말·각주 정보로 바꾼다.
+/// 암호 걸린 문서는 `PasswordRequired` — [`doc_to_html_with_password`] 를 쓴다.
 pub fn doc_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
+    doc_to_html_with_password(bytes, None)
+}
+
+/// [`doc_to_html`] 과 같고, 암호 걸린 문서(RC4·RC4 CryptoAPI·XOR 난독화)는 `password` 로 푼다.
+/// 암호가 없거나 틀리면 `PasswordRequired`.
+pub fn doc_to_html_with_password(
+    bytes: &[u8],
+    password: Option<&str>,
+) -> Result<(String, DocxReadReport)> {
     let mut file =
         cfb::CompoundFile::open(Cursor::new(bytes)).map_err(|_| invalid("not a compound file"))?;
-    let word = read_stream(&mut file, "/WordDocument")?
+    let mut word = read_stream(&mut file, "/WordDocument")?
         .ok_or_else(|| Error::new(ErrorCode::UnsupportedFormat, "not a Word document"))?;
+    if matches!(u16_at(&word, 0), Some(0xA5DC | 0xA699))
+        && matches!(u16_at(&word, 2), Some(0x65..=0x68))
+    {
+        // Word 6.0·95: 글과 문단만 읽는다([`crate::doc6`])
+        return crate::doc6::to_html(&word);
+    }
     if u16_at(&word, 0) != Some(0xA5EC) {
         return Err(Error::new(
             ErrorCode::UnsupportedFormat,
@@ -1348,20 +1409,25 @@ pub fn doc_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
         ));
     }
     let flags = u16_at(&word, 0x0A).unwrap_or(0);
-    if flags & 0x0100 != 0 {
-        return Err(Error::new(
-            ErrorCode::PasswordRequired,
-            "encrypted Word document",
-        ));
-    }
     let table_name = if flags & 0x0200 != 0 {
         "/1Table"
     } else {
         "/0Table"
     };
-    let table = read_stream(&mut file, table_name)?
+    let mut table = read_stream(&mut file, table_name)?
         .ok_or_else(|| invalid("Word table stream is missing"))?;
-    let data = read_stream(&mut file, "/Data")?;
+    let mut data = read_stream(&mut file, "/Data")?;
+    if flags & 0x0100 != 0 {
+        if flags & 0x8000 != 0 {
+            // XOR 난독화(옛 Word 방식 암호): FibBase lKey(0x0E)가 암호 검증값
+            let l_key = u32_at(&word, 0x0E).unwrap_or(0);
+            crate::doc_crypt::deobfuscate(password, l_key, &mut word, &mut table, data.as_mut())?;
+        } else {
+            crate::doc_crypt::decrypt(password, &mut word, &mut table, data.as_mut())?;
+        }
+    }
+    let word = word;
+    let table = table;
 
     // FIB: FibBase(32) + csw + FibRgW97 + cslw + FibRgLw97 + cbRgFcLcb + FibRgFcLcb
     let csw = u16_at(&word, 32).unwrap_or(0) as usize;
@@ -1418,6 +1484,9 @@ pub fn doc_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
         data,
         style_cache: HashMap::new(),
         image_budget: MAX_TOTAL_IMAGE_BYTES,
+        art: Art::parse(&word, &table, pair(40), pair(50)),
+        textboxes: Vec::new(),
+        section_breaks: section_breaks(&word, &table, pair(6)),
     };
 
     let mut report = DocxReadReport::default();
@@ -1449,8 +1518,18 @@ pub fn doc_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
         }
     }
 
+    // 글상자 이야기: 미주 다음. PlcftxbxTxt = cp 목록 + FTXBXS(22바이트)
+    let txbx_start = edn_start + lw_value(8);
+    let (fc_txbx, lcb_txbx) = pair(56);
+    let txbx_cps = plc_cps(&table, fc_txbx, lcb_txbx, 22);
+    reader.textboxes = txbx_cps
+        .windows(2)
+        .map(|w| (txbx_start + w[0], txbx_start + w[1].max(w[0])))
+        .collect();
+
     let body = reader.story(0, ccp_text, &refs);
     report.images = body.images;
+    report.shapes = body.shapes;
     report.dropped_drawings = body.dropped;
     report.headings = body.headings;
     for (cp, mark) in &body.notes {
@@ -1505,8 +1584,11 @@ pub fn doc_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
             &mut report.footers
         };
         target.push(HeaderFooterText {
+            section: 0,
             apply_to,
             paragraphs,
+            html: None,
+            ..HeaderFooterText::default()
         });
     }
     if title_page {
@@ -1532,6 +1614,25 @@ fn longest_section(table: &[u8], (fc, lcb): (u32, u32)) -> usize {
         .rev()
         .max_by_key(|&(_, len)| len)
         .map_or(0, |(i, _)| i)
+}
+
+/// 구역 나누기 글자(앞 구역의 마지막 cp) → 뒤 구역의 시작 방식(sprmSBkc, 기본값 2 = 새 쪽).
+fn section_breaks(word: &[u8], table: &[u8], (fc, lcb): (u32, u32)) -> HashMap<u32, u8> {
+    let cps = plc_cps(table, fc, lcb, 12);
+    let mut breaks = HashMap::new();
+    let last = cps.len().saturating_sub(1);
+    for (index, &start) in cps.iter().enumerate().take(last).skip(1) {
+        let bkc = section_sprms(word, table, (fc, lcb), index)
+            .iter()
+            .rev()
+            .find(|(sprm, _)| *sprm == 0x3009)
+            .and_then(|(_, op)| op.first().copied())
+            .unwrap_or(2);
+        if let Some(cp) = start.checked_sub(1) {
+            breaks.insert(cp, bkc);
+        }
+    }
+    breaks
 }
 
 /// `index` 번째 구역의 구역 속성(SEPX) sprm 목록. 없으면 빈 목록(모두 기본값).

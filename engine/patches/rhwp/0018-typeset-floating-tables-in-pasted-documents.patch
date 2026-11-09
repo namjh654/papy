@@ -1,0 +1,71 @@
+Papy 패치: 다른 형식에서 붙여넣은(저장 배치가 없는) 문서의 떠 있는 표가 본문 흐름을 밀지 않게 한다.
+
+rhwp v0.8.7(1a76570e).
+1. 종이 기준 위아래 배치 표(시험지 머리 표 등): 저장 vpos 로 흐름을 맞출 수 없으면(붙여넣은 문단은 vpos 가 앞 문단 끝)
+   표 높이 전체를 흐름에 더했다. 쪽 너비 자리차지 개체가 본문을 침범하는 하단(compute_body_wide_top_reserve_for_para)으로 맞춘다.
+2. 문단·쪽 기준 글 앞·뒤 표: 한글처럼 흐름을 차지하지 않게 둔다.
+둘 다 원본 HWP5·HWPX(저장 배치를 따르는 문서)에는 쓰지 않는다(issue7500 picture_band_cell_spaces 가 1쪽으로 줄었다).
+종전에는 exam_eng 를 DOCX 로 저장했다 다시 열면 1쪽 왼쪽 단이 넘쳐 단 나누기가 다음 쪽으로 밀렸다.
+
+--- a/src/renderer/typeset/table/block/entry.rs	2026-11-09 15:05:26
++++ b/src/renderer/typeset/table/block/entry.rs	2026-11-09 15:17:30
+@@ -374,8 +374,22 @@
+             && matches!(table.common.vert_rel_to, VertRelTo::Paper);
+         if is_paper_floating_block && st.current_column == 0 {
+             if let Some(first_seg) = para.line_segs.first() {
+-                let target_y =
++                let stored_y =
+                     crate::renderer::hwpunit_to_px(first_seg.vertical_pos as i32, self.dpi);
++                // [papy] 다른 형식에서 붙여넣어 다시 짠 문단은 저장 vpos 가 0 이라 sync 할 수 없어
++                // 표 높이 전체를 흐름에 더했다(본문 위로 빠져나간 머리 표가 단을 한 줄 넘치게 함).
++                // 저장 vpos 로 sync 할 수 없으면 쪽 너비 자리차지 개체가 본문을 침범하는 하단으로 맞춘다.
++                let target_y = if stored_y > st.current_height
++                    || !matches!(table.common.text_wrap, TextWrap::TopAndBottom)
++                    || st.profile.native_hwp5_layout()
++                    || st.profile.hwpx_stored_layout()
++                {
++                    stored_y
++                } else {
++                    stored_y.max(crate::renderer::typeset::compute_body_wide_top_reserve_for_para(
++                        para, &st.layout, self.dpi,
++                    ))
++                };
+                 // 종이 기준 표는 본문 위에 그려져도 호스트가 저장 글줄 상자를 소유할 수 있다.
+                 // 다음 저장 글줄이 그 상자 바로 뒤에서 시작하면
+                 // 호스트 줄높이를 흐름에 보존한다.
+@@ -448,6 +462,35 @@
+                     return None;
+                 }
+             }
++        }
++
++        // [papy] 문단·쪽 기준 글 앞·뒤 표는 본문 흐름을 차지하지 않는다(한글과 같이 글 위·아래에 겹쳐 그린다).
++        // 다른 형식에서 붙여넣은 문서는 저장 배치가 없어 표 높이만큼 흐름이 밀려 단이 넘쳤다.
++        // 종이 기준 것은 위(is_paper_behind_infront)에서 다룬다.
++        if !table.common.treat_as_char
++            && matches!(
++                table.common.text_wrap,
++                TextWrap::BehindText | TextWrap::InFrontOfText
++            )
++            && !matches!(table.common.vert_rel_to, VertRelTo::Paper)
++            && !st.profile.hwpx_stored_layout()
++            && !st.profile.native_hwp5_layout()
++        {
++            self.place_table_with_text(
++                st,
++                para_idx,
++                ctrl_idx,
++                para,
++                table,
++                fmt,
++                para_start_height,
++                0.0,
++                is_first_placed,
++                is_last_placed,
++                ft.strict_following_plain_text_fit,
++                styles,
++            );
++            return None;
+         }
+ 
+         // fits: 전체가 현재 페이지에 들어가는가?

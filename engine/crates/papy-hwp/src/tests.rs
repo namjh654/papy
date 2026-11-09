@@ -899,16 +899,20 @@ fn docx_shapes_are_kept_and_saved() {
 
 #[test]
 fn docx_unsupported_drawings_are_counted() {
-    // 빈 묶음 도형과 표 안 글상자: 빈 묶음은 빠진 것으로 세고, 표 안 글상자는 글자만 남긴다.
+    // 빈 묶음 도형과 표 안 글상자: 빈 묶음은 빠진 것으로 세고, 표 안 글상자는 칸 안 글상자로 남긴다.
     let document = r#"<w:document xmlns:w="w" xmlns:wp="wp" xmlns:a="a" xmlns:wps="wps" xmlns:wpg="wpg"><w:body><w:p><w:r><w:drawing><wp:inline><wp:extent cx="100000" cy="100000"/><a:graphic><a:graphicData><wpg:wgp><wps:wsp/></wpg:wgp></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p><w:tbl><w:tr><w:tc><w:p><w:r><w:drawing><wp:inline><wp:extent cx="100000" cy="100000"/><a:graphic><a:graphicData><wps:wsp><wps:txbx><w:txbxContent><w:p><w:r><w:t>칸 안 상자</w:t></w:r></w:p></w:txbxContent></wps:txbx></wps:wsp></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p></w:tc></w:tr></w:tbl><w:p/></w:body></w:document>"#;
     let bytes = zip_parts(&[
         ("[Content_Types].xml", "<Types/>"),
         ("word/document.xml", document),
     ]);
     let mut doc = open(HwpBackend::docx(), bytes, &options()).unwrap();
-    assert_eq!(doc.info().dropped_objects, 2);
-    let text = doc.extract_text(0).unwrap();
-    assert!(text.contains("칸 안 상자"), "{text:?}");
+    assert_eq!(doc.info().dropped_objects, 1);
+    // 글상자가 좁아(약 3mm) 글자마다 줄이 바뀐다.
+    let text: String = doc.extract_text(0).unwrap().split_whitespace().collect();
+    assert!(text.contains("칸안상자"), "{text:?}");
+    let structure = doc.structure().unwrap();
+    assert_eq!(structure.get("shapes.in_cell"), Some(&1), "{structure:?}");
+    assert_eq!(structure.get("chars.textbox"), Some(&4), "{structure:?}");
 }
 
 #[test]
@@ -1986,4 +1990,468 @@ fn docx_comments_and_changes_are_reviewed() {
         ("검토자", "여기 확인")
     );
     assert_eq!(comment.page, Some(1), "{comment:?}");
+}
+
+/// 바깥 표 한 칸 안에 표를 담은 DOCX. `inner` 는 안쪽 표 XML.
+fn docx_with_nested_table(inner: &str) -> Vec<u8> {
+    let document = format!(
+        r#"<w:document xmlns:w="w"><w:body><w:p><w:r><w:t>앞 문단</w:t></w:r></w:p><w:tbl><w:tblPr><w:tblBorders><w:top w:val="single" w:sz="8"/><w:left w:val="single" w:sz="8"/><w:bottom w:val="single" w:sz="8"/><w:right w:val="single" w:sz="8"/></w:tblBorders></w:tblPr><w:tblGrid><w:gridCol w:w="9000"/></w:tblGrid><w:tr><w:tc><w:tcPr><w:tcW w:w="9000" w:type="dxa"/></w:tcPr><w:p><w:r><w:t>바깥 칸 위</w:t></w:r></w:p>{inner}<w:p><w:r><w:t>바깥 칸 아래</w:t></w:r></w:p></w:tc></w:tr></w:tbl><w:p><w:r><w:t>뒤 문단</w:t></w:r></w:p><w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"/></w:sectPr></w:body></w:document>"#
+    );
+    zip_parts(&[
+        ("[Content_Types].xml", "<Types/>"),
+        ("word/document.xml", &document),
+    ])
+}
+
+fn grid_table(rows: usize, cols: usize, width: u32, label: &str) -> String {
+    let borders = r#"<w:tblBorders><w:top w:val="single" w:sz="4"/><w:left w:val="single" w:sz="4"/><w:bottom w:val="single" w:sz="4"/><w:right w:val="single" w:sz="4"/><w:insideH w:val="single" w:sz="4"/><w:insideV w:val="single" w:sz="4"/></w:tblBorders>"#;
+    let grid: String = (0..cols)
+        .map(|_| format!(r#"<w:gridCol w:w="{width}"/>"#))
+        .collect();
+    let body: String = (0..rows)
+        .map(|r| {
+            let cells: String = (0..cols)
+                .map(|c| {
+                    format!(
+                        r#"<w:tc><w:tcPr><w:tcW w:w="{width}" w:type="dxa"/></w:tcPr><w:p><w:r><w:t>{label}{r}-{c}</w:t></w:r></w:p></w:tc>"#
+                    )
+                })
+                .collect();
+            format!("<w:tr>{cells}</w:tr>")
+        })
+        .collect();
+    format!("<w:tbl><w:tblPr>{borders}</w:tblPr><w:tblGrid>{grid}</w:tblGrid>{body}</w:tbl>")
+}
+
+/// 표 칸 안 문단의 서식 없는 앞 글은 뒤 서식(굵게)을 따라가지 않는다(rhwp 패치 0014). HWPX 로 저장해도 같다.
+#[test]
+fn docx_cell_leading_plain_text_stays_plain() {
+    let document = r#"<w:document xmlns:w="w"><w:body><w:tbl><w:tblPr/><w:tblGrid><w:gridCol w:w="9000"/></w:tblGrid><w:tr><w:tc><w:tcPr><w:tcW w:w="9000" w:type="dxa"/></w:tcPr><w:p><w:r><w:t xml:space="preserve">보통 글 </w:t></w:r><w:r><w:rPr><w:b/></w:rPr><w:t>굵게</w:t></w:r><w:r><w:t xml:space="preserve"> 뒤</w:t></w:r></w:p></w:tc></w:tr></w:tbl><w:p/></w:body></w:document>"#;
+    let bytes = zip_parts(&[
+        ("[Content_Types].xml", "<Types/>"),
+        ("word/document.xml", document),
+    ]);
+    let mut doc = open(HwpBackend::docx(), bytes, &options()).unwrap();
+    let bold = |doc: &mut Box<dyn Document>| {
+        let structure = doc.structure().unwrap();
+        structure.get("chars.bold").copied().unwrap_or(0)
+    };
+    assert_eq!(bold(&mut doc), 2);
+    let hwpx = doc.save(SaveFormat::Hwpx).unwrap();
+    let mut reopened = open(HwpBackend::hwpx(), hwpx, &options()).unwrap();
+    assert_eq!(bold(&mut reopened), 2);
+}
+
+/// 글이 없는 칸 안의 빈 칸 표(모눈 칸 등)도 옮긴다(rhwp 패치 0013 — 전에는 칸째 사라졌다).
+#[test]
+fn docx_empty_nested_table_survives() {
+    let empty_cell = r#"<w:tc><w:tcPr><w:tcW w:w="1000" w:type="dxa"/></w:tcPr><w:p/></w:tc>"#;
+    let row = format!("<w:tr>{}</w:tr>", empty_cell.repeat(3));
+    let inner = format!(
+        r#"<w:tbl><w:tblPr/><w:tblGrid><w:gridCol w:w="1000"/><w:gridCol w:w="1000"/><w:gridCol w:w="1000"/></w:tblGrid>{}</w:tbl>"#,
+        row.repeat(2)
+    );
+    let document = format!(
+        r#"<w:document xmlns:w="w"><w:body><w:tbl><w:tblPr/><w:tblGrid><w:gridCol w:w="9000"/></w:tblGrid><w:tr><w:tc><w:tcPr><w:tcW w:w="9000" w:type="dxa"/></w:tcPr>{inner}<w:p/></w:tc></w:tr></w:tbl><w:p><w:r><w:t>뒤</w:t></w:r></w:p></w:body></w:document>"#
+    );
+    let bytes = zip_parts(&[
+        ("[Content_Types].xml", "<Types/>"),
+        ("word/document.xml", &document),
+    ]);
+    let mut doc = open(HwpBackend::docx(), bytes, &options()).unwrap();
+    let structure = doc.structure().unwrap();
+    let get = |key: &str| structure.get(key).copied().unwrap_or(0);
+    assert_eq!(
+        (get("tables"), get("tables.nested"), get("cells")),
+        (2, 1, 7),
+        "{structure:?}"
+    );
+}
+
+#[test]
+fn docx_nested_table_longer_than_page_splits() {
+    let bytes = docx_with_nested_table(&grid_table(90, 2, 2000, "안쪽"));
+    let mut doc = open(HwpBackend::docx(), bytes, &options()).unwrap();
+    let pages = doc.info().page_count;
+    let all: String = (0..pages).map(|p| doc.extract_text(p).unwrap()).collect();
+    // 잘리지 않고 마지막 행까지 보인다.
+    for part in ["안쪽0-0", "안쪽89-1", "바깥 칸 아래", "뒤 문단"] {
+        assert!(all.contains(part), "{part}: {pages}쪽");
+    }
+    assert_eq!(pages, 2);
+    // 첫 쪽에 앞부분 행이 함께 놓인다(통째로 다음 쪽으로 넘기지 않는다).
+    assert!(doc.extract_text(0).unwrap().contains("안쪽0-0"));
+    assert!(doc.extract_text(1).unwrap().contains("안쪽89-1"));
+}
+
+#[test]
+fn docx_nested_table_wider_than_cell_fits() {
+    let bytes = docx_with_nested_table(&grid_table(12, 10, 1500, "W"));
+    let mut doc = open(HwpBackend::docx(), bytes, &options()).unwrap();
+    let page = doc.render_page(0, &RenderRequest::with_scale(2.0)).unwrap();
+    let (w, h) = (page.width as usize, page.height as usize);
+    // 세로로 긴 검은 줄(표 선) 자리를 센다: 바깥 표 왼쪽 + 안쪽 표 11 줄(안쪽 오른쪽 선은 바깥 오른쪽 선과 붙는다).
+    // 칸 밖이 잘리면 안쪽 표 선이 7 줄만 보인다.
+    let dark = |x: usize, y: usize| {
+        let p = &page.pixels[(y * w + x) * 4..(y * w + x) * 4 + 4];
+        p[3] > 0 && p[0] < 160 && p[1] < 160 && p[2] < 160
+    };
+    let long: Vec<usize> = (0..w)
+        .filter(|&x| (0..h).filter(|&y| dark(x, y)).count() > 300)
+        .collect();
+    let mut lines = 0;
+    let mut last = usize::MAX - 1;
+    for &x in &long {
+        if x != last + 1 {
+            lines += 1;
+        }
+        last = x;
+    }
+    assert!(lines >= 12, "{lines} {long:?}");
+}
+
+/// 머리말·꼬리말의 표는 표로 옮긴다(전에는 칸 글자만 문단으로 펼쳐졌다). 표 밖 쪽 번호 필드는 쪽 번호로 남고,
+/// 본문은 그대로이며, HWPX·DOCX 로 저장해 다시 열어도 머리말 표가 남는다.
+#[test]
+fn docx_header_table_stays_table() {
+    let document = r#"<w:document xmlns:w="w" xmlns:r="r"><w:body><w:p><w:r><w:t>본문</w:t></w:r></w:p><w:sectPr><w:headerReference w:type="default" r:id="rIdH"/><w:footerReference w:type="default" r:id="rIdF"/></w:sectPr></w:body></w:document>"#;
+    let header = r#"<w:hdr xmlns:w="w"><w:tbl><w:tblPr/><w:tblGrid><w:gridCol w:w="3000"/><w:gridCol w:w="3000"/></w:tblGrid><w:tr><w:tc><w:tcPr><w:tcW w:w="3000" w:type="dxa"/></w:tcPr><w:p><w:r><w:t>머리 왼칸</w:t></w:r></w:p></w:tc><w:tc><w:tcPr><w:tcW w:w="3000" w:type="dxa"/></w:tcPr><w:p><w:r><w:t>머리 오른칸</w:t></w:r></w:p></w:tc></w:tr></w:tbl><w:p/></w:hdr>"#;
+    let footer = r#"<w:ftr xmlns:w="w"><w:tbl><w:tblPr/><w:tblGrid><w:gridCol w:w="3000"/></w:tblGrid><w:tr><w:tc><w:tcPr><w:tcW w:w="3000" w:type="dxa"/></w:tcPr><w:p><w:r><w:t>꼬리 칸</w:t></w:r></w:p></w:tc></w:tr></w:tbl><w:p><w:r><w:t xml:space="preserve">쪽 </w:t></w:r><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> PAGE </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:t>9</w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r></w:p></w:ftr>"#;
+    let bytes = zip_parts(&[
+        ("[Content_Types].xml", "<Types/>"),
+        ("word/document.xml", document),
+        (
+            "word/_rels/document.xml.rels",
+            r#"<Relationships xmlns="r"><Relationship Id="rIdH" Type="header" Target="header1.xml"/><Relationship Id="rIdF" Type="footer" Target="footer1.xml"/></Relationships>"#,
+        ),
+        ("word/header1.xml", header),
+        ("word/footer1.xml", footer),
+    ]);
+    let check = |doc: &mut Box<dyn Document>, step: &str| {
+        let structure = doc.structure().unwrap();
+        let get = |key: &str| structure.get(key).copied().unwrap_or(0);
+        assert_eq!(
+            (
+                get("tables.in_header"),
+                get("tables.in_footer"),
+                get("tables")
+            ),
+            (1, 1, 2),
+            "{step}: {structure:?}"
+        );
+        assert_eq!(get("cells"), 3, "{step}: {structure:?}");
+        assert_eq!(get("chars.body"), 2, "{step}: {structure:?}");
+        let text = doc.extract_text(0).unwrap();
+        for part in ["머리 왼칸", "머리 오른칸", "꼬리 칸", "본문", "쪽 1"] {
+            assert!(text.contains(part), "{step}: {part}: {text:?}");
+        }
+        assert!(!text.contains("쪽 9"), "{step}: {text:?}");
+    };
+    let mut doc = open(HwpBackend::docx(), bytes, &options()).unwrap();
+    assert_eq!(doc.info().page_count, 1);
+    check(&mut doc, "docx");
+    let hwpx = doc.save(SaveFormat::Hwpx).unwrap();
+    let mut again = open(HwpBackend::hwpx(), hwpx, &options()).unwrap();
+    check(&mut again, "docx>hwpx");
+    let docx = doc.save(SaveFormat::Docx).unwrap();
+    let mut again = open(HwpBackend::docx(), docx, &options()).unwrap();
+    check(&mut again, "docx>docx");
+}
+
+/// 머리말의 글 속 그림(회사 로고 등)도 옮기고, DOCX 로 다시 저장해도 머리말 부분 관계로 남는다.
+#[test]
+fn docx_header_inline_picture_is_kept() {
+    let document = r#"<w:document xmlns:w="w" xmlns:r="r"><w:body><w:p><w:r><w:t>본문</w:t></w:r></w:p><w:sectPr><w:headerReference w:type="default" r:id="rIdH"/></w:sectPr></w:body></w:document>"#;
+    let header = r#"<w:hdr xmlns:w="w" xmlns:wp="wp" xmlns:a="a" xmlns:pic="pic" xmlns:r="r"><w:p><w:r><w:t xml:space="preserve">로고 </w:t></w:r><w:r><w:drawing><wp:inline><wp:extent cx="381000" cy="190500"/><a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="rIdLogo"/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p></w:hdr>"#;
+    use std::io::Write;
+    let mut buffer = std::io::Cursor::new(Vec::new());
+    let mut zip = zip::ZipWriter::new(&mut buffer);
+    for (name, bytes) in [
+        ("[Content_Types].xml", &b"<Types/>"[..]),
+        ("word/document.xml", document.as_bytes()),
+        (
+            "word/_rels/document.xml.rels",
+            br#"<Relationships xmlns="r"><Relationship Id="rIdH" Type="header" Target="header1.xml"/></Relationships>"#,
+        ),
+        ("word/header1.xml", header.as_bytes()),
+        (
+            "word/_rels/header1.xml.rels",
+            br#"<Relationships xmlns="r"><Relationship Id="rIdLogo" Type="image" Target="media/red.png"/></Relationships>"#,
+        ),
+        ("word/media/red.png", RED_PNG),
+    ] {
+        zip.start_file(name, zip::write::SimpleFileOptions::default())
+            .unwrap();
+        zip.write_all(bytes).unwrap();
+    }
+    zip.finish().unwrap();
+    let mut doc = open(HwpBackend::docx(), buffer.into_inner(), &options()).unwrap();
+    assert_eq!(doc.info().dropped_objects, 0);
+    for step in ["docx", "docx>docx", "docx>hwpx"] {
+        let mut current = match step {
+            "docx" => None,
+            "docx>docx" => Some(
+                open(
+                    HwpBackend::docx(),
+                    doc.save(SaveFormat::Docx).unwrap(),
+                    &options(),
+                )
+                .unwrap(),
+            ),
+            _ => Some(
+                open(
+                    HwpBackend::hwpx(),
+                    doc.save(SaveFormat::Hwpx).unwrap(),
+                    &options(),
+                )
+                .unwrap(),
+            ),
+        };
+        let target = current.as_mut().unwrap_or(&mut doc);
+        let structure = target.structure().unwrap();
+        let get = |key: &str| structure.get(key).copied().unwrap_or(0);
+        assert_eq!(
+            (
+                get("pictures.in_header"),
+                get("chars.header"),
+                get("chars.body")
+            ),
+            (1, 2, 2),
+            "{step}: {structure:?}"
+        );
+    }
+}
+
+/// Word 구역 나누기(새 쪽)는 쪽을 나누고, 구역마다 다른 머리말은 그 구역 첫 쪽부터 쓴다(표지 구역에는 머리말이
+/// 없고 본문 구역에만 있는 문서 등). 이어지는 구역(`continuous`)은 쪽을 나누지 않는다.
+#[test]
+fn docx_sections_break_pages_and_switch_headers() {
+    let document = r#"<w:document xmlns:w="w" xmlns:r="r"><w:body><w:p><w:r><w:t>표지</w:t></w:r></w:p><w:p><w:pPr><w:sectPr><w:titlePg/></w:sectPr></w:pPr><w:r><w:t>표지 끝</w:t></w:r></w:p><w:p><w:r><w:t>본문 하나</w:t></w:r></w:p><w:p><w:pPr><w:sectPr><w:headerReference w:type="default" r:id="rIdH"/></w:sectPr></w:pPr><w:r><w:t>본문 둘</w:t></w:r></w:p><w:p><w:r><w:t>이어서</w:t></w:r></w:p><w:sectPr><w:type w:val="continuous"/></w:sectPr></w:body></w:document>"#;
+    let bytes = zip_parts(&[
+        ("[Content_Types].xml", "<Types/>"),
+        ("word/document.xml", document),
+        (
+            "word/_rels/document.xml.rels",
+            r#"<Relationships xmlns="r"><Relationship Id="rIdH" Type="header" Target="header1.xml"/></Relationships>"#,
+        ),
+        (
+            "word/header1.xml",
+            r#"<w:hdr xmlns:w="w"><w:p><w:r><w:t>본문 머리말</w:t></w:r></w:p></w:hdr>"#,
+        ),
+    ]);
+    let check = |doc: &mut Box<dyn Document>, step: &str| {
+        assert_eq!(doc.info().page_count, 2, "{step}");
+        let first = doc.extract_text(0).unwrap();
+        let second = doc.extract_text(1).unwrap();
+        assert!(
+            first.contains("표지 끝") && !first.contains("본문 하나"),
+            "{step}: {first:?}"
+        );
+        assert!(!first.contains("본문 머리말"), "{step}: {first:?}");
+        assert!(
+            second.contains("본문 머리말") && second.contains("이어서"),
+            "{step}: {second:?}"
+        );
+    };
+    let mut doc = open(HwpBackend::docx(), bytes, &options()).unwrap();
+    check(&mut doc, "docx");
+    let docx = doc.save(SaveFormat::Docx).unwrap();
+    check(
+        &mut open(HwpBackend::docx(), docx, &options()).unwrap(),
+        "docx>docx",
+    );
+    let hwpx = doc.save(SaveFormat::Hwpx).unwrap();
+    check(
+        &mut open(HwpBackend::hwpx(), hwpx, &options()).unwrap(),
+        "docx>hwpx",
+    );
+}
+
+/// 머리말 표를 넣을 때 본문 끝 문단의 그림이 머리말로 넘어가지 않는다(본문 끝 문단을 나누지 않는다).
+#[test]
+fn docx_header_table_keeps_body_last_picture() {
+    let document = r#"<w:document xmlns:w="w" xmlns:wp="wp" xmlns:a="a" xmlns:pic="pic" xmlns:r="r"><w:body><w:p><w:r><w:t>끝 그림</w:t></w:r><w:r><w:drawing><wp:inline><wp:extent cx="381000" cy="190500"/><a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="rIdImg"/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p><w:sectPr><w:headerReference w:type="default" r:id="rIdH"/></w:sectPr></w:body></w:document>"#;
+    let header = r#"<w:hdr xmlns:w="w"><w:tbl><w:tblPr/><w:tblGrid><w:gridCol w:w="3000"/></w:tblGrid><w:tr><w:tc><w:tcPr><w:tcW w:w="3000" w:type="dxa"/></w:tcPr><w:p/></w:tc></w:tr></w:tbl><w:p/></w:hdr>"#;
+    use std::io::Write;
+    let mut buffer = std::io::Cursor::new(Vec::new());
+    let mut zip = zip::ZipWriter::new(&mut buffer);
+    for (name, bytes) in [
+        ("[Content_Types].xml", &b"<Types/>"[..]),
+        ("word/document.xml", document.as_bytes()),
+        (
+            "word/_rels/document.xml.rels",
+            br#"<Relationships xmlns="r"><Relationship Id="rIdH" Type="header" Target="header1.xml"/><Relationship Id="rIdImg" Type="image" Target="media/red.png"/></Relationships>"#,
+        ),
+        ("word/header1.xml", header.as_bytes()),
+        ("word/media/red.png", RED_PNG),
+    ] {
+        zip.start_file(name, zip::write::SimpleFileOptions::default())
+            .unwrap();
+        zip.write_all(bytes).unwrap();
+    }
+    zip.finish().unwrap();
+    let mut doc = open(HwpBackend::docx(), buffer.into_inner(), &options()).unwrap();
+    let structure = doc.structure().unwrap();
+    let get = |key: &str| structure.get(key).copied().unwrap_or(0);
+    // 빈 칸만 있는 머리말 표도 옮긴다(글이 없다고 건너뛰지 않는다).
+    assert_eq!(
+        (
+            get("pictures"),
+            get("pictures.in_header"),
+            get("tables.in_header")
+        ),
+        (1, 0, 1),
+        "{structure:?}"
+    );
+}
+
+/// 변환 왕복 점검(CI): 여러 요소를 담은 DOCX 를 HWPX·DOCX 로 저장해 다시 열어도 구조 요약(요소마다 수)이
+/// 원본과 같아야 한다. 말뭉치 점검(`roundtrip_audit` 예제)에서 찾은 손실은 고친 뒤 여기에 요소를 더해 다시 생기지
+/// 않게 한다. `allowed` 는 형식 차이로 일부러 다른 요소다.
+#[test]
+fn docx_round_trip_keeps_structure() {
+    use std::io::Write;
+    let nested = r#"<w:tbl><w:tblPr/><w:tblGrid><w:gridCol w:w="1500"/><w:gridCol w:w="1500"/></w:tblGrid><w:tr><w:tc><w:tcPr><w:tcW w:w="1500" w:type="dxa"/></w:tcPr><w:p/></w:tc><w:tc><w:tcPr><w:tcW w:w="1500" w:type="dxa"/></w:tcPr><w:p><w:r><w:t>안 칸</w:t></w:r></w:p></w:tc></w:tr></w:tbl>"#;
+    // 글상자(굵은 글·글 속 그림 — 수식 그림처럼 그리기 안 그리기), 칸 안 글상자, 표 캡션(Papy 가 쓰는 꼴),
+    // 메모·하이퍼링크·책갈피. 전에는 글상자 글이 본문으로 가거나 글상자가 그림이 되고, 칸 안 글상자·캡션·메모·
+    // 하이퍼링크·책갈피는 빠졌다.
+    let picture = r#"<w:r><w:drawing><wp:inline><wp:extent cx="190500" cy="190500"/><a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="rIdImg"/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>"#;
+    let text_box = |cx: u32, body: &str| {
+        format!(
+            r#"<w:r><w:drawing><wp:inline><wp:extent cx="{cx}" cy="571500"/><a:graphic><a:graphicData><wps:wsp><wps:spPr><a:prstGeom prst="rect"/></wps:spPr><wps:txbx><w:txbxContent>{body}</w:txbxContent></wps:txbx></wps:wsp></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>"#
+        )
+    };
+    let boxed = text_box(
+        1905000,
+        &format!(r#"<w:p><w:r><w:rPr><w:b/></w:rPr><w:t>상자 굵게</w:t></w:r>{picture}</w:p>"#),
+    );
+    // 글상자 안 누름틀(rhwp 에 넣는 길이 없어 Papy 가 바로 넣는다)
+    let cell_box = text_box(
+        952500,
+        r#"<w:p><w:r><w:t xml:space="preserve">칸 </w:t></w:r><w:sdt><w:sdtPr><w:alias w:val="상자 안내"/></w:sdtPr><w:sdtContent><w:r><w:t>상자</w:t></w:r></w:sdtContent></w:sdt></w:p>"#,
+    );
+    let document = format!(
+        r#"<w:document xmlns:w="w" xmlns:wp="wp" xmlns:a="a" xmlns:pic="pic" xmlns:r="r" xmlns:wps="wps" xmlns:papy="papy"><w:body>
+<w:p><w:r><w:t xml:space="preserve">상자 앞 </w:t></w:r>{boxed}</w:p>
+<w:tbl><w:tblPr/><w:tblGrid><w:gridCol w:w="6000"/></w:tblGrid><w:tr><w:tc><w:tcPr><w:tcW w:w="6000" w:type="dxa"/></w:tcPr><w:p><w:r><w:t xml:space="preserve">칸 앞 </w:t></w:r>{cell_box}</w:p></w:tc></w:tr></w:tbl>
+<w:p papy:caption="bottom"><w:r><w:t>표 캡션</w:t></w:r></w:p>
+<w:p><w:bookmarkStart w:id="0" w:name="표지"/><w:bookmarkEnd w:id="0"/><w:r><w:t xml:space="preserve">메모 </w:t></w:r><w:r><w:commentReference w:id="0"/></w:r><w:hyperlink r:id="rIdL"><w:r><w:t>링크</w:t></w:r></w:hyperlink><w:r><w:footnoteReference w:id="3"/></w:r></w:p>
+<w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:rPr><w:b/><w:sz w:val="32"/></w:rPr><w:t>제목</w:t></w:r></w:p>
+<w:p><w:r><w:t xml:space="preserve">보통 </w:t></w:r><w:r><w:rPr><w:i/><w:u w:val="single"/><w:color w:val="FF0000"/></w:rPr><w:t>기울임</w:t></w:r><w:r><w:footnoteReference w:id="2"/></w:r></w:p>
+<w:tbl><w:tblPr/><w:tblGrid><w:gridCol w:w="4000"/><w:gridCol w:w="4000"/></w:tblGrid>
+<w:tr><w:tc><w:tcPr><w:tcW w:w="4000" w:type="dxa"/></w:tcPr><w:p><w:r><w:t xml:space="preserve">앞 </w:t></w:r><w:r><w:rPr><w:b/></w:rPr><w:t>굵게</w:t></w:r></w:p></w:tc><w:tc><w:tcPr><w:tcW w:w="4000" w:type="dxa"/></w:tcPr>{nested}<w:p/></w:tc></w:tr>
+<w:tr><w:tc><w:tcPr><w:tcW w:w="8000" w:type="dxa"/><w:gridSpan w:val="2"/></w:tcPr><w:p><w:r><w:t>합친 칸</w:t></w:r></w:p></w:tc></w:tr></w:tbl>
+<w:p><w:pPr><w:pageBreakBefore/><w:jc w:val="right"/></w:pPr><w:r><w:t>둘째 쪽</w:t></w:r></w:p>
+<w:p><w:r><w:drawing><wp:inline><wp:extent cx="381000" cy="190500"/><a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="rIdImg"/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>
+<w:p><w:pPr><w:sectPr><w:headerReference w:type="default" r:id="rIdH"/><w:footerReference w:type="default" r:id="rIdF"/><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1701" w:right="1440" w:bottom="1440" w:left="1440" w:header="851" w:footer="992" w:gutter="0"/></w:sectPr></w:pPr><w:r><w:t>첫 구역 끝</w:t></w:r></w:p>
+<w:p><w:r><w:t>둘째 구역</w:t></w:r></w:p>
+<w:p><w:r><w:t xml:space="preserve">성명: </w:t></w:r><w:sdt><w:sdtPr><w:alias w:val="이름을 적으세요"/><w:tag w:val="성명"/><w:text/></w:sdtPr><w:sdtContent><w:r><w:t>홍길동</w:t></w:r></w:sdtContent></w:sdt><w:r><w:t xml:space="preserve"> 날짜: </w:t></w:r><w:sdt><w:sdtPr><w:alias w:val="날짜"/><w:showingPlcHdr/></w:sdtPr><w:sdtContent><w:r><w:t>여기를 누르세요</w:t></w:r></w:sdtContent></w:sdt></w:p>
+<w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr></w:pPr><w:r><w:t>번호 하나</w:t></w:r></w:p>
+<w:p><w:pPr><w:numPr><w:ilvl w:val="1"/><w:numId w:val="1"/></w:numPr></w:pPr><w:r><w:t>번호 둘</w:t></w:r></w:p>
+<w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="2"/></w:numPr></w:pPr><w:r><w:t>글머리</w:t></w:r></w:p>
+<w:tbl><w:tblPr/><w:tblGrid><w:gridCol w:w="4000"/></w:tblGrid><w:tr><w:tc><w:tcPr><w:tcW w:w="4000" w:type="dxa"/></w:tcPr><w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr></w:pPr><w:r><w:t>칸 번호</w:t></w:r></w:p><w:p><w:sdt><w:sdtPr><w:alias w:val="칸 안내"/></w:sdtPr><w:sdtContent><w:r><w:t>칸값</w:t></w:r></w:sdtContent></w:sdt></w:p><w:p><w:sdt><w:sdtPr><w:tag w:val="papy-formula|0|=SUM(A?:A?)??%g,;;1,234"/></w:sdtPr><w:sdtContent><w:r><w:t>1,234</w:t></w:r></w:sdtContent></w:sdt></w:p></w:tc></w:tr></w:tbl>
+<w:sectPr><w:headerReference w:type="default" r:id="rIdH2"/><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1701" w:right="1440" w:bottom="1440" w:left="1440" w:header="851" w:footer="992" w:gutter="0"/></w:sectPr></w:body></w:document>"#
+    );
+    let header = r#"<w:hdr xmlns:w="w"><w:tbl><w:tblPr/><w:tblGrid><w:gridCol w:w="4000"/><w:gridCol w:w="4000"/></w:tblGrid><w:tr><w:tc><w:tcPr><w:tcW w:w="4000" w:type="dxa"/></w:tcPr><w:p><w:r><w:t>머리 왼쪽</w:t></w:r></w:p></w:tc><w:tc><w:tcPr><w:tcW w:w="4000" w:type="dxa"/></w:tcPr><w:p><w:r><w:t>머리 오른쪽</w:t></w:r></w:p></w:tc></w:tr></w:tbl><w:p/></w:hdr>"#;
+    let header2 = r#"<w:hdr xmlns:w="w"><w:p><w:r><w:t>둘째 머리말</w:t></w:r></w:p></w:hdr>"#;
+    let footer = r#"<w:ftr xmlns:w="w"><w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:t>꼬리말</w:t></w:r><w:r><w:ptab w:relativeTo="margin" w:alignment="right" w:leader="none"/><w:t>오른쪽</w:t></w:r></w:p></w:ftr>"#;
+    // 표가 든 각주(전에는 각주 글자만 옮겨 표가 빠졌다)
+    let footnotes = r#"<w:footnotes xmlns:w="w"><w:footnote w:id="2"><w:p><w:r><w:t>각주 글</w:t></w:r></w:p></w:footnote><w:footnote w:id="3"><w:p><w:r><w:t>표 각주</w:t></w:r></w:p><w:tbl><w:tblPr/><w:tblGrid><w:gridCol w:w="3000"/></w:tblGrid><w:tr><w:tc><w:tcPr><w:tcW w:w="3000" w:type="dxa"/></w:tcPr><w:p><w:r><w:t>주 칸</w:t></w:r></w:p></w:tc></w:tr></w:tbl><w:p/></w:footnote></w:footnotes>"#;
+    // 번호 목록·글머리표(전에는 번호를 글자로 넣어 한글 문단 번호가 아니었다)
+    let numbering = r#"<w:numbering xmlns:w="w"><w:abstractNum w:abstractNumId="0"><w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="decimal"/><w:lvlText w:val="%1."/></w:lvl><w:lvl w:ilvl="1"><w:start w:val="1"/><w:numFmt w:val="ganada"/><w:lvlText w:val="%2)"/></w:lvl></w:abstractNum><w:abstractNum w:abstractNumId="1"><w:lvl w:ilvl="0"><w:numFmt w:val="bullet"/><w:lvlText w:val="■"/></w:lvl></w:abstractNum><w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num><w:num w:numId="2"><w:abstractNumId w:val="1"/></w:num></w:numbering>"#;
+    let comments = r#"<w:comments xmlns:w="w"><w:comment w:id="0" w:author="검토자"><w:p><w:r><w:t>메모 글</w:t></w:r></w:p></w:comment></w:comments>"#;
+    let rels = r#"<Relationships xmlns="r"><Relationship Id="rIdH" Type="header" Target="header1.xml"/><Relationship Id="rIdH2" Type="header" Target="header2.xml"/><Relationship Id="rIdF" Type="footer" Target="footer1.xml"/><Relationship Id="rIdImg" Type="image" Target="media/red.png"/><Relationship Id="rIdL" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.com/" TargetMode="External"/></Relationships>"#;
+    let mut buffer = std::io::Cursor::new(Vec::new());
+    let mut zip = zip::ZipWriter::new(&mut buffer);
+    for (name, bytes) in [
+        ("[Content_Types].xml", &b"<Types/>"[..]),
+        ("word/document.xml", document.as_bytes()),
+        ("word/_rels/document.xml.rels", rels.as_bytes()),
+        ("word/header1.xml", header.as_bytes()),
+        ("word/header2.xml", header2.as_bytes()),
+        ("word/footer1.xml", footer.as_bytes()),
+        ("word/footnotes.xml", footnotes.as_bytes()),
+        ("word/comments.xml", comments.as_bytes()),
+        ("word/numbering.xml", numbering.as_bytes()),
+        ("word/media/red.png", RED_PNG),
+    ] {
+        zip.start_file(name, zip::write::SimpleFileOptions::default())
+            .unwrap();
+        zip.write_all(bytes).unwrap();
+    }
+    zip.finish().unwrap();
+    let mut doc = open(HwpBackend::docx(), buffer.into_inner(), &options()).unwrap();
+    assert_eq!(doc.info().dropped_objects, 0);
+    // 번호는 한글이 그린다(표시 글자가 남지 않는다)
+    let last = doc.info().page_count - 1;
+    let text = doc.extract_text(last).unwrap();
+    // 누름틀: 내용은 남고 자리 표시 글(showingPlcHdr)·표시 글자는 빠진다
+    assert!(
+        text.contains("성명: 홍길동 날짜: ")
+            && !text.contains("여기를 누르세요")
+            && !text.contains('\u{E0EA}'),
+        "{text:?}"
+    );
+    assert!(
+        !text.contains('\u{E0EC}') && text.contains("번호 하나"),
+        "{text:?}"
+    );
+    // 위치 탭(ptab)은 탭으로 읽는다(전에는 빠져 "꼬리말오른쪽" 으로 붙었다).
+    let text = doc.extract_text(0).unwrap();
+    assert!(text.contains("꼬리말\t오른쪽"), "{text:?}");
+    let source = doc.structure().unwrap();
+    let get = |key: &str| source.get(key).copied().unwrap_or(0);
+    // 원본에서 요소가 다 들어왔는지(점검이 빈 것끼리 비교하지 않게)
+    for (key, expected) in [
+        ("tables", 6),
+        ("tables.nested", 1),
+        ("tables.in_header", 1),
+        ("tables.in_note", 1),
+        ("cells.merged", 1),
+        ("footnotes", 2),
+        ("pictures", 2),
+        ("pictures.in_textbox", 1),
+        ("shapes.textboxes", 2),
+        ("shapes.in_cell", 1),
+        ("chars.textbox", 7),
+        ("chars.caption", 3),
+        ("comments", 1),
+        // 하이퍼링크 하나와 계산식 하나(Papy 가 쓴 콘텐츠 컨트롤)
+        ("fields", 2),
+        ("bookmarks", 1),
+        ("headers", 2),
+        ("footers", 1),
+        ("break.page", 2),
+        ("para.center", 2),
+        ("para.right", 1),
+        ("para.list", 4),
+        ("fields.clickhere", 4),
+        ("chars.clickhere", 7),
+    ] {
+        assert_eq!(get(key), expected, "{key}: {source:?}");
+    }
+    let allowed: &[&str] = &[];
+    let reopen = |bytes: Vec<u8>, hwpx: bool| {
+        let backend = if hwpx {
+            HwpBackend::hwpx()
+        } else {
+            HwpBackend::docx()
+        };
+        open(backend, bytes, &options()).unwrap()
+    };
+    let mut hwpx = reopen(doc.save(SaveFormat::Hwpx).unwrap(), true);
+    let hwpx_docx = reopen(hwpx.save(SaveFormat::Docx).unwrap(), false);
+    let docx = reopen(doc.save(SaveFormat::Docx).unwrap(), false);
+    for (route, mut result) in [("hwpx", hwpx), ("hwpx>docx", hwpx_docx), ("docx", docx)] {
+        let result = result.structure().unwrap();
+        let keys: std::collections::BTreeSet<&String> =
+            source.keys().chain(result.keys()).collect();
+        let changed: Vec<String> = keys
+            .into_iter()
+            .filter(|key| !allowed.contains(&key.as_str()))
+            .filter(|key| source.get(*key) != result.get(*key))
+            .map(|key| format!("{key}: {:?} → {:?}", source.get(key), result.get(key)))
+            .collect();
+        assert!(changed.is_empty(), "{route}: {changed:#?}");
+    }
 }

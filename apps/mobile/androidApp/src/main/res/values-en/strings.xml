@@ -149,7 +149,8 @@
     <string name="fonts_failed">Could not download. Check your internet connection and try again.</string>
     <string name="fonts_download">Download fonts</string>
     <string name="licenses_title">Open-source licenses</string>
-    <string name="licenses_intro">Papy is distributed under PolyForm Noncommercial 1.0.0 (non-commercial use). These are the %1$d other components in the app and their licenses.</string>
+    <string name="licenses_intro">Papy is distributed under PolyForm Noncommercial 1.0.0 (non-commercial use; commercial use needs a separate license). These are the %1$d other components in the app and their licenses.</string>
+    <string name="licenses_notice">This product was developed with reference to Hancom\'s published HWP document file (.hwp) format documents.\n“Hangul”, “Hancom”, “HWP” and “HWPX” are registered trademarks of Hancom Inc.; Microsoft Word is a trademark of Microsoft Corporation. Papy is an independent product with no affiliation, sponsorship or endorsement by Hancom or Microsoft.</string>
     <string name="licenses_missing">The license notice file is missing. In development builds, create it with node scripts/third-party-notices.mjs mobile.</string>
     <string name="licenses_search">Find a component</string>
     <string name="viewer_insert_table">Insert table</string>

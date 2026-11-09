@@ -1,0 +1,58 @@
+Papy 패치: HTML 붙여넣기 문단 CSS 의 tab-stops(Papy 가 DOCX w:tabs 에서 만든 것)를 한글 탭 정의로 옮긴다.
+
+rhwp v0.8.7(1a76570e).
+형식: tab-stops: <위치>pt/<종류>/<채움> … (종류 0 왼쪽·1 오른쪽·2 가운데·3 소수점, 채움은 한글 채움 종류).
+종전에는 붙여넣기가 탭 위치를 몰라 기본 탭 간격만 써서, 보기 번호를 탭으로 나란히 둔 문단(시험지)이 줄마다 넘쳐 쪽이 늘었다.
+
+--- a/src/document_core/commands/html_import/inline_content.rs	2026-11-09 10:30:14
++++ b/src/document_core/commands/html_import/inline_content.rs	2026-11-09 10:30:14
+@@ -436,6 +436,49 @@
+             }
+         }
+ 
++        // [Papy] 탭(패치 0017): `tab-stops: <위치>pt/<종류>/<채움> …` (종류 0 왼쪽·1 오른쪽·2 가운데·3 소수점,
++        // 채움은 한글 채움 종류). DOCX `w:tabs` 를 옮긴다. 종전에는 탭 위치가 빠져 보기 번호를 탭으로
++        // 나란히 둔 시험지 문단이 줄마다 넘쳤다.
++        if let Some(value) = parse_css_value(&css_lower, "tab-stops") {
++            let tabs: Vec<crate::model::style::TabItem> = value
++                .split_whitespace()
++                .filter_map(|item| {
++                    let mut parts = item.split('/');
++                    let pos: f64 = parts.next()?.trim_end_matches("pt").parse().ok()?;
++                    let tab_type: u8 = parts.next().and_then(|v| v.parse().ok()).unwrap_or(0);
++                    let fill_type: u8 = parts.next().and_then(|v| v.parse().ok()).unwrap_or(0);
++                    // 탭 위치는 HWPUNIT 의 2배 단위(1pt = 100 HWPUNIT)
++                    let position = (pos * 200.0).round();
++                    (position > 0.0 && position < 4_000_000.0).then(|| crate::model::style::TabItem {
++                        position: position as u32,
++                        tab_type: tab_type.min(3),
++                        fill_type,
++                    })
++                })
++                .take(64)
++                .collect();
++            if !tabs.is_empty() {
++                let mut def = self
++                    .document
++                    .doc_info
++                    .tab_defs
++                    .get(ps.tab_def_id as usize)
++                    .cloned()
++                    .unwrap_or_default();
++                def.raw_data = None;
++                def.tabs = tabs;
++                let tab_defs = &mut self.document.doc_info.tab_defs;
++                ps.tab_def_id = match tab_defs.iter().position(|existing| *existing == def) {
++                    Some(found) => found as u16,
++                    None if tab_defs.len() < u16::MAX as usize => {
++                        tab_defs.push(def);
++                        (tab_defs.len() - 1) as u16
++                    }
++                    None => ps.tab_def_id,
++                };
++            }
++        }
++
+         // 동일한 ParaShape 검색
+         for (i, existing) in self.document.doc_info.para_shapes.iter().enumerate() {
+             if *existing == ps {

@@ -340,6 +340,8 @@ button:disabled { cursor: default; opacity: 0.4; }
 .about-link { margin-top: 24px; color: var(--muted); }
 .dialog.licenses { width: min(720px, calc(100vw - 48px)); max-height: calc(100vh - 80px); }
 .dialog.licenses h3 { margin: 6px 0 0; font-size: 14px; }
+.dialog.licenses .notices { font-size: 12px; }
+.dialog.licenses .notices p { margin: 2px 0; }
 .dialog.licenses input[type="search"] { width: 100%; }
 .licenses-list { overflow: auto; min-height: 120px; max-height: 50vh; border: 1px solid var(--line); border-radius: 8px; padding: 4px 8px; }
 .licenses-list summary { cursor: pointer; padding: 4px 0; font-size: 13px; }

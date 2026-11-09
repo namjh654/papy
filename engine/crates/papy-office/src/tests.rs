@@ -57,7 +57,11 @@ fn paragraphs_runs_styles_and_entities() {
     );
     assert!(html.contains("<p></p>"));
     assert!(
-        html.contains("<p>• <span style=\"font-size:11pt;\">항목</span>\t"),
+        // 정의 없는 목록 문단은 글머리표 "•" 로(한글 문단 머리 표시). 탭은 런 서식 안에 둔다(밖에 두면 기본 글꼴로 빠진다).
+        html.contains(&format!(
+            "<p>{}<span style=\"font-size:11pt;\">항목\t끝</span>",
+            list_mark(0, 0)
+        )),
         "{html}"
     );
     assert_eq!(report.dropped_drawings, 1);
@@ -257,10 +261,27 @@ pub(crate) fn notes_docx() -> Vec<u8> {
 #[test]
 fn numbering_footnotes_headers_and_footers() {
     let (html, report) = docx_to_html(&notes_docx()).unwrap();
-    assert!(html.contains("<p>1. 첫째</p>"), "{html}");
-    assert!(html.contains("<p>1-가) 하위</p>"), "{html}");
-    assert!(html.contains("<p>2. 둘째</p>"), "{html}");
-    assert!(html.contains("<p>• 점</p>"), "{html}");
+    // 본문 번호 목록은 한글 문단 번호로 옮길 표시(정의·수준)와 정의로 읽는다.
+    assert!(
+        html.contains(&format!("<p>{}첫째</p>", list_mark(0, 0))),
+        "{html}"
+    );
+    assert!(
+        html.contains(&format!("<p>{}하위</p>", list_mark(0, 1))),
+        "{html}"
+    );
+    assert!(
+        html.contains(&format!("<p>{}둘째</p>", list_mark(0, 0))),
+        "{html}"
+    );
+    assert!(
+        html.contains(&format!("<p>{}점</p>", list_mark(1, 0))),
+        "{html}"
+    );
+    assert_eq!(report.lists[0].bullet, None);
+    assert_eq!(report.lists[0].levels[0], (0, "^1.".to_string(), 1));
+    assert_eq!(report.lists[0].levels[1], (8, "^1-^2)".to_string(), 1));
+    assert_eq!(report.lists[1].bullet, Some('•'));
     assert!(
         html.contains(&format!("본문{FOOTNOTE_MARK} 계속")),
         "{html}"
@@ -279,8 +300,11 @@ fn numbering_footnotes_headers_and_footers() {
     assert_eq!(
         report.headers,
         vec![HeaderFooterText {
+            section: 0,
             apply_to: 0,
-            paragraphs: vec!["머리 글".into()]
+            paragraphs: vec!["머리 글".into()],
+            html: Some("<html><body><p>머리 글</p></body></html>".into()),
+            ..HeaderFooterText::default()
         }]
     );
     assert_eq!(report.footers[0].paragraphs, vec!["꼬리\t글".to_string()]);
@@ -349,6 +373,13 @@ fn part_text(bytes: &[u8], name: &str) -> String {
     xml
 }
 
+fn part_text_opt(bytes: &[u8], name: &str) -> Option<String> {
+    let mut archive = zip::ZipArchive::new(Cursor::new(bytes)).ok()?;
+    let mut xml = String::new();
+    std::io::Read::read_to_string(&mut archive.by_name(name).ok()?, &mut xml).ok()?;
+    Some(xml)
+}
+
 #[test]
 fn forms_and_equations_are_written() {
     use rhwp::model::control::{Control, Equation, FormObject, FormType};
@@ -383,9 +414,13 @@ fn forms_and_equations_are_written() {
     assert!(xml.contains("1 over 2"), "{xml}");
     // 그리는 함수가 있으면 그림으로 넣고, 기준선 아래 부분(30%)만큼 내린다.
     let render = |_: &Equation| Some(PNG_1X1.to_vec());
-    let pictured =
-        docx_from_document_with(&document, &std::collections::HashMap::new(), Some(&render))
-            .unwrap();
+    let pictured = docx_from_document_with(
+        &document,
+        &std::collections::HashMap::new(),
+        Some(&render),
+        true,
+    )
+    .unwrap();
     let xml = part_text(&pictured, "word/document.xml");
     assert!(
         !xml.contains("1 over 2") && xml.contains("<wp:inline"),
@@ -546,8 +581,9 @@ fn table_cells_keep_borders_fill_alignment_and_height() {
         "{xml}"
     );
     assert!(xml.contains(r#"<w:vAlign w:val="center"/>"#), "{xml}");
+    // 행 높이는 칸 테두리 굵기(0.35pt ≈ 7 twip)를 뺀다(Word 는 행 높이에 테두리를 더한다). 다시 읽으면 더한다.
     assert!(
-        xml.contains(r#"<w:trHeight w:val="300" w:hRule="atLeast"/>"#),
+        xml.contains(r#"<w:trHeight w:val="293" w:hRule="atLeast"/>"#),
         "{xml}"
     );
     // 다시 읽으면 rhwp 표 붙여넣기가 읽는 CSS 로 옮긴다.
@@ -560,6 +596,86 @@ fn table_cells_keep_borders_fill_alignment_and_height() {
     ] {
         assert!(html.contains(css), "{css}: {html}");
     }
+}
+
+/// 구역 안에서 단 정의가 바뀌면 이어지는 구역으로 나누고, 문단 탭 정의·기본 탭 간격을 쓴다.
+#[test]
+fn column_changes_and_tab_stops_are_written() {
+    use rhwp::model::control::Control;
+    use rhwp::model::page::ColumnDef;
+    let mut core = rhwp::document_core::DocumentCore::new_empty();
+    core.create_blank_document_native().unwrap();
+    core.insert_text_native(0, 0, 0, "하나둘셋").unwrap();
+    core.split_paragraph_native(0, 0, 2, None).unwrap();
+    core.split_paragraph_native(0, 1, 1, None).unwrap();
+    let mut document = core.document().clone();
+    let two = ColumnDef {
+        column_count: 2,
+        spacing: 1000,
+        ..Default::default()
+    };
+    let paragraphs = &mut document.sections[0].paragraphs;
+    assert_eq!(paragraphs.len(), 3);
+    paragraphs[1].controls.push(Control::ColumnDef(two));
+    paragraphs[2].controls.push(Control::ColumnDef(ColumnDef {
+        column_count: 1,
+        ..Default::default()
+    }));
+    // 탭: 2배 단위 14500 → 7250 HWPUNIT = 1450 twip, 오른쪽 탭·점선 채움
+    let mut tabs = rhwp::model::style::TabDef::default();
+    tabs.tabs.push(rhwp::model::style::TabItem {
+        position: 14500,
+        tab_type: 1,
+        fill_type: 3,
+    });
+    // 음수 위치(u32 로 넘친 값)·Word 범위 밖 탭은 뺀다(전에는 w:pos="429470700" 같은 값이 나갔다).
+    for position in [(-1600i32) as u32, 70_000_000] {
+        tabs.tabs.push(rhwp::model::style::TabItem {
+            position,
+            tab_type: 0,
+            fill_type: 0,
+        });
+    }
+    document.doc_info.tab_defs.push(tabs);
+    let tab_id = (document.doc_info.tab_defs.len() - 1) as u16;
+    let shape = paragraphs[0].para_shape_id as usize;
+    document.doc_info.para_shapes[shape].tab_def_id = tab_id;
+    let bytes = docx_from_document(&document).unwrap();
+    let xml = part_text(&bytes, "word/document.xml");
+    // 영역 셋: 1단(첫 문단) · 2단(이어서) · 1단(이어서). 구역 속성은 따로 문단을 더하지 않고 영역 끝 문단에 든다.
+    assert_eq!(xml.matches("<w:sectPr>").count(), 3, "{xml}");
+    assert_eq!(
+        xml.matches(r#"<w:type w:val="continuous"/>"#).count(),
+        2,
+        "{xml}"
+    );
+    assert_eq!(xml.matches(r#"<w:cols w:num="2""#).count(), 1, "{xml}");
+    assert_eq!(xml.matches("<w:p>").count(), 3, "{xml}");
+    let second = xml.split("<w:p>").nth(2).unwrap();
+    assert!(
+        second.contains(r#"<w:cols w:num="2" w:space="200"/>"#),
+        "{xml}"
+    );
+    // 다단 영역만 아래 여백을 줄 간격 여분(10pt 160% → 6pt = 120 twip)만큼 줄이고 원래 값을 남긴다.
+    // Word 는 단 마지막 줄의 줄 간격까지 단 안에 넣어야 해서 한글 단 나누기가 한 단씩 밀렸다.
+    assert_eq!(xml.matches("papy:hwpBottom=").count(), 1, "{xml}");
+    let margin = |sect: &str| {
+        let at = sect.find(r#"w:bottom=""#).unwrap() + r#"w:bottom=""#.len();
+        sect[at..sect[at..].find('"').unwrap() + at]
+            .parse::<i32>()
+            .unwrap()
+    };
+    let sections: Vec<&str> = xml.split("<w:sectPr>").skip(1).collect();
+    assert_eq!(margin(sections[0]) - margin(sections[1]), 120, "{xml}");
+    assert!(
+        xml.contains(r#"<w:tabs><w:tab w:val="right" w:leader="dot" w:pos="1450"/></w:tabs>"#),
+        "{xml}"
+    );
+    let settings = part_text(&bytes, "word/settings.xml");
+    assert!(
+        settings.contains(r#"<w:defaultTabStop w:val="800"/>"#),
+        "{settings}"
+    );
 }
 
 #[test]
@@ -846,7 +962,7 @@ fn numbering_note_marks_and_page_fields_are_written() {
         "{xml}"
     );
     assert!(
-        xml.contains(r#"<w:r><w:t xml:space="preserve">문</w:t></w:r><w:r><w:endnoteReference w:id="1"/></w:r><w:r><w:t xml:space="preserve">)</w:t></w:r>"#),
+        xml.contains(r#"<w:r papy:noteMark="1"><w:t xml:space="preserve">문</w:t></w:r><w:r><w:endnoteReference w:id="1"/></w:r><w:r papy:noteMark="1"><w:t xml:space="preserve">)</w:t></w:r>"#),
         "{xml}"
     );
     assert!(
@@ -858,7 +974,7 @@ fn numbering_note_marks_and_page_fields_are_written() {
         footer.contains(r#"<w:jc w:val="center"/></w:pPr><w:r><w:t xml:space="preserve">- </w:t></w:r><w:fldSimple w:instr=" PAGE ">"#),
         "{footer}"
     );
-    // 다시 읽기: 머리말·꼬리말의 쪽 번호 필드는 rhwp 필드 글자로, 번호 목록은 번호 글자로.
+    // 다시 읽기: 머리말·꼬리말의 쪽 번호 필드는 rhwp 필드 글자로, 본문 번호 목록은 한글 문단 번호 정의로.
     assert_eq!(
         crate::notes::header_footer_texts(&footer),
         vec![format!("- {} -", crate::notes::PAGE_NUMBER_FIELD)]
@@ -868,8 +984,17 @@ fn numbering_note_marks_and_page_fields_are_written() {
         crate::notes::header_footer_texts(complex),
         vec![format!("{}쪽", crate::notes::PAGE_COUNT_FIELD)]
     );
-    let (html, _) = docx_to_html(&bytes).unwrap();
-    assert!(html.contains("가.1) "), "{html}");
+    // 다시 읽으면 같은 번호 모양의 한글 문단 번호 정의(가나다 → 표 43 코드 8)
+    let (html, report) = docx_to_html(&bytes).unwrap();
+    assert!(html.contains(LIST_MARK), "{html}");
+    assert!(
+        report.lists[0]
+            .levels
+            .iter()
+            .any(|(_, text, _)| text == "^1.^2)"),
+        "{:?}",
+        report.lists
+    );
 }
 
 #[test]
@@ -918,4 +1043,305 @@ fn comments_tracked_changes_font_table_and_line_spacing() {
     // Papy 로 다시 열면 원래 % 로
     let (html, _) = docx_to_html(&bytes).unwrap();
     assert!(html.contains("line-height:160%;"), "{html}");
+}
+
+/// 머리말·꼬리말을 영역(Word 구역)마다 쓴다: 둘째 한글 구역의 머리말은 둘째 구역 참조로(첫 구역 것으로 덮지 않는다),
+/// 단 정의가 없는 한글 구역도 새 쪽 구역으로 시작하고, 표 칸 문단에 놓인 머리말(HWPX)도 쓴다.
+#[test]
+fn header_footers_are_written_per_section() {
+    use rhwp::model::control::Control;
+    use rhwp::model::header_footer::{Header, HeaderFooterApply};
+    use rhwp::model::paragraph::Paragraph;
+    let mut core = rhwp::document_core::DocumentCore::new_empty();
+    core.create_blank_document_native().unwrap();
+    core.insert_text_native(0, 0, 0, "첫 구역").unwrap();
+    let mut document = core.document().clone();
+    let header = |text: &str| {
+        let mut paragraph = Paragraph::new_empty();
+        paragraph.text = text.into();
+        paragraph.char_offsets = (0..text.chars().count() as u32).collect();
+        paragraph.char_count = text.chars().count() as u32 + 1;
+        Control::Header(Box::new(Header {
+            apply_to: HeaderFooterApply::Both,
+            paragraphs: vec![paragraph],
+            ..Default::default()
+        }))
+    };
+    // 첫 구역: 표 칸 안에 머리말을 둔다.
+    let mut cell_paragraph = Paragraph::new_empty();
+    cell_paragraph.controls.push(header("칸 속 머리말"));
+    let table = rhwp::model::table::Table {
+        row_count: 1,
+        col_count: 1,
+        cells: vec![rhwp::model::table::Cell {
+            paragraphs: vec![cell_paragraph],
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+    document.sections[0].paragraphs[0]
+        .controls
+        .push(Control::Table(Box::new(table)));
+    // 둘째 구역: 단 정의 없이 머리말만.
+    let mut second = document.sections[0].clone();
+    let mut first = Paragraph::new_empty();
+    first.text = "둘째 구역".into();
+    first.char_offsets = (0..5).collect();
+    first.char_count = 6;
+    first.controls.push(header("둘째 머리말"));
+    second.paragraphs = vec![first];
+    document.sections.push(second);
+    let bytes = docx_from_document(&document).unwrap();
+    let xml = part_text(&bytes, "word/document.xml");
+    let sections: Vec<&str> = xml.split("<w:sectPr>").skip(1).collect();
+    assert_eq!(sections.len(), 2, "{xml}");
+    assert!(
+        sections[1].contains(r#"<w:type w:val="nextPage"/>"#),
+        "{xml}"
+    );
+    let reference = |section: &str| {
+        section
+            .split(r#"<w:headerReference w:type="default" r:id=""#)
+            .nth(1)
+            .and_then(|rest| rest.split('"').next())
+            .map(str::to_owned)
+    };
+    let (one, two) = (reference(sections[0]), reference(sections[1]));
+    assert!(one.is_some() && two.is_some() && one != two, "{xml}");
+    let headers: String = (1..=4)
+        .filter_map(|i| part_text_opt(&bytes, &format!("word/header{i}.xml")))
+        .collect();
+    assert!(
+        headers.contains("칸 속 머리말") && headers.contains("둘째 머리말"),
+        "{headers}"
+    );
+}
+
+#[test]
+fn pictures_captions_inline_tables_links_and_memos_are_written() {
+    use rhwp::model::bin_data::BinDataContent;
+    use rhwp::model::control::{Control, Field, FieldType};
+    use rhwp::model::image::Picture;
+    use rhwp::model::paragraph::{FieldRange, Paragraph};
+    use rhwp::model::shape::{Caption, CaptionDirection};
+    let mut core = rhwp::document_core::DocumentCore::new_empty();
+    core.create_blank_document_native().unwrap();
+    core.insert_text_native(0, 0, 0, "링크 글").unwrap();
+    core.create_table_native(0, 0, 4, 1, 1).unwrap();
+    let mut document = core.document().clone();
+    // 그림 자료: 차례(1부터)와 저장 id 가 다르다. 그림은 차례 1(= id 4, WMF)을 가리킨다.
+    // 전에는 id 로 찾아 그림이 빠졌고, WMF 는 Word 가 못 읽는 형식으로 보고 뺐다.
+    let mut wmf = vec![0x01, 0x00, 0x09, 0x00, 0x00, 0x03];
+    wmf.resize(64, 0);
+    document.bin_data_content = vec![
+        BinDataContent {
+            id: 4,
+            data: wmf.into(),
+            extension: "wmf".into(),
+        },
+        BinDataContent {
+            id: 3,
+            data: PNG_1X1.to_vec().into(),
+            extension: "png".into(),
+        },
+    ];
+    let mut caption_paragraph = Paragraph::new_empty();
+    caption_paragraph.insert_text_at(0, "그림 캡션");
+    let mut picture = Picture::default();
+    picture.image_attr.bin_data_id = 1;
+    picture.common.treat_as_char = true;
+    (picture.common.width, picture.common.height) = (1000, 1000);
+    picture.caption = Some(Caption {
+        direction: CaptionDirection::Bottom,
+        paragraphs: vec![caption_paragraph.clone()],
+        ..Caption::default()
+    });
+    let paragraphs = &mut document.sections[0].paragraphs;
+    // 하이퍼링크(0..2)와 한글 메모(3..4) 필드
+    let link = Field {
+        field_type: FieldType::Hyperlink,
+        command: r"https\://example.com/;1;0;0;".into(),
+        ..Field::default()
+    };
+    let memo = Field {
+        field_type: FieldType::Unknown,
+        command: "MEMO/65535/1/1/1/검토자/".into(),
+        memo_paragraphs: vec![caption_paragraph.clone()],
+        ..Field::default()
+    };
+    let first = &mut paragraphs[0];
+    let base = first.controls.len();
+    first.controls.push(Control::Field(link));
+    first.controls.push(Control::Field(memo));
+    first.field_ranges.push(FieldRange {
+        start_char_idx: 0,
+        end_char_idx: 2,
+        control_idx: base,
+        ..FieldRange::default()
+    });
+    first.field_ranges.push(FieldRange {
+        start_char_idx: 3,
+        end_char_idx: 4,
+        control_idx: base + 1,
+        ..FieldRange::default()
+    });
+    first.controls.push(Control::Picture(Box::new(picture)));
+    // 표: 글자처럼 취급, 위 캡션
+    for paragraph in paragraphs.iter_mut() {
+        for control in &mut paragraph.controls {
+            if let Control::Table(table) = control {
+                table.common.treat_as_char = true;
+                table.caption = Some(Caption {
+                    direction: CaptionDirection::Top,
+                    paragraphs: vec![caption_paragraph.clone()],
+                    ..Caption::default()
+                });
+            }
+        }
+    }
+    let bytes = docx_from_document(&document).unwrap();
+    let xml = part_text(&bytes, "word/document.xml");
+    let rels = part_text(&bytes, "word/_rels/document.xml.rels");
+    assert!(rels.contains(r#"Target="media/image1.wmf""#), "{rels}");
+    assert!(
+        part_text(&bytes, "[Content_Types].xml").contains(r#"Extension="wmf""#),
+        "content types"
+    );
+    // 캡션 문단: 그림 아래(문단 뒤), 표 위(표 앞)
+    assert!(xml.contains(r#"<w:p papy:caption="bottom">"#), "{xml}");
+    let top = xml
+        .find(r#"<w:p papy:caption="top">"#)
+        .expect("top caption");
+    assert!(top < xml.find("<w:tbl>").unwrap_or(0), "{xml}");
+    assert!(xml.contains(r#"<w:tblPr papy:inline="1">"#), "{xml}");
+    // 하이퍼링크·메모
+    assert!(xml.contains(r#"<w:hyperlink r:id="rIdLink1">"#), "{xml}");
+    assert!(
+        rels.contains(r#"Target="https://example.com/" TargetMode="External""#),
+        "{rels}"
+    );
+    assert!(
+        xml.contains(r#"<w:commentRangeStart w:id="0"/>"#)
+            && xml.contains(r#"<w:commentReference w:id="0"/>"#),
+        "{xml}"
+    );
+    let comments = part_text(&bytes, "word/comments.xml");
+    assert!(
+        comments.contains(r#"w:author="검토자""#) && comments.contains("그림 캡션"),
+        "{comments}"
+    );
+}
+
+#[test]
+fn tab_stops_short_rows_and_cell_tails_are_read_and_written() {
+    // 문단 탭 → 붙여넣기 CSS tab-stops(위치 pt/종류/채움). 지우기 탭은 뺀다.
+    let document = format!(
+        r#"<w:document {NS}><w:body><w:p><w:pPr><w:tabs><w:tab w:val="right" w:leader="dot" w:pos="1450"/><w:tab w:val="clear" w:pos="900"/><w:tab w:val="left" w:pos="3000"/></w:tabs></w:pPr><w:r><w:t>탭</w:t></w:r></w:p>
+        <w:tbl><w:tr><w:tc><w:tbl><w:tr><w:tc><w:p><w:r><w:t>안</w:t></w:r></w:p></w:tc></w:tr></w:tbl><w:p><w:r><w:t>칸 끝 글</w:t></w:r></w:p></w:tc>
+        <w:tc><w:tbl><w:tr><w:tc><w:p/></w:tc></w:tr></w:tbl><w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="20" w:lineRule="exact"/></w:pPr></w:p><w:p/></w:tc>
+        <w:tc><w:tbl><w:tr><w:tc><w:p/></w:tc></w:tr></w:tbl><w:p/></w:tc></w:tr></w:tbl><w:p/></w:body></w:document>"#
+    );
+    let (html, _) = docx_to_html(&docx(&document, None)).unwrap();
+    assert!(
+        html.contains("tab-stops:72.50pt/1/3 150.00pt/0/0;"),
+        "{html}"
+    );
+    // 칸 안 표 뒤 글이 든 문단은 남는다(전에는 `></p>` 로 끝나 Word 가 요구한 빈 문단으로 보고 뺐다).
+    assert!(html.contains("칸 끝 글"), "{html}");
+    // Papy 가 쓴 칸(표 → 1pt 문단 → 빈 문단): 빈 문단은 원본 것이라 남는다.
+    assert!(html.contains("</table><p></p></td><td>"), "{html}");
+    // Word 칸(표 → 빈 문단): Word 가 요구한 빈 문단이라 뺀다.
+    assert!(
+        html.contains("</table></td></tr></table><p></p></body>"),
+        "{html}"
+    );
+
+    // 짧은 행(끝 격자 칸이 비었다): 빈 칸을 만들지 않고 w:gridAfter 로 쓴다.
+    let mut core = rhwp::document_core::DocumentCore::new_empty();
+    core.create_blank_document_native().unwrap();
+    core.create_table_native(0, 0, 0, 2, 2).unwrap();
+    let mut document = core.document().clone();
+    for paragraph in &mut document.sections[0].paragraphs {
+        for control in &mut paragraph.controls {
+            if let rhwp::model::control::Control::Table(table) = control {
+                table.cells.retain(|c| !(c.row == 1 && c.col == 1));
+            }
+        }
+    }
+    let xml = part_text(&docx_from_document(&document).unwrap(), "word/document.xml");
+    assert!(xml.contains(r#"<w:gridAfter w:val="1"/>"#), "{xml}");
+    assert_eq!(xml.matches("<w:tc>").count(), 3, "{xml}");
+}
+
+#[test]
+fn latin_and_east_asian_fonts_are_kept_apart() {
+    // 한글 문서의 흔한 꼴: 한글은 명조, 영문은 Times New Roman. 하나로 합치면 영문 폭이 바뀌어 줄이 넘친다.
+    let document = format!(
+        r#"<w:document {NS}><w:body>
+        <w:p><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:eastAsia="바탕"/></w:rPr><w:t>① $100</w:t><w:tab/><w:t>② $150</w:t></w:r></w:p>
+        <w:p><w:r><w:rPr><w:rFonts w:ascii="바탕" w:eastAsia="바탕"/></w:rPr><w:t>같음</w:t></w:r></w:p>
+        </w:body></w:document>"#
+    );
+    let (html, _) = docx_to_html(&docx(&document, None)).unwrap();
+    assert!(
+        html.contains(
+            "font-family:'Times New Roman';mso-fareast-font-family:'바탕';\">① $100\t② $150</span>"
+        ),
+        "{html}"
+    );
+    assert!(html.contains("font-family:'바탕';\">같음"), "{html}");
+}
+
+/// 번호 목록 표시 글자(정의 번호, 수준)
+fn list_mark(def: u32, level: u32) -> String {
+    format!(
+        "{LIST_MARK}{}",
+        char::from_u32(crate::LIST_CODE_BASE + def * 8 + level).unwrap()
+    )
+}
+
+#[test]
+fn xor_obfuscated_doc_opens_with_password() {
+    // XOR 난독화 표본이 공개 문서 모음에 없어, 평문 DOC 를 같은 방식으로 감춰 본다(감추기와 풀기는 같은 연산).
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../../tests/fixtures/poi/table-merges.doc");
+    let plain = std::fs::read(path).unwrap();
+    let (expected, _) = crate::doc_to_html(&plain).unwrap();
+    let mut file = cfb::CompoundFile::open(Cursor::new(plain.clone())).unwrap();
+    let read = |file: &mut cfb::CompoundFile<Cursor<Vec<u8>>>, name: &str| {
+        let mut out = Vec::new();
+        std::io::Read::read_to_end(&mut file.open_stream(name).unwrap(), &mut out).unwrap();
+        out
+    };
+    let mut word = read(&mut file, "/WordDocument");
+    let flags = u16::from_le_bytes([word[0x0A], word[0x0B]]);
+    let table_name = if flags & 0x0200 != 0 {
+        "/1Table"
+    } else {
+        "/0Table"
+    };
+    let mut table = read(&mut file, table_name);
+    let mut data = file.exists("/Data").then(|| read(&mut file, "/Data"));
+    let l_key = crate::doc_crypt::xor_l_key("secret");
+    crate::doc_crypt::deobfuscate(Some("secret"), l_key, &mut word, &mut table, data.as_mut())
+        .unwrap();
+    word[0x0A..0x0C].copy_from_slice(&(flags | 0x0100 | 0x8000).to_le_bytes());
+    word[0x0E..0x12].copy_from_slice(&l_key.to_le_bytes());
+    let write = |file: &mut cfb::CompoundFile<Cursor<Vec<u8>>>, name: &str, bytes: &[u8]| {
+        let mut stream = file.create_stream(name).unwrap();
+        stream.write_all(bytes).unwrap();
+    };
+    write(&mut file, "/WordDocument", &word);
+    write(&mut file, table_name, &table);
+    if let Some(data) = &data {
+        write(&mut file, "/Data", data);
+    }
+    file.flush().unwrap();
+    let hidden = file.into_inner().into_inner();
+    for wrong in [None, Some("wrong")] {
+        let error = crate::doc_to_html_with_password(&hidden, wrong).unwrap_err();
+        assert_eq!(error.code, papy_model::ErrorCode::PasswordRequired);
+    }
+    let (html, _) = crate::doc_to_html_with_password(&hidden, Some("secret")).unwrap();
+    assert_eq!(html, expected);
 }

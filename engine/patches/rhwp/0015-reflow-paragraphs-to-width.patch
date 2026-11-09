@@ -1,0 +1,108 @@
+Papy 패치: 옮긴 문단의 줄을 주어진 너비로 다시 나누는 함수(reflow_paragraphs_to_width)와 문단에 인라인 컨트롤을
+넣는 함수(Paragraph::insert_inline_control)를 공개한다.
+
+rhwp v0.8.7(1a76570e).
+DOCX·DOC 를 열 때 본문에 붙여넣은 문단을 캡션·글상자·각주로 옮기면 줄이 본문 너비로 잡혀 글이 상자 밖으로 나간다.
+옮긴 문단을 그 상자 너비로 다시 나눈다(칸 안 표·글상자 안 문단도 그 너비로). 본문에서 만든 도형을 표 칸·머리말
+문단으로 옮길 때는 글자 위치·글자 모양 경계를 함께 밀어야 해서 rhwp 의 삽입 규약을 쓰는 함수를 연다.
+
+--- a/src/model/paragraph.rs	2026-11-09 09:00:29
++++ b/src/model/paragraph.rs	2026-11-09 09:00:29
+@@ -918,6 +918,29 @@
+     /// 컨트롤 번호도 같은 이유로 민다. 새 컨트롤이 `controls[control_idx]` 에 들어가면 그
+     /// 자리부터 뒤 컨트롤의 번호가 1씩 커진다. 누름틀 범위가 옛 번호에 남으면 앞에 넣은
+     /// 개체를 가리켜, 누름틀이 조회와 저장에서 사라진다.
++    /// [Papy] 글자 위치 `char_offset` 에 인라인 컨트롤(도형·그림·표 등, 한 칸)을 넣는다. 넣은 컨트롤 번호를 돌려준다.
++    ///
++    /// 본문에서 만든 개체를 칸·머리말·글상자 문단으로 옮길 때 쓴다(DOCX·DOC 변환, 패치 0015).
++    pub fn insert_inline_control(
++        &mut self,
++        char_offset: usize,
++        control: crate::model::control::Control,
++    ) -> usize {
++        let char_offset = char_offset.min(self.text.chars().count());
++        let positions = self.control_text_positions();
++        let index = positions
++            .iter()
++            .position(|&pos| pos > char_offset)
++            .unwrap_or(self.controls.len());
++        self.align_ctrl_data_records();
++        self.controls.insert(index, control);
++        self.ctrl_data_records.insert(index, None);
++        self.shift_for_inline_control_insert(index, char_offset);
++        self.char_count += 8;
++        self.has_para_text = true;
++        index
++    }
++
+     pub(crate) fn shift_for_inline_control_insert(
+         &mut self,
+         control_idx: usize,
+--- a/src/document_core/commands/text_editing.rs	2026-11-09 08:35:57
++++ b/src/document_core/commands/text_editing.rs	2026-11-09 08:46:13
+@@ -2684,6 +2684,65 @@
+         );
+     }
+ 
++    /// [Papy] 문단들의 줄을 너비 `width`(HWPUNIT, 문단 여백 빼기 전)로 다시 나눈다. 칸 안 표·글상자 안 문단도
++    /// 그 칸(글상자) 너비로 다시 나눈다.
++    ///
++    /// 본문에 붙여넣은 문단을 캡션·글상자·각주로 옮기면 줄이 본문 너비로 잡혀 있어 글이 상자 밖으로 나간다
++    /// (DOCX·DOC 변환). 옮긴 문단에 한 번 부른다(패치 0015).
++    pub fn reflow_paragraphs_to_width(&self, paragraphs: &mut [Paragraph], width: u32) {
++        use crate::renderer::hwpunit_to_px;
++        let styles = self.resolve_render_styles();
++        let dpi = self.dpi;
++        fn walk(
++            paragraphs: &mut [Paragraph],
++            width: u32,
++            styles: &ResolvedStyleSet,
++            dpi: f64,
++            depth: usize,
++        ) {
++            if depth > 16 {
++                return;
++            }
++            let width_px = hwpunit_to_px(width as i32, dpi);
++            for para in paragraphs.iter_mut() {
++                for control in &mut para.controls {
++                    match control {
++                        Control::Table(table) => {
++                            for cell in &mut table.cells {
++                                let padding = cell.padding.left.max(0) as u32
++                                    + cell.padding.right.max(0) as u32;
++                                let room = cell.width.saturating_sub(padding);
++                                walk(&mut cell.paragraphs, room, styles, dpi, depth + 1);
++                            }
++                        }
++                        Control::Shape(shape) => {
++                            let room = shape.common().width;
++                            if let Some(text_box) =
++                                super::super::helpers::get_textbox_from_shape_mut(shape)
++                            {
++                                let padding = text_box.margin_left.max(0) as u32
++                                    + text_box.margin_right.max(0) as u32;
++                                walk(
++                                    &mut text_box.paragraphs,
++                                    room.saturating_sub(padding),
++                                    styles,
++                                    dpi,
++                                    depth + 1,
++                                );
++                            }
++                        }
++                        _ => {}
++                    }
++                }
++                let style = styles.para_styles.get(para.para_shape_id as usize);
++                let margin = style.map_or(0.0, |s| s.margin_left + s.margin_right);
++                let room = (width_px - margin).max(0.0);
++                reflow_line_segs(para, ParagraphBox::content_width_px(room, dpi), styles, dpi);
++            }
++        }
++        walk(paragraphs, width, &styles, dpi, 0);
++    }
++
+     /// [Papy] 구역의 본문 표마다 칸 문단의 줄을 칸 너비로 다시 나누고 쪽을 다시 짠다.
+     ///
+     /// HTML 붙여넣기로 만든 표는 칸 문단마다 한 줄로만 잡혀 있어, 칸보다 긴 글은 행 높이가 늘지 않고 잘린다
