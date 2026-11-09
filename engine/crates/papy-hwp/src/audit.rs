@@ -283,7 +283,10 @@ fn has_text(paragraphs: &[Paragraph]) -> bool {
         !p.controls.is_empty()
             || p.text.chars().any(|c| {
                 (!c.is_whitespace() && !c.is_control())
-                    || matches!(c, papy_office::PAGE_NUMBER_FIELD | papy_office::PAGE_COUNT_FIELD)
+                    || matches!(
+                        c,
+                        papy_office::PAGE_NUMBER_FIELD | papy_office::PAGE_COUNT_FIELD
+                    )
             })
     })
 }

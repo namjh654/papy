@@ -4,8 +4,7 @@
 //! 각주·미주를 넣는다(문서 순서 = 번호 순서). 주 안 글자는 rhwp 의 각주 편집 함수로 넣는다(미주도 같은 함수가 다룬다).
 
 use papy_office::{
-    DocxReadReport, ENDNOTE_MARK, FOOTNOTE_MARK, HeaderFooterText, PAGE_BREAK_MARK,
-    SECTION_MARK,
+    DocxReadReport, ENDNOTE_MARK, FOOTNOTE_MARK, HeaderFooterText, PAGE_BREAK_MARK, SECTION_MARK,
 };
 use rhwp::HwpError;
 use rhwp::model::control::Control;
@@ -167,7 +166,12 @@ fn header_footer_html(
     let mut shapes = crate::shapes::build(doc, &item.shapes)?;
     let mut cell_shapes = crate::shapes::build(doc, &item.cell_shapes)?;
     crate::shapes::place(&mut moved, &mut shapes, papy_office::SHAPE_MARK, false);
-    crate::shapes::place(&mut moved, &mut cell_shapes, papy_office::CELL_SHAPE_MARK, true);
+    crate::shapes::place(
+        &mut moved,
+        &mut cell_shapes,
+        papy_office::CELL_SHAPE_MARK,
+        true,
+    );
     let mut document = doc.document().clone();
     let section = &mut document.sections[0];
     let apply = match apply_to {

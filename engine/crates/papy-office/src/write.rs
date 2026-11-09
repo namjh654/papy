@@ -1718,7 +1718,11 @@ fn write_table(
             let _ = write!(out, "<w:trPr>{row_props}</w:trPr>");
         }
         let mut col = 0;
-        let cols_in_row = if trailing < cols { cols - trailing } else { cols };
+        let cols_in_row = if trailing < cols {
+            cols - trailing
+        } else {
+            cols
+        };
         while col < cols_in_row {
             if let Some(cell) = start_at(row, col) {
                 let span = (cell.col_span.max(1) as usize).min(cols - col);
@@ -2165,8 +2169,9 @@ fn body_leading(document: &Document) -> u32 {
             LineSpacingType::Percent if shape.line_spacing > 100 => {
                 size * (shape.line_spacing - 100) / 500
             }
-            LineSpacingType::Fixed => (twips(shape.line_spacing.max(0) as u32) as i32)
-                .saturating_sub(size / 5),
+            LineSpacingType::Fixed => {
+                (twips(shape.line_spacing.max(0) as u32) as i32).saturating_sub(size / 5)
+            }
             _ => 0,
         };
         // 글자 수로 무게를 단다(짧은 보기 문단이 많아도 본문 글의 줄 간격을 고른다).
@@ -2715,7 +2720,14 @@ pub fn docx_from_document_with(
             _ => r#"<w:type w:val="continuous"/>"#,
         };
         let title = if k == 0 { title_page } else { "" };
-        region_props(document, &references[k], title, columns, start, column_leading)
+        region_props(
+            document,
+            &references[k],
+            title,
+            columns,
+            start,
+            column_leading,
+        )
     };
     for k in 0..region_ends {
         body = body.replacen(&format!("<!--papy-region-{k}-->"), &props(k), 1);

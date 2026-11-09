@@ -144,7 +144,14 @@ pub(crate) fn place(
             for control in &mut paragraph.controls {
                 if let Control::Table(table) = control {
                     for cell in &mut table.cells {
-                        walk(&mut cell.paragraphs, controls, mark, cells_only, placed, depth + 1);
+                        walk(
+                            &mut cell.paragraphs,
+                            controls,
+                            mark,
+                            cells_only,
+                            placed,
+                            depth + 1,
+                        );
                     }
                 }
             }
@@ -163,7 +170,12 @@ pub(crate) fn apply_in_cells(doc: &mut Rhwp, shapes: &[DocxShape]) -> Result<usi
     let mut controls = build(doc, shapes)?;
     let mut document = doc.document().clone();
     let section = &mut document.sections[0];
-    let placed = place(&mut section.paragraphs, &mut controls, CELL_SHAPE_MARK, true);
+    let placed = place(
+        &mut section.paragraphs,
+        &mut controls,
+        CELL_SHAPE_MARK,
+        true,
+    );
     section.raw_stream = None;
     doc.set_document(document);
     Ok(shapes.len().saturating_sub(placed))

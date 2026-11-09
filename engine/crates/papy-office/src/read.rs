@@ -374,7 +374,11 @@ struct RunProps {
     /// 반 포인트
     size: Option<u32>,
     color: Option<String>,
+    /// 동아시아 글꼴(`w:eastAsia`, 없으면 라틴 글꼴)
     font: Option<String>,
+    /// 라틴 글꼴(`w:ascii`·`w:hAnsi`). 한글 문서는 영문을 다른 글꼴(Times New Roman 등)로 쓰는 일이 흔해
+    /// 하나로 합치면 영문 폭이 달라져 줄이 넘친다.
+    latin: Option<String>,
     /// 자간(twip, `w:spacing`)
     spacing: Option<i32>,
     /// 장평(%, `w:w`)
@@ -391,6 +395,7 @@ impl RunProps {
             size: self.size.or(base.size),
             color: self.color.clone().or_else(|| base.color.clone()),
             font: self.font.clone().or_else(|| base.font.clone()),
+            latin: self.latin.clone().or_else(|| base.latin.clone()),
             spacing: self.spacing.or(base.spacing),
             scale: self.scale.or(base.scale),
         }
@@ -398,11 +403,18 @@ impl RunProps {
 
     fn css(&self) -> String {
         let mut css = String::new();
-        if let Some(font) = &self.font {
-            css.push_str(&format!(
-                "font-family:'{}';",
-                escape(font).replace('\'', "")
-            ));
+        // rhwp 붙여넣기: `font-family` 는 라틴(영문·기타·기호), `mso-fareast-font-family` 는 한글·한자·일어
+        let family = |name: &str| escape(name).replace('\'', "");
+        match (&self.font, &self.latin) {
+            (Some(east), Some(latin)) if east != latin => css.push_str(&format!(
+                "font-family:'{}';mso-fareast-font-family:'{}';",
+                family(latin),
+                family(east)
+            )),
+            (Some(font), _) | (None, Some(font)) => {
+                css.push_str(&format!("font-family:'{}';", family(font)))
+            }
+            (None, None) => {}
         }
         if let Some(size) = self.size {
             css.push_str(&format!("font-size:{}pt;", size as f32 / 2.0));
@@ -588,9 +600,9 @@ fn apply_run_prop(props: &mut RunProps, element: &BytesStart) {
                 .filter(|v| v.len() == 6 && v.chars().all(|c| c.is_ascii_hexdigit()))
         }
         "rFonts" => {
-            props.font = attr(element, "eastAsia")
-                .or_else(|| attr(element, "ascii"))
-                .or_else(|| attr(element, "hAnsi"))
+            let latin = attr(element, "ascii").or_else(|| attr(element, "hAnsi"));
+            props.font = attr(element, "eastAsia").or_else(|| latin.clone());
+            props.latin = latin;
         }
         "w" => {
             props.scale = attr(element, "val")
@@ -1023,11 +1035,8 @@ fn outside_body_mark(c: char) -> bool {
             | LINK_START_MARK
             | LINK_END_MARK
             | CAPTION_MORE_MARK
-            | '\u{E0F9}'..='\u{E0FC}'
-            | FOOTNOTE_MARK
-            | ENDNOTE_MARK
-            | PAGE_BREAK_MARK
-            | COLUMN_BREAK_MARK
+            | '\u{E0F9}'
+            ..='\u{E0FC}' | FOOTNOTE_MARK | ENDNOTE_MARK | PAGE_BREAK_MARK | COLUMN_BREAK_MARK
     )
 }
 
@@ -1513,16 +1522,8 @@ fn xml_to_html(
                         }
                     }
                     // 위치 탭(ptab, 머리말의 왼쪽·가운데·오른쪽 칸 나누기)도 탭으로
-                    "tab" | "ptab" if in_run => {
-                        flush(
-                            &mut para_html,
-                            &mut run_text,
-                            &run,
-                            &para_style.0,
-                            &defaults,
-                        );
-                        para_html.push('\t');
-                    }
+                    // 탭은 런 글자에 넣어 런 서식을 따르게 한다(밖에 두면 기본 글꼴 10pt 로 빠진다).
+                    "tab" | "ptab" if in_run => run_text.push('\t'),
                     "br" if in_run => {
                         flush(
                             &mut para_html,

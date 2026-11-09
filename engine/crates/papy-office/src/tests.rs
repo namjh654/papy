@@ -57,7 +57,8 @@ fn paragraphs_runs_styles_and_entities() {
     );
     assert!(html.contains("<p></p>"));
     assert!(
-        html.contains("<p>• <span style=\"font-size:11pt;\">항목</span>\t"),
+        // 탭은 런 서식 안에 둔다(밖에 두면 기본 글꼴로 빠진다)
+        html.contains("<p>• <span style=\"font-size:11pt;\">항목\t끝</span>"),
         "{html}"
     );
     assert_eq!(report.dropped_drawings, 1);
@@ -393,9 +394,13 @@ fn forms_and_equations_are_written() {
     assert!(xml.contains("1 over 2"), "{xml}");
     // 그리는 함수가 있으면 그림으로 넣고, 기준선 아래 부분(30%)만큼 내린다.
     let render = |_: &Equation| Some(PNG_1X1.to_vec());
-    let pictured =
-        docx_from_document_with(&document, &std::collections::HashMap::new(), Some(&render), true)
-            .unwrap();
+    let pictured = docx_from_document_with(
+        &document,
+        &std::collections::HashMap::new(),
+        Some(&render),
+        true,
+    )
+    .unwrap();
     let xml = part_text(&pictured, "word/document.xml");
     assert!(
         !xml.contains("1 over 2") && xml.contains("<wp:inline"),
@@ -636,7 +641,9 @@ fn column_changes_and_tab_stops_are_written() {
     assert_eq!(xml.matches("papy:hwpBottom=").count(), 1, "{xml}");
     let margin = |sect: &str| {
         let at = sect.find(r#"w:bottom=""#).unwrap() + r#"w:bottom=""#.len();
-        sect[at..sect[at..].find('"').unwrap() + at].parse::<i32>().unwrap()
+        sect[at..sect[at..].find('"').unwrap() + at]
+            .parse::<i32>()
+            .unwrap()
     };
     let sections: Vec<&str> = xml.split("<w:sectPr>").skip(1).collect();
     assert_eq!(margin(sections[0]) - margin(sections[1]), 120, "{xml}");
@@ -1206,13 +1213,19 @@ fn tab_stops_short_rows_and_cell_tails_are_read_and_written() {
         <w:tc><w:tbl><w:tr><w:tc><w:p/></w:tc></w:tr></w:tbl><w:p/></w:tc></w:tr></w:tbl><w:p/></w:body></w:document>"#
     );
     let (html, _) = docx_to_html(&docx(&document, None)).unwrap();
-    assert!(html.contains("tab-stops:72.50pt/1/3 150.00pt/0/0;"), "{html}");
+    assert!(
+        html.contains("tab-stops:72.50pt/1/3 150.00pt/0/0;"),
+        "{html}"
+    );
     // 칸 안 표 뒤 글이 든 문단은 남는다(전에는 `></p>` 로 끝나 Word 가 요구한 빈 문단으로 보고 뺐다).
     assert!(html.contains("칸 끝 글"), "{html}");
     // Papy 가 쓴 칸(표 → 1pt 문단 → 빈 문단): 빈 문단은 원본 것이라 남는다.
     assert!(html.contains("</table><p></p></td><td>"), "{html}");
     // Word 칸(표 → 빈 문단): Word 가 요구한 빈 문단이라 뺀다.
-    assert!(html.contains("</table></td></tr></table><p></p></body>"), "{html}");
+    assert!(
+        html.contains("</table></td></tr></table><p></p></body>"),
+        "{html}"
+    );
 
     // 짧은 행(끝 격자 칸이 비었다): 빈 칸을 만들지 않고 w:gridAfter 로 쓴다.
     let mut core = rhwp::document_core::DocumentCore::new_empty();
@@ -1229,4 +1242,23 @@ fn tab_stops_short_rows_and_cell_tails_are_read_and_written() {
     let xml = part_text(&docx_from_document(&document).unwrap(), "word/document.xml");
     assert!(xml.contains(r#"<w:gridAfter w:val="1"/>"#), "{xml}");
     assert_eq!(xml.matches("<w:tc>").count(), 3, "{xml}");
+}
+
+#[test]
+fn latin_and_east_asian_fonts_are_kept_apart() {
+    // 한글 문서의 흔한 꼴: 한글은 명조, 영문은 Times New Roman. 하나로 합치면 영문 폭이 바뀌어 줄이 넘친다.
+    let document = format!(
+        r#"<w:document {NS}><w:body>
+        <w:p><w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:eastAsia="바탕"/></w:rPr><w:t>① $100</w:t><w:tab/><w:t>② $150</w:t></w:r></w:p>
+        <w:p><w:r><w:rPr><w:rFonts w:ascii="바탕" w:eastAsia="바탕"/></w:rPr><w:t>같음</w:t></w:r></w:p>
+        </w:body></w:document>"#
+    );
+    let (html, _) = docx_to_html(&docx(&document, None)).unwrap();
+    assert!(
+        html.contains(
+            "font-family:'Times New Roman';mso-fareast-font-family:'바탕';\">① $100\t② $150</span>"
+        ),
+        "{html}"
+    );
+    assert!(html.contains("font-family:'바탕';\">같음"), "{html}");
 }
