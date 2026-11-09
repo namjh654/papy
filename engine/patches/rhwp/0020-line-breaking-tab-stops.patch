@@ -1,0 +1,95 @@
+Papy 패치: 줄 채움(line_breaking)이 문단 탭 정지를 쓴다.
+
+rhwp v0.8.7(1a76570e). 종전 줄 채움은 탭을 기본 등간격(40pt)으로만 재고, 그리기는 문단 탭 정지를 써서
+탭으로 보기를 나란히 둔 줄을 다시 나누면 넘쳐 접혔다(편집한 문단·다른 형식에서 옮긴 문서, exam_eng 보기 줄).
+다음 정지가 왼쪽 탭이면 그 위치(단 기준, 줄 시작 = 왼쪽 여백 + 들여쓰기)로, 아니면 종전대로 등간격으로 잰다.
+HWP5-nopassword-123456.hwpx 의 탭 문단 185개를 다시 나눴을 때 한글 저장 줄과 같은 것이 128 → 165개.
+
+--- a/src/renderer/composer/line_breaking.rs
++++ b/src/renderer/composer/line_breaking.rs
+@@ -17,6 +17,49 @@
+ use crate::renderer::{hwpunit_to_px, px_to_hwpunit};
+ use std::ops::Range;
+ 
++thread_local! {
++    /// [papy] 줄 채움이 쓰는 문단 탭 정지: (위치 px·단 기준, 종류) 와 줄 시작 위치(첫 줄, 나머지 줄, 단 기준 px).
++    static PARA_TABS: std::cell::RefCell<Option<(Vec<(f64, u8)>, f64, f64)>> =
++        const { std::cell::RefCell::new(None) };
++}
++
++/// [papy] 문단 탭 정지를 줄 채움에 알린다. 돌려받은 값이 사라질 때 앞 값으로 되돌린다.
++/// 종전 줄 채움은 기본 등간격 탭만 써서, 탭 정지로 보기를 나란히 둔 줄을 다시 나누면 넘쳐 접혔다
++/// (그리기는 탭 정지를 쓴다).
++struct ParaTabsGuard(Option<(Vec<(f64, u8)>, f64, f64)>);
++
++impl Drop for ParaTabsGuard {
++    fn drop(&mut self) {
++        let previous = self.0.take();
++        PARA_TABS.with(|tabs| *tabs.borrow_mut() = previous);
++    }
++}
++
++fn set_para_tabs(style: Option<&ResolvedParaStyle>) -> ParaTabsGuard {
++    let value = style.filter(|s| !s.tab_stops.is_empty()).map(|s| {
++        let stops = s.tab_stops.iter().map(|t| (t.position, t.tab_type)).collect();
++        (
++            stops,
++            s.margin_left + s.indent.max(0.0),
++            s.margin_left + (-s.indent).max(0.0),
++        )
++    });
++    ParaTabsGuard(PARA_TABS.with(|tabs| tabs.replace(value)))
++}
++
++/// [papy] 줄 시작에서 `lw_px` 만큼 온 자리의 다음 왼쪽 탭 정지(줄 시작 기준 px). 다음 정지가 왼쪽 탭이 아니거나
++/// 정지가 없으면 `None`(기본 등간격 탭).
++fn custom_next_tab_px(lw_px: f64, first_line: bool) -> Option<f64> {
++    PARA_TABS.with(|tabs| {
++        let tabs = tabs.borrow();
++        let (stops, first, rest) = tabs.as_ref()?;
++        let origin = if first_line { *first } else { *rest };
++        let abs = origin + lw_px;
++        let (position, kind) = stops.iter().copied().find(|(p, _)| *p > abs + 0.5)?;
++        (kind == 0).then_some(position - origin)
++    })
++}
++
+ struct PreparedParagraphKerning {
+     context: std::sync::Arc<crate::renderer::kerning::KerningMeasurementContext>,
+     scalar_styles: Vec<crate::renderer::kerning::KerningParagraphScalarStyle>,
+@@ -1746,7 +1789,8 @@
+                 cursor.word_gap_natural_hwp = None;
+                 // 탭 계산은 px로 수행 후 HWPUNIT 변환 (정밀도 유지)
+                 let lw_px = cursor.lw as f64 / 75.0;
+-                let next_tab_px = ((lw_px / tab_w_px).floor() + 1.0) * tab_w_px;
++                let next_tab_px = custom_next_tab_px(lw_px, cursor.is_first_line)
++                    .unwrap_or_else(|| ((lw_px / tab_w_px).floor() + 1.0) * tab_w_px);
+                 let next_tab_hwp = to_hwp(next_tab_px);
+                 if *max_font_size > cursor.line_max_fs {
+                     cursor.line_max_fs = *max_font_size;
+@@ -1780,7 +1824,8 @@
+                     cursor.is_first_line = false;
+                     cursor.last_break_token_idx = None;
+                     let lw_px2 = cursor.lw as f64 / 75.0;
+-                    let next_tab2 = ((lw_px2 / tab_w_px).floor() + 1.0) * tab_w_px;
++                    let next_tab2 = custom_next_tab_px(lw_px2, false)
++                        .unwrap_or_else(|| ((lw_px2 / tab_w_px).floor() + 1.0) * tab_w_px);
+                     cursor.lw = to_hwp(next_tab2);
+                     cursor.token_index += 1;
+                     cursor.emitted_any = true;
+@@ -3217,6 +3262,7 @@
+     let default_tab_width = para_style
+         .map(|style| style.default_tab_width)
+         .unwrap_or(0.0);
++    let _para_tabs = set_para_tabs(para_style);
+     let line_spacing_type = para_style
+         .map(|style| style.line_spacing_type)
+         .unwrap_or(LineSpacingType::Percent);
+@@ -4461,6 +4507,7 @@
+     let korean_break_unit = para_style.map(|s| s.korean_break_unit).unwrap_or(0);
+     let condense_min_space = para_style.map(|s| s.condense_min_space).unwrap_or(0);
+     let tab_width = para_style.map(|s| s.default_tab_width).unwrap_or(0.0);
++    let _para_tabs = set_para_tabs(para_style);
+ 
+     // 토큰화 → 줄 채움 → LineSeg 생성
+     let reflow_space_metric = if split_stale_cell_reflow {

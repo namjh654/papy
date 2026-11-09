@@ -614,15 +614,63 @@ fn font_name(info: &DocInfo, lang: usize, id: u16) -> Option<&str> {
         .filter(|name| !name.is_empty())
 }
 
-fn run_props(info: &DocInfo, shape_id: u32) -> String {
+/// HWP 글자 언어 묶음(0 한글, 1 영어, 2 한자, 3 일본어, 4 기타, 5 기호, 6 사용자). 빈칸·구두점은 앞 글자를
+/// 따른다(rhwp 조판과 같은 규칙).
+fn lang_slots(chars: &[char]) -> Vec<usize> {
+    let mut carry = 0;
+    chars
+        .iter()
+        .map(|&ch| {
+            let neutral = matches!(ch as u32,
+                0x0000..=0x002F | 0x003A..=0x0040 | 0x005B..=0x0060 | 0x007B..=0x00BF);
+            if !neutral {
+                carry = rhwp::renderer::style_resolver::detect_lang_category(ch);
+            }
+            carry
+        })
+        .collect()
+}
+
+/// 글자 모양 `shape_id` 에서 언어 묶음 `slot` 글자를 쓸 Word 런 묶음. 한글(0)과 장평·자간·상대 크기가 같으면 0
+/// (한 런에 ascii·eastAsia 글꼴로 함께 쓴다), 기호 등(2~)은 글꼴까지 같아야 0.
+fn run_slot(info: &DocInfo, shape_id: u32, slot: usize) -> usize {
+    let Some(shape) = info.char_shapes.get(shape_id as usize) else {
+        return 0;
+    };
+    let same = |i: usize| {
+        shape.ratios[i] == shape.ratios[0]
+            && shape.spacings[i] == shape.spacings[0]
+            && shape.relative_sizes[i] == shape.relative_sizes[0]
+    };
+    let same_font =
+        |i: usize| font_name(info, i, shape.font_ids[i]) == font_name(info, 0, shape.font_ids[0]);
+    match slot {
+        0 => 0,
+        1 if same(1) => 0,
+        s if s >= 2 && (s > 6 || (same(s) && same_font(s))) => 0,
+        s => s,
+    }
+}
+
+fn run_props(info: &DocInfo, shape_id: u32, slot: usize) -> String {
     let Some(shape) = info.char_shapes.get(shape_id as usize) else {
         return String::new();
     };
+    let slot = slot.min(6);
     let mut props = String::from("<w:rPr>");
-    // 0: 한글, 1: 영어 글꼴 묶음
+    // 0: 한글, 1: 영어 글꼴 묶음. 한자·기호 등(2~)만 든 런은 그 묶음 글꼴로 모두 쓴다.
     let east_asia = font_name(info, 0, shape.font_ids[0]);
     let latin = font_name(info, 1, shape.font_ids[1]).or(east_asia);
-    if east_asia.is_some() || latin.is_some() {
+    let own = (slot >= 2)
+        .then(|| font_name(info, slot, shape.font_ids[slot]))
+        .flatten();
+    if let Some(own) = own {
+        let own = xml_escape(own);
+        let _ = write!(
+            props,
+            r#"<w:rFonts w:ascii="{own}" w:hAnsi="{own}" w:eastAsia="{own}"/>"#
+        );
+    } else if east_asia.is_some() || latin.is_some() {
         let latin = xml_escape(latin.unwrap_or(""));
         let east_asia = xml_escape(east_asia.unwrap_or(""));
         let _ = write!(
@@ -642,17 +690,19 @@ fn run_props(info: &DocInfo, shape_id: u32) -> String {
     if let Some(color) = rgb(shape.text_color) {
         let _ = write!(props, r#"<w:color w:val="{color}"/>"#);
     }
-    // 자간(글자 크기의 %) → twip, 장평(%) → w:w. 0: 한글 글꼴 묶음.
-    let spacing = i32::from(shape.spacings[0]);
+    // 자간(글자 크기의 %) → twip, 장평(%) → w:w. 이 런의 언어 묶음 값.
+    // 상대 크기는 장평에 곱한다(글자 너비는 같고 줄 높이는 기준 크기대로).
+    let relative = i32::from(shape.relative_sizes[slot]).clamp(1, 250);
+    let spacing = i32::from(shape.spacings[slot]);
     if spacing != 0 && shape.base_size > 0 {
         // base_size 는 1/100 pt, twip = pt × 20
-        let twip = shape.base_size * spacing / 500;
+        let twip = shape.base_size * relative / 100 * spacing / 500;
         if twip != 0 {
             let _ = write!(props, r#"<w:spacing w:val="{twip}"/>"#);
         }
     }
-    let ratio = shape.ratios[0];
-    if ratio != 100 && (1..=600).contains(&u16::from(ratio)) {
+    let ratio = (i32::from(shape.ratios[slot]) * relative + 50) / 100;
+    if ratio != 100 && (1..=600).contains(&ratio) {
         let _ = write!(props, r#"<w:w w:val="{ratio}"/>"#);
     }
     if shape.base_size > 0 {
@@ -942,6 +992,11 @@ fn para_props_with(info: &DocInfo, paragraph: &Paragraph, list: Option<(usize, u
             );
         }
         _ => {}
+    }
+    // 한글 "최소 공백"(양쪽 정렬 줄에서 빈칸을 줄여 한 줄에 맞추는 %) — Word 에는 없어 Papy 만 다시 읽는다.
+    let condense = (shape.attr1 >> 9) & 0x7f;
+    if condense > 0 {
+        let _ = write!(spacing, r#" papy:condense="{condense}""#);
     }
     if !spacing.is_empty() {
         let _ = write!(props, "<w:spacing{spacing}/>");
@@ -1448,6 +1503,7 @@ fn write_paragraph_with(
     notes.sort_by_key(|(position, _)| *position);
     let mut notes = notes.into_iter().peekable();
     let mut spans = field_spans(info, media, paragraph, chars.len(), depth)?;
+    let slots = lang_slots(&chars);
     let mut start = 0;
     while start < chars.len() {
         spans.emit(out, start);
@@ -1472,13 +1528,17 @@ fn write_paragraph_with(
                 .map(|run| run.char_shape_id)
                 .unwrap_or(0)
         };
-        let shape = shape_of(start);
+        let key_of = |index: usize| {
+            let shape = shape_of(index);
+            (shape, run_slot(info, shape, slots[index]))
+        };
+        let (shape, slot) = key_of(start);
         let mut end = start + 1;
-        while end < chars.len() && end < next_note && shape_of(end) == shape {
+        while end < chars.len() && end < next_note && key_of(end) == (shape, slot) {
             end += 1;
         }
         out.push_str("<w:r>");
-        out.push_str(&run_props(info, shape));
+        out.push_str(&run_props(info, shape, slot));
         let mut text = String::new();
         let flush = |out: &mut String, text: &mut String| {
             if !text.is_empty() {
@@ -1506,7 +1566,7 @@ fn write_paragraph_with(
                     out.push_str("</w:r>");
                     out.push_str(&page_field(*ch == '\u{0016}', 0));
                     out.push_str("<w:r>");
-                    out.push_str(&run_props(info, shape));
+                    out.push_str(&run_props(info, shape, slot));
                 }
                 c => text.push(*c),
             }
