@@ -1299,3 +1299,49 @@ fn list_mark(def: u32, level: u32) -> String {
         char::from_u32(crate::LIST_CODE_BASE + def * 8 + level).unwrap()
     )
 }
+
+#[test]
+fn xor_obfuscated_doc_opens_with_password() {
+    // XOR 난독화 표본이 공개 문서 모음에 없어, 평문 DOC 를 같은 방식으로 감춰 본다(감추기와 풀기는 같은 연산).
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../../tests/fixtures/poi/table-merges.doc");
+    let plain = std::fs::read(path).unwrap();
+    let (expected, _) = crate::doc_to_html(&plain).unwrap();
+    let mut file = cfb::CompoundFile::open(Cursor::new(plain.clone())).unwrap();
+    let read = |file: &mut cfb::CompoundFile<Cursor<Vec<u8>>>, name: &str| {
+        let mut out = Vec::new();
+        std::io::Read::read_to_end(&mut file.open_stream(name).unwrap(), &mut out).unwrap();
+        out
+    };
+    let mut word = read(&mut file, "/WordDocument");
+    let flags = u16::from_le_bytes([word[0x0A], word[0x0B]]);
+    let table_name = if flags & 0x0200 != 0 {
+        "/1Table"
+    } else {
+        "/0Table"
+    };
+    let mut table = read(&mut file, table_name);
+    let mut data = file.exists("/Data").then(|| read(&mut file, "/Data"));
+    let l_key = crate::doc_crypt::xor_l_key("secret");
+    crate::doc_crypt::deobfuscate(Some("secret"), l_key, &mut word, &mut table, data.as_mut())
+        .unwrap();
+    word[0x0A..0x0C].copy_from_slice(&(flags | 0x0100 | 0x8000).to_le_bytes());
+    word[0x0E..0x12].copy_from_slice(&l_key.to_le_bytes());
+    let write = |file: &mut cfb::CompoundFile<Cursor<Vec<u8>>>, name: &str, bytes: &[u8]| {
+        let mut stream = file.create_stream(name).unwrap();
+        stream.write_all(bytes).unwrap();
+    };
+    write(&mut file, "/WordDocument", &word);
+    write(&mut file, table_name, &table);
+    if let Some(data) = &data {
+        write(&mut file, "/Data", data);
+    }
+    file.flush().unwrap();
+    let hidden = file.into_inner().into_inner();
+    for wrong in [None, Some("wrong")] {
+        let error = crate::doc_to_html_with_password(&hidden, wrong).unwrap_err();
+        assert_eq!(error.code, papy_model::ErrorCode::PasswordRequired);
+    }
+    let (html, _) = crate::doc_to_html_with_password(&hidden, Some("secret")).unwrap();
+    assert_eq!(html, expected);
+}

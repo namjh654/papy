@@ -6,7 +6,7 @@
 //! 옮기는 것: 본문 글자(조각 표), 글자 서식(굵게·기울임·밑줄·취소선·크기·색·글꼴), 문단 정렬, 제목 스타일(목차),
 //! 표(겹친 표, 가로·세로 병합, 테두리), 글자처럼 놓은 그림(PNG·JPEG·DIB·GIF, EMF·WMF 는 SVG 로), OLE 개체의
 //! 미리보기 그림, 떠 있는 그림·도형·글상자·묶음 도형([`crate::doc_art`]), 필드 결과 글자, 각주·미주(글자),
-//! 첫 구역 머리말·꼬리말(글자). 암호 문서(RC4·RC4 CryptoAPI)는 암호로 푼다([`crate::doc_crypt`]).
+//! 첫 구역 머리말·꼬리말(글자). 암호 문서(RC4·RC4 CryptoAPI·XOR 난독화)는 암호로 푼다([`crate::doc_crypt`]).
 //! 옮기지 않는 것(빠진 개체로 센다): 표 안의 도형·메타파일 그림, 머리말 안 도형. 번호 목록은 "•" 로 둔다.
 
 use std::collections::HashMap;
@@ -1378,7 +1378,7 @@ pub fn doc_to_html(bytes: &[u8]) -> Result<(String, DocxReadReport)> {
     doc_to_html_with_password(bytes, None)
 }
 
-/// [`doc_to_html`] 과 같고, 암호 걸린 문서(RC4·RC4 CryptoAPI)는 `password` 로 푼다.
+/// [`doc_to_html`] 과 같고, 암호 걸린 문서(RC4·RC4 CryptoAPI·XOR 난독화)는 `password` 로 푼다.
 /// 암호가 없거나 틀리면 `PasswordRequired`.
 pub fn doc_to_html_with_password(
     bytes: &[u8],
@@ -1413,13 +1413,12 @@ pub fn doc_to_html_with_password(
     let mut data = read_stream(&mut file, "/Data")?;
     if flags & 0x0100 != 0 {
         if flags & 0x8000 != 0 {
-            // XOR 난독화(Word 95 방식 암호)는 풀지 않는다.
-            return Err(Error::new(
-                ErrorCode::PasswordRequired,
-                "obfuscated Word document",
-            ));
+            // XOR 난독화(옛 Word 방식 암호): FibBase lKey(0x0E)가 암호 검증값
+            let l_key = u32_at(&word, 0x0E).unwrap_or(0);
+            crate::doc_crypt::deobfuscate(password, l_key, &mut word, &mut table, data.as_mut())?;
+        } else {
+            crate::doc_crypt::decrypt(password, &mut word, &mut table, data.as_mut())?;
         }
-        crate::doc_crypt::decrypt(password, &mut word, &mut table, data.as_mut())?;
     }
     let word = word;
     let table = table;

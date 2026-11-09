@@ -2,7 +2,8 @@
 //!
 //! 암호 머리는 Table 스트림 앞에 평문으로 있다. WordDocument(앞 68바이트 FibBase 빼고)·Table·Data 스트림은
 //! 스트림 처음부터 이어지는 RC4 로 암호화되어 있고, 512바이트 블록마다 블록 번호로 키를 새로 만든다.
-//! XOR 난독화(`fObfuscated`)는 지원하지 않는다.
+//! XOR 난독화(`fObfuscated`, MS-DOC 2.2.6.1)는 MS-OFFCRYPTO 2.3.7.4~2.3.7.6(Method 2)으로 푼다 — 암호 검증값은
+//! FibBase `lKey`, 16바이트 배열을 스트림 위치에 맞춰 XOR 한다(0 과 배열 값과 같은 바이트는 그대로).
 
 use papy_model::{Error, ErrorCode, Result};
 use sha1::{Digest, Sha1};
@@ -202,6 +203,135 @@ pub(crate) fn decrypt(
     Ok(())
 }
 
+/// XOR 난독화 표(MS-OFFCRYPTO 2.3.7.2)
+const PAD: [u8; 15] = [
+    0xBB, 0xFF, 0xFF, 0xBA, 0xFF, 0xFF, 0xB9, 0x80, 0x00, 0xBE, 0x0F, 0x00, 0xBF, 0x0F, 0x00,
+];
+const INITIAL_CODE: [u16; 15] = [
+    0xE1F0, 0x1D0F, 0xCC9C, 0x84C0, 0x110C, 0x0E10, 0xF1CE, 0x313E, 0x1872, 0xE139, 0xD40F, 0x84F9,
+    0x280C, 0xA96A, 0x4EC3,
+];
+const XOR_MATRIX: [u16; 105] = [
+    0xAEFC, 0x4DD9, 0x9BB2, 0x2745, 0x4E8A, 0x9D14, 0x2A09, 0x7B61, 0xF6C2, 0xFDA5, 0xEB6B, 0xC6F7,
+    0x9DCF, 0x2BBF, 0x4563, 0x8AC6, 0x05AD, 0x0B5A, 0x16B4, 0x2D68, 0x5AD0, 0x0375, 0x06EA, 0x0DD4,
+    0x1BA8, 0x3750, 0x6EA0, 0xDD40, 0xD849, 0xA0B3, 0x5147, 0xA28E, 0x553D, 0xAA7A, 0x44D5, 0x6F45,
+    0xDE8A, 0xAD35, 0x4A4B, 0x9496, 0x390D, 0x721A, 0xEB23, 0xC667, 0x9CEF, 0x29FF, 0x53FE, 0xA7FC,
+    0x5FD9, 0x47D3, 0x8FA6, 0x0F6D, 0x1EDA, 0x3DB4, 0x7B68, 0xF6D0, 0xB861, 0x60E3, 0xC1C6, 0x93AD,
+    0x377B, 0x6EF6, 0xDDEC, 0x45A0, 0x8B40, 0x06A1, 0x0D42, 0x1A84, 0x3508, 0x6A10, 0xAA51, 0x4483,
+    0x8906, 0x022D, 0x045A, 0x08B4, 0x1168, 0x76B4, 0xED68, 0xCAF1, 0x85C3, 0x1BA7, 0x374E, 0x6E9C,
+    0x3730, 0x6E60, 0xDCC0, 0xA9A1, 0x4363, 0x86C6, 0x1DAD, 0x3331, 0x6662, 0xCCC4, 0x89A9, 0x0373,
+    0x06E6, 0x0DCC, 0x1021, 0x2042, 0x4084, 0x8108, 0x1231, 0x2462, 0x48C4,
+];
+
+/// 암호 → 바이트(최대 15자). UTF-16 글자마다 아래 바이트, 그것이 0 이면 위 바이트(2.3.7.4).
+fn xor_password(password: &str) -> Vec<u8> {
+    password
+        .encode_utf16()
+        .take(15)
+        .map(|c| match (c & 0xFF) as u8 {
+            0 => (c >> 8) as u8,
+            low => low,
+        })
+        .collect()
+}
+
+/// CreateXorKey_Method1
+fn xor_key(password: &[u8]) -> u16 {
+    let Some(last) = password.len().checked_sub(1) else {
+        return 0;
+    };
+    let mut key = INITIAL_CODE[last];
+    let mut element = XOR_MATRIX.len();
+    for &byte in password.iter().rev() {
+        let mut ch = byte;
+        for _ in 0..7 {
+            element -= 1;
+            if ch & 0x40 != 0 {
+                key ^= XOR_MATRIX[element];
+            }
+            ch = ch.wrapping_mul(2);
+        }
+    }
+    key
+}
+
+/// CreatePasswordVerifier_Method1(16비트, Excel 시트 보호 해시와 같다)
+fn xor_verifier(password: &[u8]) -> u16 {
+    let mut verifier: u16 = 0;
+    let mut bytes = vec![password.len() as u8];
+    bytes.extend_from_slice(password);
+    for &byte in bytes.iter().rev() {
+        let carry = u16::from(verifier & 0x4000 != 0);
+        verifier = (((verifier << 1) & 0x7FFF) | carry) ^ u16::from(byte);
+    }
+    verifier ^ 0xCE4B
+}
+
+/// CreateXorArray_Method2: 16바이트 난독화 배열
+fn xor_array(password: &[u8]) -> [u8; 16] {
+    let key = xor_key(password);
+    let (high, low) = ((key >> 8) as u8, (key & 0xFF) as u8);
+    let mut array = [0u8; 16];
+    for (index, slot) in array.iter_mut().enumerate() {
+        *slot = password
+            .get(index)
+            .copied()
+            .unwrap_or_else(|| PAD[index - password.len()]);
+    }
+    for (index, slot) in array.iter_mut().enumerate() {
+        let key = if index % 2 == 0 { low } else { high };
+        *slot = (*slot ^ key).rotate_right(1);
+    }
+    array
+}
+
+/// XOR Data Transformation Method 2 — 스트림 처음부터 잰 위치로 배열을 돌려 쓴다. 0 과, 배열 값과 같은 바이트는
+/// 그대로 둔다(그래서 감추기와 풀기가 같은 연산이다). `skip` 앞 바이트는 바꾸지 않는다.
+fn xor_apply(array: &[u8; 16], data: &mut [u8], skip: usize) {
+    for (position, byte) in data.iter_mut().enumerate().skip(skip) {
+        let key = array[position % 16];
+        if *byte != 0 && *byte != key {
+            *byte ^= key;
+        }
+    }
+}
+
+/// XOR 난독화한 DOC 의 스트림을 제자리에서 푼다(같은 연산으로 감추기도 한다). `l_key` 는 FibBase 의 암호 검증값.
+/// 암호가 없거나 틀리면 `PasswordRequired`.
+pub(crate) fn deobfuscate(
+    password: Option<&str>,
+    l_key: u32,
+    word: &mut [u8],
+    table: &mut [u8],
+    data: Option<&mut Vec<u8>>,
+) -> Result<()> {
+    let password = password
+        .filter(|p| !p.is_empty())
+        .ok_or_else(|| password_error("obfuscated Word document"))?;
+    let bytes = xor_password(password);
+    if xor_verifier_method2(&bytes) != l_key {
+        return Err(password_error("password required or incorrect"));
+    }
+    let array = xor_array(&bytes);
+    xor_apply(&array, word, FIB_BASE.min(word.len()));
+    xor_apply(&array, table, 0);
+    if let Some(data) = data {
+        xor_apply(&array, data, 0);
+    }
+    Ok(())
+}
+
+/// CreatePasswordVerifier_Method2: 위 16비트 = XOR 키, 아래 16비트 = 검증값(FibBase `lKey`)
+fn xor_verifier_method2(password: &[u8]) -> u32 {
+    (u32::from(xor_key(password)) << 16) | u32::from(xor_verifier(password))
+}
+
+/// 시험용: 암호의 `lKey` 값
+#[cfg(test)]
+pub(crate) fn xor_l_key(password: &str) -> u32 {
+    xor_verifier_method2(&xor_password(password))
+}
+
 /// RC4 흐름 암호
 struct Rc4 {
     s: [u8; 256],
@@ -303,6 +433,21 @@ mod tests {
             "9e107d9d372bb6826bd81d3542a419d6"
         );
         assert_eq!(hex(md5(&[0x61; 200])).len(), 32);
+    }
+
+    #[test]
+    fn xor_verifier_matches_excel_sheet_hash() {
+        // Excel 시트 보호 해시(같은 Method 1 검증값)의 널리 알려진 값: "password" → 0x83AF
+        assert_eq!(xor_verifier(b"password"), 0x83AF);
+        // 감추기와 풀기는 같은 연산이다
+        let array = xor_array(b"password");
+        let plain: Vec<u8> = (0..=255u8).cycle().take(600).collect();
+        let mut data = plain.clone();
+        xor_apply(&array, &mut data, 68);
+        assert_ne!(data, plain);
+        assert_eq!(data[..68], plain[..68]);
+        xor_apply(&array, &mut data, 68);
+        assert_eq!(data, plain);
     }
 
     #[test]
