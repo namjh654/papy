@@ -84,6 +84,9 @@ console.log(`내려받는 중: rhwp ${TAG} (${COMMIT.slice(0, 12)})`);
 rmSync(outDir, { recursive: true, force: true });
 mkdirSync(outDir, { recursive: true });
 git("init", "-q");
+// 줄 끝을 바꾸지 않는다. Windows 기본값(core.autocrlf=true)이면 받은 소스가 CRLF 가 되어 LF 로 만든 패치와 어긋난다
+// (0.9.0 에서 패치 0002 가 Windows 에서만 적용되지 않았다). 패치 파일은 .gitattributes 로 LF 고정.
+git("config", "core.autocrlf", "false");
 git("remote", "add", "origin", REPO);
 git("sparse-checkout", "set", "--no-cone", ...PATHS);
 git("fetch", "-q", "--depth", "1", "--filter=blob:none", "origin", COMMIT);
