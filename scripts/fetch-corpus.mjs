@@ -18,8 +18,8 @@ import { fileURLToPath } from "node:url";
 const SETS = {
   rhwp: {
     repo: "https://github.com/edwardkim/rhwp.git",
-    tag: "v0.8.7",
-    commit: "1a76570e833917d15817415a53c09ad61ab3203f",
+    tag: "v0.9.0",
+    commit: "c9095c5f67632e6721e800ccc7fb43ea49d26682",
     folder: "samples",
     license: ["LICENSE", "LICENSE-rhwp"],
     out: "rhwp-samples",

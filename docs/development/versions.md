@@ -39,9 +39,9 @@
 | `resvg` (crate) | =0.45.1 | `engine/crates/papy-hwp/Cargo.toml` | crates.io |
 | Noto Sans KR Regular (OFL-1.1) | rhwp v0.9.0 저장소 사본 | `scripts/fetch-rhwp.mjs` | rhwp 받을 때 함께 |
 | Noto Serif KR Regular·Bold, Noto Sans KR Bold (OFL-1.1) | rhwp-studio `assets/fonts` woff2 → TrueType(이름 표만 다시 씀) | `scripts/fetch-fonts.mjs`(wawoff2) | `node scripts/fetch-fonts.mjs`(fetch-rhwp-studio 뒤). 데스크톱은 앱에 넣고, 모바일은 설정 카드에서 받는다: GitHub Releases `fonts-v1` → 안 되면 jsDelivr(같은 태그), SHA-256 은 `engine/vendor/fonts/manifest.json`·앱 코드(`FontPack`). 글꼴을 바꾸면 새 태그(fonts-v2)를 만들고 앱의 주소·확인값을 바꾼다 |
-| rhwp 샘플 문서 모음(MIT, 회귀 점검용) | rhwp v0.8.7 (`1a76570e`) `samples/` | `scripts/fetch-corpus.mjs` | `node scripts/fetch-corpus.mjs` (약 700MB → `tests/corpus/rhwp-samples/`, git 제외) |
-| rhwp-studio + @rhwp/core 0.8.7 WASM (MIT) | rhwp v0.8.7 (`1a76570e`), npm sha512 고정 | `scripts/fetch-rhwp-studio.mjs` | `node scripts/fetch-rhwp-studio.mjs` (빌드 결과 약 41MB → `apps/desktop/public/studio/`) |
-| @rhwp/editor SDK (MIT) | rhwp v0.8.7 `npm/editor` | `apps/desktop/src/vendor/rhwp-editor/` (패치 표시 `Papy:`) | 직접 복사 |
+| rhwp 샘플 문서 모음(MIT, 회귀 점검용) | rhwp v0.9.0 (`c9095c5f`) `samples/` | `scripts/fetch-corpus.mjs` | `node scripts/fetch-corpus.mjs` (약 700MB → `tests/corpus/rhwp-samples/`, git 제외) |
+| rhwp-studio + @rhwp/core 0.9.0 WASM (MIT) | rhwp v0.9.0 (`c9095c5f`), npm sha512 고정 | `scripts/fetch-rhwp-studio.mjs` | `node scripts/fetch-rhwp-studio.mjs` (빌드 결과 약 65MB → `apps/desktop/public/studio/`. 0.8.7 은 41MB — WASM 이 11.8 → 26.8MB 로 커졌다). 0.9.0 부터 studio 가 저장소의 `vendor/npm/`(ajv 사본)·`rhwp-shared/`·`src/renderer/square_gradient.sksl` 을 직접 가져와 함께 받는다 |
+| @rhwp/editor SDK (MIT) | rhwp v0.9.0 `npm/editor` | `apps/desktop/src/vendor/rhwp-editor/` (패치 표시 `Papy:` — `transport.js` 의 같은 출처 `tauri://` 허용) | 직접 복사 |
 
 두 스크립트를 한 번에: `pnpm engine:vendor`. 결과는 `engine/vendor/`(gitignore)에 들어간다. 엔진·데스크톱 빌드 전에 필요하다.
 
