@@ -60,6 +60,10 @@ pub struct DocxReadReport {
     /// 첫 쪽에서 감출 (머리말, 꼬리말). 첫 구역이 "첫 쪽 다르게"(`w:titlePg`)일 때 켠다.
     /// rhwp 에는 첫 쪽 전용 머리말 자리가 없어, 첫 쪽에서는 기본 머리말을 감추고 첫 쪽 것의 글자는 옮기지 않는다.
     pub hide_first_page: (bool, bool),
+    /// 한글 바탕쪽(Papy 가 머리말에 `papy:master` 표시 뒤로 쓴 것). 첫 구역 것만.
+    pub masters: Vec<HeaderFooterText>,
+    /// 첫 쪽에서 바탕쪽을 감춘다(`papy:hideFirst`).
+    pub hide_first_master: bool,
     /// 메모(`word/comments.xml`), 본문에서 처음 가리킨 순서.
     pub comments: Vec<DocxComment>,
     /// 변경 추적: 넣은 내용(`w:ins`)·지운 내용(`w:del`) 수. 화면은 받아들인 상태(넣은 글은 보이고 지운 글은 빠진다).
@@ -1084,6 +1088,30 @@ fn part_to_html(bytes: &[u8], part: &str, header: bool) -> Result<(String, DocxR
     xml_to_html(bytes, &document, &rels_path_of(part), header, 0)
 }
 
+/// 머리말 부분에서 Papy 가 쓴 바탕쪽(`<w:p papy:master="…">` 표시 문단 뒤)을 떼어 낸다.
+/// (바탕쪽을 뺀 머리말 XML, (적용 쪽 0 모든·1 짝수·2 홀수, 첫 쪽 감추기, 바탕쪽 조각)).
+fn split_master(xml: &str) -> (std::borrow::Cow<'_, str>, Option<(u8, bool, &str)>) {
+    let Some(start) = xml.find("<w:p papy:master=\"") else {
+        return (xml.into(), None);
+    };
+    let head = &xml[start..xml[start..].find('>').map_or(xml.len(), |i| start + i)];
+    let apply = if head.contains(r#"papy:master="odd""#) {
+        2
+    } else if head.contains(r#"papy:master="even""#) {
+        1
+    } else {
+        0
+    };
+    let hide = head.contains(r#"papy:hideFirst="1""#);
+    let close = "</w:hdr>";
+    let end = xml.rfind(close).unwrap_or(xml.len());
+    let body_start = xml[start..end]
+        .find("</w:p>")
+        .map_or(end, |i| start + i + "</w:p>".len());
+    let rest = format!("{}{}", &xml[..start], &xml[end..]);
+    (rest.into(), Some((apply, hide, &xml[body_start..end])))
+}
+
 /// 부분의 관계: word/header1.xml → word/_rels/header1.xml.rels
 fn rels_path_of(part: &str) -> String {
     match part.rsplit_once('/') {
@@ -1663,7 +1691,7 @@ fn xml_to_html(
                             field_marker = None;
                         }
                         Some("separate") | Some("end") => {
-                            if field_marker.is_none() && cell.is_empty() {
+                            if field_marker.is_none() {
                                 field_marker = page_field_mark(&field_instr);
                                 if let Some(mark) = field_marker {
                                     run_text.push(mark);
@@ -1679,7 +1707,7 @@ fn xml_to_html(
                         }
                         _ => {}
                     },
-                    "fldSimple" if header && cell.is_empty() => {
+                    "fldSimple" if header => {
                         if let Some(mark) = attr(&e, "instr").as_deref().and_then(page_field_mark) {
                             run_text.push(mark);
                             skip_simple = !empty;
@@ -2344,22 +2372,77 @@ fn xml_to_html(
         header_refs.retain(|(_, _, kind, _)| kind != "even");
     }
     let has_even = header_refs.iter().any(|r| r.2 == "even");
+    // 첫 쪽 것이 기본 것과 같은 부분이면 첫 쪽에서 감추지 않는다(Papy 는 바탕쪽만 첫 쪽에서 감출 때 이렇게 쓴다).
+    let same_first = |is_header: bool| {
+        let id = |kind: &str| {
+            header_refs
+                .iter()
+                .find(|r| r.0 == 0 && r.1 == is_header && r.2 == kind)
+                .map(|r| r.3.clone())
+        };
+        id("first").is_some_and(|first| Some(first) == id("default"))
+    };
+    let keep_first = (same_first(true), same_first(false));
+    // 짝수 쪽 것이 기본 것과 같은 부분이면(Papy 는 바탕쪽만 홀짝이 다를 때 이렇게 쓴다) 모든 쪽 것 하나로 읽는다.
+    let same_even: Vec<(usize, bool)> = header_refs
+        .iter()
+        .filter(|r| r.2 == "even")
+        .filter(|even| {
+            header_refs
+                .iter()
+                .any(|r| (r.0, r.1, r.2.as_str(), &r.3) == (even.0, even.1, "default", &even.3))
+        })
+        .map(|r| (r.0, r.1))
+        .collect();
     for (section, is_header, kind, id) in header_refs {
+        let shared_even = same_even.contains(&(section, is_header));
+        if kind == "even" && shared_even {
+            continue;
+        }
         let Some(path) = rels.get(&id).filter(|path| !path.is_empty()) else {
             continue;
         };
         let Some(xml) = read_part(&mut archive, path)? else {
             continue;
         };
+        // Papy 가 쓴 바탕쪽: 표시 문단 뒤는 바탕쪽으로 따로 읽고 머리말에서는 뺀다.
+        let (xml, master) = split_master(&xml);
+        if let (Some((apply, hide, fragment)), true) = (master, is_header && section == 0) {
+            report.hide_first_master |= hide;
+            if !report.masters.iter().any(|m| m.apply_to == apply) {
+                let wrapped = format!("<w:body>{fragment}</w:body>");
+                if let Ok((html, part)) = xml_to_html(bytes, &wrapped, &rels_path_of(path), true, 0)
+                {
+                    report.images += part.images;
+                    report.dropped_drawings += part.dropped_drawings;
+                    report.masters.push(HeaderFooterText {
+                        section,
+                        apply_to: apply,
+                        paragraphs: Vec::new(),
+                        html: Some(crate::notes::strip_field_marks(
+                            &strip_marks_keeping_shapes(&html),
+                        )),
+                        shapes: part.shapes,
+                        cell_shapes: part.cell_shapes,
+                        table_places: part.table_places,
+                    });
+                }
+            }
+        }
         let paragraphs = header_footer_texts(&xml);
         let rich = rich_header_footer(&xml);
         let blank = !rich && paragraphs.iter().all(|p| p.trim().is_empty());
         let apply_to = match kind.as_str() {
-            "default" if has_even => 2,
+            "default" if has_even && !shared_even => 2,
             "default" => 0,
             "even" => 1,
             "first" => {
-                if section == 0 && title_page && !blank {
+                let kept = if is_header {
+                    keep_first.0
+                } else {
+                    keep_first.1
+                };
+                if section == 0 && title_page && !blank && !kept {
                     report.dropped_notes += 1;
                 }
                 continue;
@@ -2383,15 +2466,17 @@ fn xml_to_html(
             // 못 하면 글자만 옮긴다.
             let (mut shapes, mut cell_shapes) = (Vec::new(), Vec::new());
             let html = if !blank {
-                part_to_html(bytes, path, true).ok().map(|(html, part)| {
-                    // 머리말에 둘 수 없는 것(각주·나누기)은 표시 글자를 빼고 빠진 것으로 센다. 도형은 머리말에 넣는다.
-                    report.dropped_drawings += part.dropped_drawings;
-                    report.dropped_notes += part.footnotes.len() + part.endnotes.len();
-                    report.images += part.images;
-                    shapes = part.shapes;
-                    cell_shapes = part.cell_shapes;
-                    crate::notes::strip_field_marks(&strip_marks_keeping_shapes(&html))
-                })
+                xml_to_html(bytes, &xml, &rels_path_of(path), true, 0)
+                    .ok()
+                    .map(|(html, part)| {
+                        // 머리말에 둘 수 없는 것(각주·나누기)은 표시 글자를 빼고 빠진 것으로 센다. 도형은 머리말에 넣는다.
+                        report.dropped_drawings += part.dropped_drawings;
+                        report.dropped_notes += part.footnotes.len() + part.endnotes.len();
+                        report.images += part.images;
+                        shapes = part.shapes;
+                        cell_shapes = part.cell_shapes;
+                        crate::notes::strip_field_marks(&strip_marks_keeping_shapes(&html))
+                    })
             } else {
                 None
             };
@@ -2402,12 +2487,16 @@ fn xml_to_html(
                 html,
                 shapes,
                 cell_shapes,
+                table_places: Vec::new(),
             });
         }
     }
     if title_page {
         let first = |items: &[HeaderFooterText]| items.iter().any(|item| item.section == 0);
-        report.hide_first_page = (first(&report.headers), first(&report.footers));
+        report.hide_first_page = (
+            first(&report.headers) && !keep_first.0,
+            first(&report.footers) && !keep_first.1,
+        );
     }
     Ok((format!("<html><body>{body}</body></html>"), report))
 }

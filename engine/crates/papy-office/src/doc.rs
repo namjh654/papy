@@ -1028,6 +1028,7 @@ impl Reader<'_> {
                     image: Some(ShapeImage::Svg(svg)),
                     insets: crate::shapes::DEFAULT_INSETS,
                     text_anchor: 0,
+                    align: (0, 0),
                     pending: None,
                 }))
             }

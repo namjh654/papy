@@ -414,6 +414,7 @@ impl Art {
             image: None,
             insets: crate::shapes::DEFAULT_INSETS,
             text_anchor: 0,
+            align: (0, 0),
             pending: None,
         };
         // 그림: pib(0x0104, 그림 저장소 1부터)

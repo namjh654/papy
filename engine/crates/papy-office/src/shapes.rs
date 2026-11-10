@@ -92,6 +92,8 @@ pub struct DocxShape {
     pub insets: [i64; 4],
     /// 글상자 글의 세로 자리(`wps:bodyPr anchor`): 0 위, 1 가운데, 2 아래
     pub text_anchor: u8,
+    /// 위치 정렬(`wp:align`) (가로, 세로): 0 값(posOffset), 1 가운데, 2 오른쪽·아래, 3 안쪽, 4 바깥쪽
+    pub align: (u8, u8),
     /// 읽는 중에 찾은 그림·차트 관계 id. [`crate::docx_to_html`] 이 [`DocxShape::image`] 로 푼다.
     pub(crate) pending: Option<Pending>,
 }
@@ -150,6 +152,9 @@ pub(crate) struct Drawing {
     position: Option<(bool, Relative)>,
     in_offset: bool,
     offset_text: String,
+    /// `wp:align` 안(글을 `offset_text` 에 모은다)
+    in_align: bool,
+    align: (u8, u8),
     in_shape_props: bool,
     in_line: bool,
     in_solid: bool,
@@ -416,6 +421,11 @@ impl Drawing {
                 self.in_offset = true;
                 self.offset_text.clear();
             }
+            "align" if !empty && self.position.is_some() => {
+                self.in_offset = true;
+                self.in_align = true;
+                self.offset_text.clear();
+            }
             "wrapNone" => {
                 self.wrap = Some(if self.behind {
                     Wrap::Behind
@@ -531,6 +541,28 @@ impl Drawing {
                 match self.position {
                     Some((true, base)) => self.horizontal = Some((base, value)),
                     Some((false, base)) => self.vertical = Some((base, value)),
+                    None => {}
+                }
+            }
+            "align" if self.in_align => {
+                self.in_offset = false;
+                self.in_align = false;
+                let code = match self.offset_text.trim() {
+                    "center" => 1,
+                    "right" | "bottom" => 2,
+                    "inside" => 3,
+                    "outside" => 4,
+                    _ => 0,
+                };
+                match self.position {
+                    Some((true, base)) => {
+                        self.horizontal = Some((base, 0));
+                        self.align.0 = code;
+                    }
+                    Some((false, base)) => {
+                        self.vertical = Some((base, 0));
+                        self.align.1 = code;
+                    }
                     None => {}
                 }
             }
@@ -656,6 +688,7 @@ impl Drawing {
                 image: None,
                 insets: DEFAULT_INSETS,
                 text_anchor: 0,
+                align: self.align,
                 pending: Some(pending),
             });
         }
@@ -714,6 +747,7 @@ impl Drawing {
             image: None,
             insets: self.insets.unwrap_or(DEFAULT_INSETS),
             text_anchor: self.text_anchor,
+            align: self.align,
             pending: None,
         })
     }

@@ -269,6 +269,17 @@ fn insert(doc: &mut Rhwp, para: usize, offset: usize, shape: &DocxShape) -> Resu
     if !shape.inline {
         props["horzRelTo"] = horz_rel(shape.horizontal.0).into();
         props["vertRelTo"] = vert_rel(shape.vertical.0).into();
+        // Word 정렬(`wp:align`) → 한글 가로·세로 정렬(가운데·오른쪽/아래)
+        match shape.align.0 {
+            1 => props["horzAlign"] = "Center".into(),
+            2 | 4 => props["horzAlign"] = "Right".into(),
+            _ => {}
+        }
+        match shape.align.1 {
+            1 => props["vertAlign"] = "Center".into(),
+            2 | 4 => props["vertAlign"] = "Bottom".into(),
+            _ => {}
+        }
     }
     doc.set_shape_properties_native(0, para, control, &props.to_string())?;
 

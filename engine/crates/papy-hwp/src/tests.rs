@@ -2535,3 +2535,108 @@ fn docx_round_trip_keeps_structure() {
         assert!(changed.is_empty(), "{route}: {changed:#?}");
     }
 }
+
+/// Papy 가 DOCX 머리말에 적은 한글 바탕쪽(`papy:master` 표시 문단 뒤)이 바탕쪽으로 돌아오고, 바탕쪽 틀 표 칸의
+/// 쪽 번호가 쪽마다 바뀌며, HWP 로 저장해도 남고, 다시 DOCX 로 쓰면 표시가 남는다.
+#[test]
+fn docx_master_pages_round_trip() {
+    let ns = r#"xmlns:w="w" xmlns:r="r" xmlns:papy="urn:papy:docx""#;
+    let page = r#"<w:p><w:r><w:br w:type="page"/></w:r></w:p>"#;
+    let document = format!(
+        r#"<w:document {ns}><w:body><w:p><w:r><w:t>첫 쪽 본문</w:t></w:r></w:p>{page}<w:p><w:r><w:t>둘째 쪽 본문</w:t></w:r></w:p>{page}<w:p><w:r><w:t>셋째 쪽 본문</w:t></w:r></w:p><w:sectPr><w:headerReference w:type="default" r:id="rIdOdd"/><w:headerReference w:type="even" r:id="rIdEven"/><w:titlePg/></w:sectPr></w:body></w:document>"#
+    );
+    let marker = |apply: &str| {
+        format!(
+            r#"<w:p papy:master="{apply}" papy:hideFirst="1"><w:pPr><w:spacing w:line="20" w:lineRule="exact"/></w:pPr></w:p>"#
+        )
+    };
+    let odd = format!(
+        r#"<w:hdr {ns}>{}<w:tbl><w:tblPr><w:tblpPr w:vertAnchor="page" w:horzAnchor="page" w:tblpX="1757" w:tblpY="1984"/><w:tblLayout w:type="fixed"/></w:tblPr><w:tblGrid><w:gridCol w:w="3000"/><w:gridCol w:w="3000"/></w:tblGrid><w:tr><w:tc><w:tcPr><w:tcW w:w="3000" w:type="dxa"/></w:tcPr><w:p><w:r><w:t>홀수 틀</w:t></w:r></w:p></w:tc><w:tc><w:tcPr><w:tcW w:w="3000" w:type="dxa"/></w:tcPr><w:p><w:r><w:t xml:space="preserve">쪽 </w:t></w:r><w:fldSimple w:instr=" PAGE "><w:r><w:t>1</w:t></w:r></w:fldSimple><w:r><w:t xml:space="preserve"> / </w:t></w:r><w:fldSimple w:instr=" NUMPAGES "><w:r><w:t>1</w:t></w:r></w:fldSimple></w:p></w:tc></w:tr></w:tbl><w:p/></w:hdr>"#,
+        marker("odd")
+    );
+    let even = format!(
+        r#"<w:hdr {ns}>{}<w:p><w:r><w:t xml:space="preserve">짝수 틀 </w:t></w:r><w:fldSimple w:instr=" PAGE "><w:r><w:t>1</w:t></w:r></w:fldSimple></w:p></w:hdr>"#,
+        marker("even")
+    );
+    let docx = zip_parts(&[
+        ("[Content_Types].xml", "<Types/>"),
+        ("word/document.xml", &document),
+        (
+            "word/_rels/document.xml.rels",
+            r#"<Relationships xmlns="r"><Relationship Id="rIdOdd" Type="header" Target="header1.xml"/><Relationship Id="rIdEven" Type="header" Target="header2.xml"/></Relationships>"#,
+        ),
+        ("word/header1.xml", &odd),
+        ("word/header2.xml", &even),
+        (
+            "word/settings.xml",
+            r#"<w:settings xmlns:w="w"><w:evenAndOddHeaders/></w:settings>"#,
+        ),
+    ]);
+    let mut doc = open(HwpBackend::docx(), docx, &options()).unwrap();
+    assert_eq!(doc.info().dropped_objects, 0);
+    assert_eq!(doc.info().page_count, 3);
+    // 첫 쪽은 바탕쪽을 감춘다. 둘째(짝수) 쪽은 짝수 바탕쪽, 셋째(홀수) 쪽은 홀수 바탕쪽(표 칸 한 문단에 쪽 번호·전체 쪽 수).
+    let first = doc.extract_text(0).unwrap();
+    assert!(!first.contains("틀"), "{first:?}");
+    let second = doc.extract_text(1).unwrap();
+    assert!(
+        second.contains("짝수 틀 2") && !second.contains("홀수"),
+        "{second:?}"
+    );
+    let third = doc.extract_text(2).unwrap();
+    assert!(
+        third.contains("홀수 틀") && third.contains("쪽 3 / 3") && !third.contains("짝수"),
+        "{third:?}"
+    );
+
+    let hwp = doc.save(SaveFormat::Hwp).unwrap();
+    let saved = rhwp::wasm_api::HwpDocument::from_bytes(&hwp).unwrap();
+    let def = &saved.document().sections[0].section_def;
+    assert!(def.hide_master_page);
+    let applies: Vec<_> = def.master_pages.iter().map(|m| m.apply_to).collect();
+    use rhwp::model::header_footer::HeaderFooterApply;
+    // 양쪽 바탕쪽은 없지만 HWP5 차례(양쪽·홀수·짝수)를 지키려고 빈 것을 앞에 둔다.
+    assert_eq!(
+        applies,
+        [
+            HeaderFooterApply::Both,
+            HeaderFooterApply::Odd,
+            HeaderFooterApply::Even
+        ]
+    );
+    // 바탕쪽 틀 표는 쪽 기준 자리에 떠 있고, 칸 쪽 번호는 자동 번호다.
+    let table = def.master_pages[1]
+        .paragraphs
+        .iter()
+        .flat_map(|p| &p.controls)
+        .find_map(|c| match c {
+            rhwp::model::control::Control::Table(t) => Some(t),
+            _ => None,
+        })
+        .expect("바탕쪽 표");
+    assert!(!table.common.treat_as_char);
+    assert!(
+        table
+            .cells
+            .iter()
+            .flat_map(|c| &c.paragraphs)
+            .flat_map(|p| &p.controls)
+            .any(|c| matches!(c, rhwp::model::control::Control::AutoNumber(a)
+                if a.number_type == rhwp::model::control::AutoNumberType::Page)),
+        "{table:?}"
+    );
+
+    // 다시 DOCX 로 쓰면 바탕쪽 표시가 남는다.
+    let docx = doc.save(SaveFormat::Docx).unwrap();
+    let names: Vec<String> = zip::ZipArchive::new(std::io::Cursor::new(&docx))
+        .unwrap()
+        .file_names()
+        .filter(|n| n.starts_with("word/header"))
+        .map(String::from)
+        .collect();
+    let headers: String = names.iter().map(|n| zip_text(&docx, n)).collect();
+    assert!(
+        headers.contains(r#"papy:master="odd""#) && headers.contains(r#"papy:master="even""#),
+        "{headers}"
+    );
+}

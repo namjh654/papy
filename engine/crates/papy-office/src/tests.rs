@@ -292,11 +292,12 @@ fn numbering_footnotes_headers_and_footers() {
     );
     assert!(html.contains(&format!("끝{ENDNOTE_MARK}")), "{html}");
     assert_eq!(report.endnotes, vec![vec![" 미주 글".to_string()]]);
-    // 표 안 각주는 표시와 함께 넘기고(papy-hwp 가 칸으로 옮긴다), 글자가 있는 첫 쪽 머리말만 옮기지 못한다.
+    // 표 안 각주는 표시와 함께 넘긴다(papy-hwp 가 칸으로 옮긴다). 첫 쪽 머리말은 기본 머리말과 같은 부분이라
+    // 첫 쪽에도 그대로 보이고(감추지 않는다), 첫 쪽 꼬리말은 없어 첫 쪽에서 감춘다.
     assert!(html.contains(&format!("칸{FOOTNOTE_MARK}")), "{html}");
     assert_eq!(report.footnotes.len(), 2);
-    assert_eq!(report.dropped_notes, 1);
-    assert_eq!(report.hide_first_page, (true, true));
+    assert_eq!(report.dropped_notes, 0);
+    assert_eq!(report.hide_first_page, (false, true));
     assert_eq!(
         report.headers,
         vec![HeaderFooterText {

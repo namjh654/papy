@@ -28,6 +28,7 @@ mod fields;
 mod fragment;
 mod links;
 mod lists;
+mod masters;
 mod notes;
 mod repair;
 mod shapes;
@@ -555,6 +556,7 @@ fn open_converted(
         let mut dropped =
             notes::apply(&mut doc, &report)? + shapes::apply(&mut doc, &report.shapes)?;
         dropped += shapes::apply_in_cells(&mut doc, &report.cell_shapes)?;
+        dropped += masters::apply(&mut doc, &report)?;
         if !report.cell_shapes.is_empty() {
             // 칸에 넣은 도형만큼 칸 줄 높이를 다시 잡는다.
             doc.reflow_table_cells_native(0)?;
