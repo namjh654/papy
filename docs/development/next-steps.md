@@ -74,13 +74,14 @@ cargo clippy -p papy-hwp -p papy-office -p papy-core --all-targets -- -D warning
 ### 1-2. PR 병합 (사용자)
 PR #30(`feature/fidelity-exam-kor`)과 #31(`feature/rhwp-0.9`)을 병합한다. 병합된 브랜치는 지워도 된다(사용자 허락함).
 
-### 1-3. 변환 오차 고지 (앱)
-1. 데스크톱:
-   - 다른 형식으로 저장·내보내기할 때(HWP↔DOCX, DOC → DOCX·HWP) "배치와 쪽 수가 원본과 다를 수 있음"을 알린다.
-     처음 한 번 확인받고, 다시 보지 않기를 둔다.
-   - 다른 형식 문서를 열 때 문서 정보에 같은 문구와 옮기지 못한 요소 수(`dropped_objects`)를 보여 준다.
-2. 모바일(Android·iOS): PDF 내보내기와 열기 때 같은 문구를 보여 준다.
-3. 웹사이트 안내(`website/`)와 `docs/formats/word.md` "알려진 한계"에 같은 내용을 넣는다.
+### 1-3. ~~변환 오차 고지 (앱)~~ (2026-11-11 완료, 브랜치 `feature/conversion-notice`)
+- 데스크톱(`apps/desktop/src/convert.ts`, `App.tsx`):
+  - 한글 ↔ 워드로 저장·내보내기 전에 확인 창을 띄운다("계속", "다시 묻지 않고 계속", "취소").
+  - Word 문서를 열면 안내 띠를 띄운다("다시 보지 않기", "닫기"). 고른 값은 이 기기 앱 저장소에만 남는다.
+- 모바일(`ViewerUiState.showLayoutNotice`): Word 문서를 열면 안내를 띄운다(옮기지 못한 요소 안내가 먼저, 한 번에 하나).
+  iOS 쪽은 코드만 넣었고 **Xcode 빌드는 아직 확인하지 않았다**.
+- 웹사이트 사용법(한·영)과 `docs/formats/word.md` "알려진 한계"에 같은 내용을 넣었다.
+- 남은 확인: 데스크톱 앱을 실제로 띄워 확인 창·안내 띠 보기, iOS 빌드.
 
 ### 1-4. rhwp 버전 맞추기
 - 엔진(네이티브)은 0.9.0이다. 그런데 **rhwp-studio·@rhwp/core WASM·문서 모음(`fetch-corpus.mjs` `tag: "v0.8.7"`)은 아직 0.8.7**이다.

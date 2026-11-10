@@ -45,6 +45,14 @@ export const en: Messages = {
         .join(" "),
     dropped: (count) =>
       `${count} element(s) in this document (charts, pictures inside groups, footnotes inside tables and so on) can't be carried over yet and aren't shown. Saving will leave them out, so keep a copy of the original.`,
+    wordLayout:
+      "Word documents are shown with Papy's layout engine. Line breaks, page count and object positions may differ from Word.",
+    dontShowAgain: "Don't show again",
+    convertTitle: "Save in another format",
+    convertQuestion: (format) =>
+      `Saving as ${format} uses a different layout model, so line breaks, page count and object positions may differ from the original.\nKeep a copy of the original file. Continue?`,
+    convertContinue: "Continue",
+    convertAlways: "Continue and don't ask again",
     openFilter: "Documents (PDF, HWP, HWPX, DOCX, DOC)",
     studioApplied: "Advanced edits applied. Save to write them to the file.",
     onlySupported: "Only PDF, HWP, HWPX, DOCX and DOC files can be opened.",

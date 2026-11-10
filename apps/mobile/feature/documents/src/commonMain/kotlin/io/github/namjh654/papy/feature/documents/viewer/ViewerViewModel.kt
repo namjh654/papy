@@ -177,6 +177,8 @@ class ViewerViewModel(
 
     fun dismissLoss() = setState { copy(lossDismissed = true) }
 
+    fun dismissLayoutNotice() = setState { copy(layoutDismissed = true) }
+
     /** 지금 쪽의 글자를 읽어 창으로 보여 준다 */
     fun showText() {
         val id = session ?: return

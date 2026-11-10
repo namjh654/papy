@@ -348,6 +348,13 @@ fun ViewerScreen(ref: String, name: String, onBack: () -> Unit) {
                     modifier = Modifier.align(Alignment.TopCenter),
                 )
             }
+            if (state.phase == ViewerPhase.Ready && state.showLayoutNotice) {
+                Notice(
+                    text = stringResource(R.string.viewer_word_layout),
+                    onClose = viewModel::dismissLayoutNotice,
+                    modifier = Modifier.align(Alignment.TopCenter),
+                )
+            }
             if (state.phase == ViewerPhase.Ready && state.showLoss) {
                 Notice(
                     text = stringResource(R.string.viewer_loss, state.document?.droppedObjects ?: 0),

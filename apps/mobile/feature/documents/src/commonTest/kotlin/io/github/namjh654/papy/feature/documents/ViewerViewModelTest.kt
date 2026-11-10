@@ -9,6 +9,7 @@ import io.github.namjh654.papy.feature.documents.viewer.StyleToggle
 import io.github.namjh654.papy.feature.documents.viewer.TableCommand
 import io.github.namjh654.papy.feature.documents.viewer.ViewerEvent
 import io.github.namjh654.papy.feature.documents.viewer.ViewerPhase
+import io.github.namjh654.papy.feature.documents.viewer.ViewerUiState
 import io.github.namjh654.papy.feature.documents.viewer.ViewerViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -221,6 +222,23 @@ class ViewerViewModelTest {
     fun tearDown() = Dispatchers.resetMain()
 
     private fun recents() = RecentDocuments(MemoryStorage(), now = { 1L })
+
+    /** Word 문서는 조판 차이 안내를 띄운다(옮기지 못한 요소 안내가 먼저, 한 번에 하나). 한글 문서에는 띄우지 않는다. */
+    @Test
+    fun wordDocumentsShowLayoutNotice() {
+        val opened = { kind: DocumentKind, dropped: Int ->
+            ViewerUiState(name = "a", document = OpenedDocument(session = 1, kind = kind, pageCount = 1, title = null, droppedObjects = dropped))
+        }
+        assertTrue(opened(DocumentKind.Docx, 0).showLayoutNotice)
+        assertTrue(opened(DocumentKind.Doc, 0).showLayoutNotice)
+        assertFalse(opened(DocumentKind.Hwp, 0).showLayoutNotice)
+        assertFalse(opened(DocumentKind.Pdf, 0).showLayoutNotice)
+        val lossy = opened(DocumentKind.Docx, 2)
+        assertTrue(lossy.showLoss)
+        assertFalse(lossy.showLayoutNotice)
+        assertTrue(lossy.copy(lossDismissed = true).showLayoutNotice)
+        assertFalse(lossy.copy(lossDismissed = true, layoutDismissed = true).showLayoutNotice)
+    }
 
     @Test
     fun opensReadsSizesAndRemembers() = runTest(dispatcher) {

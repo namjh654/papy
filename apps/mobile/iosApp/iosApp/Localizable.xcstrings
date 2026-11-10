@@ -1599,6 +1599,23 @@
         }
       }
     },
+    "viewer_word_layout" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Word documents are shown with Papy's layout engine. Line breaks, page count and object positions may differ from Word."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Word 문서는 Papy 조판 엔진으로 보여 줍니다. 줄바꿈·쪽 수·개체 자리가 Word 와 다를 수 있습니다."
+          }
+        }
+      }
+    },
     "viewer_opening" : {
       "extractionState" : "manual",
       "localizations" : {
