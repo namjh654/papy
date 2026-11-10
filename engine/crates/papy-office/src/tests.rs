@@ -1214,7 +1214,10 @@ fn pictures_captions_inline_tables_links_and_memos_are_written() {
         .find(r#"<w:p papy:caption="top">"#)
         .expect("top caption");
     assert!(top < xml.find("<w:tbl>").unwrap_or(0), "{xml}");
-    assert!(xml.contains(r#"<w:tblPr papy:inline="1">"#), "{xml}");
+    assert!(
+        xml.contains(r#"<w:tblPr papy:inline="1" papy:outer=""#),
+        "{xml}"
+    );
     // 하이퍼링크·메모
     assert!(xml.contains(r#"<w:hyperlink r:id="rIdLink1">"#), "{xml}");
     assert!(

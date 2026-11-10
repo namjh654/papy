@@ -76,10 +76,14 @@ pub struct DocxReadReport {
     pub table_places: Vec<String>,
     /// 본문 맨 바깥 표마다 Papy 가 쓴 한글 "글자처럼 취급" 표인가(`papy:inline`, 문서 순서).
     pub table_inline: Vec<bool>,
+    /// 본문 맨 바깥 표마다 Papy 가 쓴 한글 표 바깥 여백(HWPUNIT, 위·아래·왼쪽·오른쪽, `papy:outer`). 없으면 None.
+    pub table_outer: Vec<Option<[i32; 4]>>,
     /// 본문·표 칸 번호 목록 문단의 정의([`crate::LIST_MARK`] 뒤 글자가 가리킨다). 머리말·주석·글상자 안 목록은 번호 글자로 읽는다.
     pub lists: Vec<crate::ListDef>,
     /// 첫 구역의 쪽 크기·여백·다단(`w:pgSz`·`w:pgMar`·`w:cols`). 없거나 이상하면 None(빈 문서 기본값을 쓴다).
     pub page: Option<PageSetup>,
+    /// 한글 원본에서 HFT(한컴 옛 글꼴)였던 글꼴 이름(`word/fontTable.xml` 의 `papy:hft`). 본문에서만 읽는다.
+    pub hft_fonts: Vec<String>,
 }
 
 /// Word 메모 하나.
@@ -93,6 +97,27 @@ pub struct DocxComment {
     pub text: String,
     /// 메모를 단 문단 글(앞 60자)
     pub anchor: String,
+}
+
+/// `word/fontTable.xml` 에서 Papy 가 `papy:hft="1"` 로 표시한 글꼴 이름(한글 원본의 HFT 글꼴).
+fn hft_fonts(xml: &str) -> Vec<String> {
+    let mut reader = Reader::from_str(xml);
+    let mut out = Vec::new();
+    loop {
+        match reader.read_event() {
+            Ok(Event::Eof) | Err(_) => break,
+            Ok(Event::Start(e) | Event::Empty(e))
+                if local(e.name().as_ref()) == "font"
+                    && attr(&e, "hft").as_deref() == Some("1") =>
+            {
+                if let Some(name) = attr(&e, "name").filter(|name| !name.is_empty()) {
+                    out.push(name);
+                }
+            }
+            _ => {}
+        }
+    }
+    out
 }
 
 /// `word/comments.xml` → id 별 (쓴 사람, 때, 글).
@@ -927,6 +952,8 @@ struct TableBuild {
     place: String,
     /// 한글에서 글자처럼 취급한 표(`papy:inline`)
     inline: bool,
+    /// 한글 표 바깥 여백(`papy:outer`, HWPUNIT 위·아래·왼쪽·오른쪽)
+    outer: Option<[i32; 4]>,
 }
 
 struct CellBuild {
@@ -1756,6 +1783,7 @@ fn xml_to_html(
                             indent: 0,
                             place: String::new(),
                             inline: false,
+                            outer: None,
                         });
                     }
                     "tr" => {
@@ -1785,11 +1813,13 @@ fn xml_to_html(
                         }));
                     }
                     "tblPr" => {
-                        if let (Some(table), true) = (
-                            tables.last_mut(),
-                            attr(&e, "inline").as_deref() == Some("1"),
-                        ) {
-                            table.inline = true;
+                        if let Some(table) = tables.last_mut() {
+                            table.inline |= attr(&e, "inline").as_deref() == Some("1");
+                            table.outer = attr(&e, "outer").and_then(|v| {
+                                let parts: Vec<i32> =
+                                    v.split(',').filter_map(|p| p.trim().parse().ok()).collect();
+                                <[i32; 4]>::try_from(parts).ok()
+                            });
                         }
                     }
                     "tblpPr" => {
@@ -2283,6 +2313,7 @@ fn xml_to_html(
                             report.table_indents.push(table.indent.saturating_mul(5));
                             report.table_places.push(table.place.clone());
                             report.table_inline.push(table.inline);
+                            report.table_outer.push(table.outer);
                         }
                         let html = table.to_html();
                         out(&mut body, &mut cell, &html);
@@ -2298,6 +2329,11 @@ fn xml_to_html(
         }
     }
     report.lists = std::mem::take(&mut numbering.lists);
+    if depth == 0 && !header {
+        report.hft_fonts = read_part(&mut archive, "word/fontTable.xml")?
+            .map(|xml| hft_fonts(&xml))
+            .unwrap_or_default();
+    }
     // 문단이 가장 많은 구역(같으면 앞 구역).
     report.page = section_pages
         .iter()

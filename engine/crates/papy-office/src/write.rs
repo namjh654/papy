@@ -1777,11 +1777,18 @@ fn write_table(
     } else {
         String::new()
     };
-    // 한글 "글자처럼 취급" 표: Papy 가 다시 열 때 그대로 둔다(Word 는 무시한다).
+    // 한글 "글자처럼 취급" 표: Papy 가 다시 열 때 그대로 둔다(Word 는 무시한다). 바깥 여백도 함께 적는다 —
+    // 없으면 다시 열 때 0.5mm 로 두어, 여백 0 인 시험지 답 줄(①~⑤)마다 줄이 높아져 단이 넘쳤다.
     let inline = if table.common.treat_as_char {
-        r#" papy:inline="1""#
+        format!(
+            r#" papy:inline="1" papy:outer="{},{},{},{}""#,
+            table.outer_margin_top,
+            table.outer_margin_bottom,
+            table.outer_margin_left,
+            table.outer_margin_right
+        )
     } else {
-        ""
+        String::new()
     };
     let mut properties = format!(
         r#"<w:tbl><w:tblPr{inline}>{float}<w:tblW w:w="0" w:type="auto"/><w:tblInd w:w="{indent}" w:type="dxa"/><w:tblLayout w:type="fixed"/>"#
@@ -2278,10 +2285,18 @@ fn font_table_xml(info: &DocInfo) -> String {
         } else {
             ("swiss", "Malgun Gothic")
         };
+        // 한글 HFT 글꼴(한컴 옛 글꼴)인지: rhwp 는 HFT 글꼴의 ASCII 구두점을 영문 글꼴 폭으로 잰다(한/글과 같다).
+        // DOCX 에는 자리가 없어 Papy 로 다시 열면 TTF 로 읽혀 쉼표가 한글 글꼴 폭이 되고 시험지 답 줄이 접혔다.
+        let hft = info
+            .font_faces
+            .iter()
+            .flatten()
+            .any(|font| font.name == name && font.alt_type == 2);
         let _ = write!(
             xml,
-            r#"<w:font w:name="{}"><w:altName w:val="{alt}"/><w:charset w:val="81"/><w:family w:val="{family}"/><w:pitch w:val="{}"/></w:font>"#,
+            r#"<w:font w:name="{}"{}><w:altName w:val="{alt}"/><w:charset w:val="81"/><w:family w:val="{family}"/><w:pitch w:val="{}"/></w:font>"#,
             xml_escape(name),
+            if hft { r#" papy:hft="1""# } else { "" },
             if fixed { "fixed" } else { "variable" }
         );
     }

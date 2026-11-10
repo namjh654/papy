@@ -235,6 +235,7 @@ fn split_tables_across_pages(
     indents: &[i32],
     places: &[String],
     inline: &[bool],
+    outer: &[Option<[i32; 4]>],
 ) -> std::result::Result<(), rhwp::HwpError> {
     let tables: Vec<(usize, usize)> = doc
         .document()
@@ -254,17 +255,26 @@ fn split_tables_across_pages(
     // 원본 표의 왼쪽 자리(`w:tblInd`)는 붙여넣은 순서와 같을 때만 쓴다(바깥 여백 대신 위치로).
     let same_order = indents.len() == tables.len();
     let mut floating = Vec::new();
+    let mut inline_hosts = Vec::new();
     for (index, (para, control)) in tables.into_iter().enumerate() {
         let float = places.get(index).filter(|p| same_order && !p.is_empty());
         let keep_inline = same_order && inline.get(index).copied().unwrap_or(false);
         let json = match float {
             // 한글에서 글자처럼 취급한 표(Papy 가 쓴 DOCX): 글자처럼 둔다. 쪽 경계에서는 셀 단위로 나눈다.
-            None if keep_inline => {
-                format!(
+            // 바깥 여백은 원본 값(`papy:outer`)을, 없으면 위아래 0.5mm 를 쓴다.
+            None if keep_inline => match outer.get(index).copied().flatten() {
+                Some([top, bottom, left, right]) => format!(
+                    r#"{{"treatAsChar":true,"pageBreak":1,"outerTop":{},"outerBottom":{},"outerLeft":{},"outerRight":{}}}"#,
+                    top.max(0),
+                    bottom.max(0),
+                    left.max(0).max(indents[index].max(0)),
+                    right.max(0)
+                ),
+                None => format!(
                     r#"{{"treatAsChar":true,"pageBreak":1,"outerTop":141,"outerBottom":141,"outerLeft":{}}}"#,
                     indents[index].max(0)
-                )
-            }
+                ),
+            },
             // 쪽·종이 기준 자리: 그 자리에 놓고 쪽을 나누지 않는다(결재란 등).
             Some(place) => {
                 // 글 앞·뒤 표는 그 배치를 쓴다(place 에 textWrap 이 있다).
@@ -292,9 +302,16 @@ fn split_tables_across_pages(
         doc.set_table_properties_native(0, para, control, &json)?;
         if float.is_some() {
             floating.push(para);
+        } else if keep_inline && inline_hosts.last() != Some(&para) {
+            inline_hosts.push(para);
         }
     }
     shrink_floating_table_lines(doc, &floating);
+    // 글자처럼 둔 표의 문단 줄은 붙여넣을 때의 바깥 여백(위아래 1mm)으로 잡혀 있다. 바꾼 여백으로 줄을 다시 잡는다
+    // (배치 중이라 저절로 다시 나누지 않는다).
+    for para in inline_hosts {
+        doc.reflow_body_paragraph_range_native(0, para..para + 1)?;
+    }
     Ok(())
 }
 
@@ -537,6 +554,26 @@ fn reserve_table_border_fill(doc: &mut Rhwp) {
     doc.set_document(document);
 }
 
+/// 한글 원본에서 HFT(한컴 옛 글꼴)였던 글꼴(`papy:hft`)을 붙여넣기 전에 HFT 로 등록해 둔다. 붙여넣기는 같은 이름의
+/// 글꼴을 다시 쓴다. rhwp 는 HFT 글꼴이면 ASCII 구두점을 영문 글꼴 폭으로 재는데(한/글과 같다, rhwp #7418),
+/// TTF 로 새로 만들면 쉼표가 한글 글꼴 폭으로 넓어져 시험지 답 줄("ㄱ, ㄴ, ㄷ")이 접히고 쪽이 늘었다(exam_science 4 → 7).
+fn mark_hft_fonts(doc: &mut Rhwp, names: &[String]) {
+    if names.is_empty() {
+        return;
+    }
+    for name in names {
+        doc.find_or_create_font_id_native(name);
+    }
+    let mut document = doc.document().clone();
+    for font in document.doc_info.font_faces.iter_mut().flatten() {
+        if names.contains(&font.name) {
+            font.alt_type = 2;
+        }
+    }
+    document.doc_info.raw_stream_dirty = true;
+    doc.set_document(document);
+}
+
 /// 다른 형식을 붙여넣어 만드는 빈 문서를 준비한다.
 /// - 출처를 "다른 형식에서 옮김"으로 표시한다(rhwp 패치 0018: 저장 vpos 가 한글 배치가 아니라 떠 있는 표 흐름을 따로 맞춘다).
 /// - Word 는 빈칸을 늘 글꼴의 빈칸 너비로 잰다. 붙여넣어 만드는 글자 모양이 바탕 글자 모양을 이어받으므로
@@ -567,6 +604,7 @@ fn open_converted(
         doc.create_blank_document_native()?;
         reserve_table_border_fill(&mut doc);
         prepare_foreign(&mut doc);
+        mark_hft_fonts(&mut doc, &report.hft_fonts);
         // 쪽 크기·여백·다단을 먼저 맞춰야 붙여넣은 글과 표가 그 너비로 조판된다.
         if let Some(page) = report.page {
             doc.set_page_def_native(
@@ -624,6 +662,7 @@ fn open_converted(
             &report.table_indents,
             &report.table_places,
             &report.table_inline,
+            &report.table_outer,
         )?;
         // 붙여넣은 표 칸은 한 줄로만 잡혀 있다. 칸 너비로 다시 나눠 긴 글이 잘리지 않게 한다.
         doc.reflow_table_cells_native(0)?;
