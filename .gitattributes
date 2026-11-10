@@ -1,3 +1,6 @@
 # Windows 배치 파일은 체크아웃 시 항상 CRLF (core.autocrlf 설정과 무관하게).
 *.bat text eol=crlf
 *.cmd text eol=crlf
+
+# rhwp 패치는 어디서나 LF (받은 rhwp 소스도 LF 로 둔다, scripts/fetch-rhwp.mjs).
+*.patch text eol=lf
