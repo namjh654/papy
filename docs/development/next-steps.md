@@ -1,4 +1,4 @@
-# 이어서 할 일 (2026-11-09 갱신)
+# 이어서 할 일 (2026-11-10 갱신)
 
 Windows 에서 하던 변환 품질 작업을 macOS 에서 잇기 위한 메모. 끝나면 이 파일을 지우거나 [roadmap.md](roadmap.md) 로 옮긴다.
 
@@ -14,7 +14,7 @@ Windows 에서 하던 변환 품질 작업을 macOS 에서 잇기 위한 메모.
 
 ```bash
 git fetch && git switch feature/windows-fidelity && git pull
-node scripts/fetch-rhwp.mjs          # rhwp v0.8.7 + engine/patches/rhwp 0001~0017 적용
+node scripts/fetch-rhwp.mjs          # rhwp v0.9.0 + engine/patches/rhwp/*.patch 적용
 node scripts/fetch-corpus.mjs        # rhwp 샘플·POI 문서(git 제외)
 cd engine && cargo test --workspace && cargo clippy --workspace --all-targets -- -D warnings
 ```
@@ -79,6 +79,12 @@ HWP/HWPX → DOCX → 다시 열기; `요소 바뀐문서/전체 원본합→결
    Papy 로 다시 열면 바탕쪽으로 되돌린다. 틀 표 칸 쪽 번호도 쪽마다 맞게). 남은 것: 마지막 쪽 등 확장 바탕쪽("확인 사항" 상자),
    그림 자르기(`a:srcRect` ↔ 한글 그림 자르기 — 시험지 머리 "국어 영역" 그림이 잘리지 않고 통째로 나온다),
    DOCX 에서 연 문서를 HWP 로 저장했다 다시 열면 쪽이 하나 느는 것(exam-kor-4p 5 → 6, 바탕쪽과 무관).
+8. 2026-11-10 rhwp **v0.9.0** 으로 올림(패치 0001·0013·0020 은 업스트림이 고쳐 뺌, 0022 새로 — 옮긴 문서의 묶음 빈칸 폭).
+   exam_eng 8쪽 그대로. 0.9 에서 쪽이 는 것: exam_kor 26 → 28(원본 20), exam_science 4 → 7, exam_social 3 → 5(원본 4).
+   0.8.7 은 떠 있는 개체 위에 글이 겹쳐 쪽이 적었고, 0.9 는 글을 개체 둘레로 흘린다 — 작은 넘침 뒤 강제 쪽 나누기로 쪽이 는다.
+   다음에 볼 것: 그 넘침이 Papy 가 쓰는 개체 크기·바깥 여백 때문인지 rhwp 조판 때문인지(쪽마다 넘친 문단 높이 비교).
+   rhwp-studio·@rhwp/core WASM·샘플 문서 모음은 아직 0.8.7(따로 올림). 0.9 배치 모드는 `paginate` 를 미루므로 배치 안에서
+   쪽·줄 자리를 묻지 말 것(그림 자리는 `shapes::measure` 로 배치 전에 잰다). Papy 표시 글자는 U+E0xx(0.9 가 U+E0BC~ 를 옛한글로 바꾼다).
 
 ## Windows 에서만 하는 것 (다음에 Windows 로 갈 때)
 

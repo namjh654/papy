@@ -339,6 +339,7 @@ fn shrink_floating_table_lines(doc: &mut Rhwp, paragraphs: &[usize]) {
 /// - 쪽 경계에서 나눌 수 있게 한다. 붙여넣은 표는 "나누지 않음"이라 rhwp 가 칸 안 표를 한 덩어리로 다뤄,
 ///   쪽보다 긴 칸 안 표는 다음 쪽으로 통째 넘어간 뒤 아래가 잘렸다. "셀 단위로 나눔"이면 행마다 쪽을 나눈다.
 /// - 담는 칸보다 넓은 칸 안 표는 칸 너비에 맞게 줄인다(칸 밖은 잘려 보이지 않았다).
+/// - 종이 끝을 넘는 맨 바깥 표는 본문 폭으로 줄인다.
 fn split_nested_tables(doc: &mut Rhwp) {
     use rhwp::model::control::Control;
     use rhwp::model::paragraph::Paragraph;
@@ -357,7 +358,14 @@ fn split_nested_tables(doc: &mut Rhwp) {
             .max()
             .unwrap_or(0)
     }
-    fn walk(paragraphs: &mut [Paragraph], depth: usize, room: Option<u32>, changed: &mut bool) {
+    /// `room`: 맨 바깥(depth 0)은 (종이 끝까지 너비, 본문 폭), 칸 안은 (칸 안쪽 너비, 같은 값)
+    fn walk(
+        paragraphs: &mut [Paragraph],
+        depth: usize,
+        room: Option<(u32, u32)>,
+        body: u32,
+        changed: &mut bool,
+    ) {
         if depth > 16 {
             return;
         }
@@ -366,9 +374,39 @@ fn split_nested_tables(doc: &mut Rhwp) {
                 let Control::Table(table) = control else {
                     continue;
                 };
-                if depth > 0 {
+                if depth == 0 {
+                    // rhwp 0.9 HTML 표 가져오기는 칸 안 표가 칸보다 넓으면 바깥 칸을 그만큼 넓힌다.
+                    // 종이 끝을 넘은 바깥 표는 보이지 않으니 본문 폭으로 줄인다(안쪽 표는 아래에서 칸에 맞춘다).
+                    if let Some((edge, text)) = room {
+                        let width = table_width(table);
+                        if text > 0 && width > edge {
+                            let scale = f64::from(text) / f64::from(width);
+                            for cell in &mut table.cells {
+                                cell.width = (f64::from(cell.width) * scale).floor() as u32;
+                            }
+                            table.common.width =
+                                (f64::from(table.common.width) * scale).floor() as u32;
+                            *changed = true;
+                        }
+                    }
+                } else {
+                    let room = room.map(|(room, _)| room);
                     if table.row_count >= 2 && matches!(table.page_break, TablePageBreak::None) {
                         table.page_break = TablePageBreak::CellBreak;
+                        *changed = true;
+                    }
+                    // rhwp 0.9 는 글자처럼 취급한 표를 글자 하나처럼 나누지 않는다(한/글과 같다). 붙여넣은 표는
+                    // 모두 글자처럼 취급이라, 본문보다 긴 칸 안 표는 다음 쪽으로 통째 넘어가 아래가 잘린다.
+                    // 그런 표만 글자처럼 취급을 풀어(문단 기준 자리차지 그대로) 행마다 쪽을 나누게 한다.
+                    if table.common.treat_as_char
+                        && table.row_count >= 2
+                        && table.common.height > body
+                    {
+                        table.common.treat_as_char = false;
+                        table.common.attr &= !1;
+                        if let Some(attr) = table.raw_ctrl_data.first_mut() {
+                            *attr &= !1;
+                        }
                         *changed = true;
                     }
                     let width = table_width(table);
@@ -388,7 +426,13 @@ fn split_nested_tables(doc: &mut Rhwp) {
                     let padding = u32::from(cell.padding.left.max(0) as u16)
                         + u32::from(cell.padding.right.max(0) as u16);
                     let room = cell.width.saturating_sub(padding);
-                    walk(&mut cell.paragraphs, depth + 1, Some(room), changed);
+                    walk(
+                        &mut cell.paragraphs,
+                        depth + 1,
+                        Some((room, room)),
+                        body,
+                        changed,
+                    );
                 }
             }
         }
@@ -396,7 +440,34 @@ fn split_nested_tables(doc: &mut Rhwp) {
     let mut document = doc.document().clone();
     let mut changed = false;
     for section in &mut document.sections {
-        walk(&mut section.paragraphs, 0, None, &mut changed);
+        let page = &section.section_def.page_def;
+        let paper = if page.landscape {
+            page.height
+        } else {
+            page.width
+        };
+        let paper = if paper == 0 { 59528 } else { paper };
+        let left = page.margin_left.saturating_add(page.margin_gutter);
+        let edge = paper.saturating_sub(left);
+        let text = edge.saturating_sub(page.margin_right);
+        let tall = if page.landscape {
+            page.width
+        } else {
+            page.height
+        };
+        let tall = if tall == 0 { 84188 } else { tall };
+        let body = tall
+            .saturating_sub(page.margin_top)
+            .saturating_sub(page.margin_bottom)
+            .saturating_sub(page.margin_header)
+            .saturating_sub(page.margin_footer);
+        walk(
+            &mut section.paragraphs,
+            0,
+            Some((edge, text)),
+            body,
+            &mut changed,
+        );
     }
     if changed {
         doc.set_document(document);
@@ -476,6 +547,9 @@ fn prepare_foreign(doc: &mut Rhwp) {
     for shape in &mut document.doc_info.char_shapes {
         shape.use_font_space = true;
     }
+    // Word 는 묶음 빈칸(U+00A0)도 글꼴의 빈칸 폭으로 잰다. 한/글처럼 반각으로 재면 밑줄 빈칸 줄
+    // (`Woman: ____`)이 넘쳐 접혀 쪽이 는다(rhwp 패치 0022, exam_eng).
+    document.doc_info.nbsp_font_space = true;
     document.doc_info.raw_stream_dirty = true;
     doc.set_document(document);
 }
@@ -541,6 +615,7 @@ fn open_converted(
         }
         // 붙여넣은 뒤 고치기(표 속성·하이퍼링크·각주·도형 등)는 편집마다 쪽을 다시 짜지 않고 끝에서 한 번 짠다.
         // 하이퍼링크가 수백 개인 문서가 링크마다 쪽을 다시 짜 열기에 십수 초 걸렸다.
+        let papers = shapes::measure(&doc, &report.shapes);
         doc.begin_batch_native()?;
         unindent_table_paragraphs(&mut doc);
         split_nested_tables(&mut doc);
@@ -554,7 +629,7 @@ fn open_converted(
         doc.reflow_table_cells_native(0)?;
         links::apply(&mut doc, &report.hyperlinks);
         let mut dropped =
-            notes::apply(&mut doc, &report)? + shapes::apply(&mut doc, &report.shapes)?;
+            notes::apply(&mut doc, &report)? + shapes::apply(&mut doc, &report.shapes, &papers)?;
         dropped += shapes::apply_in_cells(&mut doc, &report.cell_shapes)?;
         dropped += masters::apply(&mut doc, &report)?;
         if !report.cell_shapes.is_empty() {

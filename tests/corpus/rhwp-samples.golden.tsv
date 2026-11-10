@@ -1,21 +1,21 @@
 # Papy 문서 모음 기준값 — 경로	형식	쪽 수	쪽 크기 해시	글 해시	못 옮긴 요소 (또는 error	코드)
 # 다시 만들기: PAPY_CORPUS_UPDATE=1 (crates/papy-core/tests/corpus.rs)
-143E433F503322BD33.hwp	OLE compound file	1	e5989f18eb184be8	a855b32beeadb03f	0
-156457624_210622 7월부터 해외직구 구매대행업체 등록제 시행.hwp	OLE compound file	5	a98db8f3a1da7840	eacfa725e6f2b77e	0
+143E433F503322BD33.hwp	OLE compound file	1	e5989f18eb184be8	639df5019633c69f	0
+156457624_210622 7월부터 해외직구 구매대행업체 등록제 시행.hwp	OLE compound file	5	a98db8f3a1da7840	79b15fed621833c6	0
 156636617_240617 2024년 5월 월간 수출입 현황(확정치).hwp	OLE compound file	19	cc101f989bf8837c	067ccc7cc11086ca	0
 2010-01-06.hwp	OLE compound file	6	633c8afaf6501d69	7f35cdbf93e903f5	0
 2010-exam_kor.pdf	PDF	31	b1f144160a49475e	7efb7b37b21f823d	0
 2020-exam_kor.pdf	PDF	20	f77b6f444bb9a53d	0b2e716a4f728167	0
-2022년 국립국어원 업무계획.hwp	OLE compound file	35	5fa49d89e7136d9c	cee24bbc084939db	0
+2022년 국립국어원 업무계획.hwp	OLE compound file	35	5fa49d89e7136d9c	0ba616831eb46a7b	0
 2022년 국립국어원 업무계획.pdf	PDF	35	78e5f52143f84656	b3b83b725e2e9ede	0
-2025 행정업무운영 편람(최종).hwp	OLE compound file	381	9926b7d5550b8cbc	fef0deeb88629958	0
-2025 행정업무운영 편람(최종).hwpx	HWPX	383	ec97800fde2e74ac	34c7574f7ecfd144	0
+2025 행정업무운영 편람(최종).hwp	OLE compound file	383	ec97800fde2e74ac	27cbd9ccbbe9b8cb	0
+2025 행정업무운영 편람(최종).hwpx	HWPX	383	ec97800fde2e74ac	f04206ae9867bfdd	0
 20250130-hongbo-no.hwp	OLE compound file	4	cb34ff9c7c790a8d	f4930697b387bb97	0
 20250130-hongbo.hwp	OLE compound file	4	cb34ff9c7c790a8d	f4930697b387bb97	0
 20250130-hongbo_saved.hwp	OLE compound file	5	a98db8f3a1da7840	c06c34afc0b0ae33	0
 2025년 기부·답례품 실적 지자체 보고서_양식.hwpx	HWPX	30	4aeb87b8e6c9c139	4397f97bd5323d0f	0
 2025년 기부·답례품 실적 지자체 보고서_양식.pdf	PDF	30	d3c49cfc2c4f80b1	c17b3d4f57f5c735	0
-2026_oss_rst.hwp	OLE compound file	6	33211352110f4e35	2d4253d40751a847	0
+2026_oss_rst.hwp	OLE compound file	6	33211352110f4e35	5e7bac80ad396a6f	0
 21868765_별표2_보건소_분장사무.hwp	OLE compound file	4	cb34ff9c7c790a8d	3a09fa261080e896	0
 21868765_별표2_보건소_분장사무.pdf	PDF	4	3367d86ab1e0fc1d	d7e2be22b0a0825d	0
 21_언어_기출_편집가능본-2010.pdf	PDF	16	27e0556027fcc875	68e9b5fe9957fbc2	0
@@ -23,76 +23,76 @@
 21_언어_기출_편집가능본.hwp	OLE compound file	15	20e83396f029c6a9	ad864bd0cd022f9d	0
 21_언어_기출_편집가능본.pdf	PDF	15	5ff1a1a105c2b61a	9630f99b9a471504	0
 253E164F57A1BC6934-empty.hwp	OLE compound file	2	622526765d9789a1	5904e0d2de82ff75	0
-3-09월_교육_통합_2022.hwp	OLE compound file	23	f80a6ec900a47994	ff3d88ba01016104	0
-3-09월_교육_통합_2022.hwpx	HWPX	23	f80a6ec900a47994	271eb36b1c606124	0
-3-09월_교육_통합_2023.hwp	OLE compound file	20	60236acaa32a212d	da54a1fa7dea3047	0
-3-09월_교육_통합_2023.hwpx	HWPX	20	60236acaa32a212d	fc87385d0e6c36d3	0
-3-09월_교육_통합_2024-격자기준종이.hwp	OLE compound file	23	f80a6ec900a47994	ff3d88ba01016104	0
-3-09월_교육_통합_2024-격자기준쪽.hwp	OLE compound file	23	f80a6ec900a47994	ff3d88ba01016104	0
-3-09월_교육_통합_2024-구분선아래20.hwp	OLE compound file	23	f80a6ec900a47994	b97e9a688ce7c0da	0
-3-09월_교육_통합_2024-구분선아래20구분선위20.hwp	OLE compound file	23	f80a6ec900a47994	36f704ce76cc2d44	0
-3-09월_교육_통합_2024-구분선아래20구분선위20.hwpx	HWPX	23	f80a6ec900a47994	e53439576c618e56	0
-3-09월_교육_통합_2024-미주사이20.hwp	OLE compound file	24	e0235dbdcbf51ef5	da5ad25de281b4bd	0
-3-10월_교육_통합_2022.hwp	OLE compound file	18	591b52204ff83bc1	65413bd7090c9e63	0
-3-10월_교육_통합_2022.hwpx	HWPX	18	591b52204ff83bc1	4c40b153c798ddb7	0
-3-11월_실전_통합_2022.hwp	OLE compound file	21	904137f1763aeae0	2a2c6ac8c6363ee7	0
-3-11월_실전_통합_2022.hwpx	HWPX	21	904137f1763aeae0	2a61451e8e6b9b87	0
-3-11월_실전_통합_2024-구분선없음구분선위20미주사이20구분선아래20.hwp	OLE compound file	23	f80a6ec900a47994	9581ab5eff64c2d9	0
-3-11월_실전_통합_2024-구분선없음구분선위20미주사이20구분선아래20.hwpx	HWPX	23	f80a6ec900a47994	139aa5492c055aff	0
-3-11월_실전_통합_2024-구분선위0미주사이0구분선아래0.hwp	OLE compound file	21	904137f1763aeae0	64fd718d5a656e63	0
-3-11월_실전_통합_2024-구분선위0미주사이0구분선아래0.hwpx	HWPX	21	904137f1763aeae0	6e221e5ca68bb835	0
-3-11월_실전_통합_2024-구분선위0미주사이20구분선아래2.hwp	OLE compound file	22	8f6d00f3d4264c89	42ba13259d917081	0
-3-11월_실전_통합_2024-구분선위0미주사이20구분선아래2.hwpx	HWPX	22	8f6d00f3d4264c89	189ffafdc08ed333	0
-3-11월_실전_통합_2024-구분선위0미주사이7구분선아래2.hwp	OLE compound file	21	904137f1763aeae0	2a2c6ac8c6363ee7	0
-3-11월_실전_통합_2024-구분선위0미주사이7구분선아래2.hwpx	HWPX	21	904137f1763aeae0	2a61451e8e6b9b87	0
-3-11월_실전_통합_2024-구분선위0미주사이7구분선아래20.hwp	OLE compound file	21	904137f1763aeae0	9ffc06df6560be55	0
-3-11월_실전_통합_2024-구분선위0미주사이7구분선아래20.hwpx	HWPX	21	904137f1763aeae0	7dd62b6945054ef5	0
-3-11월_실전_통합_2024-구분선위20미주사이0구분선아래20.hwp	OLE compound file	21	904137f1763aeae0	cd18c8209c2e8fb1	0
-3-11월_실전_통합_2024-구분선위20미주사이0구분선아래20.hwpx	HWPX	21	904137f1763aeae0	b1c6de40facbb33b	0
-3-11월_실전_통합_2024-구분선위20미주사이7구분선아래2.hwp	OLE compound file	21	904137f1763aeae0	0a216ef815deec5d	0
-3-11월_실전_통합_2024-구분선위20미주사이7구분선아래2.hwpx	HWPX	21	904137f1763aeae0	7dd62b6945054ef5	0
-3-11월_실전_통합_2024-구분선위9미주사이8구분선아래7.hwp	OLE compound file	21	904137f1763aeae0	0f6d83582326dc5f	0
-3-11월_실전_통합_2024-구분선위9미주사이8구분선아래7.hwpx	HWPX	21	904137f1763aeae0	f13d2ef7e0e7a7e5	0
-76076_regulatory_analysis.hwp	OLE compound file	82	9a4b31c4b62a4a41	966e4b9b3f32470e	0
-80168_regulatory_analysis.hwp	OLE compound file	157	8cee229004b2d0d0	a1a72a7a0158ee05	0
-86712_regulatory_analysis.hwp	OLE compound file	64	c2f9a15a585c41a5	0d14206df43d6fab	0
+3-09월_교육_통합_2022.hwp	OLE compound file	23	f80a6ec900a47994	9dfb6e4a4cce0672	0
+3-09월_교육_통합_2022.hwpx	HWPX	23	f80a6ec900a47994	9dfb6e4a4cce0672	0
+3-09월_교육_통합_2023.hwp	OLE compound file	20	60236acaa32a212d	5300438f00789339	0
+3-09월_교육_통합_2023.hwpx	HWPX	20	60236acaa32a212d	5300438f00789339	0
+3-09월_교육_통합_2024-격자기준종이.hwp	OLE compound file	23	f80a6ec900a47994	9dfb6e4a4cce0672	0
+3-09월_교육_통합_2024-격자기준쪽.hwp	OLE compound file	23	f80a6ec900a47994	9dfb6e4a4cce0672	0
+3-09월_교육_통합_2024-구분선아래20.hwp	OLE compound file	23	f80a6ec900a47994	f66bc59b4acf8ebc	0
+3-09월_교육_통합_2024-구분선아래20구분선위20.hwp	OLE compound file	23	f80a6ec900a47994	39deb37c82c5aab6	0
+3-09월_교육_통합_2024-구분선아래20구분선위20.hwpx	HWPX	23	f80a6ec900a47994	39deb37c82c5aab6	0
+3-09월_교육_통합_2024-미주사이20.hwp	OLE compound file	24	e0235dbdcbf51ef5	a8e091e89fb96de3	0
+3-10월_교육_통합_2022.hwp	OLE compound file	18	591b52204ff83bc1	2e86e01b2f7aed85	0
+3-10월_교육_통합_2022.hwpx	HWPX	18	591b52204ff83bc1	2e86e01b2f7aed85	0
+3-11월_실전_통합_2022.hwp	OLE compound file	21	904137f1763aeae0	3100a4800d33a453	0
+3-11월_실전_통합_2022.hwpx	HWPX	21	904137f1763aeae0	3100a4800d33a453	0
+3-11월_실전_통합_2024-구분선없음구분선위20미주사이20구분선아래20.hwp	OLE compound file	22	8f6d00f3d4264c89	86ad097447ae6b7b	0
+3-11월_실전_통합_2024-구분선없음구분선위20미주사이20구분선아래20.hwpx	HWPX	22	8f6d00f3d4264c89	86ad097447ae6b7b	0
+3-11월_실전_통합_2024-구분선위0미주사이0구분선아래0.hwp	OLE compound file	21	904137f1763aeae0	598d8597a7b965b7	0
+3-11월_실전_통합_2024-구분선위0미주사이0구분선아래0.hwpx	HWPX	21	904137f1763aeae0	598d8597a7b965b7	0
+3-11월_실전_통합_2024-구분선위0미주사이20구분선아래2.hwp	OLE compound file	22	8f6d00f3d4264c89	d7d9fb343d2c3923	0
+3-11월_실전_통합_2024-구분선위0미주사이20구분선아래2.hwpx	HWPX	22	8f6d00f3d4264c89	d7d9fb343d2c3923	0
+3-11월_실전_통합_2024-구분선위0미주사이7구분선아래2.hwp	OLE compound file	21	904137f1763aeae0	3100a4800d33a453	0
+3-11월_실전_통합_2024-구분선위0미주사이7구분선아래2.hwpx	HWPX	21	904137f1763aeae0	3100a4800d33a453	0
+3-11월_실전_통합_2024-구분선위0미주사이7구분선아래20.hwp	OLE compound file	21	904137f1763aeae0	30edbd6643860a89	0
+3-11월_실전_통합_2024-구분선위0미주사이7구분선아래20.hwpx	HWPX	21	904137f1763aeae0	30edbd6643860a89	0
+3-11월_실전_통합_2024-구분선위20미주사이0구분선아래20.hwp	OLE compound file	21	904137f1763aeae0	595ced09faae8dcf	0
+3-11월_실전_통합_2024-구분선위20미주사이0구분선아래20.hwpx	HWPX	21	904137f1763aeae0	e22b5e1e3076b2cd	0
+3-11월_실전_통합_2024-구분선위20미주사이7구분선아래2.hwp	OLE compound file	21	904137f1763aeae0	30edbd6643860a89	0
+3-11월_실전_통합_2024-구분선위20미주사이7구분선아래2.hwpx	HWPX	21	904137f1763aeae0	30edbd6643860a89	0
+3-11월_실전_통합_2024-구분선위9미주사이8구분선아래7.hwp	OLE compound file	21	904137f1763aeae0	20c3403381be6061	0
+3-11월_실전_통합_2024-구분선위9미주사이8구분선아래7.hwpx	HWPX	21	904137f1763aeae0	20c3403381be6061	0
+76076_regulatory_analysis.hwp	OLE compound file	82	9a4b31c4b62a4a41	b01c27ddd05cb0e2	0
+80168_regulatory_analysis.hwp	OLE compound file	157	8cee229004b2d0d0	44faa4bbf0e95cc3	0
+86712_regulatory_analysis.hwp	OLE compound file	64	c2f9a15a585c41a5	3f1a700475a40315	0
 HWP3-password-123456.hwp	error	PasswordRequired
-HWP5-nopassword-123456.hwp	OLE compound file	24	e0235dbdcbf51ef5	a6f890f22bb476e3	0
-HWP5-nopassword-123456.hwpx	HWPX	24	e0235dbdcbf51ef5	1a2d5ff7b2b44c80	0
+HWP5-nopassword-123456.hwp	OLE compound file	24	e0235dbdcbf51ef5	9257828d2ec1d362	0
+HWP5-nopassword-123456.hwpx	HWPX	24	e0235dbdcbf51ef5	09529b6f99b2d47a	0
 HWP5-password-123456.hwpx	error	PasswordRequired
-KTX.hwp	OLE compound file	27	6dc0942507b9f9ec	9df431e71ac77aee	0
-SO-SUEOP.hwp	OLE compound file	46	5782951064adc159	f474742bca3006ff	0
-SO-SUEOP.hwpx	HWPX	46	5782951064adc159	a0798d817b8ed6b2	0
-[2027] 온새미로 1 본교재.hwp	OLE compound file	47	4fca9e48d46abc24	834b21ad4b18e5b8	0
-[2027] 온새미로 1 본교재.hwpx	HWPX	47	4fca9e48d46abc24	32c9565a3fe744f4	0
+KTX.hwp	OLE compound file	27	6dc0942507b9f9ec	f8a3ea0f7bd280c4	0
+SO-SUEOP.hwp	OLE compound file	46	5782951064adc159	05ac66de3a8f5294	0
+SO-SUEOP.hwpx	HWPX	46	5782951064adc159	f5229bc4367489c6	0
+[2027] 온새미로 1 본교재.hwp	OLE compound file	46	5782951064adc159	0c05befc09478cc0	0
+[2027] 온새미로 1 본교재.hwpx	HWPX	46	5782951064adc159	6497ae175cee0772	0
 aift.hwp	OLE compound file	74	2b83b60f44e01b91	61873246336b4d00	0
 anchor_char_line_height/anchor_char_height.hwpx	HWPX	1	e5989f18eb184be8	896e8e7da794dad3	0
 atop-equation-01.hwp	OLE compound file	1	e5989f18eb184be8	7b2dded24fb931b5	0
-basic/BlogForm_BookReview.hwp	OLE compound file	1	db9f58c9562c70ef	e78fda2b8158a81a	0
-basic/BlogForm_MovieReview.hwp	OLE compound file	1	6ea065e8e1de02eb	fe4c6651eb663a96	0
-basic/BlogForm_Recipe.hwp	OLE compound file	1	6ea065e8e1de02eb	e73914c82f0ab4a3	0
-basic/BookReview.hwp	OLE compound file	2	22d10a52556263a1	1eb210969f33e7e5	0
+basic/BlogForm_BookReview.hwp	OLE compound file	1	db9f58c9562c70ef	38a3d27fc531a1de	0
+basic/BlogForm_MovieReview.hwp	OLE compound file	1	6ea065e8e1de02eb	a1127893319cba16	0
+basic/BlogForm_Recipe.hwp	OLE compound file	1	6ea065e8e1de02eb	4a2336123dc726b7	0
+basic/BookReview.hwp	OLE compound file	2	22d10a52556263a1	dd0f88203119b84d	0
 basic/Hyper(hwp2010).hwp	OLE compound file	1	e5989f18eb184be8	4e1b840eb6d9f391	0
-basic/KTX-003.hwp	OLE compound file	1	c43f128efd282724	84526ab062bb8b8c	0
-basic/KTX.hwp	OLE compound file	1	c43f128efd282724	84526ab062bb8b8c	0
+basic/KTX-003.hwp	OLE compound file	1	c43f128efd282724	a2c11d744633e83c	0
+basic/KTX.hwp	OLE compound file	1	c43f128efd282724	a2c11d744633e83c	0
 basic/NewYear_s_Day.hwp	OLE compound file	3	8ed5a02a4e09555c	438d5bdbb58972e3	0
 basic/Textmail.hwp	OLE compound file	1	e5989f18eb184be8	3602eb9c28b3e91f	0
-basic/Worldcup_FIFA2010_32.hwp	OLE compound file	1	c43f128efd282724	457c591bf2a97620	0
+basic/Worldcup_FIFA2010_32.hwp	OLE compound file	1	c43f128efd282724	6e92b251b0cda6c0	0
 basic/calendar_monthly.hwp	OLE compound file	1	c43f128efd282724	44af56b6a43cb2ac	0
 basic/calendar_year.hwp	OLE compound file	1	e5989f18eb184be8	26c534d89922c764	0
 basic/english.hwp	OLE compound file	1	e5989f18eb184be8	9141020d5e5a6abe	0
 basic/interview.hwp	OLE compound file	2	e856dcb358db156d	12e08a58451a6b41	0
 basic/issue1994_behindtext_table_20200830.hwp	OLE compound file	4	34cb914a8c71dced	83194700419501e8	0
-basic/issue2007_nested_cell_pagination_42065.hwp	OLE compound file	17	ec4952bca0c4c988	a399302250ff753c	0
+basic/issue2007_nested_cell_pagination_42065.hwp	OLE compound file	17	ec4952bca0c4c988	82920cd2589e0945	0
 basic/pau-004.hwp	OLE compound file	1	e5989f18eb184be8	dd4b047827f89c6d	0
-basic/request.hwp	OLE compound file	1	ebfb80b5d8a49c09	d3a650b3a5bfe085	0
+basic/request.hwp	OLE compound file	1	ebfb80b5d8a49c09	0db01cb7e9df7957	0
 basic/shortcut.hwp	OLE compound file	7	2fa29a12332d9bc0	52a9dbb3784600dc	0
-basic/sungeo.hwp	OLE compound file	94	e3fb63a94ef86fb9	6ea4f5c1f720cc8c	0
-basic/treatise sample.hwp	OLE compound file	7	f847289575c440f4	e8a3f3c762ef9de2	0
+basic/sungeo.hwp	OLE compound file	94	e3fb63a94ef86fb9	5331530ef71eef6c	0
+basic/treatise sample.hwp	OLE compound file	7	f847289575c440f4	b08022c4df98ec82	0
 bitmap.hwp	OLE compound file	1	e5989f18eb184be8	af63c14c8601beab	0
 biz_plan.hwp	OLE compound file	6	633c8afaf6501d69	a6f4f2008156c8e4	0
 byeolpyo1.hwp	OLE compound file	4	cb34ff9c7c790a8d	417805f97a6e6a5c	0
-byeolpyo4.hwp	OLE compound file	25	4acd99141c2588f8	ab6fc690198e4aa5	0
+byeolpyo4.hwp	OLE compound file	25	4acd99141c2588f8	2c727e0eb14c438d	0
 calc-cell.hwp	OLE compound file	1	e5989f18eb184be8	9aa7db70cf10ec50	0
 chart/가로막대형/3차원누적가로막대형.hwp	OLE compound file	1	e5989f18eb184be8	af63c14c8601beab	0
 chart/가로막대형/3차원누적가로막대형.hwpx	HWPX	1	e5989f18eb184be8	af63c14c8601beab	0
@@ -150,30 +150,30 @@ chart/원형/쪼개진원형.hwp	OLE compound file	1	e5989f18eb184be8	af63c14c86
 chart/원형/쪼개진원형.hwpx	HWPX	1	e5989f18eb184be8	af63c14c8601beab	0
 chart/특이케이스/가로막대형_하나만있을떄_단일시리즈제목.hwp	OLE compound file	1	e5989f18eb184be8	af63c14c8601beab	0
 chart/특이케이스/가로막대형_하나만있을떄_단일시리즈제목.hwpx	HWPX	1	e5989f18eb184be8	af63c14c8601beab	0
-draw-group.hwp	OLE compound file	1	e5989f18eb184be8	e557bb56d836986e	0
+draw-group.hwp	OLE compound file	1	e5989f18eb184be8	97819086251433d2	0
 el-school-001.hwp	OLE compound file	1	e5989f18eb184be8	485c6abb82dd07b0	0
-endnote-01.hwp	OLE compound file	5	a98db8f3a1da7840	c376e9dcd8569e7d	0
-eq-002.hwp	OLE compound file	1	e5989f18eb184be8	7d343ad28b53d42f	0
+endnote-01.hwp	OLE compound file	5	a98db8f3a1da7840	0aff0c23b6bbaecd	0
+eq-002.hwp	OLE compound file	1	e5989f18eb184be8	bc9da050b075b01a	0
 eq-01.hwp	OLE compound file	1	e5989f18eb184be8	3e099d0a86a1511d	0
 equation-lim.hwp	OLE compound file	1	e5989f18eb184be8	8d6da70f3104d1b3	0
 equation-lim.pdf	PDF	1	878bfab1b06a850a	56c243f0b9a88fc7	0
 exam-kor-1p.hwp	OLE compound file	1	b1fa86a8c8b71479	23be476474e847bc	0
-exam-kor-2p.hwp	OLE compound file	2	bdb6d479d63fe1b5	0c152a2a720eb1de	0
-exam-kor-3p.hwp	OLE compound file	3	1108e5d4d13c2709	b59bce21dd347a71	0
-exam-kor-4p.hwp	OLE compound file	4	6c57d9944c200485	6daab16680793a51	0
+exam-kor-2p.hwp	OLE compound file	2	bdb6d479d63fe1b5	f3fda919583ed1ee	0
+exam-kor-3p.hwp	OLE compound file	3	1108e5d4d13c2709	d561f1c0ba547cd9	0
+exam-kor-4p.hwp	OLE compound file	4	6c57d9944c200485	2a89d0ff7b275d51	0
 exam_eng-2010.pdf	PDF	14	e77021b2dc040ed3	1a5fdb02b10d40e6	0
 exam_eng-2020.pdf	PDF	8	04942cb20f588f3d	a6e7028c6b75e0ba	0
 exam_eng.hwp	OLE compound file	8	7bfe7b62a8c2d0e5	59f4365050bcb8e3	0
 exam_eng.pdf	PDF	8	d8aa777b062d864d	5cef060d2790bc03	0
-exam_kor.hwp	OLE compound file	20	de3685702e238005	2db0b0e58a5ef834	0
+exam_kor.hwp	OLE compound file	20	de3685702e238005	528e57202352ba4c	0
 exam_math.hwp	OLE compound file	20	97f9835768f51059	474030d9afea9d6c	0
 exam_math.pdf	PDF	20	93e19b28b333d3b5	1c80cf2f092700a3	0
 exam_math_8.hwp	OLE compound file	1	c52eeb44c6c00c74	f588ed1c0441f3b5	0
 exam_math_8.pdf	PDF	1	878bfab1b06a850a	2a49e9221231c292	0
 exam_math_no.hwp	OLE compound file	20	97f9835768f51059	6a8b5154deb9c544	0
-exam_science.hwp	OLE compound file	4	f6a03c35f322a309	21c97ae9421f46fa	0
-exam_social-p1.hwp	OLE compound file	1	c52eeb44c6c00c74	fa441bf35304003a	0
-exam_social.hwp	OLE compound file	4	f6a03c35f322a309	424cfea4d984c61b	0
+exam_science.hwp	OLE compound file	4	f6a03c35f322a309	2c5a51f8714f7392	0
+exam_social-p1.hwp	OLE compound file	1	c52eeb44c6c00c74	711f2cea9960f4f8	0
+exam_social.hwp	OLE compound file	4	f6a03c35f322a309	e742f69d7fa8dd29	0
 field-01-memo.hwp	OLE compound file	3	8ed5a02a4e09555c	284168622f448749	0
 field-01.hwp	OLE compound file	3	8ed5a02a4e09555c	284168622f448749	0
 float-stack-defer.hwp	OLE compound file	2	22d10a52556263a1	e387405382e2777e	0
@@ -185,232 +185,232 @@ group-box.hwp	OLE compound file	1	e5989f18eb184be8	ac94ad5bc005e050	0
 group-drawing-02.hwp	OLE compound file	1	e5989f18eb184be8	05f7d49f6ee11963	0
 h-pen-01.hwp	OLE compound file	1	e5989f18eb184be8	8a9c8388ef83241b	0
 hancomdocs-exam_kor.pdf	PDF	28	cec9ab9a9f438e89	f4311b8d4431c0e5	0
-hcar-001.hwp	OLE compound file	6	633c8afaf6501d69	9b6f57b16e4e40de	0
+hcar-001.hwp	OLE compound file	6	633c8afaf6501d69	8f027f63c7d9401a	0
 hml/aligns-hancom-viewer-macos.pdf	PDF	16	a6baf57e91ef2325	d797d75103c90eac	0
 hml/formatting-table-hancom-viewer-macos.pdf	PDF	1	e1ce00b9df03cf59	954d156caa55c3a3	0
 honbo-save.hwp	OLE compound file	5	a98db8f3a1da7840	c06c34afc0b0ae33	0
-hwp-3.0-HWPML.hwp	OLE compound file	121	84e8d2ab8e1d02b8	9b51fa0994cf0aa8	0
+hwp-3.0-HWPML.hwp	OLE compound file	122	9a4efd85562c0af1	992d3e106ab7d42d	0
 hwp-img-001.hwp	OLE compound file	1	e5989f18eb184be8	509c8d57941b654d	0
-hwp-multi-001.hwp	OLE compound file	9	e6027c829903e458	2ed68070dbc07903	0
-hwp-multi-002.hwp	OLE compound file	6	633c8afaf6501d69	72cd535f5df6ce75	0
+hwp-multi-001.hwp	OLE compound file	9	e6027c829903e458	6e5bc343f4057f65	0
+hwp-multi-002.hwp	OLE compound file	6	633c8afaf6501d69	45046d0c217ff0c3	0
 hwp3-curve.hwp	OLE compound file	2	22d10a52556263a1	8bf3629637aa67ba	0
 hwp3-ellipse-empty-textbox.hwp	OLE compound file	1	e5989f18eb184be8	b546811617c97349	0
-hwp3-empty-cell.hwp	OLE compound file	1	e5989f18eb184be8	33fb4812b4109e55	0
+hwp3-empty-cell.hwp	OLE compound file	1	e5989f18eb184be8	cec87e455bf835ad	0
 hwp3-pagedef-1915.hwp	OLE compound file	1	e5989f18eb184be8	d3aeae85b60cd3f9	0
-hwp3-sample-hwp5.hwp	OLE compound file	16	01a9826c0d12e945	c6826f3055817879	0
-hwp3-sample-hwpx.hwpx	HWPX	16	01a9826c0d12e945	21fb57e654444ca7	0
-hwp3-sample.hwp	OLE compound file	16	01a9826c0d12e945	baf307fdfb59a761	0
-hwp3-sample10-hwp5.hwp	OLE compound file	763	0e0fb99c201314ac	9cf88a8d0f48bb0c	0
-hwp3-sample10-hwpx.hwpx	HWPX	763	0e0fb99c201314ac	bff0ef72eed7d7b7	0
-hwp3-sample10.hwp	OLE compound file	763	0e0fb99c201314ac	43d1ce3e6def5da8	0
-hwp3-sample11-hwp5.hwp	OLE compound file	151	6c9e4f81d5a44694	0ba1cb41093b061b	0
-hwp3-sample11-hwpx.hwpx	HWPX	151	6c9e4f81d5a44694	8507bf3dd8f6aeb5	0
-hwp3-sample11.hwp	OLE compound file	151	6c9e4f81d5a44694	9ea46303f216e1cb	0
+hwp3-sample-hwp5.hwp	OLE compound file	16	01a9826c0d12e945	695d854fc7b09731	0
+hwp3-sample-hwpx.hwpx	HWPX	16	01a9826c0d12e945	695d854fc7b09731	0
+hwp3-sample.hwp	OLE compound file	16	01a9826c0d12e945	072074f9bbecbdb9	0
+hwp3-sample10-hwp5.hwp	OLE compound file	763	0e0fb99c201314ac	4268f012afdf8997	0
+hwp3-sample10-hwpx.hwpx	HWPX	763	0e0fb99c201314ac	02a9ad00d943bedf	0
+hwp3-sample10.hwp	OLE compound file	763	0e0fb99c201314ac	945292efdd72e46b	0
+hwp3-sample11-hwp5.hwp	OLE compound file	151	6c9e4f81d5a44694	a8a8f0d24a5f1108	0
+hwp3-sample11-hwpx.hwpx	HWPX	151	6c9e4f81d5a44694	95c32b9300d6d8d8	0
+hwp3-sample11.hwp	OLE compound file	151	6c9e4f81d5a44694	e96a6e8d999824d0	0
 hwp3-sample13-hwp5.hwp	OLE compound file	3	8ed5a02a4e09555c	4853ed1db4af3bc5	0
 hwp3-sample13-hwp5.hwpx	HWPX	3	8ed5a02a4e09555c	4853ed1db4af3bc5	0
 hwp3-sample13.hwp	OLE compound file	3	8ed5a02a4e09555c	4853ed1db4af3bc5	0
 hwp3-sample14-hwp5.hwp	OLE compound file	11	358abfa246fec2cc	c5816c831a92f78d	0
 hwp3-sample14-hwp5.hwpx	HWPX	11	358abfa246fec2cc	c5816c831a92f78d	0
 hwp3-sample14.hwp	OLE compound file	11	358abfa246fec2cc	c5816c831a92f78d	0
-hwp3-sample16-hwp5-2010.hwp	OLE compound file	65	1b48407ae8f36268	a9e429d847e5bb6d	0
-hwp3-sample16-hwp5-2018.hwp	OLE compound file	64	c2f9a15a585c41a5	a9e205c4f808483e	0
-hwp3-sample16-hwp5-2022.hwp	OLE compound file	65	1b48407ae8f36268	2c59f672256e38dd	0
+hwp3-sample16-hwp5-2010.hwp	OLE compound file	64	c2f9a15a585c41a5	f4a8e61f329b598e	0
+hwp3-sample16-hwp5-2018.hwp	OLE compound file	64	c2f9a15a585c41a5	0ea48c8eafc94760	0
+hwp3-sample16-hwp5-2022.hwp	OLE compound file	64	c2f9a15a585c41a5	c68d9e9a56c758da	0
 hwp3-sample16-hwp5-2024-password-123456.hwp	error	PasswordRequired
-hwp3-sample16-hwp5-2024.hwp	OLE compound file	64	c2f9a15a585c41a5	7b9ae16dc4caa514	0
-hwp3-sample16-hwp5.hwp	OLE compound file	65	1b48407ae8f36268	a9e429d847e5bb6d	0
-hwp3-sample16-hwp5.hwpx	HWPX	64	c2f9a15a585c41a5	452fa190027c0f5a	0
-hwp3-sample16.hwp	OLE compound file	64	c2f9a15a585c41a5	642abd39a0d8f2e0	0
+hwp3-sample16-hwp5-2024.hwp	OLE compound file	64	c2f9a15a585c41a5	f4a8e61f329b598e	0
+hwp3-sample16-hwp5.hwp	OLE compound file	64	c2f9a15a585c41a5	f4a8e61f329b598e	0
+hwp3-sample16-hwp5.hwpx	HWPX	64	c2f9a15a585c41a5	d38bbecbbe194496	0
+hwp3-sample16.hwp	OLE compound file	64	c2f9a15a585c41a5	b06992de66014d5e	0
 hwp3-sample19-hwp5.hwp	OLE compound file	2	22d10a52556263a1	9a1d2354db3f40a9	0
 hwp3-sample19-hwpx.hwpx	HWPX	2	22d10a52556263a1	9a1d2354db3f40a9	0
 hwp3-sample19.hwp	OLE compound file	2	22d10a52556263a1	9a1d2354db3f40a9	0
-hwp3-sample4-hwp5.hwp	OLE compound file	36	b0b3edac9b58614d	fe69ccb9683cd3bc	0
+hwp3-sample4-hwp5.hwp	OLE compound file	36	b0b3edac9b58614d	a1306deb4725701e	0
 hwp3-sample4.hwp	OLE compound file	36	b0b3edac9b58614d	5f616d0ec3dcfadc	0
-hwp3-sample5-hwp5-v2018.hwp	OLE compound file	64	c2f9a15a585c41a5	8c4f373177903c11	0
-hwp3-sample5-hwp5-v2024.hwp	OLE compound file	64	c2f9a15a585c41a5	8c4f373177903c11	0
-hwp3-sample5-hwp5.hwp	OLE compound file	64	c2f9a15a585c41a5	8c4f373177903c11	0
-hwp3-sample5-hwpx.hwpx	HWPX	64	c2f9a15a585c41a5	59c40a247fe73119	0
-hwp3-sample5.hwp	OLE compound file	64	c2f9a15a585c41a5	f11059b64ee8b153	0
+hwp3-sample5-hwp5-v2018.hwp	OLE compound file	64	c2f9a15a585c41a5	ca8af93d78373ebf	0
+hwp3-sample5-hwp5-v2024.hwp	OLE compound file	64	c2f9a15a585c41a5	ca8af93d78373ebf	0
+hwp3-sample5-hwp5.hwp	OLE compound file	64	c2f9a15a585c41a5	ca8af93d78373ebf	0
+hwp3-sample5-hwpx.hwpx	HWPX	64	c2f9a15a585c41a5	f7f156d86bd00427	0
+hwp3-sample5.hwp	OLE compound file	64	c2f9a15a585c41a5	2a2658197ee2832d	0
 hwp3-table-caption.hwp	OLE compound file	1	e5989f18eb184be8	5d80857ac564e7c7	0
 hwp3-table-cell-order.hwp	OLE compound file	1	e5989f18eb184be8	0c3deb770515b908	0
-hwp3-table-cell-overlap.hwp	OLE compound file	7	f847289575c440f4	3ace28f798dba62d	0
+hwp3-table-cell-overlap.hwp	OLE compound file	7	f847289575c440f4	7e8cdd07ca50d00c	0
 hwp3-table-grid-gap.hwp	OLE compound file	3	d346fbf0afc56b68	5ba561ae93b7835a	0
 hwp5-tbl-attr-1916.hwp	HWPX	4	cb34ff9c7c790a8d	0974830c5970a58e	0
 hwp_table_test-m.hwp	OLE compound file	3	8ed5a02a4e09555c	bea9751029737773	0
 hwp_table_test.hwp	OLE compound file	3	8ed5a02a4e09555c	ac8b4fe4df233ab7	0
 hwp_table_test_saved.hwp	OLE compound file	3	8ed5a02a4e09555c	458d36b2ef9c20c1	0
-hwpctl_API_v2.4.hwp	OLE compound file	105	3b26301765b75318	0ecae81f0e57b29f	0
+hwpctl_API_v2.4.hwp	OLE compound file	105	3b26301765b75318	fb43e595894b1d31	0
 hwpctl_Action_Table__v1.1.hwp	OLE compound file	16	c2a6c5071c226e05	5d6a9e57081d23ef	0
-hwpctl_ParameterSetID_Item_v1.2.hwp	OLE compound file	74	a57c924f4e2bda91	b7db542831de6d97	0
+hwpctl_ParameterSetID_Item_v1.2.hwp	OLE compound file	74	a57c924f4e2bda91	7a7c3ca72b0f89bd	0
 hwpers_test4_complex_table.hwp	OLE compound file	1	e5989f18eb184be8	e0a42dc6eea643bd	0
 hwpjson/korea-gmn-198518529-physical-ai-strategy.hwpx	HWPX	11	358abfa246fec2cc	30d793c1351cd830	0
-hwpspec.hwp	OLE compound file	178	6dd59e0dd0038a81	87991970108a9f76	0
-hwpx/143E433F503322BD33.hwpx	HWPX	1	e5989f18eb184be8	a855b32beeadb03f	0
+hwpspec.hwp	OLE compound file	178	6dd59e0dd0038a81	4320f25d19ca0573	0
+hwpx/143E433F503322BD33.hwpx	HWPX	1	e5989f18eb184be8	639df5019633c69f	0
 hwpx/156160455-social-pig-farm-income.hwpx	HWPX	11	358abfa246fec2cc	747def654b0f90d9	0
-hwpx/2024년 1분기 해외직접투자 보도자료 ff.hwp	OLE compound file	9	e6027c829903e458	54cc3dc650821e08	0
-hwpx/2024년 1분기 해외직접투자 보도자료 ff.hwpx	HWPX	9	e6027c829903e458	54cc3dc650821e08	0
-hwpx/2024년 2분기 해외직접투자 보도자료ff.hwpx	HWPX	9	e6027c829903e458	b220a910ae796357	0
-hwpx/2024년 연간 해외직접투자 보도자료 _ ff.hwpx	HWPX	9	e6027c829903e458	433e707ffcd77b4c	0
+hwpx/2024년 1분기 해외직접투자 보도자료 ff.hwp	OLE compound file	9	e6027c829903e458	3a302887c84f6090	0
+hwpx/2024년 1분기 해외직접투자 보도자료 ff.hwpx	HWPX	9	e6027c829903e458	3a302887c84f6090	0
+hwpx/2024년 2분기 해외직접투자 보도자료ff.hwpx	HWPX	9	e6027c829903e458	621a1ac9a90cab95	0
+hwpx/2024년 연간 해외직접투자 보도자료 _ ff.hwpx	HWPX	9	e6027c829903e458	6c03852f57fbf39e	0
 hwpx/2025년 1분기 해외직접투자 보도자료f.hwpx	HWPX	9	e6027c829903e458	d5c59a225498e790	0
 hwpx/2025년 2분기 해외직접투자 (최종).hwpx	HWPX	9	e6027c829903e458	a016faba58379693	0
 hwpx/20260909-para-table.hwpx	HWPX	3	8ed5a02a4e09555c	894a6bd5fc781700	0
 hwpx/2026_oss_rst.hwpx	HWPX	6	33211352110f4e35	2d4253d40751a847	0
-hwpx/21761835_jeonjik_exemption_table.hwpx	HWPX	6	633c8afaf6501d69	da762a1aa9c9f736	0
-hwpx/[2027] 온새미로 1 본교재.hwpx	HWPX	46	5782951064adc159	2999c6da8b30a69c	0
+hwpx/21761835_jeonjik_exemption_table.hwpx	HWPX	6	633c8afaf6501d69	4a01df83e6df2116	0
+hwpx/[2027] 온새미로 1 본교재.hwpx	HWPX	46	5782951064adc159	2713258147f3c074	0
 hwpx/aift-2020.pdf	PDF	74	264f378f8f565719	c16263a641b933c6	0
-hwpx/aift.hwpx	HWPX	74	2b83b60f44e01b91	a8767c934219597f	0
+hwpx/aift.hwpx	HWPX	74	2b83b60f44e01b91	61873246336b4d00	0
 hwpx/basic-table-01.hwpx	HWPX	1	e5989f18eb184be8	64803139ef2890b6	0
 hwpx/blank_hwpx.hwpx	HWPX	1	e5989f18eb184be8	af63c14c8601beab	0
 hwpx/business_overview.hwpx	HWPX	1	e5989f18eb184be8	6e680a65feca51a1	0
 hwpx/el-school-001.hwpx	HWPX	1	e5989f18eb184be8	485c6abb82dd07b0	0
-hwpx/eq-002.hwpx	HWPX	1	e5989f18eb184be8	7d343ad28b53d42f	0
+hwpx/eq-002.hwpx	HWPX	1	e5989f18eb184be8	bc9da050b075b01a	0
 hwpx/exam-kor-1p.hwpx	HWPX	1	b1fa86a8c8b71479	23be476474e847bc	0
-hwpx/exam-kor-2p.hwpx	HWPX	2	bdb6d479d63fe1b5	0c152a2a720eb1de	0
-hwpx/exam-kor-3p.hwpx	HWPX	3	1108e5d4d13c2709	b59bce21dd347a71	0
-hwpx/exam-kor-4p.hwpx	HWPX	4	6c57d9944c200485	6daab16680793a51	0
-hwpx/exam_kor.hwpx	HWPX	20	de3685702e238005	2db0b0e58a5ef834	0
-hwpx/exam_social-p1.hwpx	HWPX	1	c52eeb44c6c00c74	fa441bf35304003a	0
-hwpx/exam_social.hwpx	HWPX	4	f6a03c35f322a309	424cfea4d984c61b	0
+hwpx/exam-kor-2p.hwpx	HWPX	2	bdb6d479d63fe1b5	f3fda919583ed1ee	0
+hwpx/exam-kor-3p.hwpx	HWPX	3	1108e5d4d13c2709	d561f1c0ba547cd9	0
+hwpx/exam-kor-4p.hwpx	HWPX	4	6c57d9944c200485	2a89d0ff7b275d51	0
+hwpx/exam_kor.hwpx	HWPX	20	de3685702e238005	528e57202352ba4c	0
+hwpx/exam_social-p1.hwpx	HWPX	1	c52eeb44c6c00c74	711f2cea9960f4f8	0
+hwpx/exam_social.hwpx	HWPX	4	f6a03c35f322a309	e742f69d7fa8dd29	0
 hwpx/expense_report.hwpx	HWPX	1	e5989f18eb184be8	1430d76f023e5deb	0
-hwpx/field-multipara-clickhere.hwpx	HWPX	2	22d10a52556263a1	d8a05885bbffe4c4	0
-hwpx/footnote-01.hwpx	HWPX	6	633c8afaf6501d69	208af475aee5978b	0
+hwpx/field-multipara-clickhere.hwpx	HWPX	2	22d10a52556263a1	093691ac95e5e8ec	0
+hwpx/footnote-01.hwpx	HWPX	6	633c8afaf6501d69	449e099ad357a8e5	0
 hwpx/footnote-tbox-01.hwpx	HWPX	1	e5989f18eb184be8	f38eacacc7e848af	0
-hwpx/form-002.hwpx	HWPX	10	5b49cebdcbe3cd11	a3faf5d8e0cdc153	0
+hwpx/form-002.hwpx	HWPX	10	5b49cebdcbe3cd11	f89e5abfe135665d	0
 hwpx/form-002.pdf	PDF	10	f6947870ddf04325	e62182c05bbc0e25	0
 hwpx/form-01-2024.pdf	PDF	1	878bfab1b06a850a	ca0d3d86e18c07cd	0
 hwpx/form-01.hwpx	HWPX	1	e5989f18eb184be8	63505a5ebf7db1f6	0
 hwpx/form-02.hwpx	HWPX	1	e5989f18eb184be8	63505a5ebf7db1f6	0
-hwpx/hancom-hwp/2024년 1분기 해외직접투자 보도자료 ff.hwp	OLE compound file	9	e6027c829903e458	54cc3dc650821e08	0
-hwpx/hancom-hwp/2024년 2분기 해외직접투자 보도자료ff.hwp	OLE compound file	9	e6027c829903e458	b220a910ae796357	0
-hwpx/hancom-hwp/2024년 연간 해외직접투자 보도자료 _ ff.hwp	OLE compound file	9	e6027c829903e458	433e707ffcd77b4c	0
+hwpx/hancom-hwp/2024년 1분기 해외직접투자 보도자료 ff.hwp	OLE compound file	9	e6027c829903e458	3a302887c84f6090	0
+hwpx/hancom-hwp/2024년 2분기 해외직접투자 보도자료ff.hwp	OLE compound file	9	e6027c829903e458	621a1ac9a90cab95	0
+hwpx/hancom-hwp/2024년 연간 해외직접투자 보도자료 _ ff.hwp	OLE compound file	9	e6027c829903e458	6c03852f57fbf39e	0
 hwpx/hancom-hwp/2025년 1분기 해외직접투자 보도자료f.hwp	OLE compound file	9	e6027c829903e458	d5c59a225498e790	0
 hwpx/hancom-hwp/2025년 2분기 해외직접투자 (최종).hwp	OLE compound file	9	e6027c829903e458	a016faba58379693	0
-hwpx/hancom-hwp/[2027] 온새미로 1 본교재.hwp	OLE compound file	48	314168a648753b05	62f485fdbfe4a55a	0
+hwpx/hancom-hwp/[2027] 온새미로 1 본교재.hwp	OLE compound file	46	5782951064adc159	a668ec29b3d289e2	0
 hwpx/hancom-hwp/activity_report.hwp	OLE compound file	2	22d10a52556263a1	8e5b3bd3c6901145	0
 hwpx/hancom-hwp/blank_hwpx.hwp	OLE compound file	1	e5989f18eb184be8	af63c14c8601beab	0
 hwpx/hancom-hwp/business_overview.hwp	OLE compound file	1	e5989f18eb184be8	6e680a65feca51a1	0
 hwpx/hancom-hwp/expense_report.hwp	OLE compound file	1	e5989f18eb184be8	1430d76f023e5deb	0
-hwpx/hancom-hwp/form-002.hwp	OLE compound file	10	5b49cebdcbe3cd11	a3faf5d8e0cdc153	0
+hwpx/hancom-hwp/form-002.hwp	OLE compound file	10	5b49cebdcbe3cd11	f89e5abfe135665d	0
 hwpx/hancom-hwp/hang_job_01.hwp	OLE compound file	23	f80a6ec900a47994	4656287188b8c4e2	0
-hwpx/hancom-hwp/hwpx-01.hwp	OLE compound file	9	e6027c829903e458	54cc3dc650821e08	0
-hwpx/hancom-hwp/hwpx-02.hwp	OLE compound file	9	e6027c829903e458	433e707ffcd77b4c	0
-hwpx/hancom-hwp/hwpx-h-01.hwp	OLE compound file	9	e6027c829903e458	54cc3dc650821e08	0
+hwpx/hancom-hwp/hwpx-01.hwp	OLE compound file	9	e6027c829903e458	3a302887c84f6090	0
+hwpx/hancom-hwp/hwpx-02.hwp	OLE compound file	9	e6027c829903e458	6c03852f57fbf39e	0
+hwpx/hancom-hwp/hwpx-h-01.hwp	OLE compound file	9	e6027c829903e458	3a302887c84f6090	0
 hwpx/hancom-hwp/hwpx-h-02.hwp	OLE compound file	9	e6027c829903e458	a016faba58379693	0
 hwpx/hancom-hwp/hwpx-h-03.hwp	OLE compound file	9	e6027c829903e458	d5c59a225498e790	0
 hwpx/hancom-hwp/hy-001.hwp	OLE compound file	2	22d10a52556263a1	7d51e148bae20541	0
 hwpx/hancom-hwp/hy-002.hwp	OLE compound file	2	22d10a52556263a1	d2e8cb55b388ebad	0
 hwpx/hancom-hwp/issue_157.hwp	OLE compound file	2	22d10a52556263a1	9498c459f60d82bb	0
-hwpx/hancom-hwp/issue_241.hwp	OLE compound file	1	e5989f18eb184be8	55f059644e476791	0
+hwpx/hancom-hwp/issue_241.hwp	OLE compound file	1	e5989f18eb184be8	4387d106c90a8d61	0
 hwpx/hancom-hwp/mel-001.hwp	OLE compound file	20	60236acaa32a212d	296032711ea1db5d	0
 hwpx/hancom-hwp/service_agreement.hwp	OLE compound file	1	e5989f18eb184be8	edf72d28e4494076	0
 hwpx/hancom-hwp/tb-org-02.hwp	OLE compound file	1	e5989f18eb184be8	71509fa966afff5a	0
 hwpx/hancom-hwp/tbox-v-flow-01.hwp	OLE compound file	1	e5989f18eb184be8	bc9b0b9e67746944	0
-hwpx/hcar-001.hwpx	HWPX	6	633c8afaf6501d69	9b6f57b16e4e40de	0
-hwpx/hwpx-01.hwpx	OLE compound file	9	e6027c829903e458	54cc3dc650821e08	0
-hwpx/hwpx-02.hwpx	HWPX	6	633c8afaf6501d69	902611d996607658	0
+hwpx/hcar-001.hwpx	HWPX	6	633c8afaf6501d69	8f027f63c7d9401a	0
+hwpx/hwpx-01.hwpx	OLE compound file	9	e6027c829903e458	3a302887c84f6090	0
+hwpx/hwpx-02.hwpx	HWPX	5	a98db8f3a1da7840	d142f076235e3508	0
 hwpx/hwpx-centered-cell-vpos-after-tac-shape.hwpx	HWPX	1	e5989f18eb184be8	2ea51c94b159b396	0
-hwpx/hwpx-h-01.hwpx	HWPX	9	e6027c829903e458	54cc3dc650821e08	0
+hwpx/hwpx-h-01.hwpx	HWPX	9	e6027c829903e458	3a302887c84f6090	0
 hwpx/hwpx-h-02.hwpx	HWPX	9	e6027c829903e458	a016faba58379693	0
 hwpx/hwpx-h-02.pdf	PDF	9	108eed75d1824f59	aa6d79827d56377d	0
 hwpx/hwpx-h-03.hwpx	HWPX	9	e6027c829903e458	d5c59a225498e790	0
 hwpx/hy-001.hwpx	HWPX	2	22d10a52556263a1	7d51e148bae20541	0
 hwpx/hy-002.hwpx	HWPX	2	22d10a52556263a1	d2e8cb55b388ebad	0
-hwpx/issue1535_coanchored_float_exclusion.hwpx	HWPX	2	22d10a52556263a1	eeec530d2dd82164	0
-hwpx/issue1948_cross_para_fieldend.hwpx	HWPX	1	e5989f18eb184be8	ef1498e2d689d4a5	0
-hwpx/issue2019_floating_form_74312.hwpx	HWPX	18	bda2d8fc5e6b95c9	0c7a38ad64365e2b	0
+hwpx/issue1535_coanchored_float_exclusion.hwpx	HWPX	2	22d10a52556263a1	ece2ebcc6fa02818	0
+hwpx/issue1948_cross_para_fieldend.hwpx	HWPX	1	e5989f18eb184be8	e50256bf1e11e811	0
+hwpx/issue2019_floating_form_74312.hwpx	HWPX	18	bda2d8fc5e6b95c9	0277fcec58728ab5	0
 hwpx/issue2439_page_local_float_exclusion.hwpx	HWPX	3	8ed5a02a4e09555c	4595d1dd57153f23	0
 hwpx/issue_1133.hwpx	HWPX	3	8ed5a02a4e09555c	df3f0f72d758e94a	0
 hwpx/issue_157.hwpx	HWPX	2	22d10a52556263a1	9498c459f60d82bb	0
 hwpx/issue_241.hwpx	HWPX	1	e5989f18eb184be8	55f059644e476791	0
 hwpx/issue_241.pdf	PDF	1	878bfab1b06a850a	c3c1aa02dfce8ca6	0
-hwpx/k-water-rfp.hwpx	HWPX	27	6dc0942507b9f9ec	315864fcbde2bf07	0
+hwpx/k-water-rfp.hwpx	HWPX	27	6dc0942507b9f9ec	79db011abf230e1b	0
 hwpx/landscape-001.hwpx	HWPX	1	c43f128efd282724	febb533e1d555da7	0
 hwpx/local-font-nanumsquare-bold.hwpx	HWPX	1	e5989f18eb184be8	a88385958e228d38	0
 hwpx/math-001.hwpx	HWPX	1	e5989f18eb184be8	670acedbbe4fcdf8	0
 hwpx/mel-001.hwpx	HWPX	20	60236acaa32a212d	296032711ea1db5d	0
 hwpx/opengov/36382399_결재문서본문_일반지출결의서_기간제 소블록 세척 작업용품 구매.hwpx	HWPX	1	e5989f18eb184be8	30d060c566a0e30f	0
-hwpx/opengov/36382669_결재문서본문_’26년 제3차 강사선정 심의회 운영결과.hwpx	HWPX	8	d46677bace108b55	15ecd00eb46f6526	0
-hwpx/opengov/36383351_결재문서본문_[관악산] 산악구조대 구급의약품 폐기 계획 보고.hwpx	HWPX	1	e5989f18eb184be8	1d36043493f6def4	0
-hwpx/opengov/36383351_결재문서본문_관악산산악구조대급식의약품폐기.hwpx	HWPX	1	e5989f18eb184be8	1d36043493f6def4	0
-hwpx/opengov/36384285_결재문서본문_[여의도] 2026년 6월 기본업무수행 급식비 지급.hwpx	HWPX	1	e5989f18eb184be8	2fd137e83ef63fcd	0
+hwpx/opengov/36382669_결재문서본문_’26년 제3차 강사선정 심의회 운영결과.hwpx	HWPX	8	d46677bace108b55	94d3948180c212a4	0
+hwpx/opengov/36383351_결재문서본문_[관악산] 산악구조대 구급의약품 폐기 계획 보고.hwpx	HWPX	2	22d10a52556263a1	f533a600e100f90e	0
+hwpx/opengov/36383351_결재문서본문_관악산산악구조대급식의약품폐기.hwpx	HWPX	2	22d10a52556263a1	f533a600e100f90e	0
+hwpx/opengov/36384285_결재문서본문_[여의도] 2026년 6월 기본업무수행 급식비 지급.hwpx	HWPX	1	e5989f18eb184be8	ae4244d50a61686f	0
 hwpx/opengov/36384689_결재문서본문_화재발생종합보고서(제2026-298호).hwpx	HWPX	1	e5989f18eb184be8	20d08fa5cd154e6a	0
 hwpx/opengov/36385226_결재문서본문_제2처리장 슬러지인발용 에어리프트 브로워 2호기 소모품 교체 보고.hwpx	HWPX	3	8ed5a02a4e09555c	ac0f936a87dd9a16	0
 hwpx/opengov/36385445_결재문서본문_화재발생종합보고서(제2026-189호, 2026. 5. 14.).hwpx	HWPX	2	22d10a52556263a1	37de9ac3c20ce31f	0
-hwpx/opengov/36385464_결재문서본문_근무변경(반포수난구조대, 2026-06).hwpx	HWPX	1	e5989f18eb184be8	6760726232582d7a	0
+hwpx/opengov/36385464_결재문서본문_근무변경(반포수난구조대, 2026-06).hwpx	HWPX	1	e5989f18eb184be8	e27cac998ac510f0	0
 hwpx/opengov/36386761_백제학연구총서위탁판매의뢰목록.hwpx	HWPX	1	e5989f18eb184be8	b3a95dd942848d36	0
-hwpx/opengov/36387103_결재문서본문_수질검사 신청 민원 처리 결과 안내.hwpx	HWPX	2	22d10a52556263a1	576a362ebb47829c	0
-hwpx/opengov/36387725_footer_page_bottom.hwpx	HWPX	2	22d10a52556263a1	b09518c5986f0f0a	0
-hwpx/opengov/36388571_결재문서본문_2026년 6월 생일 축하품 수령증 제출(119항공대).hwpx	HWPX	1	e5989f18eb184be8	191474adcb2ff932	0
-hwpx/opengov/36388711_사회보장제도 신설 협의요청서(청년오피스)_260624.hwpx	HWPX	9	e6027c829903e458	5455cb6924f28b41	0
-hwpx/opengov/36388853_결재문서본문_일상감사 의견서 송부.hwpx	HWPX	1	e5989f18eb184be8	6944c457b7e48919	0
+hwpx/opengov/36387103_결재문서본문_수질검사 신청 민원 처리 결과 안내.hwpx	HWPX	2	22d10a52556263a1	d719775f40b0a68c	0
+hwpx/opengov/36387725_footer_page_bottom.hwpx	HWPX	2	22d10a52556263a1	3982e549b7f7b9c0	0
+hwpx/opengov/36388571_결재문서본문_2026년 6월 생일 축하품 수령증 제출(119항공대).hwpx	HWPX	1	e5989f18eb184be8	b842bcd6f9cb1b8a	0
+hwpx/opengov/36388711_사회보장제도 신설 협의요청서(청년오피스)_260624.hwpx	HWPX	9	e6027c829903e458	0c013b58536ec3a5	0
+hwpx/opengov/36388853_결재문서본문_일상감사 의견서 송부.hwpx	HWPX	1	e5989f18eb184be8	ab838d5e77a1b97b	0
 hwpx/opengov/36389298_결재문서본문_물품검사(수)조서(라벨테이프 등).hwpx	HWPX	2	22d10a52556263a1	573ba8f011e50136	0
-hwpx/opengov/36389301_결재문서본문_직장훈련계획_덧말.hwpx	HWPX	2	22d10a52556263a1	73c58abf42a1963d	0
-hwpx/opengov/36389312_결재문서본문_특정소방대상물 화재발생 알림(화재번호 2026-177).hwpx	HWPX	1	e5989f18eb184be8	de0c43a6e3de04c2	0
+hwpx/opengov/36389301_결재문서본문_직장훈련계획_덧말.hwpx	HWPX	2	22d10a52556263a1	b8c869d0cdad4d6d	0
+hwpx/opengov/36389312_결재문서본문_특정소방대상물 화재발생 알림(화재번호 2026-177).hwpx	HWPX	1	e5989f18eb184be8	2b06d31e681b0f60	0
 hwpx/opengov/36392900_결재문서본문_일일굴착복구공사현황보고.hwpx	HWPX	2	22d10a52556263a1	8f613a05f151dcaf	0
-hwpx/opengov/36395270_footer_overpush.hwpx	HWPX	2	22d10a52556263a1	65f1196a4e43ebe8	0
-hwpx/opengov/36398366_결재문서본문_PC 셧다운 제외 및 초과근무 인정 요청(데이터전략과).hwpx	HWPX	1	e5989f18eb184be8	93e36c6bf922e528	0
+hwpx/opengov/36395270_footer_overpush.hwpx	HWPX	2	22d10a52556263a1	080a53613daf33de	0
+hwpx/opengov/36398366_결재문서본문_PC 셧다운 제외 및 초과근무 인정 요청(데이터전략과).hwpx	HWPX	1	e5989f18eb184be8	c22476a3e954c970	0
 hwpx/pagenation-001.hwpx	HWPX	2	22d10a52556263a1	9f462473b2336a7e	0
-hwpx/para-001.hwpx	HWPX	3	8ed5a02a4e09555c	3cd0a2a9e874f60b	0
-hwpx/para-unit-01.hwpx	HWPX	2	22d10a52556263a1	7d9f797ffd121adb	0
-hwpx/pr-1674.hwpx	HWPX	35	5fa49d89e7136d9c	94436daec4b9b676	0
+hwpx/para-001.hwpx	HWPX	3	8ed5a02a4e09555c	7fcad05cdff4c733	0
+hwpx/para-unit-01.hwpx	HWPX	2	22d10a52556263a1	32f764ed3a5e56af	0
+hwpx/pr-1674.hwpx	HWPX	35	5fa49d89e7136d9c	8bb52632984e14b8	0
 hwpx/ref/ref_empty.hwpx	HWPX	1	e5989f18eb184be8	af63c14c8601beab	0
 hwpx/ref/ref_mixed.hwpx	HWPX	1	e5989f18eb184be8	e89bb776d8ff8062	0
 hwpx/ref/ref_table.hwpx	HWPX	1	e5989f18eb184be8	9c5f36a046d79eb3	0
 hwpx/ref/ref_text.hwpx	HWPX	1	e5989f18eb184be8	a0482b3f57784b9b	0
 hwpx/shape-001.hwpx	HWPX	1	e5989f18eb184be8	c3b0e617ceb2e0d3	0
-hwpx/ta-pic-001-r.hwpx	HWPX	1	e5989f18eb184be8	676140347930a716	0
+hwpx/ta-pic-001-r.hwpx	HWPX	1	e5989f18eb184be8	40325719e873a816	0
 hwpx/table-text.hwpx	HWPX	1	e5989f18eb184be8	c28a1841076aac1a	0
 hwpx/tb-img-03.hwpx	HWPX	1	e5989f18eb184be8	359f5a4bc5f8e203	0
 hwpx/tb-org-02.hwpx	HWPX	1	e5989f18eb184be8	71509fa966afff5a	0
 hwpx/tbox-v-flow-01.hwpx	HWPX	1	e5989f18eb184be8	bc9b0b9e67746944	0
 hwpx/water-mark.hwpx	HWPX	1	e5989f18eb184be8	08547807b5083b23	0
 hwpx_sample2.hwp	OLE compound file	29	78ecc30fb24a63d0	24b2d2793e7ff524	0
-hwpx_sample2.hwpx	HWPX	29	78ecc30fb24a63d0	96771153fcad2b3e	0
+hwpx_sample2.hwpx	HWPX	29	78ecc30fb24a63d0	bdae15c94b762818	0
 img-start-001.hwp	OLE compound file	3	8ed5a02a4e09555c	c8fb103fbd4c05d4	0
-inner-table-01.hwp	OLE compound file	2	22d10a52556263a1	24e03c1757f4d0d0	0
+inner-table-01.hwp	OLE compound file	2	22d10a52556263a1	aaf0022056206dda	0
 issue-505-equations.hwp	OLE compound file	4	cb34ff9c7c790a8d	0a24263f1e5f6fc2	0
-issue-6271-rowbreak-float-tail-line.hwp	OLE compound file	1	e5989f18eb184be8	0fc10f196858dcac	0
+issue-6271-rowbreak-float-tail-line.hwp	OLE compound file	1	e5989f18eb184be8	c260758cb23879ae	0
 issue-986-receipt.hwp	OLE compound file	1	c43f128efd282724	e133bfaed50407af	0
-issue1133/page-number-bottom15.hwpx	HWPX	3	8ed5a02a4e09555c	5d787cd3bbb363e2	0
-issue1133/page-number-footer15.hwpx	HWPX	3	8ed5a02a4e09555c	5d787cd3bbb363e2	0
+issue1133/page-number-bottom15.hwpx	HWPX	3	8ed5a02a4e09555c	524e887bfe6a612e	0
+issue1133/page-number-footer15.hwpx	HWPX	3	8ed5a02a4e09555c	524e887bfe6a612e	0
 issue1510_coanchored_float_tables.hwp	OLE compound file	1	e5989f18eb184be8	60c867e666185166	0
 issue1510_coanchored_float_tables.hwpx	HWPX	2	22d10a52556263a1	eeec530d2dd82164	0
 issue1549_empty_host_float_clamp.hwpx	HWPX	1	e5989f18eb184be8	1472b68ca812b0d1	0
-issue1549_multipositive_float_tables.hwpx	HWPX	1	e5989f18eb184be8	1748adeedda144bf	0
-issue1639_empty_host_negative_offset_float.hwpx	HWPX	2	22d10a52556263a1	f5c3cf8301e6adb1	0
-issue1639_empty_host_positive_only_float.hwpx	HWPX	2	22d10a52556263a1	1ee4e731ebc3e4f9	0
-issue1663_coanchored_float_orphan.hwpx	HWPX	2	22d10a52556263a1	51664133c1bd8ef6	0
-issue1770_rowsplit_tolerance.hwpx	HWPX	4	cb34ff9c7c790a8d	fd6e7b95beafdd25	0
+issue1549_multipositive_float_tables.hwpx	HWPX	2	22d10a52556263a1	274de869647d532d	0
+issue1639_empty_host_negative_offset_float.hwpx	HWPX	2	22d10a52556263a1	3a3aa829b3973459	0
+issue1639_empty_host_positive_only_float.hwpx	HWPX	2	22d10a52556263a1	813d56328c592c41	0
+issue1663_coanchored_float_orphan.hwpx	HWPX	2	22d10a52556263a1	a8e0b824e47d5f9c	0
+issue1770_rowsplit_tolerance.hwpx	HWPX	4	cb34ff9c7c790a8d	97a076ac89fa7ee3	0
 issue1835_tac_stale_height.hwp	OLE compound file	3	8ed5a02a4e09555c	ac8b4fe4df233ab7	0
 issue1842_cell_tac_group_lineheight.hwp	OLE compound file	2	22d10a52556263a1	cf7bff58e1a8118c	0
-issue1853_caption_precedes_body_split.hwpx	HWPX	52	345c1fc1a950c2ed	d1bb3dc56241f71b	0
+issue1853_caption_precedes_body_split.hwpx	HWPX	52	345c1fc1a950c2ed	3fc55b9b41ef9e8b	0
 issue1858_paper_anchor_float_stack.hwpx	HWPX	1	e5989f18eb184be8	0dc242376b0fb77f	0
-issue1880_anchor_stack_sb_convert.hwpx	HWPX	13	e0f004dbc7bfed30	927f327e3eefe6c5	0
-issue1880_takeplace_host_before.hwpx	HWPX	10	5b49cebdcbe3cd11	d5cd867920343714	0
-issue1880_takeplace_oracle_p13.hwpx	HWPX	13	e0f004dbc7bfed30	927f327e3eefe6c5	0
+issue1880_anchor_stack_sb_convert.hwpx	HWPX	13	e0f004dbc7bfed30	a052d5b15aa9db63	0
+issue1880_takeplace_host_before.hwpx	HWPX	10	5b49cebdcbe3cd11	3846e9efcf84a3fc	0
+issue1880_takeplace_oracle_p13.hwpx	HWPX	13	e0f004dbc7bfed30	a052d5b15aa9db63	0
 issue1891/76076_regulatory_analysis-2024.pdf	PDF	82	3d3682ca11cf6a49	317b354f54699239	0
-issue1891/76076_regulatory_analysis.hwpx	OLE compound file	82	9a4b31c4b62a4a41	b614ea6ea1e29362	0
+issue1891/76076_regulatory_analysis.hwpx	OLE compound file	82	9a4b31c4b62a4a41	aa71981c7999c571	0
 issue1891/80168_regulatory_analysis-2024.pdf	PDF	157	4789c3d1f4572eb2	3c59cbce400d84ef	0
-issue1891/80168_regulatory_analysis.hwpx	HWPX	156	3b6eaef70ee35cdd	d282542060d68088	0
+issue1891/80168_regulatory_analysis.hwpx	HWPX	156	3b6eaef70ee35cdd	1e370521f0838841	0
 issue1891/80250_regulatory_analysis-2024.pdf	PDF	17	84d005311b456d2a	58147985a2dbbe0d	0
 issue1891/86712_regulatory_analysis-2024.pdf	PDF	65	2120a63d4cf3418a	d62cb11e20fb1af2	0
-issue1891/86712_regulatory_analysis.hwpx	HWPX	64	c2f9a15a585c41a5	5ee21d0bf6e9907b	0
-issue1891_external_bindata_link.hwpx	HWPX	74	2b83b60f44e01b91	31a975d40d7d89db	0
-issue1892_hwp3_drawing_group_roundtrip.hwp	OLE compound file	1	e5989f18eb184be8	5aedfb37a5400547	0
+issue1891/86712_regulatory_analysis.hwpx	HWPX	64	c2f9a15a585c41a5	c793038492d121e9	0
+issue1891_external_bindata_link.hwpx	HWPX	73	d86946b88e40bad8	4e6180b272cbacd7	0
+issue1892_hwp3_drawing_group_roundtrip.hwp	OLE compound file	2	22d10a52556263a1	c2672a8dcbc8fe71	0
 issue1892_hwp3_tab_roundtrip.hwp	OLE compound file	1	e5989f18eb184be8	2a92bac112d8bf85	0
 issue1893_clickhere_field_roundtrip.hwpx	HWPX	1	e5989f18eb184be8	df22e81a26ee93d2	0
-issue1921/59043_regulatory_analysis.hwp	OLE compound file	37	08af723a0da8e080	cdf1bc804941214d	0
-issue1937_rowbreak_footnote_overpagination.hwp	OLE compound file	51	8aed4b538e4156bc	9aec80528db3b5e5	0
-issue1949_giant_cell_nested_tables_perf.hwp	OLE compound file	115	9ff67ee9f7f05d3c	e7e4b016ee1cc2a1	0
-issue1949_giant_cell_nested_tables_perf.hwpx	HWPX	115	9ff67ee9f7f05d3c	8e0647a6319862c9	0
+issue1921/59043_regulatory_analysis.hwp	OLE compound file	37	08af723a0da8e080	05100dfe62f089ef	0
+issue1937_rowbreak_footnote_overpagination.hwp	OLE compound file	50	5d8797c5f9436d81	9234ca36173dfe41	0
+issue1949_giant_cell_nested_tables_perf.hwp	OLE compound file	115	9ff67ee9f7f05d3c	fbb622a8159e3feb	0
+issue1949_giant_cell_nested_tables_perf.hwpx	HWPX	115	9ff67ee9f7f05d3c	fbb622a8159e3feb	0
 issue1950_hwp3_tab_charoffset.hwp	OLE compound file	1	e5989f18eb184be8	899f3361eb34b1e6	0
 issue1994/issue_1994.pdf	PDF	4	f3b2bb55e0b5562d	bfd5f83ffc442136	0
 issue2004_cell_image_stack.hwp	OLE compound file	8	d46677bace108b55	9bde30b3923b09b3	0
 issue2004_cell_image_stack.hwpx	HWPX	8	d46677bace108b55	9bde30b3923b09b3	0
-issue2006/1790387_prep_final_report.hwpx	HWPX	140	eca17583fca20cbd	7ee92029bd7e63b6	0
+issue2006/1790387_prep_final_report.hwpx	HWPX	140	eca17583fca20cbd	ae65105e96ce5dcf	0
 issue2020/(250813) (보도자료) 2025년 7월중 가계대출 동향.hwp	OLE compound file	5	a98db8f3a1da7840	bf9081bfb7e87dd9	0
-issue2020/(250813) (보도자료) 2025년 7월중 가계대출 동향.hwpx	HWPX	5	a98db8f3a1da7840	bf9081bfb7e87dd9	0
+issue2020/(250813) (보도자료) 2025년 7월중 가계대출 동향.hwpx	HWPX	5	a98db8f3a1da7840	15edefb7a14763fb	0
 issue2020/issue2020_image_rendering_parsing.pdf	PDF	3	af3b543cd2e8a2ed	8952fb0fd516f331	0
-issue2020/passport_application_lawgo.hwp	OLE compound file	2	22d10a52556263a1	ee1fcae12b354003	0
+issue2020/passport_application_lawgo.hwp	OLE compound file	2	22d10a52556263a1	3acac1a00ec6c46b	0
 issue2063_huge_cellbreak_table.hwp	OLE compound file	161	ac357059e5d168e4	4c4ceecf33780c8e	0
 issue2083_hide_fill_page.hwpx	HWPX	4	cb34ff9c7c790a8d	e2ec02f6b1e0a91f	0
 issue2097/rowbreak-fragment-start-resaved-2020.hwpx	HWPX	2	22d10a52556263a1	d7368323c60b55af	0
@@ -418,24 +418,24 @@ issue2097/rowbreak-midpage-resaved-2020.hwpx	HWPX	2	22d10a52556263a1	e1ec6e15084
 issue2164/의견제출서(양식).hwp	OLE compound file	1	e5989f18eb184be8	bdd3865cfd41e7ab	0
 issue2217/20200830.hwp	OLE compound file	4	34cb914a8c71dced	83194700419501e8	0
 issue2373/156689818_kftc_press.hwpx	HWPX	4	cb34ff9c7c790a8d	509e1cc3b0e8e2ca	0
-issue2439/issue2439_repeat_table_overlap.hwp	OLE compound file	10	1f16d568b1abf911	f8424bdfd3df9ce2	0
+issue2439/issue2439_repeat_table_overlap.hwp	OLE compound file	10	1f16d568b1abf911	8690959587c55f20	0
 issue2439_zero_offset_coanchored_float_exclusion.hwp	OLE compound file	1	e5989f18eb184be8	0fd98f7d8b688cdd	0
-issue2470/36341511_masked.hwpx	HWPX	8	d46677bace108b55	d6c24f6a2dfaadba	0
+issue2470/36341511_masked.hwpx	HWPX	8	d46677bace108b55	8a3ca3a71c0d69f2	0
 issue2470/36382471_masked.hwpx	HWPX	2	22d10a52556263a1	1fdc495bc2d5afac	0
-issue2527_empty_linesegs.hwpx	HWPX	1	e5989f18eb184be8	05d010cbc5e84210	0
-issue2559/1341000_research_report_footnotes.hwp	OLE compound file	92	8ae652d5b03f1e5d	130b8194ca46ce92	0
+issue2527_empty_linesegs.hwpx	HWPX	1	e5989f18eb184be8	6dbad546eee6bd58	0
+issue2559/1341000_research_report_footnotes.hwp	OLE compound file	92	8ae652d5b03f1e5d	7479fb2a7c203cf6	0
 issue2808_report_physical_ladder.hwp	OLE compound file	2	22d10a52556263a1	ace46fd898bdf8a6	0
 issue2808_single_table_form_physical_ladder.hwpx	HWPX	1	e5989f18eb184be8	497910b53798944c	0
 issue2813/dangjik_dutylog.hwpx	HWPX	2	622526765d9789a1	7dd373a696b64599	0
 issue2816/imgbrush_total_page_fill.hwpx	HWPX	1	e5989f18eb184be8	86b6a35987f8167c	0
 issue2817/paper_anchor_infront_pic.hwpx	HWPX	1	e5989f18eb184be8	fc283083d651140c	0
 issue3239/evaluation_form_200dpi_scan.hwp	OLE compound file	1	e5989f18eb184be8	af63c14c8601beab	0
-issue3257/webhangul_product_spec_v1.1.hwp	OLE compound file	6	633c8afaf6501d69	72cd535f5df6ce75	0
+issue3257/webhangul_product_spec_v1.1.hwp	OLE compound file	6	633c8afaf6501d69	45046d0c217ff0c3	0
 issue3460/svg_picture_repro.hwpx	HWPX	3	8ed5a02a4e09555c	9a9d5e7bd03e3010	0
 issue3587/b-labnote-repeated.hwp	OLE compound file	3	8ed5a02a4e09555c	a6381036a71e6d2b	0
 issue3587/b-labnote-repeated.hwpx	HWPX	3	8ed5a02a4e09555c	a6381036a71e6d2b	0
-issue3587/b-table-repeated.hwp	OLE compound file	4	cb34ff9c7c790a8d	f98a716b45cfaea3	0
-issue3587/b-table-repeated.hwpx	HWPX	4	cb34ff9c7c790a8d	f98a716b45cfaea3	0
+issue3587/b-table-repeated.hwp	OLE compound file	3	8ed5a02a4e09555c	09d09055bebc0e17	0
+issue3587/b-table-repeated.hwpx	HWPX	3	8ed5a02a4e09555c	09d09055bebc0e17	0
 issue3587/c-form-labnote-001-stage11-filled.hwp	OLE compound file	2	22d10a52556263a1	0e448eabeb2ee9aa	0
 issue3587/c-form-labnote-001-stage11-filled.hwpx	HWPX	2	22d10a52556263a1	0e448eabeb2ee9aa	0
 issue3587/c-rows-labnote-001-stage12-rows.hwp	OLE compound file	3	8ed5a02a4e09555c	4419bf2c348552c2	0
@@ -444,7 +444,7 @@ issue3587/c-transport-cli-block-from-hwp.hwp	OLE compound file	4	cb34ff9c7c790a8
 issue3587/c-transport-cli-block-from-hwpx.hwpx	HWPX	4	cb34ff9c7c790a8d	0d54309a24fa70b6	0
 issue3587/c-transport-input-derived.hwpx	HWPX	2	22d10a52556263a1	a1763f99953a2c68	0
 issue3587/c-transport-wasm-block-from-hwp.hwpx	HWPX	4	cb34ff9c7c790a8d	0d54309a24fa70b6	0
-issue3587/c-transport-wasm-block-from-hwpx.hwp	OLE compound file	5	a98db8f3a1da7840	9478cf2146d7a2e8	0
+issue3587/c-transport-wasm-block-from-hwpx.hwp	OLE compound file	4	cb34ff9c7c790a8d	0d54309a24fa70b6	0
 issue3587/c-transport-wasm-form-from-hwpx.hwp	OLE compound file	2	22d10a52556263a1	0e448eabeb2ee9aa	0
 issue3587/c-transport-wasm-rows-from-hwpx.hwp	OLE compound file	3	8ed5a02a4e09555c	4419bf2c348552c2	0
 issue3587/d-cli-filled.hwp	OLE compound file	3	8ed5a02a4e09555c	3191d7f321716d56	0
@@ -461,28 +461,28 @@ issue3587/gym-hwp-seeded.hwp	OLE compound file	2	22d10a52556263a1	8ca0ecec25ee15
 issue3587/gym-hwpx-copied.hwpx	HWPX	4	cb34ff9c7c790a8d	3dfae7873324eb69	0
 issue3587/gym-hwpx-labnote-filled.hwpx	HWPX	4	cb34ff9c7c790a8d	09d2492d49826b28	0
 issue3587/gym-hwpx-seeded.hwpx	HWPX	2	22d10a52556263a1	8ca0ecec25ee15a9	0
-issue3637/press_release_split_cell_nested_table.hwpx	OLE compound file	13	e0f004dbc7bfed30	af6d70feacefa613	0
+issue3637/press_release_split_cell_nested_table.hwpx	OLE compound file	12	d63ec331307e8fbd	d88078def32d1f99	0
 issue3637/press_release_topbottom_float.hwpx	HWPX	2	22d10a52556263a1	ab337f4cf0511be3	0
-issue3637/regulatory_impact_nested_table_escape.hwpx	HWPX	31	13b044245f40aa84	f1e5746f8bd0de33	0
+issue3637/regulatory_impact_nested_table_escape.hwpx	HWPX	31	13b044245f40aa84	7530847d51aff35d	0
 issue3738/tac_sibling_shape_line_advance.hwpx	HWPX	1	e5989f18eb184be8	bc19cc60b5558fce	0
-issue3751/vpos_reset_midparagraph_fit.hwpx	HWPX	2	22d10a52556263a1	16fd6cb0f331d566	0
+issue3751/vpos_reset_midparagraph_fit.hwpx	HWPX	2	22d10a52556263a1	6089dd08febd7f52	0
 issue3765/zone_switch_ladder_understates_page.hwpx	HWPX	2	22d10a52556263a1	4ce790da980ed499	0
 issue3798/page_end_trailing_spill.hwpx	HWPX	2	22d10a52556263a1	ecab0949ec481099	0
 issue3834/flow_with_text_zero.hwpx	HWPX	1	e5989f18eb184be8	9b332b4bc95607b7	0
-issue3837/stored_vpos_rewind_form.hwp	OLE compound file	4	cb34ff9c7c790a8d	f9285312983e7e25	0
-issue4090/156492236_규제샌드박스_min.hwpx	HWPX	17	ec4952bca0c4c988	7f22bc052f664e35	0
-issue4490/148720174_111014(인력기획과)민간경력자_5급_일괄채용_필기_합격자_발표.hwp	OLE compound file	2	22d10a52556263a1	71de2428ecb347c5	0
-issue4491/30213_1.혼합단지등 제도개선 방안.hwp	OLE compound file	38	42827fd6206ac429	98ec7b2adfe65842	0
-issue4514/sample1-repro.hwp	OLE compound file	46	5782951064adc159	96c87890ce73e5d7	0
+issue3837/stored_vpos_rewind_form.hwp	OLE compound file	4	cb34ff9c7c790a8d	cfe2e735d55e1f15	0
+issue4090/156492236_규제샌드박스_min.hwpx	HWPX	17	ec4952bca0c4c988	38b4dd84b19a229f	0
+issue4490/148720174_111014(인력기획과)민간경력자_5급_일괄채용_필기_합격자_발표.hwp	OLE compound file	2	22d10a52556263a1	454d19b1a1278365	0
+issue4491/30213_1.혼합단지등 제도개선 방안.hwp	OLE compound file	38	42827fd6206ac429	947a6f0b25bba31a	0
+issue4514/sample1-repro.hwp	OLE compound file	46	5782951064adc159	217093605d4c5ac6	0
 issue4599/156714641_wrap_tail_min.hwpx	HWPX	1	e5989f18eb184be8	004c43a92ae9750e	0
-issue4599/36374873_night_guard_log.hwpx	HWPX	1	e5989f18eb184be8	596a559cf96c102f	0
+issue4599/36374873_night_guard_log.hwpx	HWPX	1	e5989f18eb184be8	441ca70dadcb65b2	0
 issue4657/distribute-alignment-sample.hwpx	HWPX	1	e5989f18eb184be8	a156c760b3579266	0
 issue4680/20117321_gijang_handover_bond_ledger_form.hwp	OLE compound file	1	e5989f18eb184be8	96cc000e00830c70	0
-issue4690/30098_indent_over_stored_cs.hwp	OLE compound file	15	25cc994699a683e4	e3163543147d4070	0
-issue4889/18098267_nested_fragment_origin.hwp	OLE compound file	3	8ed5a02a4e09555c	50a1dad0b832fb9d	0
+issue4690/30098_indent_over_stored_cs.hwp	OLE compound file	15	25cc994699a683e4	013e4e74bc576710	0
+issue4889/18098267_nested_fragment_origin.hwp	OLE compound file	3	8ed5a02a4e09555c	3e6577040c71db05	0
 issue5057/21484591-gimcheon-sewage-ordinance.hwp	OLE compound file	13	f887e04c7b0bedcc	70ae9cc5cd24a7ad	0
 issue5162_field_wraps_table.hwpx	HWPX	1	e5989f18eb184be8	505f89940ff5eec2	0
-issue5169_viewtext_changetracking.hwp	OLE compound file	18	591b52204ff83bc1	4f409bb24fb08974	0
+issue5169_viewtext_changetracking.hwp	OLE compound file	6	633c8afaf6501d69	a02b33dc0d773298	0
 issue5447/3차원묶은세로막대형-대조군.hwpx	HWPX	1	e5989f18eb184be8	af63c14c8601beab	0
 issue5447/3차원묶은세로막대형-행추가.hwp	OLE compound file	1	e5989f18eb184be8	af63c14c8601beab	0
 issue5447/3차원묶은세로막대형-행추가.hwpx	HWPX	1	e5989f18eb184be8	af63c14c8601beab	0
@@ -563,19 +563,19 @@ issue5652/직선및표식이있는분산형-점추가.hwpx	HWPX	1	e5989f18eb184b
 issue5652/표식이있는꺽은선형-대조군.hwpx	HWPX	1	e5989f18eb184be8	af63c14c8601beab	0
 issue5652/표식이있는꺽은선형-행추가.hwp	OLE compound file	1	e5989f18eb184be8	af63c14c8601beab	0
 issue5652/표식이있는꺽은선형-행추가.hwpx	HWPX	1	e5989f18eb184be8	af63c14c8601beab	0
-issue5679/10857_delegation_rules.hwp	OLE compound file	105	3b26301765b75318	86293afe36e89837	0
+issue5679/10857_delegation_rules.hwp	OLE compound file	103	284d383d7b415fb4	f69aba7f45103061	0
 issue5699/16758113_pruning_forms.hwp	OLE compound file	5	46c684cc13998a3c	6307ea4229eadda8	0
-issue5699/20099369_yeongwol_forms.hwp	OLE compound file	4	cb34ff9c7c790a8d	76ad6bf5fea7b56d	0
-issue5699/37787_regulatory_impact.hwp	OLE compound file	47	4fca9e48d46abc24	b36198bb9797de5b	0
+issue5699/20099369_yeongwol_forms.hwp	OLE compound file	4	cb34ff9c7c790a8d	952fd27a6698c75f	0
+issue5699/37787_regulatory_impact.hwp	OLE compound file	47	4fca9e48d46abc24	af9177c356251309	0
 issue5701/1270000-202200012_slice_p76_rewound_host.hwp	OLE compound file	3	8ed5a02a4e09555c	f641f99d7b2c3946	0
-issue5701/1530000-200800002_slice_p139_tac_reset_tail.hwp	OLE compound file	10	5b49cebdcbe3cd11	cad2a101d3ecfb62	0
-issue5712/3184241_medical_exam_equipment.hwpx	HWPX	1	e5989f18eb184be8	5b09e57883d7f8a0	0
-issue5714/1490000-200800034_vietnam_labor_report.hwp	OLE compound file	124	f4142ef1b62e801d	6f163dd1df8faec2	0
-issue5715/float_chart_ghost_ladder_gap.hwp	OLE compound file	2	22d10a52556263a1	b83a5e0d6a661040	0
+issue5701/1530000-200800002_slice_p139_tac_reset_tail.hwp	OLE compound file	12	d63ec331307e8fbd	b82d48c66f153ae8	0
+issue5712/3184241_medical_exam_equipment.hwpx	HWPX	1	e5989f18eb184be8	78857b660375a822	0
+issue5714/1490000-200800034_vietnam_labor_report.hwp	OLE compound file	124	f4142ef1b62e801d	9c2e39d01cd6799e	0
+issue5715/float_chart_ghost_ladder_gap.hwp	OLE compound file	2	22d10a52556263a1	278ec7555010eae2	0
 issue5720/2734559_mixed_column_grid.hwpx	HWPX	1	e5989f18eb184be8	6e8fc18d60b79a19	0
 issue5721/2568129_textbox_float_tables.hwp	OLE compound file	1	e5989f18eb184be8	c6e58f7b9d06e657	0
-issue5723/coanchored_square_pair_center_slack.hwpx	HWPX	1	e5989f18eb184be8	8046fe1889c66426	0
-issue5724/2689441_wmf_contents_ole.hwp	OLE compound file	4	cb34ff9c7c790a8d	63a3c677e37b9b2f	0
+issue5723/coanchored_square_pair_center_slack.hwpx	HWPX	1	e5989f18eb184be8	ba2bcb346eafc226	0
+issue5724/2689441_wmf_contents_ole.hwp	OLE compound file	4	cb34ff9c7c790a8d	c737fbc5114414d9	0
 issue5725/2921145_equation_ole.hwpx	HWPX	2	22d10a52556263a1	34f85a9441f134e4	0
 issue5727/156732636_inline_logo_cell.hwp	OLE compound file	4	cb34ff9c7c790a8d	aa971c8dfb37ac3f	0
 issue5729/stacked_tac_band_om_top.hwpx	HWPX	1	e5989f18eb184be8	d65cea47f54d4ce1	0
@@ -588,55 +588,55 @@ issue5755/rewind_overflow_page_break.hwpx	HWPX	3	8ed5a02a4e09555c	057bbb7cf5a85c
 issue5756/156732409_superscript_advance.hwp	OLE compound file	3	8ed5a02a4e09555c	7bf91d8f968a4f5f	0
 issue5757/nontac_declared_height_shrink.hwpx	HWPX	5	a98db8f3a1da7840	fdcab3992733718e	0
 issue5780/flow_image_page_background.hwpx	HWPX	1	e5989f18eb184be8	5d5fce5703e0ece7	0
-issue5782/2181727_press_guard_test_methods.hwp	OLE compound file	12	d63ec331307e8fbd	41294c247579859e	0
+issue5782/2181727_press_guard_test_methods.hwp	OLE compound file	12	d63ec331307e8fbd	15b8258ec572ce0a	0
 issue5785/medal_cells_ws_host_inline.hwpx	HWPX	1	e5989f18eb184be8	c358962d6ce15a42	0
-issue5787/nested_square_table_horz_offset.hwp	OLE compound file	1	e5989f18eb184be8	2e4233731ad2eded	0
-issue5788/tac_table_missing_anchor_line_spacing.hwp	OLE compound file	8	d46677bace108b55	32390a245ec5669b	0
-issue5789/tac_line_shape_baseline.hwpx	HWPX	2	22d10a52556263a1	6bea5f3ac5ae5a92	0
+issue5787/nested_square_table_horz_offset.hwp	OLE compound file	1	e5989f18eb184be8	8aa92c170829b34f	0
+issue5788/tac_table_missing_anchor_line_spacing.hwp	OLE compound file	8	d46677bace108b55	0144e668ed62bf9d	0
+issue5789/tac_line_shape_baseline.hwpx	HWPX	2	22d10a52556263a1	cbf369135e955816	0
 issue5792/2700727_animal_facility_standards.hwpx	HWPX	6	633c8afaf6501d69	0c8ba26b86e80280	0
 issue5793/pua_f0827_double_rule.hwp	OLE compound file	1	e5989f18eb184be8	0232ac1827fb6887	0
-issue5797_shape_selfclosing_child.hwpx	HWPX	1	e5989f18eb184be8	4e7dd67fbc5072c9	0
-issue5798/offcolumn_float_table_no_band.hwp	OLE compound file	1	e5989f18eb184be8	94ab09e419e9e1b1	0
+issue5797_shape_selfclosing_child.hwpx	HWPX	1	e5989f18eb184be8	b04d040cfcb8bd79	0
+issue5798/offcolumn_float_table_no_band.hwp	OLE compound file	1	e5989f18eb184be8	9ee21a6345be8bc1	0
 issue5800-hancom-symbol.hwp	OLE compound file	1	e5989f18eb184be8	2bb2ce6388530a5c	0
 issue5802/hf_cross_section_inherit.hwp	OLE compound file	2	22d10a52556263a1	be31513e3b416f08	0
 issue5807/coanchored_float_tac_order.hwp	OLE compound file	3	8ed5a02a4e09555c	21df85e797a74e1a	0
-issue5808/square_group_left_outer_margin.hwpx	HWPX	1	e5989f18eb184be8	106eb9a0cd651fd3	0
-issue5809/156518601_p1_square_host.hwpx	HWPX	1	e5989f18eb184be8	e5174c4c2e5d4c29	0
+issue5808/square_group_left_outer_margin.hwpx	HWPX	1	e5989f18eb184be8	3b0ce9d9500bda7b	0
+issue5809/156518601_p1_square_host.hwpx	HWPX	1	e5989f18eb184be8	25dfd3acf171e403	0
 issue5818/cell_square_logo_text_wrap.hwpx	HWPX	1	e5989f18eb184be8	35020228b67a5b91	0
 issue5820/156560092_ecard_meeting_press.hwpx	HWPX	2	22d10a52556263a1	7941dc3320100a63	0
 issue5821/condensed_ratio_title_box.hwpx	HWPX	1	e5989f18eb184be8	b00b9830514eb18a	0
 issue5822/tac_chart_stored_frame_fit.hwpx	HWPX	1	e5989f18eb184be8	c35d45967742ad7b	0
 issue5825/shrunk_row_degenerate_baseline.hwpx	HWPX	1	e5989f18eb184be8	335b0584fdd04d40	0
-issue5828/landscape_rowbreak_bleed.hwp	OLE compound file	14	149f4a4b65760039	ff35a03cb232e443	0
-issue5833/cell_multi_para_float_pics.hwp	OLE compound file	1	e5989f18eb184be8	d2bc982b5f9b01f4	0
+issue5828/landscape_rowbreak_bleed.hwp	OLE compound file	15	2a480a61ad7a28b0	9e1f7855b20e278c	0
+issue5833/cell_multi_para_float_pics.hwp	OLE compound file	1	e5989f18eb184be8	7720f46bb1f7ebf2	0
 issue5847/x2x_lineseg_vertpos_cumulative.hwpx	HWPX	3	8ed5a02a4e09555c	ac911da2ef0f6ef2	0
 issue5866/memo_field_hwp5.hwp	OLE compound file	40	35d4f77f14975d15	763e1ccb65079234	0
-issue5870/empty_host_float_flow_advance.hwp	OLE compound file	63	1b35237e80e07a3a	83a5250ef32da69c	0
-issue5871/ws_host_float_double_charge.hwp	OLE compound file	2	22d10a52556263a1	4866f8072e715241	0
+issue5870/empty_host_float_flow_advance.hwp	OLE compound file	63	1b35237e80e07a3a	2ccaef4c5e8c1694	0
+issue5871/ws_host_float_double_charge.hwp	OLE compound file	3	8ed5a02a4e09555c	d415dc25b157f527	0
 issue5872/toc_midline_right_tab.hwpx	HWPX	2	22d10a52556263a1	417128eb9e65a005	0
 issue5874/italic-repro.hwpx	HWPX	1	e5989f18eb184be8	3aa3a88a61225db3	0
-issue5875/nested_table_text_caption.hwp	OLE compound file	12	d63ec331307e8fbd	41294c247579859e	0
-issue5877/fragment_ghost_vrules.hwp	OLE compound file	32	1a82feb35a0c24e5	50aef73ba1e0a6ba	0
+issue5875/nested_table_text_caption.hwp	OLE compound file	12	d63ec331307e8fbd	15b8258ec572ce0a	0
+issue5877/fragment_ghost_vrules.hwp	OLE compound file	31	13b044245f40aa84	25cf582e8fa3c32d	0
 issue5880/rowbreak_fragment_overfill.hwpx	HWPX	8	d46677bace108b55	307808f3a0f8f325	0
-issue5884/nested_row_first_line_height.hwpx	HWPX	2	22d10a52556263a1	b5879a6a715e3c79	0
-issue5885/3171199_design_capability_criteria.hwp	OLE compound file	7	f847289575c440f4	4c8590ca16266429	0
+issue5884/nested_row_first_line_height.hwpx	HWPX	2	22d10a52556263a1	0f7ea7721f4bd318	0
+issue5885/3171199_design_capability_criteria.hwp	OLE compound file	7	f847289575c440f4	8d72db830a0c6fc9	0
 issue5916/05434_vehicle_log_form.hwp	OLE compound file	2	bf332984ca7361bd	2061907444a9cbd7	0
 issue5929/table_below_square_pic.hwpx	HWPX	1	e5989f18eb184be8	68c4aad8f64fdc84	0
 issue5941/1130000-200900012_anchor_delay_ulp.hwp	OLE compound file	2	22d10a52556263a1	df81dc53570be7ce	0
-issue5941/1480000-201900698-native-neartop-reset.hwp	OLE compound file	205	eb2344f3b4048a50	3b21364d26db7653	0
+issue5941/1480000-201900698-native-neartop-reset.hwp	OLE compound file	205	eb2344f3b4048a50	190196af6f1b8139	0
 issue5941/3240179_efficiency_test_orgs.hwpx	HWPX	18	591b52204ff83bc1	8cd74fc441d04062	0
-issue5966/1130000-202100008_franchise_review_report.hwp	OLE compound file	143	24b60d7c0eb2d0e4	a2dcb2e418ce96f1	0
+issue5966/1130000-202100008_franchise_review_report.hwp	OLE compound file	142	94e6fc8bb154ac99	0cde8d3f94d41fc1	0
 issue6023/30269_reform_recommendation.hwp	OLE compound file	22	8f6d00f3d4264c89	37c4f0b697ae555b	0
 issue6025/3232693_employment_support_criteria.hwpx	HWPX	4	cb34ff9c7c790a8d	2de4a55bf5aae81d	0
 issue6028/2307287_construction_machinery_spec.hwp	OLE compound file	4	cb34ff9c7c790a8d	ed5e6ed796f4f180	0
 issue6029/3200477_icao_procedure.hwpx	HWPX	1	e5989f18eb184be8	8c64160a1411e20b	0
-issue6030/2386771_agritech_review_form.hwp	OLE compound file	2	22d10a52556263a1	28d22be60da8186a	0
-issue6031/3249937_asset_management_rules.hwpx	HWPX	60	6fab236a48be6df1	2389ea97e1580a20	0
+issue6030/2386771_agritech_review_form.hwp	OLE compound file	2	22d10a52556263a1	308fb15d451b09de	0
+issue6031/3249937_asset_management_rules.hwpx	HWPX	60	6fab236a48be6df1	a815b0645251fd32	0
 issue6032/2912695_civil_petition_form.hwp	OLE compound file	2	22d10a52556263a1	43ea538c4a9f1ce2	0
-issue6034/2912735_court_report_form.hwp	OLE compound file	1	e5989f18eb184be8	bceadd4d5e5bf177	0
-issue6035/2804253_cosmetics_gmp_checklist.hwpx	HWPX	11	358abfa246fec2cc	e86c12510d55b894	0
-issue6035/cgmp_evaluation_table.hwpx	HWPX	48	314168a648753b05	a8dd9b4c743a08db	0
-issue6036/156509073_police_press_release.hwpx	HWPX	7	f847289575c440f4	852c3d3b6bbd4249	0
+issue6034/2912735_court_report_form.hwp	OLE compound file	2	22d10a52556263a1	468898d9970fd399	0
+issue6035/2804253_cosmetics_gmp_checklist.hwpx	HWPX	11	358abfa246fec2cc	21928d1e5c3dda6c	0
+issue6035/cgmp_evaluation_table.hwpx	HWPX	48	314168a648753b05	9480e139fa99976d	0
+issue6036/156509073_police_press_release.hwpx	HWPX	7	f847289575c440f4	ab53c465ba7a03b9	0
 issue6037/2차원원형-계열추가-데이터추가.hwp	OLE compound file	1	e5989f18eb184be8	af63c14c8601beab	0
 issue6037/2차원원형-계열추가-데이터추가.hwpx	HWPX	1	e5989f18eb184be8	af63c14c8601beab	0
 issue6037/2차원원형-계열추가.hwp	OLE compound file	1	e5989f18eb184be8	af63c14c8601beab	0
@@ -679,34 +679,34 @@ issue6037/원형대원형-계열추가-데이터추가.hwp	OLE compound file	1	e
 issue6037/원형대원형-계열추가-데이터추가.hwpx	HWPX	1	e5989f18eb184be8	af63c14c8601beab	0
 issue6037/원형대원형-계열추가.hwp	OLE compound file	1	e5989f18eb184be8	af63c14c8601beab	0
 issue6037/원형대원형-계열추가.hwpx	HWPX	1	e5989f18eb184be8	af63c14c8601beab	0
-issue6044/156513948.hwpx	HWPX	32	1a82feb35a0c24e5	eaa011aa87b01393	0
-issue6057/29494.hwp	OLE compound file	2	22d10a52556263a1	69ed1c46f86be56a	0
+issue6044/156513948.hwpx	HWPX	32	1a82feb35a0c24e5	1da4909e49b32256	0
+issue6057/29494.hwp	OLE compound file	2	22d10a52556263a1	d1ce2c256ff1158a	0
 issue6060/30307_local_service_reform.hwp	OLE compound file	13	e0f004dbc7bfed30	6c777d32b8757255	0
-issue6086/30098_resident_registration_reform.hwp	OLE compound file	15	25cc994699a683e4	e3163543147d4070	0
-issue6095/3090867_icepack_levy_criteria.hwpx	HWPX	2	22d10a52556263a1	b5879a6a715e3c79	0
+issue6086/30098_resident_registration_reform.hwp	OLE compound file	15	25cc994699a683e4	013e4e74bc576710	0
+issue6095/3090867_icepack_levy_criteria.hwpx	HWPX	2	22d10a52556263a1	0f7ea7721f4bd318	0
 issue6099/2197981_scanned_form.hwp	OLE compound file	1	c43f128efd282724	15c297c8d125d6c7	0
-issue6101/36361137_firefighter_training_plan.hwpx	HWPX	11	358abfa246fec2cc	f611d9c1082db432	0
-issue6101/36501883_approval_doc_body.hwpx	HWPX	2	22d10a52556263a1	fee1f490b6ce8cf5	0
-issue6102/36310257_overtime_report.hwpx	HWPX	1	e5989f18eb184be8	eed262c1d71f8e31	0
-issue6102/36360328_vehicle_inspection_expense.hwpx	HWPX	1	e5989f18eb184be8	5edb9d6330ad45d2	0
-issue6102/36444579_traffic_fine_exemption.hwpx	HWPX	2	22d10a52556263a1	65b248fe7f214882	0
+issue6101/36361137_firefighter_training_plan.hwpx	HWPX	11	358abfa246fec2cc	3333bf19d0ce15ca	0
+issue6101/36501883_approval_doc_body.hwpx	HWPX	2	22d10a52556263a1	2089586bcd146c9d	0
+issue6102/36310257_overtime_report.hwpx	HWPX	1	e5989f18eb184be8	803ba5f2a56d451f	0
+issue6102/36360328_vehicle_inspection_expense.hwpx	HWPX	1	e5989f18eb184be8	2a59616fa8a9d160	0
+issue6102/36444579_traffic_fine_exemption.hwpx	HWPX	2	22d10a52556263a1	6ff3720cc2b72838	0
 issue6110/39819_press_release_header_slice.hwp	OLE compound file	1	e5989f18eb184be8	a01c0787c3cf5c89	0
-issue6111/56345_regulatory_impact_analysis.hwp	OLE compound file	20	60236acaa32a212d	91125cf9e85fdcb5	0
+issue6111/56345_regulatory_impact_analysis.hwp	OLE compound file	21	904137f1763aeae0	149c1e026d76c036	0
 issue6117/52690_higher_education_decree.hwp	OLE compound file	12	d63ec331307e8fbd	6f84823be60fdc4f	0
 issue6121/156531618_police_press_header.hwpx	HWPX	3	8ed5a02a4e09555c	89bad8b1b700eb8a	0
-issue6122/2181727_press_guard_test_method.hwp	OLE compound file	12	d63ec331307e8fbd	41294c247579859e	0
-issue6123/3112461_railway_emc_criteria.hwpx	HWPX	14	9922ffbca2a04f99	46dba41151fcb95e	0
+issue6122/2181727_press_guard_test_method.hwp	OLE compound file	12	d63ec331307e8fbd	15b8258ec572ce0a	0
+issue6123/3112461_railway_emc_criteria.hwpx	HWPX	14	9922ffbca2a04f99	0b44a0e5528b3e78	0
 issue6124/2737927_housing_evaluation_guideline.hwpx	HWPX	8	d46677bace108b55	307808f3a0f8f325	0
-issue6126/3171199_design_capability_criteria.hwp	OLE compound file	7	f847289575c440f4	4c8590ca16266429	0
+issue6126/3171199_design_capability_criteria.hwp	OLE compound file	7	f847289575c440f4	8d72db830a0c6fc9	0
 issue6127/2599643_vessel_pass_application.hwp	OLE compound file	1	e5989f18eb184be8	520cf6a793301654	0
 issue6128/156653004_privacy_day_ceremony.hwpx	HWPX	7	f847289575c440f4	cd047e3287d286cc	0
 issue6132/156482639_startup_ir_contest.hwp	OLE compound file	10	5b49cebdcbe3cd11	5036f4332305a26c	0
-issue6133/156483831_poster_title_above_offset_float.hwp	OLE compound file	1	e5989f18eb184be8	9df5058a56ba4288	0
+issue6133/156483831_poster_title_above_offset_float.hwp	OLE compound file	2	22d10a52556263a1	219aee115e7f064c	0
 issue6134/156731730_contact_table_logo_overlay.hwpx	HWPX	1	e5989f18eb184be8	35da5c342721ff47	0
 issue6135/156544683_title_row_underfit.hwp	OLE compound file	1	e5989f18eb184be8	5ce37de19dfaeca6	0
-issue6140/156462405_smart_expo.hwp	OLE compound file	12	d63ec331307e8fbd	c6a1131408177d6a	0
-issue6143/156555538_securities_settlement_review.hwpx	HWPX	17	ec4952bca0c4c988	636a19dff1466326	0
-issue6145/worklife_balance_index_156607916.hwpx	HWPX	6	633c8afaf6501d69	011eae18716402fd	0
+issue6140/156462405_smart_expo.hwp	OLE compound file	12	d63ec331307e8fbd	c5f0154b3e5f5354	0
+issue6143/156555538_securities_settlement_review.hwpx	HWPX	17	ec4952bca0c4c988	ad777eb3ad7ceb58	0
+issue6145/worklife_balance_index_156607916.hwpx	HWPX	6	633c8afaf6501d69	caad854df7a8ccf0	0
 issue6146/156583583_press_release_logo_band.hwpx	HWPX	2	22d10a52556263a1	c69a989217a7ac1c	0
 issue6147/156741101_press_release_band.hwpx	HWPX	2	22d10a52556263a1	ca47b585cac1eda6	0
 issue6167/leading_space_tac_table.hwpx	HWPX	1	e5989f18eb184be8	f6bc611c5da20c11	0
@@ -717,7 +717,7 @@ issue6175/seed_expo_square_float_body.hwpx	HWPX	4	cb34ff9c7c790a8d	37c416f812f2c
 issue6179/right_tab_footer_logo.hwpx	HWPX	1	e5989f18eb184be8	3188cfd77dbf40ef	0
 issue6180/156745974_tac_object_line_spacing.hwpx	HWPX	12	d63ec331307e8fbd	c8caeb1002a171eb	0
 issue6181/156562368_inline_tac_table_line_advance.hwpx	HWPX	12	d63ec331307e8fbd	3e32de08155d0140	0
-issue6184/156489124_tail_line_before_deferred_table.hwp	OLE compound file	2	22d10a52556263a1	5c1093503fa68e16	0
+issue6184/156489124_tail_line_before_deferred_table.hwp	OLE compound file	2	22d10a52556263a1	e60b7ac4ff79023c	0
 issue6185/156570535_logo_box_self_displacement.hwpx	HWPX	1	e5989f18eb184be8	d93cc252e138e487	0
 issue6186/156755659_defense_press_release.hwpx	HWPX	2	22d10a52556263a1	6f423980e6a309d9	0
 issue6186/156755659_footer_vertalign_bottom.hwpx	HWPX	2	22d10a52556263a1	6f423980e6a309d9	0
@@ -726,18 +726,18 @@ issue6192/cell_behind_text_para_anchor.hwpx	HWPX	2	22d10a52556263a1	b26a355ddd74
 issue6194/156494392_agri_press_release.hwpx	HWPX	2	22d10a52556263a1	96b9cae60ffd1928	0
 issue6196/cell_char_spacing_fit.hwp	OLE compound file	1	e5989f18eb184be8	927bf15f0c469e4e	0
 issue6202/156483689-turmeric-industry-standardization.hwp	OLE compound file	8	d46677bace108b55	b1fe5a735e7acd39	0
-issue6204/square_picture_band_host.hwp	OLE compound file	1	e5989f18eb184be8	3f6d68a9ffd34634	0
+issue6204/square_picture_band_host.hwp	OLE compound file	1	e5989f18eb184be8	7f5d1b333b45ba80	0
 issue6208/print_method_nup.hwp	OLE compound file	1	e5989f18eb184be8	15cb1c38d9c3e428	0
-issue6264/1977964_env_satellite_report_form.hwp	OLE compound file	4	cb34ff9c7c790a8d	e615dd70e82fcbb4	0
+issue6264/1977964_env_satellite_report_form.hwp	OLE compound file	4	cb34ff9c7c790a8d	cbe63f13c0fe7910	0
 issue6266/seizure_list_form_button.hwp	OLE compound file	1	e5989f18eb184be8	20fa2e10e15d54c0	0
 issue6267/kdt_result_para_float_table.hwpx	HWPX	1	e5989f18eb184be8	cea2855f4e5557a3	0
-issue6269/156739836_public_sector_jobs_stats.hwpx	HWPX	57	949bed02d575ac38	fb95a8efa20c136c	0
-issue6280/156742029_prosecutor_transfer_list.hwp	OLE compound file	21	904137f1763aeae0	c5f18bfe0eee8813	0
-issue6284/child_policy_top_caption_charts.hwpx	HWPX	34	185d8ccbef246a61	87e8499f52e71065	0
+issue6269/156739836_public_sector_jobs_stats.hwpx	HWPX	57	949bed02d575ac38	32bfecd58e03ffa6	0
+issue6280/156742029_prosecutor_transfer_list.hwp	OLE compound file	21	904137f1763aeae0	7a29a8cb329f2ff3	0
+issue6284/child_policy_top_caption_charts.hwpx	HWPX	34	185d8ccbef246a61	8b4ca0726aea3181	0
 issue6298/copay_cap_tac_table_leading.hwpx	HWPX	12	d63ec331307e8fbd	a5b9b242d5df6517	0
 issue6299/forest_press_wrap_seg_pairs.hwpx	HWPX	1	e5989f18eb184be8	77aec8fc70893348	0
 issue6300/trade_report_forced_break_object.hwp	OLE compound file	39	bbd8e28dff14f934	ddc6975d82f26407	0
-issue6310/press_release_cell_logo.hwpx	HWPX	51	8aed4b538e4156bc	fd758e308c526857	0
+issue6310/press_release_cell_logo.hwpx	HWPX	51	8aed4b538e4156bc	106b9ea74c789386	0
 issue6312/fiscal_trend_float_table_anchor.hwpx	HWPX	4	cb34ff9c7c790a8d	1df356bdfebea781	0
 issue6312/tab_host_own_line.hwpx	HWPX	2	22d10a52556263a1	ab5e211cccae4840	0
 issue6313/microbe_bank_cell_picture.hwpx	HWPX	5	a98db8f3a1da7840	93ba455646bc21aa	0
@@ -747,13 +747,13 @@ issue6448/tac_cell_leftover_fits.hwpx	HWPX	3	8ed5a02a4e09555c	891fb422dac0c072	0
 issue6451/underline_run_fragments.hwpx	HWPX	6	633c8afaf6501d69	a8642a07e244291e	0
 issue6465/press_release_footer_logos.hwpx	HWPX	13	e0f004dbc7bfed30	54c67f471b1e9dd4	0
 issue6469/wmf_fill_shapes.hwpx	HWPX	15	25cc994699a683e4	e899bc7f244f7adb	0
-issue6524/30098_float_host_split_lineseg.hwp	OLE compound file	15	25cc994699a683e4	e3163543147d4070	0
-issue6535/36339092_low_slack_absorb_block.hwpx	HWPX	2	22d10a52556263a1	96b1bdc490a5aa25	0
+issue6524/30098_float_host_split_lineseg.hwp	OLE compound file	15	25cc994699a683e4	013e4e74bc576710	0
+issue6535/36339092_low_slack_absorb_block.hwpx	HWPX	1	e5989f18eb184be8	221cf01899c666b1	0
 issue6535/36399617_page_anchored_block_reset.hwpx	HWPX	1	e5989f18eb184be8	c05b9758b2e53069	0
-issue6535/36404612_page_anchored_footer_block.hwpx	HWPX	1	e5989f18eb184be8	79c42602dc0d40de	0
+issue6535/36404612_page_anchored_footer_block.hwpx	HWPX	1	e5989f18eb184be8	25c30c932b8943c0	0
 issue6542/156678235_mid_para_vpos_rewind.hwp	OLE compound file	7	f847289575c440f4	e484a82fb34d8ff2	0
 issue6549/16418295_square_rowbreak_table.hwp	OLE compound file	2	22d10a52556263a1	3baad7b50385efa9	0
-issue6551/113424_evaluation_guideline.hwpx	HWPX	46	5782951064adc159	979de372862e5953	0
+issue6551/113424_evaluation_guideline.hwpx	HWPX	46	5782951064adc159	d543258f1d14f579	0
 issue6575/156489219_satellite_pm_release.hwp	OLE compound file	8	d46677bace108b55	881d704b72497288	0
 issue6575/tac_picture_line_top.hwpx	HWPX	1	e5989f18eb184be8	96142a4b7ac7d87a	0
 issue6598/2744465_fingerprint_appraisal.hwp	OLE compound file	1	e5989f18eb184be8	812c63a456acc6fa	0
@@ -763,30 +763,30 @@ issue6639/issue6639-hancom-160.hwpx	HWPX	1	e5989f18eb184be8	8b7cf89ef6218b11	0
 issue6639/issue6639-reference-input-140.hwpx	HWPX	1	e5989f18eb184be8	8b7cf89ef6218b11	0
 issue6639/issue6639-reference-input-160.hwpx	HWPX	1	e5989f18eb184be8	8b7cf89ef6218b11	0
 issue6639/rhwp-table-cell-minimal-repro.hwp	OLE compound file	1	e5989f18eb184be8	8b7cf89ef6218b11	0
-issue6697/80550-agricultural-machinery-act-amendment.hwpx	HWPX	31	13b044245f40aa84	f1e5746f8bd0de33	0
-issue6712/중국어_2026년 8호 가정통신문_여름철 영유아 감염병 예방.hwp	OLE compound file	2	22d10a52556263a1	f2d29cc352a58cf4	0
-issue6712/한국어_2026년 8호 가정통신문_여름철 영유아 감염병 예방.hwp	OLE compound file	2	22d10a52556263a1	f5815161a030ba88	0
+issue6697/80550-agricultural-machinery-act-amendment.hwpx	HWPX	31	13b044245f40aa84	7530847d51aff35d	0
+issue6712/중국어_2026년 8호 가정통신문_여름철 영유아 감염병 예방.hwp	OLE compound file	2	22d10a52556263a1	42ed7d7c274aa582	0
+issue6712/한국어_2026년 8호 가정통신문_여름철 영유아 감염병 예방.hwp	OLE compound file	2	22d10a52556263a1	8eb182f300818770	0
 issue6718/27469-child-allowance-retroactive-support.hwp	OLE compound file	12	d63ec331307e8fbd	69bf53a4a2ddc9c3	0
 issue6737/156487948-marine-pollution-law.hwp	OLE compound file	2	22d10a52556263a1	b33523cb0a378942	0
 issue6754/156585314-ssagirang-barley.hwp	OLE compound file	3	8ed5a02a4e09555c	0bb3604f72bac8c0	0
 issue6756/17253153-traffic-safety-designated-routes.hwp	OLE compound file	5	a98db8f3a1da7840	ab7545bbd92383d4	0
-issue6764/1613000-202200037-air-traffic-controller-cbta.hwp	OLE compound file	202	0724b9691d93077d	ef67e1154a752efd	0
+issue6764/1613000-202200037-air-traffic-controller-cbta.hwp	OLE compound file	204	46793e6df4c7ca39	e19fd8045ee31321	0
 issue6776/36367506-water-facility-approval.hwpx	HWPX	3	8ed5a02a4e09555c	17cbf05c56d72612	0
-issue6776/78494-virtual-convergence-industry-decree.hwpx	OLE compound file	75	65a2200e499d094c	d86c49019495cfae	0
-issue6778/156757920-animal-welfare-husbandry-guidelines.hwp	OLE compound file	12	d63ec331307e8fbd	8a3c952521153e2f	0
-issue6782/1480000-201900042-chemical-labeling-standards.hwp	OLE compound file	103	a55f174fa0a85f74	ddeb683d88dffa44	0
-issue6782/1480000-201900042-chemical-product-labeling-study.hwp	OLE compound file	103	a55f174fa0a85f74	ddeb683d88dffa44	0
-issue6787/16774617-electronic-ballot-form.hwp	OLE compound file	2	22d10a52556263a1	965e65015043dbc9	0
-issue6790/17544911-sericulture-training-criteria.hwp	OLE compound file	3	8ed5a02a4e09555c	359ec639568add0c	0
+issue6776/78494-virtual-convergence-industry-decree.hwpx	OLE compound file	74	2b83b60f44e01b91	de9ce167eeff0ba8	0
+issue6778/156757920-animal-welfare-husbandry-guidelines.hwp	OLE compound file	12	d63ec331307e8fbd	540b68aee34a124f	0
+issue6782/1480000-201900042-chemical-labeling-standards.hwp	OLE compound file	103	a55f174fa0a85f74	e63760d3587ef988	0
+issue6782/1480000-201900042-chemical-product-labeling-study.hwp	OLE compound file	103	a55f174fa0a85f74	e63760d3587ef988	0
+issue6787/16774617-electronic-ballot-form.hwp	OLE compound file	2	22d10a52556263a1	6a93e4774fc65e59	0
+issue6790/17544911-sericulture-training-criteria.hwp	OLE compound file	3	8ed5a02a4e09555c	40e466fe2fdb609c	0
 issue6793/1611000-201000141-small-air-transport-study.hwp	OLE compound file	12	d63ec331307e8fbd	44c3576a1ae0e64c	0
-issue6795/1341000-201100013-cyber-university-application.hwp	OLE compound file	45	e5e18030c8ea54c3	af31282fdd31c566	0
+issue6795/1341000-201100013-cyber-university-application.hwp	OLE compound file	45	e5e18030c8ea54c3	4dd2596356d6a4b1	0
 issue6797/156160455-social-pig-farm-income.hwp	OLE compound file	11	358abfa246fec2cc	747def654b0f90d9	0
-issue6800/1192000-202100017-policy-research-report.hwp	OLE compound file	1	e5989f18eb184be8	338a2fdbb8d42e5c	0
-issue6803/1376496-neighborhood-facility-land-table.hwp	OLE compound file	5	a98db8f3a1da7840	b6c6a13c9693759c	0
+issue6800/1192000-202100017-policy-research-report.hwp	OLE compound file	1	e5989f18eb184be8	254d2fc4c3fafd04	0
+issue6803/1376496-neighborhood-facility-land-table.hwp	OLE compound file	5	a98db8f3a1da7840	dd603d474e26a13a	0
 issue6844/30269-anticorruption-recommendation-toc.hwp	OLE compound file	22	8f6d00f3d4264c89	37c4f0b697ae555b	0
-issue6854/22037757-chuncheon-personnel-rule-annex13.hwpx	HWPX	15	25cc994699a683e4	64cb505c777703a6	0
-issue6854/70833-electrical-safety-rule-regulatory-analysis.hwp	OLE compound file	18	591b52204ff83bc1	f7138783dcd3ae87	0
-issue6860/3067979-road-lighting-photometric-appendix.hwpx	HWPX	2	22d10a52556263a1	4294495cbf6db960	0
+issue6854/22037757-chuncheon-personnel-rule-annex13.hwpx	HWPX	15	25cc994699a683e4	21972ee4b4db8072	0
+issue6854/70833-electrical-safety-rule-regulatory-analysis.hwp	OLE compound file	18	591b52204ff83bc1	438f66423e2a536b	0
+issue6860/3067979-road-lighting-photometric-appendix.hwpx	HWPX	2	22d10a52556263a1	a8d634151db3fe2e	0
 issue6860/3067979-road-lighting-photometric-hancom2020.hwpx	HWPX	2	22d10a52556263a1	501da2411856ec3e	0
 issue6861/3194097-performance-rating-roster.hwp	OLE compound file	1	e5989f18eb184be8	1675658d5d48416e	0
 issue6862/2249811-vessel-collision-analysis-form.hwp	OLE compound file	1	e5989f18eb184be8	c274a7ff26ee7d42	0
@@ -797,7 +797,7 @@ issue6873/19211507-chungju-paid-restroom-certificate.hwp	OLE compound file	1	e59
 issue6873/hwpx/18096141-gyeongju-gas-subsidy-plan-2020.hwpx	HWPX	1	e5989f18eb184be8	3622ef009032511f	0
 issue6873/hwpx/19211507-chungju-paid-restroom-certificate-2020.hwpx	HWPX	1	e5989f18eb184be8	709e1e8852251aba	0
 issue6879/156767332-broadcast-revenue-attachment.hwp	OLE compound file	8	e9a39379557df831	07ec39d92d6f4777	0
-issue6882/synth_cell_enter_table_growth.hwp	OLE compound file	2	22d10a52556263a1	9579fda154d90908	0
+issue6882/synth_cell_enter_table_growth.hwp	OLE compound file	2	22d10a52556263a1	0dd03b335d2973f0	0
 issue6888/156730935-marine-mobility-expo.hwpx	HWPX	2	22d10a52556263a1	ab337f4cf0511be3	0
 issue6888/pdf/156730935-marine-mobility-expo-2024.pdf	PDF	2	3e1fddecfccf29a9	6f869816dcef33ff	0
 issue6892/156726122-recycling-press-release.hwpx	HWPX	8	d46677bace108b55	7c6fbe074804f443	0
@@ -808,9 +808,9 @@ issue6900/pdf/156521182-covid-press-clarification-2020.pdf	PDF	4	3367d86ab1e0fc1
 issue6912/156564340-ip-dispute-mediation-poster-slice.hwpx	HWPX	2	22d10a52556263a1	343e66e5298e950f	0
 issue6913/156591199-veterans-joint-burial-press-release.hwpx	HWPX	3	8ed5a02a4e09555c	a5de0419acd3136e	0
 issue6921/148733091-briefing-stenographic-record.hwp	OLE compound file	36	b0b3edac9b58614d	df1ac88ed7f209df	0
-issue6924/148751598-briefing.hwp	OLE compound file	6	633c8afaf6501d69	e08b2e74998418a8	0
+issue6924/148751598-briefing.hwp	OLE compound file	6	633c8afaf6501d69	f3aee2eead089dfa	0
 issue6928/148769979_274 반도체포럼 개최(이귀남 최종).hwp	OLE compound file	5	a98db8f3a1da7840	846cf0c6616f0da2	0
-issue6929/148776468_search_ad_terms_press_release.hwp	OLE compound file	17	ec4952bca0c4c988	92acc8149882201b	0
+issue6929/148776468_search_ad_terms_press_release.hwp	OLE compound file	17	ec4952bca0c4c988	18b43f9438c2c463	0
 issue6936/bold-faces.hwp	OLE compound file	1	e5989f18eb184be8	307db3c080f7153b	0
 issue6936/bold-faces.hwpx	HWPX	1	e5989f18eb184be8	307db3c080f7153b	0
 issue6938/mixed_chart.hwp	OLE compound file	1	e5989f18eb184be8	af63c14c8601beab	0
@@ -819,28 +819,28 @@ issue6938/mixed_chart.pdf	PDF	1	878bfab1b06a850a	277fab4491d72968	0
 issue6946/44529-logistics-policy-rule-amendment.hwp	OLE compound file	13	e0f004dbc7bfed30	62c12b51cd1cce93	0
 issue6956/3024739-exposure-algorithm-markpen.hwpx	HWPX	1	e5989f18eb184be8	abb7d68fc3cce47b	0
 issue6969/synth_decoration_host_title.hwp	OLE compound file	1	e5989f18eb184be8	2d5c4f722177a8d0	0
-issue6973/83818-appraisal-rules-amendment.hwpx	HWPX	9	e6027c829903e458	5d451bdbdb9b48d0	0
-issue6974/synth_textbox_vgrow.hwp	OLE compound file	1	e5989f18eb184be8	e60a7510b53d0313	0
+issue6973/83818-appraisal-rules-amendment.hwpx	HWPX	9	e6027c829903e458	73efafdd6f777d56	0
+issue6974/synth_textbox_vgrow.hwp	OLE compound file	1	e5989f18eb184be8	7fb7b63c66e31bab	0
 issue6986/cell-page-and-total-page-in-one-run.hwpx	HWPX	1	e5989f18eb184be8	6fdb207762cf1cdf	0
-issue7012/synth_cell_nested_float_lead_center.hwp	OLE compound file	2	22d10a52556263a1	696146f15e21b015	0
-issue7015/30442-acrc-recommendation-business-burden.hwp	OLE compound file	17	ec4952bca0c4c988	0ac4018d9b7682de	0
+issue7012/synth_cell_nested_float_lead_center.hwp	OLE compound file	2	22d10a52556263a1	841b49e0c8c368af	0
+issue7015/30442-acrc-recommendation-business-burden.hwp	OLE compound file	17	ec4952bca0c4c988	03cf3e65da703022	0
 issue7017/2528375-science-invention-contest-receipt.hwp	OLE compound file	1	e5989f18eb184be8	155ed2dfca4dfb7f	0
 issue7018/2769535-records-inspection-plan.hwpx	HWPX	2	22d10a52556263a1	5c4bd9d9dd2b06af	0
 issue7035/native_hwp5_low_style_ratio.hwp	OLE compound file	27	6dc0942507b9f9ec	85cdbae2bd9a52b1	0
-issue7062/tac_object_host_line_height.hwp	OLE compound file	10	5b49cebdcbe3cd11	36cd365e6813c1bf	0
-issue7182/rowbreak_cell_picture_only_paragraph.hwp	OLE compound file	4	cb34ff9c7c790a8d	c51d8eb07bf452f7	0
+issue7062/tac_object_host_line_height.hwp	OLE compound file	10	5b49cebdcbe3cd11	270378fc0a4397ab	0
+issue7182/rowbreak_cell_picture_only_paragraph.hwp	OLE compound file	4	cb34ff9c7c790a8d	c7d02c9c2959c83b	0
 issue7190/3011411_tac_picture_second_line-2020.pdf	PDF	1	878bfab1b06a850a	b040827dcab2bc19	0
 issue7190/3011411_tac_picture_second_line.hwpx	HWPX	1	e5989f18eb184be8	1cf9e3206b56ea4e	0
 issue7190/36473713_leading_control_lines-2020.pdf	PDF	2	3e1fddecfccf29a9	5707a77b224b5226	0
-issue7190/36473713_leading_control_lines.hwpx	HWPX	2	22d10a52556263a1	efd9fc2bfda4c31f	0
+issue7190/36473713_leading_control_lines.hwpx	HWPX	2	22d10a52556263a1	5c1f7163a3ceaf3f	0
 issue7193/2983289_picture_inner_margin-2020.pdf	PDF	1	878bfab1b06a850a	88bff3ee4ffa46e2	0
 issue7193/2983289_picture_inner_margin.hwpx	HWPX	1	e5989f18eb184be8	86853d38df00abaa	0
 issue7193/3184393_picture_inner_margin-2020.pdf	PDF	1	878bfab1b06a850a	eb5c6dc7d98a9938	0
 issue7193/3184393_picture_inner_margin.hwp	OLE compound file	1	e5989f18eb184be8	bfbc43ca60d9a76b	0
 issue7196/156760012_page_top_spacing_trim-2024.pdf	PDF	10	8ab5e0da8b514299	50b637edc54986ee	0
-issue7196/156760012_page_top_spacing_trim.hwpx	HWPX	10	5b49cebdcbe3cd11	b3822d5a9fa12aa9	0
+issue7196/156760012_page_top_spacing_trim.hwpx	HWPX	10	5b49cebdcbe3cd11	94c86a1a90ea3da7	0
 issue7198/156403546_negative_spacing_host_after_table-2020.pdf	PDF	21	51682ae4b5ad8ec2	02d625cb84aa3950	0
-issue7198/156403546_negative_spacing_host_after_table.hwp	OLE compound file	21	904137f1763aeae0	8557c17b07b8c44c	0
+issue7198/156403546_negative_spacing_host_after_table.hwp	OLE compound file	21	904137f1763aeae0	3fe0d7df19657680	0
 issue7198/156451317_positive_spacing_host_after_table-2020.pdf	PDF	6	dedb6ff28ae03d21	163862dba62fbe78	0
 issue7198/156451317_positive_spacing_host_after_table.hwp	OLE compound file	6	633c8afaf6501d69	fb1697c680aecfb9	0
 issue7216/short_table_after-2020.pdf	PDF	1	878bfab1b06a850a	97b6de7cf79c472d	0
@@ -850,7 +850,7 @@ issue7216/short_table_before.hwpx	HWPX	1	e5989f18eb184be8	614672fd65e32ef0	0
 issue7216/tall_table_after-2020.pdf	PDF	2	3e1fddecfccf29a9	53317a05308bf6b8	0
 issue7216/tall_table_after.hwpx	HWPX	2	22d10a52556263a1	dc8de4d730140267	0
 issue7216/tall_table_before-2020.pdf	PDF	2	3e1fddecfccf29a9	c8e7d7e504736855	0
-issue7216/tall_table_before.hwpx	HWPX	2	22d10a52556263a1	dc8de4d730140267	0
+issue7216/tall_table_before.hwpx	HWPX	2	22d10a52556263a1	5d3d66a8ecb2ce4f	0
 issue7218/outline_headings.hwpx	HWPX	1	e5989f18eb184be8	352cb87f97e90663	0
 issue7218/outline_headings_pagebreak_after_fix-2020.pdf	PDF	2	3e1fddecfccf29a9	62bfc266148228d4	0
 issue7218/outline_headings_pagebreak_after_fix.hwpx	HWPX	2	22d10a52556263a1	8c8488b4cae292cd	0
@@ -870,7 +870,7 @@ issue7235/156467175_press_release_header_logo_p1.hwp	OLE compound file	1	e5989f1
 issue7265/pr7400_cell_char_format_after.hwpx	HWPX	1	e5989f18eb184be8	3eb7261bd0cf1c90	0
 issue7265/pr7400_cell_char_format_before.hwpx	HWPX	1	e5989f18eb184be8	44e6c952749be77c	0
 issue7312/36494702_approval_tac_band.hwpx	HWPX	1	e5989f18eb184be8	342f8d79424fe06e	0
-issue7333/aaaaaa.hwp	OLE compound file	50	5d8797c5f9436d81	af49ecb879c7cf4b	0
+issue7333/aaaaaa.hwp	OLE compound file	50	5d8797c5f9436d81	cab8d2d5a81d38fb	0
 issue7336/nested_table_fragment_cut.hwp	OLE compound file	6	633c8afaf6501d69	4cdd8c75ac11e734	0
 issue7336/stored_frame_page_larger_rowbreak.hwpx	HWPX	7	f847289575c440f4	4d2cbf9177e4b8cc	0
 issue7406/7406_OLE__CHART.hwp	OLE compound file	1	e5989f18eb184be8	4bd8073f908df234	0
@@ -901,36 +901,36 @@ issue7418/trailing_space_synthetic.hwpx	HWPX	1	e5989f18eb184be8	195c6ebcb875787d
 issue7429/inkless_tail_synthetic-hancom-2024.hwpx	HWPX	27	6dc0942507b9f9ec	b85d22fb7e1bd9b2	0
 issue7429/inkless_tail_synthetic.hwpx	HWPX	27	6dc0942507b9f9ec	b85d22fb7e1bd9b2	0
 issue7481/synth_square_host_full_width_table_no_ls.hwp	OLE compound file	1	e5989f18eb184be8	ed2f0c3d03fa5bb9	0
-issue7481/synth_square_host_title_no_ls.hwp	OLE compound file	1	e5989f18eb184be8	c1fca8ee91eeab58	0
+issue7481/synth_square_host_title_no_ls.hwp	OLE compound file	1	e5989f18eb184be8	f6f269f656917186	0
 issue7482/long-boundary-8.hwpx	HWPX	1	e5989f18eb184be8	3e6b3ae7453ab166	0
 issue7482/margin1034.hwpx	HWPX	1	e5989f18eb184be8	3fa33f2b4073b80b	0
 issue7482/margin284.hwpx	HWPX	1	e5989f18eb184be8	3fa33f2b4073b80b	0
 issue7482/original-no-ls-overlay-tac.hwp	OLE compound file	1	e5989f18eb184be8	3fa33f2b4073b80b	0
-issue7482/tac-after-plain-paragraphs.hwpx	HWPX	2	22d10a52556263a1	185d3ea8233684a6	0
-issue7482/tac-explicit-break.hwpx	HWPX	1	e5989f18eb184be8	69978e25c0afe275	0
+issue7482/tac-after-plain-paragraphs.hwpx	HWPX	2	22d10a52556263a1	e92252d7292932fc	0
+issue7482/tac-explicit-break.hwpx	HWPX	1	e5989f18eb184be8	f28402f5cb1b4b45	0
 issue7482/tac-mixed-explicit-break.hwpx	HWPX	1	38b3a215f6eac33d	e81444350a6fef5d	0
 issue7482/tac-mixed-one-row.hwpx	HWPX	1	38b3a215f6eac33d	4299da11109edb2b	0
 issue7482/tac-one-row.hwpx	HWPX	1	e5989f18eb184be8	69978e25c0afe275	0
-issue7482/tac-two-rows.hwpx	HWPX	1	e5989f18eb184be8	69978e25c0afe275	0
+issue7482/tac-two-rows.hwpx	HWPX	1	e5989f18eb184be8	f28402f5cb1b4b45	0
 issue7482/tac-word-after-pair.hwpx	HWPX	1	e5989f18eb184be8	a6aa3e01397b6418	0
 issue7486/pr7487-spacing100-enter90.hwpx	HWPX	2	22d10a52556263a1	ec009c11f9b24bed	0
 issue7486/pr7487-spacing130-enter90.hwpx	HWPX	2	22d10a52556263a1	e09c8c62104b599d	0
 issue7486/pr7487-spacing160-enter60.hwpx	HWPX	2	22d10a52556263a1	8280fe57f47098bd	0
-issue7486/pr7487-spacing160-enter90.hwpx	HWPX	3	8ed5a02a4e09555c	1722cc11cb6010fb	0
+issue7486/pr7487-spacing160-enter90.hwpx	HWPX	3	8ed5a02a4e09555c	2414c2480b02c94b	0
 issue7486/pr7487-spacing180-enter90.hwpx	HWPX	3	8ed5a02a4e09555c	84659378fe8cd07b	0
 issue7486/pr7487-spacing200-enter33.hwpx	HWPX	2	22d10a52556263a1	c29df1ba99e374c5	0
-issue7486/pr7487-spacing200-enter90.hwpx	HWPX	3	8ed5a02a4e09555c	f75606051f32c9fb	0
+issue7486/pr7487-spacing200-enter90.hwpx	HWPX	3	8ed5a02a4e09555c	78a57a49975b164b	0
 issue7486/pr7487-spacing300-enter22.hwpx	HWPX	2	22d10a52556263a1	c130f379ff47ddfd	0
-issue7486/pr7487-spacing300-enter90.hwpx	HWPX	5	a98db8f3a1da7840	fb84d617c5f9c05b	0
-issue7500/picture_band_cell_spaces.hwp	OLE compound file	2	22d10a52556263a1	02d28bca17ab0d24	0
-issue7500/tac_table_host_spaces.hwp	OLE compound file	1	c43f128efd282724	7e24da7a86df7437	0
+issue7486/pr7487-spacing300-enter90.hwpx	HWPX	5	a98db8f3a1da7840	3689426ee3a95f7b	0
+issue7500/picture_band_cell_spaces.hwp	OLE compound file	2	22d10a52556263a1	bed1dffcbe39cd44	0
+issue7500/tac_table_host_spaces.hwp	OLE compound file	1	c43f128efd282724	e243fff4fe4d8149	0
 issue_1133.hwp	OLE compound file	3	8ed5a02a4e09555c	df3f0f72d758e94a	0
 issue_2148_degenerate_cell_vpos.hwpx	HWPX	1	e5989f18eb184be8	63263f8e38fa3f51	0
-issue_265.hwp	OLE compound file	16	01a9826c0d12e945	baf307fdfb59a761	0
+issue_265.hwp	OLE compound file	16	01a9826c0d12e945	072074f9bbecbdb9	0
 issues/2809/jubo_20260104.hwp	OLE compound file	6	cd60efcab01a0ae5	deff04e8f79a071f	0
-k-water-rfp-2024.hwp	OLE compound file	27	6dc0942507b9f9ec	ecd325f61b753985	0
-k-water-rfp.hwp	OLE compound file	27	6dc0942507b9f9ec	ecd325f61b753985	0
-kps-ai.hwp	OLE compound file	77	d6aef4a4dca9a3b0	147071fbd0df3b7d	0
+k-water-rfp-2024.hwp	OLE compound file	27	6dc0942507b9f9ec	937e4dbe1c283dff	0
+k-water-rfp.hwp	OLE compound file	27	6dc0942507b9f9ec	937e4dbe1c283dff	0
+kps-ai.hwp	OLE compound file	77	d6aef4a4dca9a3b0	fb28a9bc48bdb481	0
 landscape-001.hwp	OLE compound file	1	c43f128efd282724	febb533e1d555da7	0
 loading-fail-01.hwp	OLE compound file	14	9922ffbca2a04f99	f1dba29e5fe0d687	0
 lseg-01-basic.hwp	OLE compound file	1	e5989f18eb184be8	dcd926175f6ffa7c	0
@@ -950,15 +950,15 @@ page_anchored_square/page_anchored_square.hwp	OLE compound file	1	e5989f18eb184b
 para-001.hwp	OLE compound file	3	8ed5a02a4e09555c	7fcad05cdff4c733	0
 para-unit-01.hwp	OLE compound file	2	22d10a52556263a1	32f764ed3a5e56af	0
 pic-crop-01.hwp	OLE compound file	1	e5989f18eb184be8	af63c14c8601beab	0
-pic-in-head-01.hwp	OLE compound file	22	8f6d00f3d4264c89	f437de12efb0d2aa	0
-pic-in-head-02.hwp	OLE compound file	6	633c8afaf6501d69	38d6e3b72ac684f0	0
-pic-in-table-01.hwp	OLE compound file	22	8f6d00f3d4264c89	f437de12efb0d2aa	0
+pic-in-head-01.hwp	OLE compound file	22	8f6d00f3d4264c89	ca1cec4d2412dee4	0
+pic-in-head-02.hwp	OLE compound file	6	633c8afaf6501d69	d20c8dd7d4e0388c	0
+pic-in-table-01.hwp	OLE compound file	22	8f6d00f3d4264c89	ca1cec4d2412dee4	0
 pic-in-table-with-toggle.hwp	OLE compound file	1	e5989f18eb184be8	359f5a4bc5f8e203	0
 pic2-2018.hwp	OLE compound file	2	22d10a52556263a1	c15a5d5b5893c68f	0
 pic2.hwp	OLE compound file	2	22d10a52556263a1	c15a5d5b5893c68f	0
 pic2.hwpx	HWPX	2	22d10a52556263a1	c15a5d5b5893c68f	0
 pr-149.hwp	OLE compound file	1	e5989f18eb184be8	6f2c6be3c6532064	0
-pr-1674.hwp	OLE compound file	35	5fa49d89e7136d9c	f3ab1320a5eaf130	0
+pr-1674.hwp	OLE compound file	35	5fa49d89e7136d9c	8bb52632984e14b8	0
 pr4093/outline_navigation_panel_demo.hwpx	HWPX	3	8ed5a02a4e09555c	0449250a4c17f6ec	0
 pr4093/outline_navigation_table_cell_number.hwpx	HWPX	1	e5989f18eb184be8	cbc413a5a198e274	0
 pr5935/test-2010.hwp	OLE compound file	1	e5989f18eb184be8	1f8591484dfd56ab	0
@@ -1049,8 +1049,8 @@ rnote/연구노트(수학).hwp	OLE compound file	23	f80a6ec900a47994	d521451920a
 rnote/연구노트(정보).hwp	OLE compound file	21	904137f1763aeae0	137f3db037380300	0
 rnote/연구노트(지구과학).hwp	OLE compound file	23	f80a6ec900a47994	d521451920acd1ea	0
 rnote/연구노트(화학).hwp	OLE compound file	24	e0235dbdcbf51ef5	d45a4fb285a8a9d2	0
-rowbreak-problem-pages.hwp	OLE compound file	18	591b52204ff83bc1	c79ce37fcacc20e6	0
-rowbreak-problem-pages.hwpx	HWPX	18	591b52204ff83bc1	267d290180521ab1	0
+rowbreak-problem-pages.hwp	OLE compound file	18	591b52204ff83bc1	a253860844bdb918	0
+rowbreak-problem-pages.hwpx	HWPX	18	591b52204ff83bc1	d8d2a15d1e07a6d0	0
 shape-001.hwp	OLE compound file	1	e5989f18eb184be8	c3b0e617ceb2e0d3	0
 shape-group-02.hwp	OLE compound file	1	e5989f18eb184be8	af63c14c8601beab	0
 shift-return.hwp	OLE compound file	1	e5989f18eb184be8	1ee474c519f4e39d	0
@@ -1062,12 +1062,12 @@ stored-nested-content-flow/cell-center-collapsed.hwpx	HWPX	1	a240b2cde4a93ccf	6d
 stored-nested-content-flow/cell-center-intact.hwpx	HWPX	1	a240b2cde4a93ccf	6d69ec95c77c29a8	0
 stored-nested-content-flow/cell-top-collapsed.hwpx	HWPX	1	a240b2cde4a93ccf	6d69ec95c77c29a8	0
 stored-nested-content-flow/cell-top-intact.hwpx	HWPX	1	a240b2cde4a93ccf	6d69ec95c77c29a8	0
-stored-nested-content-flow/flow-bottom.hwpx	HWPX	1	a240b2cde4a93ccf	6a1843c8e08cfea0	0
-stored-nested-content-flow/flow-center.hwpx	HWPX	1	a240b2cde4a93ccf	6a1843c8e08cfea0	0
-stored-nested-content-flow/flow-top.hwpx	HWPX	1	a240b2cde4a93ccf	6a1843c8e08cfea0	0
-stored-nested-content-flow/overlay-bottom.hwpx	HWPX	1	a240b2cde4a93ccf	d2e407e7c4d61e50	0
-stored-nested-content-flow/overlay-center.hwpx	HWPX	1	a240b2cde4a93ccf	d2e407e7c4d61e50	0
-stored-nested-content-flow/overlay-top.hwpx	HWPX	1	a240b2cde4a93ccf	d2e407e7c4d61e50	0
+stored-nested-content-flow/flow-bottom.hwpx	HWPX	1	a240b2cde4a93ccf	814d13dedc7f98ae	0
+stored-nested-content-flow/flow-center.hwpx	HWPX	1	a240b2cde4a93ccf	814d13dedc7f98ae	0
+stored-nested-content-flow/flow-top.hwpx	HWPX	1	a240b2cde4a93ccf	814d13dedc7f98ae	0
+stored-nested-content-flow/overlay-bottom.hwpx	HWPX	1	a240b2cde4a93ccf	d88a47905c219d30	0
+stored-nested-content-flow/overlay-center.hwpx	HWPX	1	a240b2cde4a93ccf	d88a47905c219d30	0
+stored-nested-content-flow/overlay-top.hwpx	HWPX	1	a240b2cde4a93ccf	d88a47905c219d30	0
 stored-nested-content-flow/pure-body--600.hwpx	HWPX	1	a240b2cde4a93ccf	744270cf336f493a	0
 stored-nested-content-flow/pure-body-0.hwpx	HWPX	1	a240b2cde4a93ccf	744270cf336f493a	0
 stored-nested-content-flow/pure-cell-bottom-collapsed.hwpx	HWPX	1	a240b2cde4a93ccf	6d69ec95c77c29a8	0
@@ -1076,31 +1076,31 @@ stored-nested-content-flow/pure-cell-center-collapsed.hwpx	HWPX	1	a240b2cde4a93c
 stored-nested-content-flow/pure-cell-center-intact.hwpx	HWPX	1	a240b2cde4a93ccf	6d69ec95c77c29a8	0
 stored-nested-content-flow/pure-cell-top-collapsed.hwpx	HWPX	1	a240b2cde4a93ccf	6d69ec95c77c29a8	0
 stored-nested-content-flow/pure-cell-top-intact.hwpx	HWPX	1	a240b2cde4a93ccf	6d69ec95c77c29a8	0
-stored-nested-content-flow/square-bottom.hwpx	HWPX	1	a240b2cde4a93ccf	6a1843c8e08cfea0	0
-stored-nested-content-flow/square-center.hwpx	HWPX	1	a240b2cde4a93ccf	6a1843c8e08cfea0	0
-stored-nested-content-flow/square-top.hwpx	HWPX	1	a240b2cde4a93ccf	6a1843c8e08cfea0	0
+stored-nested-content-flow/square-bottom.hwpx	HWPX	1	a240b2cde4a93ccf	814d13dedc7f98ae	0
+stored-nested-content-flow/square-center.hwpx	HWPX	1	a240b2cde4a93ccf	814d13dedc7f98ae	0
+stored-nested-content-flow/square-top.hwpx	HWPX	1	a240b2cde4a93ccf	814d13dedc7f98ae	0
 stored-nested-content-flow/width-bottom.hwp	OLE compound file	1	a240b2cde4a93ccf	804d917f9d86b4fa	0
 stored-nested-content-flow/width-center.hwp	OLE compound file	1	a240b2cde4a93ccf	804d917f9d86b4fa	0
 stored-nested-content-flow/width-top.hwp	OLE compound file	1	a240b2cde4a93ccf	804d917f9d86b4fa	0
 stored-table-text-tail/native-8-0.hwpx	HWPX	1	a240b2cde4a93ccf	48454a6624b7f4a0	0
-synam-001.hwp	OLE compound file	35	5fa49d89e7136d9c	33d826722444a9a1	0
+synam-001.hwp	OLE compound file	35	5fa49d89e7136d9c	f1d47f356c1469c3	0
 synam-001.pdf	PDF	35	78e5f52143f84656	766f7edf70737fb3	0
-ta-pic-001-r-쪽영역안제한.hwp	OLE compound file	1	e5989f18eb184be8	676140347930a716	0
-ta-pic-001-r-쪽영역안제한.hwpx	HWPX	1	e5989f18eb184be8	676140347930a716	0
-ta-pic-001-r-쪽영역안제한no.hwp	OLE compound file	1	e5989f18eb184be8	676140347930a716	0
-ta-pic-001-r-쪽영역안제한no.hwpx	HWPX	1	e5989f18eb184be8	676140347930a716	0
-ta-pic-001-r.hwp	OLE compound file	1	e5989f18eb184be8	676140347930a716	0
-ta-pic-cell-center-pos-bottom.hwpx	HWPX	1	e5989f18eb184be8	676140347930a716	0
-ta-pic-cell-top-pos-center.hwpx	HWPX	1	e5989f18eb184be8	676140347930a716	0
+ta-pic-001-r-쪽영역안제한.hwp	OLE compound file	1	e5989f18eb184be8	40325719e873a816	0
+ta-pic-001-r-쪽영역안제한.hwpx	HWPX	1	e5989f18eb184be8	40325719e873a816	0
+ta-pic-001-r-쪽영역안제한no.hwp	OLE compound file	1	e5989f18eb184be8	40325719e873a816	0
+ta-pic-001-r-쪽영역안제한no.hwpx	HWPX	1	e5989f18eb184be8	40325719e873a816	0
+ta-pic-001-r.hwp	OLE compound file	1	e5989f18eb184be8	40325719e873a816	0
+ta-pic-cell-center-pos-bottom.hwpx	HWPX	1	e5989f18eb184be8	40325719e873a816	0
+ta-pic-cell-top-pos-center.hwpx	HWPX	1	e5989f18eb184be8	40325719e873a816	0
 table-001.hwp	OLE compound file	1	e5989f18eb184be8	88ab01e23d300810	0
 table-004.hwp	OLE compound file	1	e5989f18eb184be8	606baf8c4453c810	0
-table-complex.hwp	OLE compound file	4	34cb914a8c71dced	7932964cecd983cf	0
+table-complex.hwp	OLE compound file	4	34cb914a8c71dced	4b2cb24306017cb6	0
 table-in-tbox.hwp	OLE compound file	2	22d10a52556263a1	c3364a53ce1f7961	0
-table-ipc.hwp	OLE compound file	10	1f16d568b1abf911	1dee93ff75269752	0
+table-ipc.hwp	OLE compound file	10	1f16d568b1abf911	a31c3e371dd27561	0
 table-vpos-01.hwp	OLE compound file	5	a98db8f3a1da7840	79194db3a5bfb879	0
 table-vpos-01.hwpx	HWPX	5	a98db8f3a1da7840	79194db3a5bfb879	0
-table_giant_cell_overfill.hwpx	HWPX	48	314168a648753b05	11b47cc7aa02d5cd	0
-table_scattered_header_rowbreak.hwp	OLE compound file	52	345c1fc1a950c2ed	106eef67a6261758	0
+table_giant_cell_overfill.hwpx	HWPX	48	314168a648753b05	fb1e4d095dda9291	0
+table_scattered_header_rowbreak.hwp	OLE compound file	52	345c1fc1a950c2ed	39f1a90a19e3065b	0
 table_text_anchor_wrap.hwpx	HWPX	3	8ed5a02a4e09555c	a6f8dd417a5d451d	0
 tac-case-001.hwp	OLE compound file	1	e5989f18eb184be8	8d3eb7e4b7b28b66	0
 tac-case-002.hwp	OLE compound file	1	e5989f18eb184be8	8d3eb7e4b7b28b66	0
@@ -1108,8 +1108,8 @@ tac-case-003.hwp	OLE compound file	1	e5989f18eb184be8	8d3eb7e4b7b28b66	0
 tac-case-004.hwp	OLE compound file	1	e5989f18eb184be8	8d3eb7e4b7b28b66	0
 tac-case-005.hwp	OLE compound file	1	e5989f18eb184be8	8d3eb7e4b7b28b66	0
 tac-host-spacing.hwpx	HWPX	1	e5989f18eb184be8	fcbe74cd6d105b36	0
-tac-img-02.hwp	OLE compound file	66	2597eacfe1c8f221	c30efe8e0c2ada8e	0
-tac-img-02.hwpx	HWPX	66	2597eacfe1c8f221	1acaa215cf80d47e	0
+tac-img-02.hwp	OLE compound file	66	2597eacfe1c8f221	de41d43ccc41b4d6	0
+tac-img-02.hwpx	HWPX	66	2597eacfe1c8f221	299cc15c4939be56	0
 tac-verify/scenario-a-after.hwp	OLE compound file	1	e5989f18eb184be8	2fd780189d0dd63b	0
 tac-verify/scenario-a-before.hwp	OLE compound file	1	e5989f18eb184be8	2fd780189d0dd63b	0
 tac-verify/scenario-b-after.hwp	OLE compound file	1	e5989f18eb184be8	2fd780189d0dd63b	0
@@ -1120,52 +1120,52 @@ tac-verify/scenario-d-after.hwp	OLE compound file	1	e5989f18eb184be8	af63c14c860
 tac-verify/scenario-d-before.hwp	OLE compound file	1	e5989f18eb184be8	af63c14c8601beab	0
 task-001.hwp	OLE compound file	1	e5989f18eb184be8	c6cebccd2d16c0ef	0
 task1700/byeolpyo1_uujeong_wrap_singlepage.hwp	OLE compound file	1	e5989f18eb184be8	4e182cb79e4ee6ea	0
-task1700/myeonjeok_wrap_10page.hwp	OLE compound file	10	5b49cebdcbe3cd11	6d4cc76738a61400	0
+task1700/myeonjeok_wrap_10page.hwp	OLE compound file	10	5b49cebdcbe3cd11	04ea62b3061b5c76	0
 task1705/wrap_empty_para_anchor_page.hwp	OLE compound file	2	22d10a52556263a1	e21e38e37cd7a8c7	0
-task1706/empty_para_before_pagebreak.hwpx	HWPX	3	8ed5a02a4e09555c	291112e210e1e316	0
+task1706/empty_para_before_pagebreak.hwpx	HWPX	3	8ed5a02a4e09555c	c6ca02bc34fe678a	0
 task1706/empty_para_between_tac_tables.hwp	OLE compound file	2	22d10a52556263a1	3e711a8797f2ed89	0
-task1716/table_scattered_header_rowbreak.hwpx	HWPX	52	345c1fc1a950c2ed	2ca9d02f6aa5fe6c	0
-task1718/table_giant_cell_overfill.hwp	OLE compound file	47	4fca9e48d46abc24	3d10986babcd96d8	0
-task1725/text_footnote_tail_overpagination.hwp	OLE compound file	242	407bed7701a89901	21f941145efec05c	0
-task1725/text_footnote_tail_overpagination.hwpx	HWPX	242	407bed7701a89901	0374e4f3e799c434	0
-task1745/table_text_anchor_wrap.hwp	OLE compound file	3	8ed5a02a4e09555c	a6f8dd417a5d451d	0
+task1716/table_scattered_header_rowbreak.hwpx	HWPX	52	345c1fc1a950c2ed	39f1a90a19e3065b	0
+task1718/table_giant_cell_overfill.hwp	OLE compound file	48	314168a648753b05	c877634b3b3c0519	0
+task1725/text_footnote_tail_overpagination.hwp	OLE compound file	242	407bed7701a89901	cee3822c73d085b7	0
+task1725/text_footnote_tail_overpagination.hwpx	HWPX	242	407bed7701a89901	d5f92ea29eef412f	0
+task1745/table_text_anchor_wrap.hwp	OLE compound file	3	8ed5a02a4e09555c	8950fb1df2059639	0
 task1749/saved_bounds_cumulative_page_break-2024.pdf	PDF	5	66146117748e9aa2	1023988051b66296	0
 task1749/saved_bounds_cumulative_page_break.hwp	OLE compound file	5	a98db8f3a1da7840	72880622431322ff	0
 task1749/saved_bounds_cumulative_page_break.hwpx	HWPX	5	a98db8f3a1da7840	72880622431322ff	0
 task1749/saved_bounds_cumulative_vpos-2024.pdf	PDF	2	3e1fddecfccf29a9	182ab57d326422e0	0
-task1749/saved_bounds_cumulative_vpos.hwp	OLE compound file	2	22d10a52556263a1	0e57b9841d8a9e50	0
-task1749/saved_bounds_cumulative_vpos.hwpx	HWPX	2	22d10a52556263a1	0e57b9841d8a9e50	0
+task1749/saved_bounds_cumulative_vpos.hwp	OLE compound file	2	22d10a52556263a1	6b9398786589fd4e	0
+task1749/saved_bounds_cumulative_vpos.hwpx	HWPX	2	22d10a52556263a1	6b9398786589fd4e	0
 task1750/split_guard_spacing_before-2024.pdf	PDF	5	66146117748e9aa2	b488c1b6ccb8a6ee	0
 task1750/split_guard_spacing_before.hwp	HWPX	5	a98db8f3a1da7840	5cb71693f1b04b46	0
 task1750/split_guard_spacing_before.hwpx	HWPX	5	a98db8f3a1da7840	5cb71693f1b04b46	0
 task1753/deferred_takeplace_fill_ahead-2024.pdf	PDF	21	51682ae4b5ad8ec2	4c7a9199e0484bce	0
-task1753/deferred_takeplace_fill_ahead.hwp	OLE compound file	21	904137f1763aeae0	5769e3b42d472a71	0
-task1753/deferred_takeplace_fill_ahead.hwpx	HWPX	21	904137f1763aeae0	5769e3b42d472a71	0
+task1753/deferred_takeplace_fill_ahead.hwp	OLE compound file	21	904137f1763aeae0	e85fc558671fea59	0
+task1753/deferred_takeplace_fill_ahead.hwpx	HWPX	21	904137f1763aeae0	e85fc558671fea59	0
 task1763/cell_trailing_ls_expand-2024.pdf	PDF	1	bae4bf2e9d749922	11a9aa7b2edf3ea0	0
 task1763/cell_trailing_ls_expand.hwp	OLE compound file	1	c43f128efd282724	9a3080d6cac144e4	0
 task1763/cell_trailing_ls_expand.hwpx	HWPX	1	c43f128efd282724	9a3080d6cac144e4	0
 task1765/merged_cell_trailing_ls-2024.pdf	PDF	4	3367d86ab1e0fc1d	0917fe992e834aef	0
-task1765/merged_cell_trailing_ls.hwp	OLE compound file	4	cb34ff9c7c790a8d	3ace7576e782dad6	0
-task1765/merged_cell_trailing_ls.hwpx	HWPX	4	cb34ff9c7c790a8d	3ace7576e782dad6	0
-task1768/distribution_doc.hwpx	OLE compound file	3	8ed5a02a4e09555c	c18c1766e0afc353	0
+task1765/merged_cell_trailing_ls.hwp	OLE compound file	4	cb34ff9c7c790a8d	79e557e31aa18170	0
+task1765/merged_cell_trailing_ls.hwpx	HWPX	4	cb34ff9c7c790a8d	79e557e31aa18170	0
+task1768/distribution_doc.hwpx	OLE compound file	3	8ed5a02a4e09555c	0af42d5932b4c191	0
 task1771/nested_group_vectors.hwpx	HWPX	15	25cc994699a683e4	0be1a09e21b5fab8	0
 task1772/table_outer_margin_common_sync.hwpx	HWPX	1	e5989f18eb184be8	3ef9aee987465200	0
-task1789/exclusion_probe_line_spacing.hwpx	HWPX	2	22d10a52556263a1	d5a4857a39492bd8	0
-task2070/1130000-201900011_D0150004-1-002_2017년기준 시장구조조사.hwp	OLE compound file	314	f9ad723cb21c7671	e45d3bb55719ffbd	0
+task1789/exclusion_probe_line_spacing.hwpx	HWPX	2	22d10a52556263a1	41ae2cd656e7bbe6	0
+task2070/1130000-201900011_D0150004-1-002_2017년기준 시장구조조사.hwp	OLE compound file	315	b9ed5ddac7d7a72c	b6ab200fd72762ef	0
 task2070/hy_ladder3.hwpx	HWPX	2	22d10a52556263a1	296d9b4e2c9bf0ba	0
 task2070/hy_ladder4.hwpx	HWPX	1	e5989f18eb184be8	69f592d6d407977e	0
-task2093/1192000_hydrogen_policy_research.hwp	OLE compound file	16	01a9826c0d12e945	2260c3004f92b361	0
+task2093/1192000_hydrogen_policy_research.hwp	OLE compound file	16	01a9826c0d12e945	6701cfc615ddf4f9	0
 task2093/saved_single_line_spacing_after.hwpx	HWPX	1	e5989f18eb184be8	e1fda82b36ab69f6	0
 task2097/1730000_selection_report.hwp	OLE compound file	1	e5989f18eb184be8	ed1113a03e79debe	0
 task2097/1741000_project_application.hwp	OLE compound file	2	22d10a52556263a1	49e30c3f17ee8f56	0
 task2097/17809123_jawonbongsa.hwpx	OLE compound file	1	e5989f18eb184be8	d59a3eb13ebe7715	0
-task2097/18095317_eogu_geumji.hwp	OLE compound file	21	904137f1763aeae0	a5430003d6961ed0	0
+task2097/18095317_eogu_geumji.hwp	OLE compound file	21	904137f1763aeae0	097f6d7e225e4458	0
 task2097/21217935_simsa_jipyo.hwp	OLE compound file	8	d46677bace108b55	ff964fd02c04bfdd	0
 task2097/21298295_byeolpyo5_disaster.hwp	OLE compound file	2	22d10a52556263a1	c6c93478637e6d3c	0
 task2097/3023771_wichokjang.hwpx	HWPX	2	22d10a52556263a1	5b40b130149bfa8f	0
 task2097/3080901_pii_ledger.hwp	OLE compound file	1	e5989f18eb184be8	115b06df03e26085	0
 task2097/3248363_upmu_bunjang.hwpx	HWPX	4	cb34ff9c7c790a8d	4faeec7511091b1e	0
-task2097/75544_pii_bunseok.hwpx	HWPX	66	2597eacfe1c8f221	66bfe0b377e7756e	0
+task2097/75544_pii_bunseok.hwpx	HWPX	66	2597eacfe1c8f221	fe0ff15098ab0372	0
 task2097/none_table_declared_fits.hwpx	HWPX	2	22d10a52556263a1	3d48e78adce38b53	0
 task2097/rowbreak_midpage_declared_fits.hwpx	HWPX	2	22d10a52556263a1	e1ec6e1508425468	0
 task2098/page_bottom_fixed_anchor_margin_split.hwpx	HWPX	1	e5989f18eb184be8	7d0b85e06a1733e0	0
@@ -1174,45 +1174,45 @@ task2105/rowbreak_table_declared_fits.hwpx	HWPX	2	22d10a52556263a1	d7368323c60b5
 task2136/neartop_reset_sb2500.hwpx	HWPX	1	e5989f18eb184be8	541773991643a44b	0
 task2137/156618554_petfood_press.hwp	OLE compound file	1	e5989f18eb184be8	fb26d60495459dd2	0
 task2137/156637323_unification_lecture.hwpx	HWPX	1	e5989f18eb184be8	2122913965318fbf	0
-task2146/21761835_jeonjik_exemption_table.hwp	OLE compound file	6	633c8afaf6501d69	f35ba075c3ff8e2e	0
-task2156/width_ladder.hwpx	HWPX	1	e5989f18eb184be8	b8124fbae89a70b0	0
+task2146/21761835_jeonjik_exemption_table.hwp	OLE compound file	6	633c8afaf6501d69	fa77b91c19fde88e	0
+task2156/width_ladder.hwpx	HWPX	1	e5989f18eb184be8	635e9fb7da18959a	0
 task2169/anchor_ladder.hwpx	HWPX	1	e5989f18eb184be8	443b911d4874c096	0
 task2169/empty_ladder.hwpx	HWPX	1	e5989f18eb184be8	668616e9eee07a87	0
 task2243/156631374_taxi_press.hwpx	HWPX	1	e5989f18eb184be8	7a49c0bab30f5de1	0
 task2243/36382819_gyeoljae_pm_traffic.hwpx	HWPX	3	8ed5a02a4e09555c	7687e71899ead8c5	0
-task2243/36386907_gyeoljae_sewoon.hwpx	HWPX	5	a98db8f3a1da7840	23d7c739eea22774	0
-task2243/36395325_gyeoljae_consulting.hwpx	HWPX	5	a98db8f3a1da7840	612b277b859d4062	0
-task2279/36353832_gyeoljae.hwpx	HWPX	1	e5989f18eb184be8	6f6ee942577eab76	0
-task2279/36358528_gyeoljae.hwpx	HWPX	2	22d10a52556263a1	cb1956c72b258968	0
-task2279/36365360_gyeoljae.hwpx	HWPX	2	22d10a52556263a1	7c95afead54969d2	0
-task2279/36376848_gyeoljae.hwpx	HWPX	2	22d10a52556263a1	9fee3eda8d98f958	0
-task2279/36378128_gyeoljae.hwpx	HWPX	1	e5989f18eb184be8	525134c297120f46	0
-task2279/36378481_gyeoljae.hwpx	HWPX	1	e5989f18eb184be8	dc12914f4d7a7ed8	0
-task2279/36394733_gyeoljae.hwpx	HWPX	2	22d10a52556263a1	3c9d35fd239e5959	0
-task2279/36395825_gyeoljae.hwpx	HWPX	2	22d10a52556263a1	e8cd4bbf2bcf8736	0
-task2279/36398724_gyeoljae.hwpx	HWPX	1	e5989f18eb184be8	3ff389aa34040e0b	0
-task2279/36404953_gyeoljae.hwpx	HWPX	1	e5989f18eb184be8	fa42a3d2d3756bf3	0
-task2279/36406174_gyeoljae.hwpx	HWPX	1	e5989f18eb184be8	f4c01fa28bd22ee5	0
-task2279/36407074_gyeoljae.hwpx	HWPX	2	22d10a52556263a1	c861debc9ea80c4e	0
-task2279/36410902_gyeoljae.hwpx	HWPX	1	e5989f18eb184be8	aefa0b0619d73695	0
-task2279/36417406_gyeoljae.hwpx	HWPX	2	22d10a52556263a1	55d7fff01cdf12be	0
-task2279/36423194_gyeoljae.hwpx	HWPX	1	e5989f18eb184be8	eafbd1b7907477e1	0
-task2279/36423558_gyeoljae.hwpx	HWPX	1	e5989f18eb184be8	fce94fb98dfb7822	0
-task2279/36425476_gyeoljae.hwpx	HWPX	1	e5989f18eb184be8	958ebd141e5ab1f0	0
-task2279/36433160_gyeoljae.hwpx	HWPX	1	e5989f18eb184be8	73ac26f3d7e08c2d	0
-task2279/36434078_gyeoljae.hwpx	HWPX	1	e5989f18eb184be8	663a0e3a5f3b2c10	0
-task2279/36437313_gyeoljae.hwpx	HWPX	2	22d10a52556263a1	71b49561d9152aa6	0
-task2279/36446358_gyeoljae.hwpx	HWPX	2	22d10a52556263a1	41562ef266cf5a05	0
-task2279/36455850_gyeoljae.hwpx	HWPX	2	22d10a52556263a1	5318e48213a0cbe4	0
-task2279/36456688_gyeoljae.hwpx	HWPX	2	22d10a52556263a1	4f2b63fd828cafef	0
-task2279/36477251_gyeoljae.hwpx	HWPX	1	e5989f18eb184be8	d18b245411c26aa3	0
-task2279/36477373_gyeoljae.hwpx	HWPX	1	e5989f18eb184be8	bcb2da684e41aebf	0
-task2287/1342000_edu_curriculum_map.hwp	OLE compound file	413	d308923b1db83008	617337ddb264fd88	0
+task2243/36386907_gyeoljae_sewoon.hwpx	HWPX	5	a98db8f3a1da7840	871c07a31f887366	0
+task2243/36395325_gyeoljae_consulting.hwpx	HWPX	5	a98db8f3a1da7840	9b948f18a56c60e9	0
+task2279/36353832_gyeoljae.hwpx	HWPX	2	22d10a52556263a1	971c26b24cd8d26e	0
+task2279/36358528_gyeoljae.hwpx	HWPX	1	e5989f18eb184be8	71cc04baa0d81a0c	0
+task2279/36365360_gyeoljae.hwpx	HWPX	2	22d10a52556263a1	ba50b0576c8e6e8e	0
+task2279/36376848_gyeoljae.hwpx	HWPX	1	e5989f18eb184be8	f864094cf77f2b3c	0
+task2279/36378128_gyeoljae.hwpx	HWPX	2	22d10a52556263a1	2795ad4a638064b6	0
+task2279/36378481_gyeoljae.hwpx	HWPX	2	22d10a52556263a1	6923f6934bd1b8e4	0
+task2279/36394733_gyeoljae.hwpx	HWPX	2	22d10a52556263a1	dd68b5a213b1e2c1	0
+task2279/36395825_gyeoljae.hwpx	HWPX	2	22d10a52556263a1	2234581969ed60d6	0
+task2279/36398724_gyeoljae.hwpx	HWPX	2	22d10a52556263a1	92054764525802db	0
+task2279/36404953_gyeoljae.hwpx	HWPX	1	e5989f18eb184be8	5e0930aea6ffcd45	0
+task2279/36406174_gyeoljae.hwpx	HWPX	2	22d10a52556263a1	993bf37caa729283	0
+task2279/36407074_gyeoljae.hwpx	HWPX	2	22d10a52556263a1	97491328609f74a6	0
+task2279/36410902_gyeoljae.hwpx	HWPX	2	22d10a52556263a1	7a22daa93c824957	0
+task2279/36417406_gyeoljae.hwpx	HWPX	2	22d10a52556263a1	c74a34694a60f81c	0
+task2279/36423194_gyeoljae.hwpx	HWPX	2	22d10a52556263a1	3e0aa8eded5ef3a3	0
+task2279/36423558_gyeoljae.hwpx	HWPX	2	22d10a52556263a1	fed2f02bcc94b11a	0
+task2279/36425476_gyeoljae.hwpx	HWPX	2	22d10a52556263a1	5c2a1fc79dc30e86	0
+task2279/36433160_gyeoljae.hwpx	HWPX	2	22d10a52556263a1	9114d61c2544bcb9	0
+task2279/36434078_gyeoljae.hwpx	HWPX	2	22d10a52556263a1	704a9adc91b6c98e	0
+task2279/36437313_gyeoljae.hwpx	HWPX	2	22d10a52556263a1	5a2b328127ddb2ca	0
+task2279/36446358_gyeoljae.hwpx	HWPX	2	22d10a52556263a1	ddc1a9dd90c677ad	0
+task2279/36455850_gyeoljae.hwpx	HWPX	2	22d10a52556263a1	594333db537b4c22	0
+task2279/36456688_gyeoljae.hwpx	HWPX	2	22d10a52556263a1	c334c080e5491e67	0
+task2279/36477251_gyeoljae.hwpx	HWPX	1	e5989f18eb184be8	c92edb6f4f9a3ab3	0
+task2279/36477373_gyeoljae.hwpx	HWPX	2	22d10a52556263a1	3ce9ab80fade0365	0
+task2287/1342000_edu_curriculum_map.hwp	OLE compound file	415	69f0523e06c57e70	d2abb3c619f41f00	0
 task2311/156744475_nano_plan_poster.hwpx	HWPX	3	8ed5a02a4e09555c	e824e8196ed7fd6b	0
-task2319/20544835_jinan_apt_form.hwp	OLE compound file	2	22d10a52556263a1	f1ed4bc96a26b71f	0
-task2322/19439117_gokseong_voucher_form.hwp	HWPX	2	22d10a52556263a1	7136ed449ab73113	0
+task2319/20544835_jinan_apt_form.hwp	OLE compound file	2	22d10a52556263a1	01fa90d371d86043	0
+task2322/19439117_gokseong_voucher_form.hwp	HWPX	2	22d10a52556263a1	355db705f384bf1b	0
 task2322/20862337_cheongyang_voucher_form.hwp	OLE compound file	2	22d10a52556263a1	cba4200dffc3fd8e	0
-task2430/1382000_domestic_violence_survey.hwp	OLE compound file	39	bbd8e28dff14f934	0de3dc481549cda1	0
+task2430/1382000_domestic_violence_survey.hwp	OLE compound file	39	bbd8e28dff14f934	07395cfe056f473d	0
 task3236/issue3236_split_table.hwpx	HWPX	2	22d10a52556263a1	2fba9f8c805daf3a	0
 task3307/issue3307_outline_number.hwpx	HWPX	9	e6027c829903e458	f07cde567673e245	0
 tb-img-03.hwp	OLE compound file	1	e5989f18eb184be8	359f5a4bc5f8e203	0
@@ -1240,8 +1240,8 @@ water-mark.hwp	OLE compound file	1	e5989f18eb184be8	08547807b5083b23	0
 대각선샘플4.hwpx	HWPX	1	e5989f18eb184be8	cebc03baad872f03	0
 대각선샘플5.hwp	OLE compound file	1	e5989f18eb184be8	cebc03baad872f03	0
 대각선샘플5.hwpx	HWPX	1	e5989f18eb184be8	cebc03baad872f03	0
-복학원서.hwp	OLE compound file	1	e5989f18eb184be8	fee83fc89e7d2ff6	0
-복학원서.hwpx	HWPX	1	e5989f18eb184be8	fee83fc89e7d2ff6	0
+복학원서.hwp	OLE compound file	1	e5989f18eb184be8	65419dd87f0c0ed6	0
+복학원서.hwpx	HWPX	1	e5989f18eb184be8	df57ea4991085aae	0
 복학원서.pdf	PDF	1	878bfab1b06a850a	d0db3a04f77103b9	0
 셀보호.hwp	OLE compound file	1	e5989f18eb184be8	dee044692ce83cf8	0
 셀보호.hwpx	HWPX	1	e5989f18eb184be8	dee044692ce83cf8	0
@@ -1249,8 +1249,8 @@ water-mark.hwp	OLE compound file	1	e5989f18eb184be8	08547807b5083b23	0
 셀보호2.hwpx	HWPX	1	e5989f18eb184be8	f38ddafa7dd1f903	0
 수식-문자처럼취급-아님.hwp	OLE compound file	1	e5989f18eb184be8	d5670cac1cc51bcb	0
 수식-문자처럼취급-아님.hwpx	HWPX	1	e5989f18eb184be8	d5670cac1cc51bcb	0
-정책연구용역사업 중간진도보고서(살아있는 간장 기증자의 의학적 선별기준 연구).hwp	OLE compound file	215	453b82bccf992d14	af3627571b692754	0
-정책연구용역사업 중간진도보고서(살아있는 간장 기증자의 의학적 선별기준 연구).hwpx	HWPX	215	453b82bccf992d14	9f4ba3be134314fa	0
+정책연구용역사업 중간진도보고서(살아있는 간장 기증자의 의학적 선별기준 연구).hwp	OLE compound file	215	453b82bccf992d14	4154abd4cbf1554a	0
+정책연구용역사업 중간진도보고서(살아있는 간장 기증자의 의학적 선별기준 연구).hwpx	HWPX	215	453b82bccf992d14	eabbd30ea678de0e	0
 종이기준.hwp	OLE compound file	1	e5989f18eb184be8	af63c14c8601beab	0
 종이기준.hwpx	HWPX	1	e5989f18eb184be8	af63c14c8601beab	0
 쪽기준.hwp	OLE compound file	1	e5989f18eb184be8	af63c14c8601beab	0
@@ -1265,6 +1265,6 @@ water-mark.hwp	OLE compound file	1	e5989f18eb184be8	08547807b5083b23	0
 투명도0-50.hwp	OLE compound file	1	e5989f18eb184be8	08547807b5083b23	0
 투명도0-50.hwpx	HWPX	1	e5989f18eb184be8	08547807b5083b23	0
 표-텍스트.hwpx	HWPX	1	e5989f18eb184be8	c28a1841076aac1a	0
-한글문서파일형식_5.0_revision1.3.hwp	OLE compound file	70	d0d1f55397ed8be9	b98ec79485edbc2f	0
+한글문서파일형식_5.0_revision1.3.hwp	OLE compound file	71	256d08bf8ec9a774	0752754fc3e3a6a3	0
 한셀OLE.hwp	OLE compound file	1	e5989f18eb184be8	af63c14c8601beab	0
 한셀OLE.hwpx	HWPX	1	e5989f18eb184be8	af63c14c8601beab	0

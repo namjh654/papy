@@ -1,12 +1,12 @@
 Papy 패치: HTML 붙여넣기 그림에서 BMP·WMF·EMF 를 알아보고 메타파일은 wmf·emf 확장자로 둔다.
 
-rhwp v0.8.7(1a76570e).
+rhwp v0.9.0(c9095c5f).
 data: URI 그림의 형식을 PNG·JPEG·GIF 만 알아봐 그 밖은 확장자가 octet-stream 인 그림 자료가 되어 HWP·HWPX 로 저장하면
 한글이 그리지 못했다. 한글 → DOCX → 다시 열기에서 WMF 그림(HWP 3 에서 바꾼 문서 등)이 빠졌다.
 
---- a/src/document_core/helpers.rs	2026-11-09 08:45:59
-+++ b/src/document_core/helpers.rs	2026-11-09 08:46:13
-@@ -319,6 +319,13 @@
+--- a/src/document_core/helpers.rs
++++ b/src/document_core/helpers.rs
+@@ -334,6 +334,13 @@
          "image/jpeg"
      } else if data.len() >= 6 && (data.starts_with(b"GIF87a") || data.starts_with(b"GIF89a")) {
          "image/gif"
@@ -20,9 +20,9 @@ data: URI 그림의 형식을 PNG·JPEG·GIF 만 알아봐 그 밖은 확장자�
      } else {
          "application/octet-stream"
      }
---- a/src/document_core/html_table_import.rs	2026-11-09 08:45:59
-+++ b/src/document_core/html_table_import.rs	2026-11-09 08:46:13
-@@ -1062,11 +1062,13 @@
+--- a/src/document_core/html_table_import.rs
++++ b/src/document_core/html_table_import.rs
+@@ -1067,11 +1067,13 @@
          // 종전에는 bin_data_content 에만 넣어 DocInfo BinData 레코드가 없었다 —
          // HWPX 로는 나가지만 HWP(5.0) 저장에서 그림이 통째로 사라졌다(클라우드 '웹 저장' 실측).
          // 그림 삽입 경로와 같은 register_embedded_bin_data 로 등록해 두 형식 모두에서 살아남게 한다.

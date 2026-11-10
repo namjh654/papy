@@ -1167,8 +1167,8 @@ fn outside_body_mark(c: char) -> bool {
             | LINK_START_MARK
             | LINK_END_MARK
             | CAPTION_MORE_MARK
-            | '\u{E0F9}'
-            ..='\u{E0FC}' | FOOTNOTE_MARK | ENDNOTE_MARK | PAGE_BREAK_MARK | COLUMN_BREAK_MARK
+            | '\u{E029}'
+            ..='\u{E02C}' | FOOTNOTE_MARK | ENDNOTE_MARK | PAGE_BREAK_MARK | COLUMN_BREAK_MARK
     )
 }
 

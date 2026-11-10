@@ -1029,7 +1029,8 @@ fn docx_group_shapes_are_unpacked() {
         column(|p| p[2] > 200 && p[0] < 60 && p[1] < 60),
     );
     assert!(blue_x > red_x + 60, "red x {red_x}, blue x {blue_x}");
-    let text = doc.extract_text(0).unwrap();
+    // 글은 그대로 남는다(rhwp 0.9 는 도형 왼쪽 좁은 틈에도 글을 흘려 줄이 나뉠 수 있다).
+    let text = doc.extract_text(0).unwrap().replace('\n', "");
     assert!(text.contains("묶음 앞 묶음 뒤"), "{text:?}");
     // DOCX 로 저장하면 도형 둘(묶음은 풀린 채)
     let body = zip_text(&doc.save(SaveFormat::Docx).unwrap(), "word/document.xml");
@@ -1320,9 +1321,9 @@ fn caret_positions_around_inline_picture() {
         .hit_test(0, rect.x + rect.width + 200.0, rect.y + rect.height - 3.0)
         .unwrap();
     assert_eq!(end.offset, 9);
-    // 그림 바로 뒤를 누르면 그 자리
+    // 그림 바로 뒤(글줄 높이)를 누르면 그 자리
     let hit = doc
-        .hit_test(0, rect.x + rect.width + 0.5, rect.y + rect.height - 3.0)
+        .hit_test(0, rect.x + rect.width + 0.5, after.y + after.height / 2.0)
         .unwrap();
     assert_eq!(hit.offset, 4, "{hit:?}");
     // 위아래로 옮겨도 문단 안 자리다
@@ -2469,11 +2470,11 @@ fn docx_round_trip_keeps_structure() {
     assert!(
         text.contains("성명: 홍길동 날짜: ")
             && !text.contains("여기를 누르세요")
-            && !text.contains('\u{E0EA}'),
+            && !text.contains('\u{E01A}'),
         "{text:?}"
     );
     assert!(
-        !text.contains('\u{E0EC}') && text.contains("번호 하나"),
+        !text.contains('\u{E01C}') && text.contains("번호 하나"),
         "{text:?}"
     );
     // 위치 탭(ptab)은 탭으로 읽는다(전에는 빠져 "꼬리말오른쪽" 으로 붙었다).
@@ -2639,4 +2640,61 @@ fn docx_master_pages_round_trip() {
         headers.contains(r#"papy:master="odd""#) && headers.contains(r#"papy:master="even""#),
         "{headers}"
     );
+}
+
+/// Word 는 묶음 빈칸(U+00A0)을 글꼴의 빈칸 폭으로 잰다. 한/글처럼 반각으로 재면 시험지의 밑줄 빈칸 줄
+/// (`Woman: ` + 밑줄 친 묶음 빈칸 48개)이 단 폭을 넘어 접히고 쪽이 는다(rhwp 패치 0022, exam_eng 8 → 9쪽).
+#[test]
+fn docx_no_break_spaces_use_font_space_width() {
+    let ppr =
+        r#"<w:pPr><w:spacing w:line="345" w:lineRule="atLeast"/><w:jc w:val="both"/></w:pPr>"#;
+    let rpr =
+        r#"<w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="23"/>"#;
+    let blank = "\u{00A0}".repeat(48);
+    let document = format!(
+        r#"<w:document xmlns:w="w"><w:body><w:p>{ppr}<w:r><w:rPr>{rpr}</w:rPr><w:t xml:space="preserve">Woman: </w:t></w:r><w:r><w:rPr>{rpr}<w:u w:val="single"/></w:rPr><w:t xml:space="preserve">{blank}</w:t></w:r></w:p><w:p><w:r><w:t>뒤</w:t></w:r></w:p><w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"/><w:cols w:num="2" w:space="400"/></w:sectPr></w:body></w:document>"#
+    );
+    let bytes = zip_parts(&[
+        ("[Content_Types].xml", "<Types/>"),
+        ("word/document.xml", &document),
+    ]);
+    let mut doc = open(HwpBackend::docx(), bytes, &options()).unwrap();
+    let first = doc.caret_rect(pos(0, 0)).unwrap();
+    let next = doc.caret_rect(pos(1, 0)).unwrap();
+    // 한 줄에 든다(다음 문단이 한 줄 아래).
+    assert!(next.y - first.y < first.height * 1.8, "{first:?} {next:?}");
+}
+
+/// 쪽 나누기 표시를 지운 뒤(일괄 편집 중이라 쪽을 다시 짜지 않았다) 떠 있는 그림 자리를 재면 rhwp 0.9 가 낡은 조판으로
+/// 그리다 멈췄다(HWP → DOCX → 다시 열기, test-image.hwpx·시험지). 그림 자리는 일괄 편집 전에 잰다.
+#[test]
+fn docx_floating_picture_before_page_break_with_inline_picture_opens() {
+    use std::io::Write;
+    let blip = r#"<a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="rId9"/></pic:blipFill></pic:pic></a:graphicData></a:graphic>"#;
+    let floating = format!(
+        r#"<w:r><w:drawing><wp:anchor behindDoc="0"><wp:positionH relativeFrom="column"><wp:posOffset>0</wp:posOffset></wp:positionH><wp:positionV relativeFrom="paragraph"><wp:posOffset>0</wp:posOffset></wp:positionV><wp:extent cx="1905000" cy="952500"/><wp:wrapNone/><wp:docPr id="1"/>{blip}</wp:anchor></w:drawing></w:r>"#
+    );
+    let inline = format!(
+        r#"<w:r><w:drawing><wp:inline><wp:extent cx="1905000" cy="952500"/><wp:docPr id="2"/>{blip}</wp:inline></w:drawing></w:r>"#
+    );
+    let document = format!(
+        r#"<w:document xmlns:w="w" xmlns:wp="wp" xmlns:a="a" xmlns:pic="pic" xmlns:r="r"><w:body><w:p>{floating}<w:r><w:t>자리차지</w:t></w:r></w:p><w:p><w:r><w:br w:type="page"/></w:r>{inline}<w:r><w:t>글자처럼 취급</w:t></w:r></w:p></w:body></w:document>"#
+    );
+    let rels = r#"<Relationships xmlns="r"><Relationship Id="rId9" Type="image" Target="media/red.png"/></Relationships>"#;
+    let mut buffer = std::io::Cursor::new(Vec::new());
+    let mut zip = zip::ZipWriter::new(&mut buffer);
+    let zip_options = zip::write::SimpleFileOptions::default();
+    for (name, bytes) in [
+        ("[Content_Types].xml", &b"<Types/>"[..]),
+        ("word/document.xml", document.as_bytes()),
+        ("word/_rels/document.xml.rels", rels.as_bytes()),
+        ("word/media/red.png", RED_PNG),
+    ] {
+        zip.start_file(name, zip_options).unwrap();
+        zip.write_all(bytes).unwrap();
+    }
+    zip.finish().unwrap();
+    let mut doc = open(HwpBackend::docx(), buffer.into_inner(), &options()).unwrap();
+    assert_eq!(doc.info().page_count, 2);
+    assert!(doc.extract_text(1).unwrap().contains("글자처럼 취급"));
 }

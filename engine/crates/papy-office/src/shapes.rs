@@ -10,9 +10,9 @@ use quick_xml::events::BytesStart;
 use crate::read::attr;
 
 /// 본문 문단 안 도형 자리 표시(사용자 영역 글자).
-pub const SHAPE_MARK: char = '\u{E0F2}';
+pub const SHAPE_MARK: char = '\u{E022}';
 /// 표 칸 문단 안 도형 자리 표시. 칸 도형은 [`crate::DocxReadReport::cell_shapes`] 에 같은 순서로 둔다.
-pub const CELL_SHAPE_MARK: char = '\u{E0FE}';
+pub const CELL_SHAPE_MARK: char = '\u{E02E}';
 
 /// 도형 모양.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

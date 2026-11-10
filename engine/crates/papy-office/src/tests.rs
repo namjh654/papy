@@ -907,7 +907,7 @@ fn numbering_note_marks_and_page_fields_are_written() {
     numbering.level_formats[0] = "^1.".into();
     numbering.level_formats[1] = "^1.^2)".into();
     numbering.heads[0].number_format = 8;
-    numbering.level_start_numbers = [1; 7];
+    numbering.level_start_numbers.fill(1);
     document.doc_info.numberings.push(numbering);
     let numbering_id = document.doc_info.numberings.len() as u16;
     let mut shape = document.doc_info.para_shapes[0].clone();
@@ -1295,10 +1295,8 @@ fn latin_and_east_asian_fonts_are_kept_apart() {
 
 /// 번호 목록 표시 글자(정의 번호, 수준)
 fn list_mark(def: u32, level: u32) -> String {
-    format!(
-        "{LIST_MARK}{}",
-        char::from_u32(crate::LIST_CODE_BASE + def * 8 + level).unwrap()
-    )
+    let [high, low] = crate::code_chars((def * 8 + level) as usize);
+    format!("{LIST_MARK}{high}{low}")
 }
 
 #[test]

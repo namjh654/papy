@@ -1,11 +1,11 @@
 Papy 패치: HTML 붙여넣기가 문단 CSS `papy-condense: <%>` 를 한글 "최소 공백"(문단 모양 attr1 비트 9~15)으로 읽는다.
 
-rhwp v0.8.7(1a76570e). Papy 가 HWP → DOCX 로 쓸 때 Word 에 없는 최소 공백을 `papy:condense` 로 실어 두고, 다시 열 때 이 CSS 로 넘긴다.
+rhwp v0.9.0(c9095c5f). Papy 가 HWP → DOCX 로 쓸 때 Word 에 없는 최소 공백을 `papy:condense` 로 실어 두고, 다시 열 때 이 CSS 로 넘긴다.
 종전에는 빠져서 양쪽 정렬로 한 줄에 맞추던 시험지 보기 줄이 두 줄로 접혔다(exam_eng).
 
 --- a/src/document_core/commands/html_import/inline_content.rs
 +++ b/src/document_core/commands/html_import/inline_content.rs
-@@ -433,6 +433,14 @@
+@@ -443,6 +443,14 @@
                  ps.spacing_after = hu.max(0);
                  ps.hwpx_plain_para_margin = true;
                  ps.hwpx_plain_para_margin_physical = true; // [Papy] 0008

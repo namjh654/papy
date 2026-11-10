@@ -1,11 +1,11 @@
 Papy 패치: HTML 붙여넣기가 문단 CSS 테두리·배경(`border-*`, `background-color`, `papy-border-space`, `papy-border-connect`)을 문단 모양 테두리/배경으로 읽는다.
 
-rhwp v0.8.7(1a76570e). Papy 가 DOCX `w:pBdr`·`w:shd` 를 이 CSS 로 넘긴다(간격은 `w:space`, 묶지 않음은 Papy 가 쓴 `papy:connect="0"`).
+rhwp v0.9.0(c9095c5f). Papy 가 DOCX `w:pBdr`·`w:shd` 를 이 CSS 로 넘긴다(간격은 `w:space`, 묶지 않음은 Papy 가 쓴 `papy:connect="0"`).
 종전에는 문단 테두리가 빠져 한글 시험지의 지문 상자가 사라졌다(exam-kor-4p).
 
 --- a/src/document_core/commands/html_import/inline_content.rs
 +++ b/src/document_core/commands/html_import/inline_content.rs
-@@ -484,7 +484,41 @@
+@@ -494,7 +494,41 @@
                      }
                      None => ps.tab_def_id,
                  };

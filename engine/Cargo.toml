@@ -20,7 +20,8 @@ papy-hwp = { path = "crates/papy-hwp" }
 papy-office = { path = "crates/papy-office" }
 papy-core = { path = "crates/papy-core" }
 # HWP/HWPX 엔진(MIT). `node scripts/fetch-rhwp.mjs` 로 받는다 — crates.io 에 없고 저장소가 수 GB 라 git 의존성 대신 쓴다.
-rhwp = { path = "vendor/rhwp", default-features = false }
+# 0.9.0 부터 Papy 가 쓰는 HwpDocument(`wasm_api`)는 `wasm-api` 기능 뒤에 있다. PDF 가져오기 등 다른 기본 기능은 끈다.
+rhwp = { path = "vendor/rhwp", default-features = false, features = ["wasm-api"] }
 # Kotlin·Swift 바인딩 생성(MPL-2.0). 모바일 연결: docs/decisions/0006-mobile-bridge.md
 uniffi = "0.32"
 

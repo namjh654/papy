@@ -1,12 +1,12 @@
 Papy 패치: HTML 붙여넣기 문단 CSS 의 tab-stops(Papy 가 DOCX w:tabs 에서 만든 것)를 한글 탭 정의로 옮긴다.
 
-rhwp v0.8.7(1a76570e).
+rhwp v0.9.0(c9095c5f).
 형식: tab-stops: <위치>pt/<종류>/<채움> … (종류 0 왼쪽·1 오른쪽·2 가운데·3 소수점, 채움은 한글 채움 종류).
 종전에는 붙여넣기가 탭 위치를 몰라 기본 탭 간격만 써서, 보기 번호를 탭으로 나란히 둔 문단(시험지)이 줄마다 넘쳐 쪽이 늘었다.
 
---- a/src/document_core/commands/html_import/inline_content.rs	2026-11-09 10:30:14
-+++ b/src/document_core/commands/html_import/inline_content.rs	2026-11-09 10:30:14
-@@ -436,6 +436,49 @@
+--- a/src/document_core/commands/html_import/inline_content.rs
++++ b/src/document_core/commands/html_import/inline_content.rs
+@@ -446,6 +446,49 @@
              }
          }
  

@@ -1,13 +1,13 @@
 Papy 패치: DOCX·DOC 변환에서 쪽 나누기 표시를 한 번에 적용하는 함수를 더한다.
 
-rhwp v0.8.7(1a76570e). 새 함수만 더하고 기존 동작은 바꾸지 않는다.
+rhwp v0.9.0(c9095c5f). 새 함수만 더하고 기존 동작은 바꾸지 않는다.
 - `apply_page_break_marks_native(section, mark)`: 표시 글자를 지우고 그 문단 앞에서 쪽을 나눈 뒤 구역을 한 번만
   다시 짠다. 문단마다 `delete_text_native`·`mark_page_break_at_paragraph_start_native` 를 부르면 그때마다 다시 짜서
   쪽 나누기 69개인 149쪽 DOC 열기가 3.6초 걸렸다(→ 1.35초).
 
 --- a/src/document_core/commands/text_editing.rs
 +++ b/src/document_core/commands/text_editing.rs
-@@ -3951,6 +3951,69 @@
+@@ -4594,6 +4594,69 @@
          )))
      }
  

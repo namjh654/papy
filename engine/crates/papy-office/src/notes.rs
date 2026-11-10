@@ -10,70 +10,79 @@ use quick_xml::events::Event;
 use crate::read::{attr, local};
 
 /// 본문 문단 안 각주 자리 표시(사용자 영역 글자). rhwp 에 붙여넣은 뒤 이 자리에 각주를 넣고 지운다.
-pub const FOOTNOTE_MARK: char = '\u{E0F1}';
+pub const FOOTNOTE_MARK: char = '\u{E021}';
 /// 본문 문단 안 미주 자리 표시(각주와 같은 방식).
-pub const ENDNOTE_MARK: char = '\u{E0F3}';
+pub const ENDNOTE_MARK: char = '\u{E023}';
 /// 문단 맨 앞의 쪽 나누기 표시(사용자 영역 글자). papy-hwp 가 지우고 그 문단 앞에서 쪽을 나눈다.
-pub const PAGE_BREAK_MARK: char = '\u{E0F4}';
+pub const PAGE_BREAK_MARK: char = '\u{E024}';
 /// 단 나누기 표시 글자(문단 앞). papy-hwp 가 붙여넣은 뒤 단 나누기로 바꾼다.
-pub const COLUMN_BREAK_MARK: char = '\u{E0F5}';
+pub const COLUMN_BREAK_MARK: char = '\u{E025}';
 
 /// 캡션 문단 표시(문단 맨 앞, 사용자 영역 글자). 차례로 왼쪽·오른쪽·위·아래 캡션의 첫 문단이다. papy-hwp 가
 /// 지우고 그 문단을 앞(위 캡션이면 뒤) 문단의 표·그림 캡션으로 옮긴다.
-pub const CAPTION_MARKS: [char; 4] = ['\u{E0F9}', '\u{E0FA}', '\u{E0FB}', '\u{E0FC}'];
+pub const CAPTION_MARKS: [char; 4] = ['\u{E029}', '\u{E02A}', '\u{E02B}', '\u{E02C}'];
 /// 캡션의 둘째 문단부터 붙는 표시(앞 캡션 문단에 이어진다).
-pub const CAPTION_MORE_MARK: char = '\u{E0FD}';
+pub const CAPTION_MORE_MARK: char = '\u{E02D}';
 
 /// 메모 자리 표시(사용자 영역 글자). papy-hwp 가 지우고 그 자리에 한글 숨은 설명을 넣는다.
-pub const COMMENT_MARK: char = '\u{E0F0}';
+pub const COMMENT_MARK: char = '\u{E020}';
 
 /// 책갈피 자리 표시(사용자 영역 글자). papy-hwp 가 지우고 그 자리에 책갈피를 넣는다.
-pub const BOOKMARK_MARK: char = '\u{E0ED}';
-/// 번호 목록 문단 맨 앞 표시: 바로 뒤 한 글자가 `LIST_CODE_BASE + 정의 번호 × 8 + 수준` 이다
+pub const BOOKMARK_MARK: char = '\u{E01D}';
+/// 번호 목록 문단 맨 앞 표시: 바로 뒤 두 글자가 `정의 번호 × 8 + 수준` 이다([`code_chars`])
 /// ([`DocxReadReport::lists`](crate::DocxReadReport::lists) 의 정의를 한글 문단 번호·글머리표로 바꾼다).
-pub const LIST_MARK: char = '\u{E0EC}';
-/// [`LIST_MARK`] 뒤 글자의 시작. 정의 224개(× 수준 8)까지.
-pub const LIST_CODE_BASE: u32 = 0xF100;
+pub const LIST_MARK: char = '\u{E01C}';
 /// [`LIST_MARK`] 로 나타낼 수 있는 정의 수.
 pub const MAX_LIST_DEFS: usize = 224;
 
 /// 하이퍼링크 시작·끝 표시(사용자 영역 글자). papy-hwp 가 지우고 그 사이 글에 하이퍼링크를 건다.
-pub const LINK_START_MARK: char = '\u{E0EE}';
+pub const LINK_START_MARK: char = '\u{E01E}';
 /// 하이퍼링크 끝 표시.
-pub const LINK_END_MARK: char = '\u{E0EF}';
+pub const LINK_END_MARK: char = '\u{E01F}';
 
 /// 누름틀 시작·끝 표시(사용자 영역 글자). papy-hwp 가 지우고 그 사이 글을 누름틀(ClickHere)로 감싼다
 /// (시작 표시 차례 = [`DocxReadReport::click_here`](crate::DocxReadReport::click_here) 차례).
-pub const FIELD_START_MARK: char = '\u{E0EA}';
+pub const FIELD_START_MARK: char = '\u{E01A}';
 /// 누름틀 끝 표시.
-pub const FIELD_END_MARK: char = '\u{E0EB}';
-/// [`FIELD_START_MARK`] 뒤 두 글자의 시작: `FIELD_CODE_BASE + 차례 / 1024`, `FIELD_CODE_BASE + 차례 % 1024`.
-/// 글상자 안 누름틀도 차례를 잃지 않게 표시에 차례를 담는다.
-pub const FIELD_CODE_BASE: u32 = 0xF400;
+pub const FIELD_END_MARK: char = '\u{E01B}';
 /// 표시로 나타낼 수 있는 누름틀 수
-pub const MAX_FIELDS: usize = 1024 * 1024;
+pub const MAX_FIELDS: usize = CODE_RADIX * CODE_RADIX;
+
+/// 표시 뒤 차례 글자의 시작. 한 글자가 0~63 을 나타낸다(U+E040~U+E07F).
+///
+/// 자리 표시 글자는 모두 사용자 영역 U+E000~U+E0BB 에 둔다. rhwp 0.9 는 그 위(U+E0BC~U+F8F7)를 옛한글(KTUG 표)로
+/// 바꿔 그리는데, 붙여넣은 뒤 표시가 남은 문단은 조판과 그리기가 글자 수를 달리 세어 멈췄다. 원문 옛한글을 표시로
+/// 잘못 읽지도 않는다.
+const CODE_BASE: u32 = 0xE040;
+const CODE_RADIX: usize = 64;
+
+/// 차례(`0..4096`)를 표시 뒤 두 글자로
+pub fn code_chars(value: usize) -> [char; 2] {
+    let digit =
+        |n: usize| char::from_u32(CODE_BASE + (n % CODE_RADIX) as u32).unwrap_or('\u{E040}');
+    [digit(value / CODE_RADIX), digit(value)]
+}
+
+/// 표시 뒤 두 글자 → 차례
+pub fn code_value(high: char, low: char) -> Option<usize> {
+    let digit = |c: char| {
+        u32::from(c)
+            .checked_sub(CODE_BASE)
+            .map(|n| n as usize)
+            .filter(|n| *n < CODE_RADIX)
+    };
+    Some(digit(high)? * CODE_RADIX + digit(low)?)
+}
 
 /// 누름틀 시작 표시(차례 포함)
 pub fn field_start(index: usize) -> String {
-    let code = |n: usize| char::from_u32(FIELD_CODE_BASE + n as u32).unwrap_or('\u{F400}');
-    [
-        FIELD_START_MARK,
-        code(index / 1024 % 1024),
-        code(index % 1024),
-    ]
-    .into_iter()
-    .collect()
+    let [high, low] = code_chars(index);
+    [FIELD_START_MARK, high, low].into_iter().collect()
 }
 
 /// [`FIELD_START_MARK`] 뒤 두 글자 → 차례
 pub fn field_index(high: char, low: char) -> Option<usize> {
-    let digit = |c: char| {
-        u32::from(c)
-            .checked_sub(FIELD_CODE_BASE)
-            .filter(|n| *n < 1024)
-            .map(|n| n as usize)
-    };
-    Some(digit(high)? * 1024 + digit(low)?)
+    code_value(high, low)
 }
 
 /// 조각 HTML 의 누름틀 차례를 `offset` 만큼 옮긴다(글상자 조각을 바깥 차례에 합칠 때).
@@ -211,12 +220,12 @@ pub struct HeaderFooterText {
 }
 
 /// Word 구역(첫 구역 뒤)이 시작하는 본문 문단 표시. 구역마다 하나씩 문서 순서로 둔다.
-pub const SECTION_MARK: char = '\u{E0F8}';
+pub const SECTION_MARK: char = '\u{E028}';
 
 /// HTML 머리말·꼬리말의 쪽 번호 필드 자리 표시(붙여넣은 뒤 [`PAGE_NUMBER_FIELD`] 로 바꾼다).
-pub const PAGE_NUMBER_MARK: char = '\u{E0F6}';
+pub const PAGE_NUMBER_MARK: char = '\u{E026}';
 /// HTML 머리말·꼬리말의 전체 쪽 수 필드 자리 표시(붙여넣은 뒤 [`PAGE_COUNT_FIELD`] 로 바꾼다).
-pub const PAGE_COUNT_MARK: char = '\u{E0F7}';
+pub const PAGE_COUNT_MARK: char = '\u{E027}';
 
 /// 필드 명령이 쪽 번호·전체 쪽 수이면 그 자리 표시 글자.
 pub fn page_field_mark(instr: &str) -> Option<char> {
@@ -662,8 +671,8 @@ impl Numbering {
             }
             None => return None,
         };
-        let code = char::from_u32(LIST_CODE_BASE + (index * 8 + ilvl) as u32)?;
-        Some(format!("{LIST_MARK}{code}"))
+        let [high, low] = code_chars(index * 8 + ilvl);
+        Some(format!("{LIST_MARK}{high}{low}"))
     }
 
     /// 번호 목록 수준의 들여쓰기(twip): (왼쪽, 첫 줄). 문단에 직접 준 들여쓰기가 없을 때 쓴다(Word 와 같은 차례).
