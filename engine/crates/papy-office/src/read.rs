@@ -465,6 +465,12 @@ struct ParaProps {
     first_line: Option<i64>,
     /// 한글 최소 공백(%, Papy 가 쓴 `papy:condense`)
     condense: Option<i64>,
+    /// 문단 테두리(`w:pBdr`) 왼쪽·오른쪽·위·아래: (굵기 pt, CSS 선 종류, 색, 글과의 간격 pt)
+    borders: [Option<(f32, &'static str, String, f32)>; 4],
+    /// 문단 배경색(`w:shd w:fill`)
+    shading: Option<String>,
+    /// 이어진 같은 테두리 문단을 한 상자로 묶지 않는다(Papy 가 쓴 `papy:connect="0"`)
+    border_apart: bool,
 }
 
 impl ParaProps {
@@ -477,7 +483,47 @@ impl ParaProps {
             right: self.right.or(base.right),
             first_line: self.first_line.or(base.first_line),
             condense: self.condense.or(base.condense),
+            borders: if self.borders.iter().any(Option::is_some) {
+                self.borders.clone()
+            } else {
+                base.borders.clone()
+            },
+            shading: self.shading.clone().or_else(|| base.shading.clone()),
+            border_apart: self.border_apart || base.border_apart,
         }
+    }
+
+    /// `w:pBdr` 안의 선 하나(`w:top` 등)를 반영한다.
+    fn border(&mut self, side: &str, element: &BytesStart) {
+        let index = match side {
+            "left" | "start" => 0,
+            "right" | "end" => 1,
+            "top" => 2,
+            "bottom" => 3,
+            _ => return,
+        };
+        let value = attr(element, "val").unwrap_or_default();
+        self.borders[index] = match value.as_str() {
+            "nil" | "none" | "" => None,
+            kind => {
+                let width = attr(element, "sz")
+                    .and_then(|v| v.parse::<f32>().ok())
+                    .map_or(0.5, |sz| (sz / 8.0).max(0.25));
+                let line = match kind {
+                    "double" => "double",
+                    "dashed" | "dashSmallGap" | "dotDash" | "dotDotDash" => "dashed",
+                    "dotted" => "dotted",
+                    _ => "solid",
+                };
+                let color = attr(element, "color")
+                    .filter(|c| c.len() == 6 && c.chars().all(|c| c.is_ascii_hexdigit()))
+                    .unwrap_or_else(|| "000000".into());
+                let space = attr(element, "space")
+                    .and_then(|v| v.parse::<f32>().ok())
+                    .map_or(0.0, |v| v.clamp(0.0, 31.0));
+                Some((width, line, color, space))
+            }
+        };
     }
 
     /// `w:spacing`·`w:ind` 하나를 반영한다.
@@ -546,6 +592,28 @@ impl ParaProps {
         }
         if let Some(condense) = self.condense.filter(|v| (1..=75).contains(v)) {
             css.push_str(&format!("papy-condense:{condense};"));
+        }
+        // 문단 테두리·배경: rhwp 붙여넣기가 문단 모양 테두리/배경으로 읽는다(패치 0021). 간격은 pt.
+        if self.borders.iter().any(Option::is_some) {
+            for (side, border) in ["left", "right", "top", "bottom"].iter().zip(&self.borders) {
+                if let Some((width, line, color, _)) = border {
+                    css.push_str(&format!("border-{side}:{width:.2}pt {line} #{color};"));
+                }
+            }
+            let space = |i: usize| self.borders[i].as_ref().map_or(0.0, |b| b.3);
+            css.push_str(&format!(
+                "papy-border-space:{}pt {}pt {}pt {}pt;",
+                space(0),
+                space(1),
+                space(2),
+                space(3)
+            ));
+            if self.border_apart {
+                css.push_str("papy-border-connect:0;");
+            }
+        }
+        if let Some(fill) = &self.shading {
+            css.push_str(&format!("background-color:#{fill};"));
         }
         css
     }
@@ -1197,6 +1265,8 @@ fn xml_to_html(
     let mut para_tabs: Vec<String> = Vec::new();
     let mut caption_after_table = false;
     let mut in_ppr = false;
+    // 문단 테두리(`w:pBdr`) 안
+    let mut in_pbdr = false;
     let mut in_tbl_borders = false;
     let mut in_tc_borders = false;
     let mut in_tbl_cell_mar = false;
@@ -1457,6 +1527,20 @@ fn xml_to_html(
                     }
                     "jc" if in_ppr && !in_rpr => para_align = attr(&e, "val"),
                     "spacing" | "ind" if in_ppr && !in_rpr => para_props.apply(&e),
+                    "pBdr" if in_ppr && !in_rpr => {
+                        in_pbdr = !empty;
+                        para_props.border_apart = attr(&e, "connect").as_deref() == Some("0");
+                    }
+                    side @ ("top" | "left" | "bottom" | "right" | "start" | "end") if in_pbdr => {
+                        para_props.border(side, &e)
+                    }
+                    "shd" if in_ppr && !in_rpr && !in_pbdr => {
+                        para_props.shading = attr(&e, "fill").filter(|c| {
+                            c.len() == 6
+                                && c.chars().all(|c| c.is_ascii_hexdigit())
+                                && !c.eq_ignore_ascii_case("FFFFFF")
+                        })
+                    }
                     "outlineLvl" if in_ppr && !in_rpr => para_outline = outline_level(&e),
                     "numPr" if in_ppr => {
                         list_item = true;
@@ -2022,7 +2106,11 @@ fn xml_to_html(
                 "instrText" => in_instr = false,
                 "fldSimple" => skip_simple = false,
                 "rPr" => in_rpr = false,
-                "pPr" => in_ppr = false,
+                "pPr" => {
+                    in_ppr = false;
+                    in_pbdr = false;
+                }
+                "pBdr" => in_pbdr = false,
                 "tabs" => in_tabs = false,
                 "tblBorders" => in_tbl_borders = false,
                 "tcBorders" => in_tc_borders = false,

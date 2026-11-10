@@ -36,6 +36,16 @@ pub(crate) fn paste(doc: &mut Rhwp, html: &str) -> Result<Vec<Paragraph>, HwpErr
     if moved.is_empty() {
         moved.push(Paragraph::new_empty());
     }
+    // 문서 끝에 붙여넣어 줄 세로 자리가 본문 끝 기준이다. 조각 처음을 0 으로 옮긴다
+    // (글상자 글이 상자 아래 멀리 그려지고 상자가 길게 늘어났다).
+    if let Some(base) = moved
+        .iter()
+        .find_map(|p| p.line_segs.first().map(|seg| seg.vertical_pos))
+    {
+        for seg in moved.iter_mut().flat_map(|p| p.line_segs.iter_mut()) {
+            seg.vertical_pos -= base;
+        }
+    }
     // 쪽 번호·전체 쪽 수 자리 표시 → rhwp 머리말 필드 글자(둘 다 한 칸이다). 글상자(머리말 묶음 안 등)도 같다.
     fn fields(paragraphs: &mut [Paragraph], depth: usize) {
         use papy_office::{PAGE_COUNT_FIELD, PAGE_COUNT_MARK, PAGE_NUMBER_FIELD, PAGE_NUMBER_MARK};

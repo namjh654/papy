@@ -401,6 +401,25 @@ fn wsp_xml(
         }
         text.push_str("</w:txbxContent></wps:txbx>");
     }
+    // 글상자 안 여백·글 세로 자리(없으면 Word 는 왼쪽·오른쪽 0.1인치, 위·아래 0.05인치로 넓게 잡는다)
+    let body = drawing.text_box.as_ref().map_or_else(
+        || "<wps:bodyPr/>".to_owned(),
+        |text_box| {
+            let inset = |v: i16| emu(u32::from(v.max(0) as u16));
+            let anchor = match text_box.vertical_align {
+                rhwp::model::table::VerticalAlign::Center => "ctr",
+                rhwp::model::table::VerticalAlign::Bottom => "b",
+                _ => "t",
+            };
+            format!(
+                r#"<wps:bodyPr lIns="{}" tIns="{}" rIns="{}" bIns="{}" anchor="{anchor}"/>"#,
+                inset(text_box.margin_left),
+                inset(text_box.margin_top),
+                inset(text_box.margin_right),
+                inset(text_box.margin_bottom)
+            )
+        },
+    );
     let text_box_flag = if drawing.text_box.is_some() {
         r#" txBox="1""#
     } else {
@@ -412,7 +431,7 @@ fn wsp_xml(
         String::new()
     };
     Ok(Some(format!(
-        r#"<wps:wsp>{name}<wps:cNvSpPr{text_box_flag}/><wps:spPr><a:xfrm{flips}><a:off x="{x}" y="{y}"/><a:ext cx="{cx}" cy="{cy}"/></a:xfrm>{geometry}{fill}{line}</wps:spPr>{text}<wps:bodyPr/></wps:wsp>"#
+        r#"<wps:wsp>{name}<wps:cNvSpPr{text_box_flag}/><wps:spPr><a:xfrm{flips}><a:off x="{x}" y="{y}"/><a:ext cx="{cx}" cy="{cy}"/></a:xfrm>{geometry}{fill}{line}</wps:spPr>{text}{body}</wps:wsp>"#
     )))
 }
 
@@ -938,6 +957,7 @@ fn para_props_with(info: &DocInfo, paragraph: &Paragraph, list: Option<(usize, u
             r#"<w:numPr><w:ilvl w:val="{level}"/><w:numId w:val="{num_id}"/></w:numPr>"#
         );
     }
+    props.push_str(&para_border(info, shape));
     props.push_str(&tab_stops(info, shape.tab_def_id));
     // 문단 여백·간격은 HWPUNIT 의 2배 단위로 저장된다(rhwp ParaShape 규약).
     let half = |v: i32| twips(u32::try_from(v.max(0) / 2).unwrap_or(0));
@@ -2054,6 +2074,75 @@ fn cell_border_twips(info: &DocInfo, border_fill_id: u16) -> u32 {
         })
         .max()
         .unwrap_or(0)
+}
+
+/// 한글 테두리선 → Word 선 (`w:val`, `w:sz`(1/8 pt), 색). 선이 없으면 None.
+fn border_line(line: &rhwp::model::style::BorderLine) -> Option<(&'static str, u32, String)> {
+    use rhwp::model::style::BorderLineType as Line;
+    let value = match line.line_type {
+        Line::None => return None,
+        Line::Solid => "single",
+        Line::Dash | Line::LongDash => "dashed",
+        Line::Dot | Line::Circle => "dotted",
+        Line::DashDot => "dotDash",
+        Line::DashDotDot => "dotDotDash",
+        Line::Double => "double",
+        _ => "single",
+    };
+    // 1/8 pt, Word 범위 2~96
+    let mm = BORDER_WIDTH_MM[usize::from(line.width.min(15))];
+    let size = ((mm * 72.0 / 25.4 * 8.0).round() as u32).clamp(2, 96);
+    Some((
+        value,
+        size,
+        rgb(line.color).unwrap_or_else(|| "000000".into()),
+    ))
+}
+
+/// 문단 테두리·배경(`w:pBdr`, `w:shd`). 테두리와 글 사이 간격은 `w:space`(pt)로 쓴다.
+/// 이어진 문단의 같은 테두리를 Word 는 늘 한 상자로 묶고, 한글은 "문단 테두리 연결"이 켜졌을 때 묶는다.
+fn para_border(info: &DocInfo, shape: &rhwp::model::style::ParaShape) -> String {
+    let Some(fill) = shape
+        .border_fill_id
+        .checked_sub(1)
+        .and_then(|i| info.border_fills.get(i as usize))
+    else {
+        return String::new();
+    };
+    let mut out = String::new();
+    let mut sides = String::new();
+    // HWP 순서는 왼쪽·오른쪽·위·아래, Word 스키마 순서는 위·왼쪽·아래·오른쪽·사이.
+    let space = |index: usize| {
+        let hwpunit = i32::from(shape.border_spacing[index]).max(0);
+        ((hwpunit + 50) / 100).min(31)
+    };
+    for (side, index) in [("top", 2), ("left", 0), ("bottom", 3), ("right", 1)] {
+        if let Some((value, size, color)) = border_line(&fill.borders[index]) {
+            let _ = write!(
+                sides,
+                r#"<w:{side} w:val="{value}" w:sz="{size}" w:space="{}" w:color="{color}"/>"#,
+                space(index)
+            );
+        }
+    }
+    if !sides.is_empty() {
+        // 한글 "문단 테두리 연결"(attr1 비트 28)이 꺼졌으면 Papy 가 다시 열 때만 따로 그린다(Word 는 늘 묶는다).
+        let connect = if shape.attr1 & (1 << 28) != 0 {
+            ""
+        } else {
+            r#" papy:connect="0""#
+        };
+        let _ = write!(out, "<w:pBdr{connect}>{sides}</w:pBdr>");
+    }
+    if let (FillType::Solid, Some(solid)) = (&fill.fill.fill_type, &fill.fill.solid) {
+        if let Some(color) = rgb(solid.background_color).filter(|c| c != "FFFFFF") {
+            let _ = write!(
+                out,
+                r#"<w:shd w:val="clear" w:color="auto" w:fill="{color}"/>"#
+            );
+        }
+    }
+    out
 }
 
 fn cell_style(info: &DocInfo, border_fill_id: u16) -> String {

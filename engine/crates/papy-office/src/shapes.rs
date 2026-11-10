@@ -88,9 +88,16 @@ pub struct DocxShape {
     pub html: Option<String>,
     /// 그림으로 넣을 내용(묶음 안 그림, 차트). 있으면 도형 대신 이 그림을 넣는다.
     pub image: Option<ShapeImage>,
+    /// 글상자 안 여백(왼쪽, 위, 오른쪽, 아래, EMU, `wps:bodyPr` 의 `lIns`…). 없으면 Word 기본값.
+    pub insets: [i64; 4],
+    /// 글상자 글의 세로 자리(`wps:bodyPr anchor`): 0 위, 1 가운데, 2 아래
+    pub text_anchor: u8,
     /// 읽는 중에 찾은 그림·차트 관계 id. [`crate::docx_to_html`] 이 [`DocxShape::image`] 로 푼다.
     pub(crate) pending: Option<Pending>,
 }
+
+/// Word 글상자 기본 안 여백(왼쪽·오른쪽 0.1인치, 위·아래 0.05인치, EMU).
+pub const DEFAULT_INSETS: [i64; 4] = [91_440, 45_720, 91_440, 45_720];
 
 /// 도형 자리에 넣을 그림.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -158,6 +165,9 @@ pub(crate) struct Drawing {
     text: Vec<String>,
     /// 글상자 내용 HTML([`Drawing::set_textbox_html`])
     html: Option<String>,
+    /// `wps:bodyPr` 안 여백·세로 자리
+    insets: Option<[i64; 4]>,
+    text_anchor: u8,
     /// `a:xfrm` 안의 `a:off`·`a:ext`(묶음 안 도형의 자리, 묶음 좌표)
     in_xfrm: bool,
     xfrm_off: Option<(i64, i64)>,
@@ -474,6 +484,25 @@ impl Drawing {
             }
             "style" => self.has_style = true,
             "txbxContent" if !empty => self.textbox_level = 1,
+            "bodyPr" => {
+                let inset = |key: &str, default: i64| {
+                    attr(e, key)
+                        .and_then(|v| v.parse::<i64>().ok())
+                        .map_or(default, |v| v.max(0))
+                };
+                let [l, t, r, b] = DEFAULT_INSETS;
+                self.insets = Some([
+                    inset("lIns", l),
+                    inset("tIns", t),
+                    inset("rIns", r),
+                    inset("bIns", b),
+                ]);
+                self.text_anchor = match attr(e, "anchor").as_deref() {
+                    Some("ctr") => 1,
+                    Some("b") => 2,
+                    _ => 0,
+                };
+            }
             _ => {}
         }
     }
@@ -625,6 +654,8 @@ impl Drawing {
                 text: Vec::new(),
                 html: None,
                 image: None,
+                insets: DEFAULT_INSETS,
+                text_anchor: 0,
                 pending: Some(pending),
             });
         }
@@ -681,6 +712,8 @@ impl Drawing {
                 Vec::new()
             },
             image: None,
+            insets: self.insets.unwrap_or(DEFAULT_INSETS),
+            text_anchor: self.text_anchor,
             pending: None,
         })
     }

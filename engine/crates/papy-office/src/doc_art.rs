@@ -412,6 +412,8 @@ impl Art {
             text: Vec::new(),
             html: None,
             image: None,
+            insets: crate::shapes::DEFAULT_INSETS,
+            text_anchor: 0,
             pending: None,
         };
         // 그림: pib(0x0104, 그림 저장소 1부터)
@@ -448,12 +450,29 @@ impl Art {
         if fill.is_none() && line.is_none() && !has_text {
             return None;
         }
+        // 글상자 안 여백 dxTextLeft·dyTextTop·dxTextRight·dyTextBottom(0x0081~0x0084, EMU), 글 세로 자리 anchorText(0x0087)
+        let [l, t, r, b] = crate::shapes::DEFAULT_INSETS;
+        let inset =
+            |id: u16, default: i64| sp.prop(id).map_or(default, |v| i64::from(v.min(1 << 24)));
+        let insets = [
+            inset(0x0081, l),
+            inset(0x0082, t),
+            inset(0x0083, r),
+            inset(0x0084, b),
+        ];
+        let text_anchor = match sp.prop(0x0087) {
+            Some(1 | 4) => 1,
+            Some(2 | 5 | 7 | 9) => 2,
+            _ => 0,
+        };
         Some(DocxShape {
             kind,
             fill,
             line,
             line_width,
             text: if has_text { text } else { Vec::new() },
+            insets,
+            text_anchor,
             ..base
         })
     }

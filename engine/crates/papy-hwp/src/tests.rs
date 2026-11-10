@@ -859,6 +859,86 @@ fn docx_with_shapes() -> Vec<u8> {
     ])
 }
 
+/// 문단 테두리(지문 상자)와 글자처럼 놓은 글상자(안 여백·세로 자리)가 DOCX 왕복에 남는다.
+/// 전에는 문단 테두리가 빠졌고, 글상자는 Word 기본 안 여백으로 넓어져 글이 두 줄로 접히며, 붙여넣은 글상자 글의
+/// 줄 세로 자리가 본문 끝 기준이라 상자 아래 멀리 그려졌다(exam-kor-4p).
+#[test]
+fn docx_paragraph_border_and_inline_text_box_round_trip() {
+    let border = r#"<w:pBdr><w:top w:val="single" w:sz="4" w:space="6" w:color="000000"/><w:left w:val="single" w:sz="4" w:space="0" w:color="000000"/><w:bottom w:val="single" w:sz="4" w:space="0" w:color="000000"/><w:right w:val="single" w:sz="4" w:space="0" w:color="000000"/></w:pBdr><w:shd w:val="clear" w:color="auto" w:fill="EEEEEE"/>"#;
+    let boxed = r#"<w:r><w:drawing><wp:inline><wp:extent cx="647954" cy="179959"/><wp:docPr id="1"/><a:graphic><a:graphicData><wps:wsp><wps:cNvSpPr txBox="1"/><wps:spPr><a:prstGeom prst="rect"/><a:noFill/><a:ln w="4191"><a:solidFill><a:srgbClr val="000000"/></a:solidFill></a:ln></wps:spPr><wps:txbx><w:txbxContent><w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:t>잠재 표현</w:t></w:r></w:p></w:txbxContent></wps:txbx><wps:bodyPr lIns="0" tIns="0" rIns="0" bIns="0" anchor="ctr"/></wps:wsp></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>"#;
+    let document = format!(
+        r#"<w:document xmlns:w="w" xmlns:wp="wp" xmlns:a="a" xmlns:wps="wps"><w:body><w:p><w:r><w:t>앞 문단</w:t></w:r></w:p><w:p><w:pPr>{border}</w:pPr><w:r><w:t xml:space="preserve">지문 첫 문단 </w:t></w:r>{boxed}<w:r><w:t xml:space="preserve"> 이라고 한다.</w:t></w:r></w:p><w:p><w:pPr>{border}</w:pPr><w:r><w:t>지문 둘째 문단</w:t></w:r></w:p></w:body></w:document>"#
+    );
+    let docx = zip_parts(&[
+        ("[Content_Types].xml", "<Types/>"),
+        ("word/document.xml", &document),
+    ]);
+    let mut doc = open(HwpBackend::docx(), docx, &options()).unwrap();
+    assert_eq!(doc.info().dropped_objects, 0);
+    let hwp = doc.save(SaveFormat::Hwp).unwrap();
+    let saved = rhwp::wasm_api::HwpDocument::from_bytes(&hwp).unwrap();
+    let model = saved.document();
+    let info = &model.doc_info;
+    let bordered: Vec<_> = model.sections[0]
+        .paragraphs
+        .iter()
+        .filter(|p| p.text.contains("지문"))
+        .map(|p| &info.para_shapes[p.para_shape_id as usize])
+        .collect();
+    assert_eq!(bordered.len(), 2);
+    for shape in &bordered {
+        let fill = &info.border_fills[shape.border_fill_id as usize - 1];
+        assert!(
+            fill.borders
+                .iter()
+                .all(|l| l.line_type == rhwp::model::style::BorderLineType::Solid),
+            "{fill:?}"
+        );
+        assert!(fill.fill.solid.is_some(), "{fill:?}");
+        // 위 간격 6pt, 이어진 문단을 한 상자로 묶는다
+        assert_eq!(shape.border_spacing[2], 600);
+        assert_ne!(shape.attr1 & (1 << 28), 0);
+    }
+    let text_box = model.sections[0]
+        .paragraphs
+        .iter()
+        .flat_map(|p| &p.controls)
+        .find_map(|c| match c {
+            rhwp::model::control::Control::Shape(s) => s.drawing()?.text_box.as_ref(),
+            _ => None,
+        })
+        .expect("글상자");
+    assert_eq!(
+        (
+            text_box.margin_left,
+            text_box.margin_top,
+            text_box.margin_right,
+            text_box.margin_bottom
+        ),
+        (0, 0, 0, 0)
+    );
+    assert_eq!(
+        text_box.vertical_align,
+        rhwp::model::table::VerticalAlign::Center
+    );
+    // 글상자 글은 한 줄이고 줄 자리는 상자 안(0)이다
+    let lines = &text_box.paragraphs[0].line_segs;
+    assert_eq!(lines.len(), 1, "{lines:?}");
+    assert_eq!(lines[0].vertical_pos, 0);
+
+    // 다시 DOCX 로 써도 테두리·안 여백이 남는다
+    let body = zip_text(&doc.save(SaveFormat::Docx).unwrap(), "word/document.xml");
+    assert_eq!(body.matches("<w:pBdr>").count(), 2, "{body}");
+    assert!(
+        body.contains(r#"w:space="6""#) && body.contains(r#"w:fill="EEEEEE""#),
+        "{body}"
+    );
+    assert!(
+        body.contains(r#"<wps:bodyPr lIns="0" tIns="0" rIns="0" bIns="0" anchor="ctr"/>"#),
+        "{body}"
+    );
+}
+
 #[test]
 fn docx_shapes_are_kept_and_saved() {
     let mut doc = open(HwpBackend::docx(), docx_with_shapes(), &options()).unwrap();
