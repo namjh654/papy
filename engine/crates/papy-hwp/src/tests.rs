@@ -2699,6 +2699,45 @@ fn docx_floating_picture_before_page_break_with_inline_picture_opens() {
     assert!(doc.extract_text(1).unwrap().contains("글자처럼 취급"));
 }
 
+/// Papy 가 쓴 DOCX 가 "원본은 글꼴에 어울리는 빈칸을 쓰지 않았다"(`papy:fontspace="0"`)고 적어 두었으면 다시 열 때
+/// 그 설정을 켜지 않는다(켜면 한글 문서의 반각 빈칸이 글꼴 폭으로 넓어진다). 표시가 없으면 Word 처럼 켠다.
+#[test]
+fn docx_font_space_follows_papy_mark() {
+    let document = r#"<w:document xmlns:w="w"><w:body><w:p><w:r><w:t xml:space="preserve">빈칸 있는 글 하나</w:t></w:r></w:p></w:body></w:document>"#;
+    let uses = |fonts: &str| {
+        let bytes = zip_parts(&[
+            ("[Content_Types].xml", "<Types/>"),
+            ("word/document.xml", document),
+            ("word/fontTable.xml", fonts),
+        ]);
+        let mut doc = open(HwpBackend::docx(), bytes, &options()).unwrap();
+        let core = DocumentCore::from_bytes(&doc.save(SaveFormat::Hwp).unwrap()).unwrap();
+        let info = &core.document().doc_info;
+        let on = core.document().sections[0]
+            .paragraphs
+            .iter()
+            .filter(|p| !p.text.is_empty())
+            .flat_map(|p| &p.char_shapes)
+            .any(|run| info.char_shapes[run.char_shape_id as usize].use_font_space);
+        let docx = doc.save(SaveFormat::Docx).unwrap();
+        (
+            on,
+            zip_text(&docx, "word/fontTable.xml").contains(r#"papy:fontspace="0""#),
+        )
+    };
+    let marked = r#"<w:fonts xmlns:w="w" xmlns:papy="urn:papy:docx" papy:fontspace="0"/>"#;
+    assert_eq!(
+        uses(marked),
+        (false, true),
+        "표시가 있으면 끄고, 다시 써도 표시가 남는다"
+    );
+    assert_eq!(
+        uses(r#"<w:fonts xmlns:w="w"/>"#),
+        (true, false),
+        "표시가 없으면 켠다"
+    );
+}
+
 /// 한글 시험지 답 줄(①~⑤, 글자처럼 둔 여백 0 표)을 DOCX 로 옮겼다 다시 열면 "ㄱ, ㄴ, ㄷ" 칸이 두 줄로 접히고 줄마다
 /// 높아져 단이 넘쳤다(exam_science 4 → 7쪽, rhwp 0.9). 원인 둘: HFT 글꼴이 TTF 로 다시 만들어져 쉼표를 한글 글꼴 폭으로
 /// 쟀고(rhwp #7418 은 HFT 일 때만 영문 폭), 표 바깥 여백이 붙여넣기 기본값(위아래 1mm)으로 줄 높이에 남았다.

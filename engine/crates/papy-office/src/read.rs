@@ -84,6 +84,9 @@ pub struct DocxReadReport {
     pub page: Option<PageSetup>,
     /// 한글 원본에서 HFT(한컴 옛 글꼴)였던 글꼴 이름(`word/fontTable.xml` 의 `papy:hft`). 본문에서만 읽는다.
     pub hft_fonts: Vec<String>,
+    /// 한글 원본이 "글꼴에 어울리는 빈칸"을 쓰지 않았다(`word/fontTable.xml` 뿌리의 `papy:fontspace="0"`).
+    /// 다시 열 때 빈칸을 Word 처럼 글꼴 폭이 아니라 한글처럼 반각으로 잰다.
+    pub no_font_space: bool,
 }
 
 /// Word 메모 하나.
@@ -118,6 +121,20 @@ fn hft_fonts(xml: &str) -> Vec<String> {
         }
     }
     out
+}
+
+/// `word/fontTable.xml` 뿌리(`w:fonts`)에 Papy 가 `papy:fontspace="0"` 을 썼는지.
+fn no_font_space(xml: &str) -> bool {
+    let mut reader = Reader::from_str(xml);
+    loop {
+        match reader.read_event() {
+            Ok(Event::Eof) | Err(_) => return false,
+            Ok(Event::Start(e) | Event::Empty(e)) if local(e.name().as_ref()) == "fonts" => {
+                return attr(&e, "fontspace").as_deref() == Some("0");
+            }
+            _ => {}
+        }
+    }
 }
 
 /// `word/comments.xml` → id 별 (쓴 사람, 때, 글).
@@ -841,6 +858,7 @@ fn float_place(element: &BytesStart) -> String {
     let wrap = match attr(element, "wrap").as_deref() {
         Some("front") => Some("InFrontOfText"),
         Some("behind") => Some("BehindText"),
+        Some("square") => Some("Square"),
         _ => None,
     };
     let vert = match attr(element, "vertAnchor").as_deref() {
@@ -2330,9 +2348,10 @@ fn xml_to_html(
     }
     report.lists = std::mem::take(&mut numbering.lists);
     if depth == 0 && !header {
-        report.hft_fonts = read_part(&mut archive, "word/fontTable.xml")?
-            .map(|xml| hft_fonts(&xml))
-            .unwrap_or_default();
+        if let Some(xml) = read_part(&mut archive, "word/fontTable.xml")? {
+            report.hft_fonts = hft_fonts(&xml);
+            report.no_font_space = no_font_space(&xml);
+        }
     }
     // 문단이 가장 많은 구역(같으면 앞 구역).
     report.page = section_pages

@@ -1,101 +1,156 @@
-# 이어서 할 일 (2026-11-10 갱신)
+# 이어서 할 일 (2026-11-11 갱신)
 
-Windows 에서 하던 변환 품질 작업을 macOS 에서 잇기 위한 메모. 끝나면 이 파일을 지우거나 [roadmap.md](roadmap.md) 로 옮긴다.
+다른 세션·다른 모델이 이어받아도 이 파일만 보고 진행할 수 있게 쓴 작업 순서표다. 방향은 [ADR 0008](../decisions/0008-product-order-and-engines.md)을 따른다.
 
-## 지금 상태
+- **문서 3종**(한글 HWP·HWPX, 워드 DOC·DOCX, PDF)을 먼저 끝내고 안정화한 뒤 **배포**한다.
+- 그다음 **PPT·PPTX**, 그다음 **XLS·XLSX**를 단계별로 더한다.
+- 변환 오차는 앱에서 고지한다. 왕복 쪽 수를 원본과 똑같이 맞추는 작업은 하지 않는다.
 
-- 브랜치 `feature/windows-fidelity`(원격에 올림, PR 열림 — main 병합은 사용자가).
-- 우선순위(사용자와 정함): **① 버그를 찾아 재발하지 않게**(DOCX↔HWPX 내용·구조 100%, 쪽 수는 가깝게) → ② DOC·HWP 변환 문제·성능
-  → ③ XLSX·PPTX. 코드 서명(로드맵 항목 2)은 보류.
-- 원칙: 손실을 고칠 때마다 회귀 테스트를 붙인다. 왕복 손실은 `papy-hwp` 의 `docx_round_trip_keeps_structure` 원본 DOCX 에
-  요소를 더하고 기대 수를 적는다(기본 `cargo test`, CI).
+위에서부터 차례로 한다. 끝낸 항목은 ~~취소선~~과 날짜를 남긴다. 단계가 다 끝나면 내용을 [roadmap.md](roadmap.md)로 옮긴다.
 
-## macOS 준비
+---
+
+## 작업 규칙 (꼭 지킬 것)
+
+- **보고와 문서는 한국어로** 쓴다. 사용자는 한국어 요약 보고를 원한다.
+- **커밋·푸시는 사용자가 시킬 때만** 한다. main에 바로 하지 않고 기능 브랜치에서 PR로 낸다.
+  - **병합은 사용자가 한다.** 자동 모드는 `gh pr merge`를 거부한다.
+  - force push는 막혀 있다. 실수는 고치는 커밋을 하나 더 해서 바로잡는다.
+  - 커밋 메시지 끝에는 `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`, PR 본문 끝에는 `🤖 Generated with [Claude Code](https://claude.com/claude-code)`를 붙인다.
+    다른 모델이 이어받으면 그 모델 이름으로 바꾼다.
+- **`v*` 태그를 올리면 바로 공개 릴리스가 빌드된다**(`.github/workflows/release.yml`, 설치 파일이 GitHub Release에 올라간다).
+  태그 이름과 시점은 반드시 사용자에게 먼저 묻는다. `-`가 들어간 태그(`v0.4.0-rc.1`)는 시험판(prerelease)이 된다.
+- 서식 맞추기는 `cargo fmt -p papy-hwp -p papy-office -p papy-core` 등 **우리 crate만** 한다.
+  `cargo fmt --all`은 vendor(rhwp)까지 바꾸므로 금지다.
+- rhwp는 직접 고치지 않는다. `engine/patches/rhwp/NNNN-*.patch`를 고친 뒤 받아 오기를 다시 한다. 만드는 법은 아래 "rhwp 패치"에 있다.
+- 손실이나 버그를 고칠 때마다 회귀 테스트를 붙인다. 왕복 손실이면 `papy-hwp`의 `docx_round_trip_keeps_structure` 등에 넣는다.
+
+## 환경 준비 (macOS, 저장소 루트에서)
 
 ```bash
-git fetch && git switch feature/windows-fidelity && git pull
-node scripts/fetch-rhwp.mjs          # rhwp v0.9.0 + engine/patches/rhwp/*.patch 적용
-node scripts/fetch-corpus.mjs        # rhwp 샘플·POI 문서(git 제외)
-cd engine && cargo test --workspace && cargo clippy --workspace --all-targets -- -D warnings
-```
-
-## 왕복 손실 점검 돌리기
-
-```bash
+export PATH="$HOME/.cargo/bin:$PATH"
+pnpm engine:vendor                 # rhwp v0.9.0 + 패치, PDFium, rhwp-studio, 글꼴
+node scripts/fetch-corpus.mjs      # 문서 모음(rhwp 샘플·POI, git 제외)
 cd engine
-cargo run --release -p papy-core --example roundtrip_audit -- ../tests/corpus/roundtrip-audit-rhwp.txt > /tmp/audit-rhwp.tsv
-cargo run --release -p papy-core --example roundtrip_audit -- ../tests/corpus/roundtrip-audit-poi.txt  > /tmp/audit-poi.tsv
-grep '^# ' /tmp/audit-rhwp.tsv     # 경로·요소마다 바뀐 문서 수·원본 합·결과 합
+export PAPY_PDFIUM_LIBRARY=$PWD/vendor/pdfium/aarch64-apple-darwin/libpdfium.dylib
+cargo test --workspace
+cargo clippy -p papy-hwp -p papy-office -p papy-core --all-targets -- -D warnings
 ```
 
-목록 파일은 Windows 에서 쓴 것과 같은 문서(rhwp 샘플 80개, POI 245개). 2026-11-08 마지막 결과(기준선, 한글 원본의 `docx` 경로 =
-HWP/HWPX → DOCX → 다시 열기; `요소 바뀐문서/전체 원본합→결과합`):
+자주 쓰는 점검(모두 `engine/`에서):
 
-- 표·칸: `tables 5/80 46→42`, `cells 5/80 1032→916`, `tables.in_note 2/80 8→0`, `tables.floating 48/80 109→581`
-- 글: `chars.caption 14/80 1078→0`, `chars.textbox 5/80 883→78`, `chars.bold 7/80 12702→9823`, `chars.colored 4/80 446→11`
-- 개체: `pictures.in_note 3/80 64→0`, `pictures.in_textbox 4/80 8→0`, `shapes 13/80 89→40`, `shapes.in_cell 5/80 5→0`,
-  `shapes.in_footer 1/80 2→0`, `shapes.groups 7/80 8→0`(묶음은 풀림 — 의도)
-- 그 밖: `fields 16/80 46→0`, `page_numbers 21/80 30→0`, `para.list 12/80 219→0`, `bookmarks 1/80 1→0`,
-  `equations 5/80 5966→0`(그림으로 — 의도), `sections 10/80 28→10`(쪽 나누기로 — 의도)
-- Word 원본(POI, `hwpx` 경로 = DOC/DOCX → HWPX → 다시 열기): `comments 3/245 5→0` 만 남음
+| 점검 | 명령 | 비고 |
+|---|---|---|
+| 시험지 12개 DOCX 왕복 쪽 수 | `./target/release/examples/convert_matrix <목록> docx` | 목록은 `tests/corpus/rhwp-samples/exam*.hwp` 12개 경로. 빌드: `cargo build --release -p papy-core --example convert_matrix`. 결과 열은 `src_pages`·`pages`·`keep` |
+| 문서 모음 기준값 | `PAPY_CORPUS=tests/corpus/rhwp-samples PAPY_CORPUS_GOLDEN=tests/corpus/rhwp-samples.golden.tsv cargo test --release -p papy-core --test corpus -- --ignored --nocapture` | 경로는 저장소 루트 기준이다. POI는 `poi-documents`로 바꾼다. 의도한 변화면 `PAPY_CORPUS_UPDATE=1`로 다시 쓰고 diff를 확인한다 |
+| 왕복 손실 점검 | `cargo run --release -p papy-core --example roundtrip_audit -- ../tests/corpus/roundtrip-audit-rhwp.txt` | POI는 `roundtrip-audit-poi.txt`. 결과의 `# ` 줄에 요소별 원본 합 → 결과 합 |
+| 쪽 배치 비교 | rhwp `dump_page_items(None)`(쪽·단마다 문단 높이·vpos) | 원본과 왕복 결과를 같은 문단끼리 맞대어 어디서 어긋나는지 찾는다 |
 
-## 2026-11-09 macOS 에서 한 것
+## rhwp 패치
 
-①의 1~9를 모두 손봤다(회귀 테스트: `docx_round_trip_keeps_structure`, papy-office `pictures_captions_inline_tables_links_and_memos_are_written`·
-`tab_stops_short_rows_and_cell_tails_are_read_and_written`). 한글 원본 `docx` 경로 결과(시작 → 지금, `원본합→결과합`):
+- 패치는 `engine/patches/rhwp/`에 있다(0002~0022, 0001·0013·0020은 0.9.0에서 업스트림이 고쳐 뺐다).
+- `scripts/fetch-rhwp.mjs`가 v0.9.0을 sparse로 받아 패치를 차례로 적용한다.
+- 패치를 고칠 때:
+  1. 깨끗한 v0.9.0 사본에 앞 패치들을 적용한다.
+  2. 고칠 파일을 수정한다.
+  3. `git diff`로 그 패치 파일을 다시 만든다.
+  4. `pnpm engine:vendor`로 다시 받아 확인한다.
+- vendor 폴더를 직접 고친 내용은 다시 받기를 하면 **사라진다**.
 
-- 캡션 `1078→0` → `451→459`, 글상자 글 `883→78` → `392→376`, 떠 있는 표 `109→581` → `54→35`, 주석 속 표 `8→0` → 같음
-- 굵게 `12702→9823` → `7918→7902`, 크기 11pt·12pt 차이 → 같음, 칸 속 도형 `5→0` → `1→0`
-- 필드 `46→0` → `36→6`(누름틀·계산식·빈 주소 링크만), 책갈피 `1→0` → 같음, 쪽 번호 `30→0` → `19→6`
-- 일부러 다른 것은 그대로: 목록 `219→0`(번호 글자로), 수식 → 그림(그래서 `pictures` 가 늘어 보인다), 묶음 도형 풀림, 구역 → 쪽 나누기
-- Word 원본(POI): Bug51170 머리말 문단 하나(첫 쪽 머리말 미지원), bug65649 하이퍼링크 하나(HWPX → DOCX, rhwp HWPX 쓰기)만 남음
-- 성능: 한글 80개 DOCX 다시 열기 23.3s → 13.0s, Word 245개 열기 23s → 6s(bug59058.docx 12.9s → 0.78s). 붙여넣은 뒤
-  손질을 rhwp 배치 모드로 묶고, 각주 HTML 을 한 번에 붙여넣는다.
-- 2단 시험지: 한글 원본의 다단 구역은 아래 여백을 본문 줄 간격 여분만큼 줄여 쓴다(`papy:hwpBottom` 에 원래 값, 다시 열면 되돌림).
-  탭 위치는 이제 왕복한다(rhwp 패치 0017).
+---
 
-## 남은 일
+## 1단계 — 문서 3종 마무리 (지금)
 
-1. ~~목록 번호~~(2026-11-09 완료: 본문·칸 목록은 한글 문단 번호로, `para.list 219→0` → `10→0`). 남은 10개는 머리말·주석·글상자 안 목록.
-2. ~~한글·영문 글꼴~~(2026-11-09 완료: `w:ascii` 를 라틴 글꼴로 따로, `fonts` 차이 29 → 13 문서). 남은 것: 언어별 장평·자간·상대 크기(Word 에 자리 없음).
-3. ~~누름틀~~(2026-11-09 완료: 한글 누름틀 ↔ Word 글 콘텐츠 컨트롤 `w:sdt`. field-01.hwp 누름틀 `11→1` → `11→11`(글상자 안 5개 포함),
-   한글 원본 80개 `fields` 36→6 가운데 누름틀이 남은 것은 여러 문단을 감싸는 9개뿐). 붙여넣은 문단은 탭을 원시 위치 1 로 세어 rhwp 가
-   누름틀 자리를 셀 수 없었다 — papy-hwp `fields.rs` 가 탭을 8 로 다시 센다. 한글 프로그램에서 열리는지는 아직 확인하지 않았다(Windows).
-   남은 것: 첫 쪽 머리말(Bug51170 — 한글에 첫 쪽 전용 머리말이 없어 형식 차이로 둔다), HWPX → DOCX 하이퍼링크 하나(bug65649),
-   여러 문단을 감싸는 누름틀(블록 `w:sdt` 로 쓸 수는 있으나 rhwp 쪽 문단 넘는 필드 넣기가 없다).
-4. ~~계산식 필드~~(2026-11-09 완료: `fields` 한글 원본 80개 `27→6` → `11→6`. 남은 것은 원본에 잘못 적힌 링크·빈 주소 링크·범위 책갈피).
-   ~~그림만 든 글상자~~(2026-11-09 완료: 글자 없이 그림·표만 든 글상자를 버리던 것, `shapes.textboxes` 7 → 3 문서).
-   남은 도형: 칸 속 묶음 도형 1개(묶음은 일부러 푼다), 주석 속 도형 2개·글상자 속 도형 1개(조각 HTML 에 도형 자리가 없다).
-5. 성능 나머지: 머리말·글상자마다 문서 복제·`set_document` 하는 비용(바꾸기 위험이 커서 미룸).
-6. ~~Papy 로 다시 연 exam_eng~~(2026-11-09 완료: 10 → **8쪽**, 원본과 같다. 2단 시험지 exam-kor-1p·2p·3p 도 원본과 같아지고 4p 6 → 5,
-   exam_kor 27 → 26). 고친 것: 영문 빈칸을 반각으로 재던 것(DOCX 에서 연 글자에 "글꼴에 어울리는 빈칸"),
-   한글·영문 장평·자간·상대 크기가 한 값으로 합쳐지던 것(DOCX 런을 언어 묶음별로 나눠 씀), 최소 공백(`papy:condense`, rhwp 패치 0019),
-   줄 채움이 탭 정지를 모르던 것(rhwp 패치 0020 — 편집한 한글 문단에도 쓰인다), 배수 줄 간격 버림(143% → 142%),
-   빈 문서가 HWP5 로 만들어져 패치 0018 이 꺼지던 것(문서 출처에 "다른 형식에서 옮김"). 남은 것: exam_kor 26쪽(원본 20).
-   2026-11-10: 지문 상자(문단 테두리, rhwp 0021)·글자처럼 놓은 글상자(안 여백, 줄 자리)를 고쳤으나 쪽 수는 그대로다. exam_kor 는
-   rhwp 줄 나눔이 한컴 저장 줄보다 길게 접는 것(원본 HWP 도 rhwp 가 다시 나누면 쪽이 는다)이라 rhwp 조판 쪽 일이다.
-   "글꼴에 어울리는 빈칸"을 원래 값(꺼짐)으로 옮기면 오히려 exam_eng 8 → 11쪽이라 켠 채로 둔다.
-7. ~~바탕쪽이 DOCX 로 통째로 빠지던 것~~(2026-11-10: 양쪽·홀수·짝수 바탕쪽을 Word 머리말 안 떠 있는 개체로 쓰고,
-   Papy 로 다시 열면 바탕쪽으로 되돌린다. 틀 표 칸 쪽 번호도 쪽마다 맞게). 남은 것: 마지막 쪽 등 확장 바탕쪽("확인 사항" 상자),
-   그림 자르기(`a:srcRect` ↔ 한글 그림 자르기 — 시험지 머리 "국어 영역" 그림이 잘리지 않고 통째로 나온다),
-   DOCX 에서 연 문서를 HWP 로 저장했다 다시 열면 쪽이 하나 느는 것(exam-kor-4p 5 → 6, 바탕쪽과 무관).
-8. 2026-11-10 rhwp **v0.9.0** 으로 올림(패치 0001·0013·0020 은 업스트림이 고쳐 뺌, 0022 새로 — 옮긴 문서의 묶음 빈칸 폭).
-   시험지 DOCX 왕복 쪽 수는 0.8.7 보다 모두 같거나 낫다: exam_science 4·exam_social 4·exam-kor-4p 4(원본과 같음), exam_eng 8,
-   exam_kor 25(원본 20). 0.9 에서 늘던 원인은 답 줄 표 — HFT 글꼴(`papy:hft`)·글자처럼 둔 표 바깥 여백(`papy:outer`)이 DOCX 에서 빠졌던 것.
-   남은 것: exam_kor 25쪽(원본 20). 같은 방법(쪽마다 문단 높이를 원본과 맞대기)으로 이어서 본다.
-   rhwp-studio·@rhwp/core WASM·샘플 문서 모음은 아직 0.8.7(따로 올림). 0.9 배치 모드는 `paginate` 를 미루므로 배치 안에서
-   쪽·줄 자리를 묻지 말 것(그림 자리는 `shapes::measure` 로 배치 전에 잰다). Papy 표시 글자는 U+E0xx(0.9 가 U+E0BC~ 를 옛한글로 바꾼다).
+### 1-1. ~~미커밋 작업 정리 → PR #31 갱신~~ (2026-11-11 완료)
+브랜치 `feature/rhwp-0.9`(PR #31)에 커밋·푸시했다.
 
-## Windows 에서만 하는 것 (다음에 Windows 로 갈 때)
+- rhwp 패치 0018: foreign_layout 문서의 종이 기준 자리차지 표는 저장 vpos를 쓰지 않고 본문을 침범하는 하단으로만 맞춘다(exam_kor 25 → 24쪽).
+- `papy:fontspace="0"`: 원본이 "글꼴에 어울리는 빈칸"을 쓰지 않았으면 다시 열 때 켜지 않는다.
+  켤 때는 빈 문서 틀 글자 모양의 원시 레코드를 지워 HWP로 저장해도 설정이 남게 했다.
+- 어울림 표(`papy:wrap="square"`)를 떠 있는 표로 쓰고 되읽는다. 표를 품은 문단의 단 나누기는 표 앞으로 옮긴다.
+- 확인: `cargo test --workspace`, clippy, 문서 모음 기준값(rhwp 1,268개·POI 290개, 변화 없음), 시험지 12개(exam_kor만 25 → 24, 나머지 그대로).
+- exam_kor(원본 20쪽, 지금 24쪽)는 **더 맞추지 않는다**(ADR 0008). 깨진 배치(겹침·잘림)가 보이면 그것만 고친다.
 
-- **먼저:** 2단 시험지 아래 여백 줄이기가 Word 에서 단 넘침을 막는지 잰다 — `exam*.hwp` 12개를 이 브랜치와 그 앞(3755ecf)으로 각각 DOCX 로
-  저장해 쪽 수 비교(원본 exam_eng 8쪽). macOS Word 자동화(AppleScript)는 문서를 열지 못해(창이 뜨지 않음) 못 쟀다.
-- Word 기준 쪽 수 측정: `scripts/word-pages.ps1`(Microsoft Word 필요, [test-corpus.md](../formats/test-corpus.md)).
-  macOS 에서는 LibreOffice 점검(같은 문서)으로 대신 본다.
-- DOCX 로 저장했다 다시 연 누름틀 문서(`field-01.hwp` → DOCX → HWP)가 한글에서 열리고 누름틀이 동작하는지.
-- 로드맵 항목 1(Windows 데스크톱 실제 문서 확인)·항목 3(Windows 한글 입력기).
+### 1-2. PR 병합 (사용자)
+PR #30(`feature/fidelity-exam-kor`)과 #31(`feature/rhwp-0.9`)을 병합한다. 병합된 브랜치는 지워도 된다(사용자 허락함).
 
-## 그다음
+### 1-3. 변환 오차 고지 (앱)
+1. 데스크톱:
+   - 다른 형식으로 저장·내보내기할 때(HWP↔DOCX, DOC → DOCX·HWP) "배치와 쪽 수가 원본과 다를 수 있음"을 알린다.
+     처음 한 번 확인받고, 다시 보지 않기를 둔다.
+   - 다른 형식 문서를 열 때 문서 정보에 같은 문구와 옮기지 못한 요소 수(`dropped_objects`)를 보여 준다.
+2. 모바일(Android·iOS): PDF 내보내기와 열기 때 같은 문구를 보여 준다.
+3. 웹사이트 안내(`website/`)와 `docs/formats/word.md` "알려진 한계"에 같은 내용을 넣는다.
 
-- ② DOC·HWP 변환: 쪽 높이에 맞춘 양식 표.
-- ③ XLSX·PPTX 지원.
+### 1-4. rhwp 버전 맞추기
+- 엔진(네이티브)은 0.9.0이다. 그런데 **rhwp-studio·@rhwp/core WASM·문서 모음(`fetch-corpus.mjs` `tag: "v0.8.7"`)은 아직 0.8.7**이다.
+- ADR 0005는 편집(WASM)과 보기(네이티브)를 같은 커밋으로 고정해야 조판이 같다고 정했다. 배포 전에 셋 다 0.9.0으로 올린다.
+- studio 패치(`isUsableParentOrigin`의 `tauri:` 허용)를 다시 적용한다.
+- 고급 편집 → 내보내기 → 네이티브 재열기 확인(ADR 0005 PoC 절차)을 다시 돌린다.
+
+### 1-5. 남은 손실 (배포를 막지 않는 것은 뒤로)
+- 그림 자르기(`a:srcRect` ↔ 한글 그림 자르기). 시험지 머리 "국어 영역" 그림이 통째로 나온다.
+- 확장 바탕쪽(마지막 쪽 등). "확인 사항" 상자가 빠진다.
+- DOCX에서 연 문서를 HWP로 저장했다 다시 열면 쪽이 하나 는다(exam-kor-4p 5 → 6).
+- 머리말·주석·글상자 안 목록(번호 글자로 남음), 여러 문단을 감싸는 누름틀(글만 남음).
+- 성능: 머리말·글상자마다 문서를 복제하고 `set_document` 하는 비용.
+- 주의: rhwp 0.9 배치 모드는 `paginate`를 미룬다. 배치 안에서 쪽·줄 자리를 묻지 말 것(그림 자리는 `shapes::measure`로 배치 전에 잰다).
+  Papy 표시 글자는 U+E0xx를 쓴다(0.9가 U+E0BC~를 옛한글로 바꾼다).
+
+## 2단계 — 안정화
+
+완료 기준:
+- 문서 모음(rhwp 샘플·POI·PDF) 열기·그리기·PDF 내보내기 실패 0, 크래시 0
+- 기준값 테스트 통과
+- 무작위 손상·장시간 반복 테스트 실패 0
+- 세 데스크톱 OS와 두 모바일 OS에서 실제 문서를 수동으로 확인
+
+1. 0.9로 올린 뒤 회귀를 다시 잰다:
+   - 무작위 손상 반복(fuzz 대용)과 장시간 반복(로드맵 4단계와 같은 방법)
+   - 첫 쪽 표시 시간
+   - PDF 내보내기 전체 점검(문서 모음 1,495개, 실패 0이어야 함)
+2. Windows(Windows PC에서):
+   - 데스크톱으로 실제 문서 확인, 한글 입력기, rhwp-studio 창·입력기
+   - Word 기준 쪽 수 측정(`scripts/word-pages.ps1`)
+   - 누름틀 문서(`field-01.hwp` → DOCX → HWP)가 한글에서 열리는지
+3. Linux: 데스크톱 실제 문서 확인, rhwp-studio 창.
+4. 모바일: Android 릴리스 준비(R8·16KB 페이지·ABI·권한), iOS 실기기 확인. 문서 3종의 보기·편집·PDF 내보내기를 확인한다.
+5. 성능 리포트(기획서 6.1 목표 대비)를 `docs/`에 남긴다.
+
+## 3단계 — 배포 (사용자 결정 필요)
+
+먼저 물을 것: 버전 번호(예: `v0.4.0` 또는 `v1.0.0`), 시험판(rc)을 먼저 낼지, 코드 서명을 할지([code-signing.md](code-signing.md),
+지금은 서명 없음 — 첫 실행 때 OS 경고가 뜬다), 모바일 스토어에 낼지.
+
+1. 버전을 올린다: `apps/desktop/package.json`, `engine/Cargo.toml`(workspace), 데스크톱 Tauri 설정, 모바일 버전. 그리고 CHANGELOG·릴리스 노트를 쓴다.
+2. 앱 안 오픈소스 라이선스 화면과 고지문(1-3)을 확인한다.
+3. 사용자 승인 뒤 main에 태그를 올린다(`release.yml`이 Windows·macOS·Linux 설치 파일을 만든다). 다음을 확인한다:
+   - 설치 파일을 받아서 설치하고 문서 3종을 열어 본다.
+   - 웹사이트 내려받기 링크를 갱신한다.
+
+## 4단계 — PPT·PPTX (배포 뒤)
+
+[ADR 0007](../decisions/0007-xlsx-pptx.md) 1안: 슬라이드 하나를 한 쪽으로(쪽 크기 = 슬라이드 크기), 도형을 쪽 기준 개체로 옮겨 rhwp로 그린다.
+
+1. 시험 문서 모음을 만든다: Apache POI test-data(Apache-2.0)의 pptx와 직접 만든 문서. `tests/README.md`에 출처를 적는다.
+2. PPTX 보기 PoC(`papy-office` `pptx_to_document`):
+   - 형식은 `ppt/presentation.xml`로 판별한다.
+   - 마스터·레이아웃 상속, 글머리표, 배경을 옮긴다.
+   - 차트·SmartArt·효과·애니메이션은 `dropped_objects`로 센다.
+   - 완료 기준: 문서 모음 실패 0, 슬라이드 수·글자 일치.
+3. 앱을 연결한다:
+   - 데스크톱: 여는 확장자(`OPENABLE`), 파일 연결, 대화상자 필터
+   - 모바일: MIME, intent-filter, UTType
+   - 둘 다 썸네일·찾기·PDF 내보내기
+4. PPT(97–2003 이진) 읽기(PPTX 뒤).
+5. 글상자 글자 편집(필요하면). PPTX 다시 쓰기는 손실이 커서 맨 뒤로 미룬다.
+
+## 5단계 — XLS·XLSX (PPT 뒤)
+
+ADR 0007 XLSX 안: 시트 모델과, 엔진이 그리는 격자 조각을 쓴다. **PDF 내보내기는 지원하지 않는다**(ADR 0008).
+
+1. 엔진 PoC: IronCalc와 calamine을 견준다(열기 시간·메모리·서식·수식 결과). 엔진 선택 ADR을 승인받는다.
+2. `Workbook` API(시트·열 너비·행 높이·칸·병합)와 `render_tile`(tiny-skia + 지금의 글꼴)을 만든다.
+3. 데스크톱 화면: 시트 탭, 행·열 머리글, 틀 고정, 조각 스크롤, 칸 선택·복사.
+4. 모바일 화면(조각 확대·이동, 시트 고르기)과 `papy-ffi`를 연결한다.
+5. 편집: 칸 값·수식 고치기, 저장, 되돌리기. XLS(97–2003)는 그 뒤에 한다.

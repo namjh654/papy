@@ -1477,15 +1477,23 @@ fn write_paragraph_with(
             && (!matches!(table.common.vert_rel_to, VertRelTo::Para)
                 || (table.common.vertical_offset as i32) < first_line)
     };
-    // 쪽 나누기 문단의 표를 문단 앞에 쓰면 표가 앞 쪽에 남는다: 나누기를 표 앞 1pt 문단으로 옮긴다.
-    let break_before_tables = depth == 0
-        && paragraph.column_type == rhwp::model::paragraph::ColumnBreakType::Page
+    // 쪽·단 나누기 문단의 표를 문단 앞에 쓰면 표가 앞 쪽·앞 단에 남는다: 나누기를 표 앞 1pt 문단으로 옮긴다.
+    use rhwp::model::paragraph::ColumnBreakType;
+    let has_first_table = depth == 0
         && paragraph
             .controls
             .iter()
             .any(|c| matches!(c, Control::Table(table) if table_first(table)));
+    let break_before_tables = has_first_table && paragraph.column_type == ColumnBreakType::Page;
+    let column_break_before_tables =
+        has_first_table && paragraph.column_type == ColumnBreakType::Column;
     if break_before_tables {
         out.push_str(&TINY_PARAGRAPH.replace("<w:pPr>", "<w:pPr><w:pageBreakBefore/>"));
+    } else if column_break_before_tables {
+        out.push_str(&TINY_PARAGRAPH.replace(
+            "</w:pPr></w:p>",
+            r#"</w:pPr><w:r><w:br w:type="column"/></w:r></w:p>"#,
+        ));
     }
     for control in &paragraph.controls {
         if let Control::Table(table) = control {
@@ -1515,7 +1523,8 @@ fn write_paragraph_with(
     }
     out.push_str(prefix);
     // 단 나누기(문단 앞). 쪽 나누기는 문단 속성(pageBreakBefore)으로 쓴다.
-    if paragraph.column_type == rhwp::model::paragraph::ColumnBreakType::Column && depth == 0 {
+    if paragraph.column_type == ColumnBreakType::Column && depth == 0 && !column_break_before_tables
+    {
         out.push_str(r#"<w:r><w:br w:type="column"/></w:r>"#);
     }
     let chars: Vec<char> = paragraph.text.chars().collect();
@@ -1948,6 +1957,9 @@ fn float_table_position(table: &Table) -> String {
     let wrap = match common.text_wrap {
         TextWrap::InFrontOfText if !common.treat_as_char => r#" papy:wrap="front""#,
         TextWrap::BehindText if !common.treat_as_char => r#" papy:wrap="behind""#,
+        // 어울림(글이 옆으로 흐르는) 표: Word 의 떠 있는 표가 같은 배치다(시험지 대화 옆 작은 기호 표).
+        // 전에는 본문 흐름 표가 되어 높이만큼 단을 밀었다.
+        TextWrap::Square if !common.treat_as_char => r#" papy:wrap="square""#,
         _ => "",
     };
     if common.treat_as_char
@@ -2245,7 +2257,7 @@ fn cell_style(info: &DocInfo, border_fill_id: u16) -> String {
 
 /// `word/fontTable.xml`: 문서가 쓰는 글꼴마다 계열(명조·고딕·고정폭)·한글 문자 집합·대체 글꼴.
 /// 글꼴이 없는 PC 의 Word·LibreOffice 는 이 정보로 대체 글꼴을 고른다(명조 글꼴이 고딕으로 바뀌지 않게).
-fn font_table_xml(info: &DocInfo) -> String {
+fn font_table_xml(info: &DocInfo, no_font_space: bool) -> String {
     let mut names: Vec<&str> = Vec::new();
     for lang in 0..2 {
         for font in info.font_faces.get(lang).into_iter().flatten() {
@@ -2255,9 +2267,17 @@ fn font_table_xml(info: &DocInfo) -> String {
             }
         }
     }
+    // 문서가 "글꼴에 어울리는 빈칸"을 한 글자도 쓰지 않았는지. Papy 는 다른 형식을 열 때 Word 처럼 빈칸을 글꼴 폭으로
+    // 재려고 그 설정을 모두 켠다. 그래서 켜진 글자가 없는 문서는 한글 원본(또는 이 표시를 달고 다시 연 문서)뿐이고,
+    // 그런 문서를 켠 채 다시 열면 원래 반각이던 빈칸이 넓어져 줄이 달리 접힌다.
     let mut xml = format!(
         r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:fonts {NAMESPACES}>"#
+<w:fonts {NAMESPACES}{}>"#,
+        if no_font_space {
+            r#" papy:fontspace="0""#
+        } else {
+            ""
+        }
     );
     for name in names {
         let lower = name.to_lowercase();
@@ -2392,6 +2412,34 @@ fn region_props(
 }
 
 /// 본문 글(글자 수로 무게)에서 흔히 쓰인 줄 간격 여분(twip) 가운데 가장 큰 것: 배수 줄 간격의 (줄 높이 − 글자 크기), 고정 줄 간격의 (간격 − 글자 크기).
+/// 본문·표 칸 글자 가운데 "글꼴에 어울리는 빈칸"(`use_font_space`)을 켠 글자 모양을 쓰는 글자가 있는지.
+fn uses_font_space(document: &Document) -> bool {
+    fn walk(info: &DocInfo, paragraphs: &[Paragraph]) -> bool {
+        paragraphs.iter().any(|paragraph| {
+            let len = paragraph.text.chars().count() as u32;
+            let runs = &paragraph.char_shapes;
+            runs.iter().enumerate().any(|(i, run)| {
+                let end = runs.get(i + 1).map_or(len, |next| next.start_pos).min(len);
+                end > run.start_pos
+                    && info
+                        .char_shapes
+                        .get(run.char_shape_id as usize)
+                        .is_some_and(|shape| shape.use_font_space)
+            }) || paragraph.controls.iter().any(|control| match control {
+                Control::Table(table) => {
+                    table.cells.iter().any(|cell| walk(info, &cell.paragraphs))
+                }
+                _ => false,
+            })
+        })
+    }
+    let info = &document.doc_info;
+    document
+        .sections
+        .iter()
+        .any(|section| walk(info, &section.paragraphs))
+}
+
 fn body_leading(document: &Document) -> u32 {
     let info = &document.doc_info;
     let mut counts: HashMap<u32, usize> = HashMap::new();
@@ -3155,7 +3203,7 @@ pub fn docx_from_document_with(
         name: "fontTable.xml".into(),
         rel: Some("rIdFontTable".into()),
         kind: "fontTable",
-        xml: font_table_xml(info),
+        xml: font_table_xml(info, !uses_font_space(document)),
     });
     if !media.lists.is_empty() {
         extra.push(Part {

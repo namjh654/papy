@@ -3,8 +3,9 @@ Papy 패치: 다른 형식에서 붙여넣은(저장 배치가 없는) 문서의
 rhwp v0.9.0(c9095c5f).
 0. 문서 출처에 "다른 형식에서 옮김"(SourceProvenance::foreign_import → profile.foreign_layout())을 둔다.
    Papy 가 DOCX·DOC 를 HTML 붙여넣기로 옮길 때 켠다. 빈 문서가 HWP5 로 만들어져 원본 HWP5 와 구별할 수 없었다.
-1. 종이 기준 위아래 배치 표(시험지 머리 표 등): 저장 vpos 로 흐름을 맞출 수 없으면(붙여넣은 문단은 vpos 가 0)
-   표 높이 전체를 흐름에 더했다. 쪽 너비 자리차지 개체가 본문을 침범하는 하단(compute_body_wide_top_reserve_for_para)으로 맞춘다.
+1. 종이 기준 위아래 배치 표(시험지 머리 표 등): 붙여넣은 문단의 저장 vpos 는 한글 배치가 아니라(0 이거나 구역 처음부터
+   쌓은 값) 흐름을 맞출 수 없어 표 높이 전체를 흐름에 더했다. 저장 vpos 를 쓰지 않고 쪽 너비 자리차지 개체가 본문을
+   침범하는 하단(compute_body_wide_top_reserve_for_para)으로 맞춘다(exam_kor 구역 첫 쪽).
 2. 문단·쪽 기준 글 앞·뒤 표: 한글처럼 흐름을 차지하지 않게 둔다.
 둘 다 다른 형식에서 옮긴 문서에만 쓴다(원본 HWP issue7500 picture_band_cell_spaces 가 1쪽으로 줄었다).
 종전에는 exam_eng 를 DOCX 로 저장했다 다시 열면 1쪽 왼쪽 단이 넘쳐 단 나누기가 다음 쪽으로 밀렸다.
@@ -107,18 +108,18 @@ rhwp v0.9.0(c9095c5f).
 -                let target_y =
 +                let stored_y =
                      crate::renderer::hwpunit_to_px(first_seg.vertical_pos as i32, self.dpi);
-+                // [papy] 다른 형식에서 붙여넣어 다시 짠 문단은 저장 vpos 가 0 이라 sync 할 수 없어
-+                // 표 높이 전체를 흐름에 더했다(본문 위로 빠져나간 머리 표가 단을 한 줄 넘치게 함).
-+                // 저장 vpos 로 sync 할 수 없으면 쪽 너비 자리차지 개체가 본문을 침범하는 하단으로 맞춘다.
-+                let target_y = if stored_y > st.current_height
-+                    || !matches!(table.common.text_wrap, TextWrap::TopAndBottom)
++                // [papy] 다른 형식에서 붙여넣어 다시 짠 문단의 저장 vpos 는 한글 배치가 아니다(구역 처음부터 쌓은 값이라
++                // 둘째 쪽부터는 쪽 높이를 넘는다). 그 값으로 sync 하면 실패해 표 높이 전체를 흐름에 더했다(본문 위로
++                // 빠져나간 머리 표가 단을 넘치게 함, exam_kor 구역 첫 쪽). 쪽 너비 자리차지 개체가 본문을 침범하는
++                // 하단으로 맞춘다.
++                let target_y = if !matches!(table.common.text_wrap, TextWrap::TopAndBottom)
 +                    || !st.profile.foreign_layout()
 +                {
 +                    stored_y
 +                } else {
-+                    stored_y.max(crate::renderer::typeset::compute_body_wide_top_reserve_for_para(
++                    crate::renderer::typeset::compute_body_wide_top_reserve_for_para(
 +                        para, &st.layout, self.dpi,
-+                    ))
++                    )
 +                };
                  // 종이 기준 표는 본문 위에 그려져도 호스트가 저장 글줄 상자를 소유할 수 있다.
                  // 다음 저장 글줄이 그 상자 바로 뒤에서 시작하면

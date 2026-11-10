@@ -578,15 +578,21 @@ fn mark_hft_fonts(doc: &mut Rhwp, names: &[String]) {
 /// - 출처를 "다른 형식에서 옮김"으로 표시한다(rhwp 패치 0018: 저장 vpos 가 한글 배치가 아니라 떠 있는 표 흐름을 따로 맞춘다).
 /// - Word 는 빈칸을 늘 글꼴의 빈칸 너비로 잰다. 붙여넣어 만드는 글자 모양이 바탕 글자 모양을 이어받으므로
 ///   바탕에 한글의 "글꼴에 어울리는 빈칸"을 켜 둔다(꺼 두면 영문 빈칸을 반각으로 재 줄이 짧아진다, exam_eng).
-fn prepare_foreign(doc: &mut Rhwp) {
+///   다만 Papy 가 쓴 DOCX 가 원본 한글 문서에 그 설정이 없었다고 적어 두었으면(`no_font_space`) 켜지 않는다
+///   (켜면 빈칸이 넓어져 줄이 접히고 쪽이 늘었다, exam_kor 13쪽).
+fn prepare_foreign(doc: &mut Rhwp, font_space: bool) {
     let mut document = doc.document().clone();
     document.provenance.foreign_import = true;
-    for shape in &mut document.doc_info.char_shapes {
-        shape.use_font_space = true;
+    if font_space {
+        for shape in &mut document.doc_info.char_shapes {
+            shape.use_font_space = true;
+            // 빈 문서 틀에서 온 원시 레코드를 그대로 두면 HWP 로 저장할 때 그 레코드가 쓰여 이 설정이 빠진다.
+            shape.raw_data = None;
+        }
+        // Word 는 묶음 빈칸(U+00A0)도 글꼴의 빈칸 폭으로 잰다. 한/글처럼 반각으로 재면 밑줄 빈칸 줄
+        // (`Woman: ____`)이 넘쳐 접혀 쪽이 는다(rhwp 패치 0022, exam_eng).
+        document.doc_info.nbsp_font_space = true;
     }
-    // Word 는 묶음 빈칸(U+00A0)도 글꼴의 빈칸 폭으로 잰다. 한/글처럼 반각으로 재면 밑줄 빈칸 줄
-    // (`Woman: ____`)이 넘쳐 접혀 쪽이 는다(rhwp 패치 0022, exam_eng).
-    document.doc_info.nbsp_font_space = true;
     document.doc_info.raw_stream_dirty = true;
     doc.set_document(document);
 }
@@ -603,7 +609,7 @@ fn open_converted(
         let mut doc = Rhwp::create_empty();
         doc.create_blank_document_native()?;
         reserve_table_border_fill(&mut doc);
-        prepare_foreign(&mut doc);
+        prepare_foreign(&mut doc, !report.no_font_space);
         mark_hft_fonts(&mut doc, &report.hft_fonts);
         // 쪽 크기·여백·다단을 먼저 맞춰야 붙여넣은 글과 표가 그 너비로 조판된다.
         if let Some(page) = report.page {
