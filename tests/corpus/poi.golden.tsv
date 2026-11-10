@@ -1,2 +1,0 @@
-# Papy 문서 모음 기준값 — 경로	형식	쪽 수	쪽 크기 해시	글 해시	못 옮긴 요소 (또는 error	코드)
-# 다시 만들기: PAPY_CORPUS_UPDATE=1 (crates/papy-core/tests/corpus.rs)
