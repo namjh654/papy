@@ -4,6 +4,7 @@ import io.github.namjh654.papy.core.common.viewmodel.UiEvent
 import io.github.namjh654.papy.core.common.viewmodel.UiState
 import io.github.namjh654.papy.feature.documents.Caret
 import io.github.namjh654.papy.feature.documents.DocumentError
+import io.github.namjh654.papy.feature.documents.DocumentKind
 import io.github.namjh654.papy.feature.documents.ObjectKind
 import io.github.namjh654.papy.feature.documents.PageObject
 import io.github.namjh654.papy.feature.documents.TableCell
@@ -34,6 +35,8 @@ data class ViewerUiState(
     val text: PageText? = null,
     /** 옮기지 못한 요소 안내를 닫았다 */
     val lossDismissed: Boolean = false,
+    /** Word 문서의 조판 차이 안내를 닫았다 */
+    val layoutDismissed: Boolean = false,
     /** 목차(열 때 읽는다). 비어 있으면 목차 단추를 숨긴다 */
     val outline: List<OutlineEntry> = emptyList(),
     /** 목차 창이 열려 있다 */
@@ -83,7 +86,11 @@ data class ViewerUiState(
     val canExportPdf: Boolean get() = document?.canExportPdf == true
     val pageCount: Int get() = document?.pageCount ?: 0
     val showLoss: Boolean get() = (document?.droppedObjects ?: 0) > 0 && !lossDismissed
-    val showUnsupported: Boolean get() = !unsupported.isEmpty && !unsupportedDismissed && !showLoss
+    /** Word 문서는 Papy 조판 엔진으로 보여 줘 줄바꿈·쪽 수가 Word 와 다를 수 있다고 알린다(ADR 0008). 안내는 한 번에 하나만. */
+    val showLayoutNotice: Boolean
+        get() = (document?.kind == DocumentKind.Docx || document?.kind == DocumentKind.Doc) && !layoutDismissed && !showLoss
+    val showUnsupported: Boolean
+        get() = !unsupported.isEmpty && !unsupportedDismissed && !showLoss && !showLayoutNotice
 
     /** PDF 로 내보낼 때 권하는 파일 이름 */
     val pdfName: String get() = name.substringBeforeLast('.').ifEmpty { name } + ".pdf"

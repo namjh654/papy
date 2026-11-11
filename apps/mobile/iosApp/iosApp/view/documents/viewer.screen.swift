@@ -104,6 +104,11 @@ struct ViewerScreen: View {
             if state.phase == .ready && state.showUnsupported {
                 NoticeView(text: unsupportedMessage) { model.viewModel.dismissUnsupported() }
             }
+            if state.phase == .ready && state.showLayoutNotice {
+                NoticeView(text: String(localized: "viewer_word_layout")) {
+                    model.viewModel.dismissLayoutNotice()
+                }
+            }
             if state.phase == .ready && state.showLoss {
                 NoticeView(text: String(format: String(localized: "viewer_loss"), Int(state.document?.droppedObjects ?? 0))) {
                     model.viewModel.dismissLoss()

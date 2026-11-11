@@ -39,6 +39,14 @@ export const ko = {
         .join(" "),
     dropped: (count: number) =>
       `이 문서의 요소 ${count}개(차트, 묶음 안 그림, 표 안 각주 등)는 아직 옮기지 못해 보이지 않습니다. 저장하면 빠진 채로 저장되니 원본은 따로 두세요.`,
+    wordLayout:
+      "Word 문서는 Papy 조판 엔진으로 보여 줍니다. 줄바꿈·쪽 수·개체 자리가 Word 와 다를 수 있습니다.",
+    dontShowAgain: "다시 보지 않기",
+    convertTitle: "다른 형식으로 저장",
+    convertQuestion: (format: string) =>
+      `${format}(으)로 저장하면 형식마다 조판 방식이 달라 줄바꿈·쪽 수·개체 자리가 원본과 다를 수 있습니다.\n원본 파일은 따로 두는 것이 좋습니다. 계속할까요?`,
+    convertContinue: "계속",
+    convertAlways: "다시 묻지 않고 계속",
     openFilter: "문서 (PDF, HWP, HWPX, DOCX, DOC)",
     studioApplied: "고급 편집 내용을 반영했습니다. 저장하면 파일에 씁니다.",
     onlySupported: "PDF, HWP, HWPX, DOCX, DOC 파일만 열 수 있습니다.",

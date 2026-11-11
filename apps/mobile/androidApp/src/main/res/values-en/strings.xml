@@ -95,6 +95,7 @@
     <string name="viewer_text_copy">Copy</string>
     <string name="viewer_text_copied">Copied</string>
     <string name="viewer_loss">%1$d element(s) in this document, such as charts or endnotes, can\'t be shown yet.</string>
+    <string name="viewer_word_layout">Word documents are shown with Papy\'s layout engine. Line breaks, page count and object positions may differ from Word.</string>
     <string name="viewer_outline">Outline</string>
     <string name="viewer_review">Comments</string>
     <string name="viewer_review_tracked">Tracked changes: %1$d insertions, %2$d deletions — shown as accepted.</string>

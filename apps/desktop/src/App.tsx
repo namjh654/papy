@@ -35,6 +35,7 @@ import { PX_PER_PT, Viewer, type ViewerHandle } from "./components/Viewer";
 import { Welcome } from "./components/Welcome";
 import { LicensesDialog } from "./components/LicensesDialog";
 import { t } from "./i18n";
+import { crossesFamily, hideNotice, noticeHidden, opensWithOtherLayout } from "./convert";
 
 const ZOOM_STEPS = [0.25, 0.33, 0.5, 0.67, 0.75, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 5];
 const ZOOM_MIN = ZOOM_STEPS[0]!;
@@ -81,6 +82,8 @@ export function App() {
   const [studio, setStudio] = useState(false);
   /** 문서를 열 때 빠진 내용 안내(닫을 때까지 보인다) */
   const [loss, setLoss] = useState<string | null>(null);
+  /** Word 문서를 열 때의 조판 차이 고지(ADR 0008). "다시 보지 않기"를 고르면 더 띄우지 않는다. */
+  const [layoutNotice, setLayoutNotice] = useState(false);
   const [about, setAbout] = useState(false);
   const [hasStudio, setHasStudio] = useState(false);
   const [pdfSettings, setPdfSettings] = useState<PdfToolSettings>({
@@ -166,6 +169,21 @@ export function App() {
     }
   }, []);
 
+  /** 한글 ↔ 워드로 건너 저장하기 전에 변환 오차를 알린다(ADR 0008). 계속해도 되면 true. */
+  const confirmConversion = useCallback(async (current: Opened, ext: string) => {
+    if (!crossesFamily(current.format, ext) || noticeHidden("convert")) return true;
+    const answer = await message(t.app.convertQuestion(FORMAT_NAMES[ext] ?? ext.toUpperCase()), {
+      title: t.app.convertTitle,
+      kind: "warning",
+      buttons: { yes: t.app.convertContinue, no: t.app.convertAlways, cancel: t.common.cancel },
+    });
+    if (answer === t.app.convertAlways || answer === "No") {
+      hideNotice("convert");
+      return true;
+    }
+    return answer === t.app.convertContinue || answer === "Yes";
+  }, []);
+
   const saveAs = useCallback(async () => {
     const current = docRef.current;
     if (!current) return false;
@@ -183,8 +201,9 @@ export function App() {
     });
     if (!chosen) return false;
     const path = formats.includes(extensionOf(chosen)) ? chosen : `${chosen}.${preferred}`;
+    if (!(await confirmConversion(current, extensionOf(path)))) return false;
     return saveTo(path);
-  }, [saveTo]);
+  }, [saveTo, confirmConversion]);
 
   const save = useCallback(async () => {
     const current = docRef.current;
@@ -206,13 +225,14 @@ export function App() {
     });
     if (!chosen) return;
     const path = extensionOf(chosen) === ext ? chosen : `${chosen}.${ext}`;
+    if (!(await confirmConversion(current, ext))) return;
     try {
       await saveDocument(current.id, path);
       setNotice(t.app.exported(fileNameOf(path)));
     } catch (caught) {
       setError(describeError(caught));
     }
-  }, []);
+  }, [confirmConversion]);
 
   /** 저장하지 않은 변경이 있으면 묻는다. 계속해도 되면 true. */
   const confirmDiscard = useCallback(async () => {
@@ -261,6 +281,7 @@ export function App() {
             ? t.app.dropped(opened.droppedObjects)
             : null,
         );
+        setLayoutNotice(opensWithOtherLayout(opened.format) && !noticeHidden("wordLayout"));
         setMode("view");
         setDirty(false);
         setCurrent(0);
@@ -304,6 +325,7 @@ export function App() {
     void closeDocument(previous.id);
     setDoc(null);
     setLoss(null);
+    setLayoutNotice(false);
     setDirty(false);
     setMode("view");
   }, [queue, confirmDiscard]);
@@ -529,6 +551,23 @@ export function App() {
         <div className="loss-banner" role="status">
           <span>{loss}</span>
           <button className="ghost small" onClick={() => setLoss(null)}>
+            {t.common.close}
+          </button>
+        </div>
+      )}
+      {doc && layoutNotice && (
+        <div className="loss-banner" role="status">
+          <span>{t.app.wordLayout}</span>
+          <button
+            className="ghost small"
+            onClick={() => {
+              hideNotice("wordLayout");
+              setLayoutNotice(false);
+            }}
+          >
+            {t.app.dontShowAgain}
+          </button>
+          <button className="ghost small" onClick={() => setLayoutNotice(false)}>
             {t.common.close}
           </button>
         </div>
