@@ -581,6 +581,141 @@ fn docx_with_image() -> Vec<u8> {
     buffer.into_inner()
 }
 
+/// 40×20 BMP: 왼쪽 반은 빨강, 오른쪽 반은 파랑.
+fn red_blue_bmp() -> Vec<u8> {
+    let (width, height) = (40u32, 20u32);
+    let size = 54 + width * height * 3;
+    let mut bmp = Vec::with_capacity(size as usize);
+    bmp.extend_from_slice(b"BM");
+    bmp.extend_from_slice(&size.to_le_bytes());
+    bmp.extend_from_slice(&[0; 4]);
+    bmp.extend_from_slice(&54u32.to_le_bytes());
+    bmp.extend_from_slice(&40u32.to_le_bytes());
+    bmp.extend_from_slice(&width.to_le_bytes());
+    bmp.extend_from_slice(&height.to_le_bytes());
+    bmp.extend_from_slice(&1u16.to_le_bytes());
+    bmp.extend_from_slice(&24u16.to_le_bytes());
+    bmp.extend_from_slice(&[0; 24]);
+    for _ in 0..height {
+        for x in 0..width {
+            // BGR
+            bmp.extend_from_slice(if x < width / 2 {
+                &[0, 0, 255]
+            } else {
+                &[255, 0, 0]
+            });
+        }
+    }
+    bmp
+}
+
+/// (빨간 점 수, 파란 점 수)
+fn red_blue(doc: &mut Box<dyn Document>) -> (usize, usize) {
+    let bitmap = doc.render_page(0, &RenderRequest::with_scale(1.0)).unwrap();
+    let count = |red: bool| {
+        bitmap
+            .pixels
+            .chunks_exact(4)
+            .filter(|p| {
+                let (strong, weak) = if red { (p[0], p[2]) } else { (p[2], p[0]) };
+                strong > 200 && weak < 80 && p[1] < 80
+            })
+            .count()
+    };
+    (count(true), count(false))
+}
+
+/// 그림 자르기(`a:srcRect` ↔ 한글 그림 자르기): 오른쪽 반(파랑)을 잘라 낸 그림은 어느 형식으로 옮겨도
+/// 빨간 반만 그림 상자(2×1인치, 72 DPI 로 약 146×74 점)를 채운다. 전에는 자르기를 읽지도 쓰지도 않아 그림이 통째로(찌그러져) 나왔다.
+#[test]
+fn docx_picture_crop_round_trips() {
+    use std::io::Write;
+    let docx_with = |drawing: &str| {
+        let document = format!(
+            r#"<w:document xmlns:w="w" xmlns:wp="wp" xmlns:a="a" xmlns:pic="pic" xmlns:r="r"><w:body><w:p><w:r><w:t>자른 그림</w:t></w:r></w:p><w:p><w:r><w:drawing>{drawing}</w:drawing></w:r></w:p></w:body></w:document>"#
+        );
+        let rels = r#"<Relationships xmlns="r"><Relationship Id="rId9" Type="image" Target="media/two.bmp"/></Relationships>"#;
+        let mut buffer = std::io::Cursor::new(Vec::new());
+        let mut zip = zip::ZipWriter::new(&mut buffer);
+        let options = zip::write::SimpleFileOptions::default();
+        for (name, bytes) in [
+            ("[Content_Types].xml", b"<Types/>".to_vec()),
+            ("word/document.xml", document.into_bytes()),
+            ("word/_rels/document.xml.rels", rels.as_bytes().to_vec()),
+            ("word/media/two.bmp", red_blue_bmp()),
+        ] {
+            zip.start_file(name, options).unwrap();
+            zip.write_all(&bytes).unwrap();
+        }
+        zip.finish().unwrap();
+        buffer.into_inner()
+    };
+    let pic = |crop: &str| {
+        format!(
+            r#"<a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="rId9"/>{crop}<a:stretch><a:fillRect/></a:stretch></pic:blipFill></pic:pic></a:graphicData></a:graphic>"#
+        )
+    };
+    let crop = r#"<a:srcRect r="50000"/>"#;
+    // 자르지 않으면 두 색이 다 보인다(견줄 값).
+    let whole = format!(
+        r#"<wp:inline><wp:extent cx="1905000" cy="952500"/>{}</wp:inline>"#,
+        pic("")
+    );
+    let mut doc = open(HwpBackend::docx(), docx_with(&whole), &options()).unwrap();
+    let (red, blue) = red_blue(&mut doc);
+    assert!(red > 4_500 && blue > 4_500, "whole: {red} {blue}");
+
+    let inline = format!(
+        r#"<wp:inline><wp:extent cx="1905000" cy="952500"/>{}</wp:inline>"#,
+        pic(crop)
+    );
+    let floating = format!(
+        r#"<wp:anchor behindDoc="0"><wp:positionH relativeFrom="column"><wp:posOffset>0</wp:posOffset></wp:positionH><wp:positionV relativeFrom="paragraph"><wp:posOffset>0</wp:posOffset></wp:positionV><wp:extent cx="1905000" cy="952500"/><wp:wrapTopAndBottom/>{}</wp:anchor>"#,
+        pic(crop)
+    );
+    for (label, drawing) in [("inline", inline), ("floating", floating)] {
+        let mut doc = open(HwpBackend::docx(), docx_with(&drawing), &options()).unwrap();
+        assert_eq!(doc.info().dropped_objects, 0, "{label}");
+        assert!(
+            doc.extract_text(0).unwrap().contains("자른 그림"),
+            "{label}"
+        );
+        let (red, blue) = red_blue(&mut doc);
+        assert!(red > 9_000 && blue == 0, "{label}: {red} {blue}");
+        // DOCX 로 쓰면 자르기가 남는다.
+        let docx = doc.save(SaveFormat::Docx).unwrap();
+        let mut zip = zip::ZipArchive::new(std::io::Cursor::new(&docx[..])).unwrap();
+        let mut xml = String::new();
+        std::io::Read::read_to_string(&mut zip.by_name("word/document.xml").unwrap(), &mut xml)
+            .unwrap();
+        assert!(
+            xml.contains(r#"<a:srcRect l="0" t="0" r="50000" b="0"/>"#),
+            "{label}: {xml}"
+        );
+        for (format, backend) in [
+            (SaveFormat::Docx, HwpBackend::docx()),
+            (SaveFormat::Hwp, HwpBackend::hwp()),
+            (SaveFormat::Hwpx, HwpBackend::hwpx()),
+        ] {
+            let bytes = doc.save(format).unwrap();
+            let mut again = open(backend, bytes, &options()).unwrap();
+            let (red, blue) = red_blue(&mut again);
+            assert!(
+                red > 9_000 && blue == 0,
+                "{label} → {format:?}: {red} {blue}"
+            );
+            // 다시 DOCX 로(한글 → 워드): 자르기를 쓴다.
+            let docx = again.save(SaveFormat::Docx).unwrap();
+            let mut back = open(HwpBackend::docx(), docx, &options()).unwrap();
+            let (red, blue) = red_blue(&mut back);
+            assert!(
+                red > 9_000 && blue == 0,
+                "{label} → {format:?} → DOCX: {red} {blue}"
+            );
+        }
+    }
+}
+
 #[test]
 fn docx_images_are_kept() {
     let mut doc = open(HwpBackend::docx(), docx_with_image(), &options()).unwrap();
@@ -2828,4 +2963,136 @@ fn docx_exam_answer_row_keeps_hft_fonts_and_outer_margins() {
     );
     let body = zip_text(&again, "word/document.xml");
     assert!(body.contains(r#"papy:inline="1" papy:outer="0,0,0,0""#));
+}
+
+/// DOCX 에서 연 문서를 HWP·HWPX 로 저장했다 다시 열어도 같은 조판 규칙을 쓴다.
+/// - "다른 형식에서 옮긴 문서" 표식은 rhwp 문서에 저장되지 않아, 글꼴 목록의 표식 글꼴로 남기고 열 때 되살린다
+///   (전에는 다시 열면 규칙이 바뀌어 쪽이 늘었다, exam-kor-4p 4 → 6쪽).
+/// - 빈 문단의 글자 크기는 줄 정보에만 있어 HWPX 로 저장하면 10pt 로 되돌아갔다(9pt 빈 줄 → 단 넘침).
+/// - 표식 글꼴은 DOCX 글꼴 표에는 쓰지 않는다.
+#[test]
+fn docx_layout_rules_survive_hwp_and_hwpx() {
+    use std::io::Write;
+    let document = r#"<w:document xmlns:w="w"><w:body><w:p><w:r><w:t>첫 줄</w:t></w:r></w:p><w:p><w:pPr><w:rPr><w:sz w:val="18"/></w:rPr></w:pPr></w:p><w:p><w:r><w:t>끝 줄</w:t></w:r></w:p></w:body></w:document>"#;
+    let mut buffer = std::io::Cursor::new(Vec::new());
+    let mut zip = zip::ZipWriter::new(&mut buffer);
+    let file = zip::write::SimpleFileOptions::default();
+    for (name, bytes) in [
+        ("[Content_Types].xml", &b"<Types/>"[..]),
+        ("word/document.xml", document.as_bytes()),
+    ] {
+        zip.start_file(name, file).unwrap();
+        zip.write_all(bytes).unwrap();
+    }
+    zip.finish().unwrap();
+    let mut doc = open(HwpBackend::docx(), buffer.into_inner(), &options()).unwrap();
+    for format in [SaveFormat::Hwp, SaveFormat::Hwpx] {
+        let bytes = doc.save(format).unwrap();
+        let mut core = Rhwp::from_bytes(&bytes).unwrap();
+        assert!(
+            !core.document().provenance.foreign_import,
+            "{format:?}: rhwp 는 표식을 저장하지 않는다"
+        );
+        crate::restore_foreign(&mut core);
+        let document = core.document();
+        assert!(document.provenance.foreign_import, "{format:?}");
+        assert!(document.doc_info.nbsp_font_space, "{format:?}");
+        // 빈 문단(9pt)의 글자 모양이 남는다.
+        let empty = document.sections[0]
+            .paragraphs
+            .iter()
+            .find(|p| p.text.is_empty() && p.controls.is_empty())
+            .unwrap_or_else(|| panic!("{format:?}: 빈 문단"));
+        let size = empty
+            .char_shapes
+            .first()
+            .and_then(|r| document.doc_info.char_shapes.get(r.char_shape_id as usize))
+            .map(|shape| shape.base_size);
+        assert_eq!(size, Some(900), "{format:?}");
+        // Papy 로 다시 열면 쪽 수가 같다.
+        let backend = if format == SaveFormat::Hwp {
+            HwpBackend::hwp()
+        } else {
+            HwpBackend::hwpx()
+        };
+        let again = open(backend, bytes, &options()).unwrap();
+        assert_eq!(again.info().page_count, doc.info().page_count, "{format:?}");
+    }
+    let docx = doc.save(SaveFormat::Docx).unwrap();
+    let mut zip = zip::ZipArchive::new(std::io::Cursor::new(&docx[..])).unwrap();
+    let mut fonts = String::new();
+    std::io::Read::read_to_string(&mut zip.by_name("word/fontTable.xml").unwrap(), &mut fonts)
+        .unwrap();
+    assert!(!fonts.contains("Papy Layout"), "{fonts}");
+}
+
+/// 머리말·꼬리말 안 번호 목록도 한글 문단 번호로 옮긴다(전에는 본문·표 칸만 옮기고 그 밖은 번호 글자로 남아,
+/// 한글에서 번호 목록으로 고칠 수 없고 다시 저장하면 번호가 글자로 굳었다).
+/// 글상자·각주 안 목록은 번호 글자로 둔다 — rhwp 가 그 안의 문단 번호를 그리지 않아, 옮기면 번호가 사라진다.
+#[test]
+fn docx_lists_in_headers_notes_and_text_boxes() {
+    let ns = r#"xmlns:w="w" xmlns:r="r" xmlns:wp="wp" xmlns:a="a" xmlns:wps="wps""#;
+    let item = |text: &str| {
+        format!(
+            r#"<w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr></w:pPr><w:r><w:t>{text}</w:t></w:r></w:p>"#
+        )
+    };
+    let text_box = format!(
+        r#"<w:p><w:r><w:drawing><wp:anchor><wp:positionH relativeFrom="column"><wp:posOffset>0</wp:posOffset></wp:positionH><wp:positionV relativeFrom="paragraph"><wp:posOffset>0</wp:posOffset></wp:positionV><wp:extent cx="2857500" cy="952500"/><wp:wrapTopAndBottom/><a:graphic><a:graphicData><wps:wsp><wps:spPr><a:prstGeom prst="rect"/></wps:spPr><wps:txbx><w:txbxContent>{}{}</w:txbxContent></wps:txbx></wps:wsp></a:graphicData></a:graphic></wp:anchor></w:drawing></w:r></w:p>"#,
+        item("상자 하나"),
+        item("상자 둘")
+    );
+    let document = format!(
+        r#"<w:document {ns}><w:body>{}<w:p><w:r><w:t>본문</w:t></w:r><w:r><w:footnoteReference w:id="2"/></w:r></w:p>{text_box}<w:sectPr><w:headerReference w:type="default" r:id="rIdH"/></w:sectPr></w:body></w:document>"#,
+        item("본문 번호")
+    );
+    let header = format!(r#"<w:hdr {ns}>{}</w:hdr>"#, item("머리 번호"));
+    let footnotes = format!(
+        r#"<w:footnotes {ns}><w:footnote w:id="2">{}</w:footnote></w:footnotes>"#,
+        item("각주 번호")
+    );
+    let numbering = r#"<w:numbering xmlns:w="w"><w:abstractNum w:abstractNumId="0"><w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="decimal"/><w:lvlText w:val="%1."/></w:lvl></w:abstractNum><w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num></w:numbering>"#;
+    let docx = zip_parts(&[
+        ("[Content_Types].xml", "<Types/>"),
+        ("word/document.xml", &document),
+        (
+            "word/_rels/document.xml.rels",
+            r#"<Relationships xmlns="r"><Relationship Id="rIdH" Type="header" Target="header1.xml"/></Relationships>"#,
+        ),
+        ("word/header1.xml", &header),
+        ("word/footnotes.xml", &footnotes),
+        ("word/numbering.xml", numbering),
+    ]);
+    let mut doc = open(HwpBackend::docx(), docx, &options()).unwrap();
+    assert_eq!(doc.info().dropped_objects, 0);
+    let check = |label: &str, doc: &mut Box<dyn Document>| {
+        let text = doc.extract_text(0).unwrap();
+        // 표시 글자는 어디에도 남지 않는다.
+        assert!(!text.contains('\u{E01C}'), "{label}: {text:?}");
+        // 본문·머리말: 번호 글자("1. ")가 글에 없다(번호는 한글이 그린다).
+        for words in ["본문 번호", "머리 번호"] {
+            assert!(text.contains(words), "{label}: {text:?}");
+            assert!(!text.contains(&format!(". {words}")), "{label}: {text:?}");
+        }
+        // 글상자·각주: 번호 글자로 남는다.
+        for words in ["1. 상자 하나", "2. 상자 둘", "1. 각주 번호"] {
+            assert!(text.contains(words), "{label}: {text:?}");
+        }
+        let structure = doc.structure().unwrap();
+        // 본문 1 + 머리말 1
+        assert_eq!(
+            structure.get("para.list").copied(),
+            Some(2),
+            "{label}: {structure:?}"
+        );
+    };
+    check("docx", &mut doc);
+    for (label, format, backend) in [
+        ("docx>docx", SaveFormat::Docx, HwpBackend::docx()),
+        ("docx>hwpx", SaveFormat::Hwpx, HwpBackend::hwpx()),
+        ("docx>hwp", SaveFormat::Hwp, HwpBackend::hwp()),
+    ] {
+        let mut again = open(backend, doc.save(format).unwrap(), &options()).unwrap();
+        check(label, &mut again);
+    }
 }

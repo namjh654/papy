@@ -507,6 +507,9 @@ pub struct Numbering {
     pub lists: Vec<ListDef>,
     /// 정의 번호: numId(번호) 또는 "•글자"(글머리표)
     list_keys: Vec<String>,
+    /// 이 부분 앞에서 이미 쓴 정의 수. 머리말·꼬리말은 본문과 따로 읽으므로 정의 번호를 이만큼 밀어 매긴다
+    /// (읽은 쪽이 정의 목록을 본문 것 뒤에 이어 붙인다).
+    pub list_base: usize,
     /// numId → abstractNumId
     nums: HashMap<String, String>,
     /// abstractNumId → 수준(ilvl 순)
@@ -664,14 +667,14 @@ impl Numbering {
         };
         let index = match self.list_keys.iter().position(|k| *k == key) {
             Some(index) => index,
-            None if self.lists.len() < MAX_LIST_DEFS => {
+            None if self.list_base + self.lists.len() < MAX_LIST_DEFS => {
                 self.list_keys.push(key);
                 self.lists.push(def);
                 self.lists.len() - 1
             }
             None => return None,
         };
-        let [high, low] = code_chars(index * 8 + ilvl);
+        let [high, low] = code_chars((self.list_base + index) * 8 + ilvl);
         Some(format!("{LIST_MARK}{high}{low}"))
     }
 

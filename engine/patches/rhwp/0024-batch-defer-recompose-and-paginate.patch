@@ -1,0 +1,140 @@
+Papy 패치: Batch 중에는 구역 전체 재조판과 문서 전체 쪽 나누기를 Batch 끝으로 미룬다(다른 형식 문서 열기 시간).
+
+rhwp v0.9.0(c9095c5f). Papy 는 DOCX·DOC 를 붙여넣은 뒤 Batch 안에서 각주·도형·머리말·누름틀 등을 고친다.
+1. 문서를 통째로 갈아끼우는 고치기(`set_document` → `rebuild_derived_state`)가 Batch 중에도 그때마다 문서 전체
+   쪽을 다시 나눴다(여는 동안 십여 번). Batch 중에는 쪽 나누기와 그 뒷정리(`sync_loaded_frame_text_balance`)를
+   `end_batch_native` 로 미룬다. POI `bug65649.docx`(68쪽, 각주 6개) 여는 시간 2,375 → 1,248 ms.
+2. 도형 만들기(`create_shape_control_native`)와 도형·그림 속성 바꾸기(`set_shape_properties_native`,
+   `set_picture_properties_native`)는 호출마다 `recompose_section` 으로 구역 전체를 재조판한다.
+   `recompose_after_object_edit` 를 둔다: Batch 중이면 그 문단만 재조판하고 구역을 적어 두었다가
+   `end_batch_native` 가 쪽 나누기 전에 한 번 재조판한다. POI `Bug61268.doc`(134쪽, 도형 57개) 2,753 → 2,072 ms.
+Batch 가 아니면 둘 다 종전과 같다. Batch 중에는 쪽·줄 자리를 묻지 않는다는 기존 규약 안에서만 다르고,
+Batch 가 끝난 뒤의 결과는 같다(POI 문서 290개의 쪽 수·쪽 크기·글 해시가 패치 전후 같음).
+
+업스트림에 알릴 것: Batch 모드에서 `set_document` 의 쪽 나누기, 개체 삽입·속성 변경의 구역 전체 재조판.
+
+--- a/src/document_core/mod.rs
++++ b/src/document_core/mod.rs
+@@ -302,6 +302,8 @@
+     pub(crate) bin_data_epoch: u32,
+     /// Batch 모드 플래그 — true이면 paginate() 스킵
+     pub(crate) batch_mode: bool,
++    /// [papy] Batch 중 개체 하나만 고쳐 그 문단만 재조판해 둔 구역. Batch 가 끝날 때 구역 전체를 한 번 재조판한다.
++    pub(crate) batch_recompose_sections: Vec<usize>,
+     /// 셀 문단 서식으로 무효화된 vpos. RowBreak 조각별 첫 변경부터 한 번만 갱신한다.
+     pub(crate) pending_cell_format_vpos: bool,
+     /// 이벤트 로그 (Command 실행 시 누적)
+@@ -623,6 +625,7 @@
+             page_layer_tree_cache: RefCell::new(Vec::new()),
+             bin_data_epoch: 0,
+             batch_mode: false,
++            batch_recompose_sections: Vec::new(),
+             pending_cell_format_vpos: false,
+             event_log: Vec::new(),
+             overflow_links_cache: RefCell::new(HashMap::new()),
+--- a/src/document_core/commands/document.rs
++++ b/src/document_core/commands/document.rs
+@@ -468,6 +468,7 @@
+             page_layer_tree_cache: RefCell::new(Vec::new()),
+             bin_data_epoch: 0,
+             batch_mode: false,
++            batch_recompose_sections: Vec::new(),
+             pending_cell_format_vpos: false,
+             event_log: Vec::new(),
+             overflow_links_cache: RefCell::new(HashMap::new()),
+@@ -3743,7 +3744,15 @@
+     pub fn end_batch_native(&mut self) -> Result<String, HwpError> {
+         self.batch_mode = false;
+         self.flush_cell_format_vpos();
++        // [papy] Batch 중 문단만 재조판해 둔 구역을 한 번에 다시 짠다(recompose_after_object_edit).
++        for section_idx in std::mem::take(&mut self.batch_recompose_sections) {
++            if section_idx < self.document.sections.len() {
++                self.recompose_section(section_idx);
++            }
++        }
+         self.paginate();
++        // [papy] Batch 중 `rebuild_derived_state` 가 미룬 뒷정리.
++        self.sync_loaded_frame_text_balance();
+         let result = self.serialize_event_log();
+         self.event_log.clear();
+         Ok(result)
+--- a/src/document_core/queries/rendering.rs
++++ b/src/document_core/queries/rendering.rs
+@@ -4719,6 +4719,34 @@
+         }
+     }
+ 
++    /// [papy] 본문 문단의 개체 하나를 넣거나 속성을 바꾼 뒤의 재조판.
++    ///
++    /// Batch 중에는 그 문단만 재조판하고 구역 전체 재조판은 Batch 끝(`end_batch_native`)으로 미룬다.
++    /// 도형·그림을 하나 넣을 때마다 구역 전체를 재조판하면 개체가 많은 문서(다른 형식에서 옮긴 문서의 도형
++    /// 수십 개)를 여는 시간이 개체 수 × 문서 크기로 늘어난다. Batch 가 아니면 종전처럼 구역 전체를 재조판한다.
++    pub(crate) fn recompose_after_object_edit(&mut self, section_idx: usize, para_idx: usize) {
++        let in_range = self
++            .composed
++            .get(section_idx)
++            .is_some_and(|composed| para_idx < composed.len())
++            && self
++                .document
++                .sections
++                .get(section_idx)
++                .is_some_and(|section| para_idx < section.paragraphs.len());
++        if !self.batch_mode || !in_range {
++            self.recompose_section(section_idx);
++            return;
++        }
++        self.recompose_paragraph(section_idx, para_idx);
++        if section_idx < self.dirty_paragraphs.len() {
++            self.dirty_paragraphs[section_idx] = None;
++        }
++        if !self.batch_recompose_sections.contains(&section_idx) {
++            self.batch_recompose_sections.push(section_idx);
++        }
++    }
++
+     /// 구역을 dirty로 표시만 한다 (재조판 없이).
+     /// 셀 내부 편집처럼 composed 데이터가 불변인 경우 사용.
+     pub(crate) fn mark_section_dirty(&mut self, section_idx: usize) {
+@@ -5049,6 +5077,11 @@
+         self.para_column_map.clear();
+         self.invalidate_page_tree_cache();
+         self.overflow_links_cache.borrow_mut().clear();
++        // [papy] Batch 중에는 쪽 나누기를 Batch 끝(`end_batch_native`)으로 미룬다. 문서를 통째로 갈아끼우는
++        // 고치기(`set_document`)를 여러 번 하는 Batch 가 그때마다 문서 전체 쪽을 다시 나눴다.
++        if self.batch_mode {
++            return;
++        }
+         self.paginate();
+         self.sync_loaded_frame_text_balance();
+     }
+--- a/src/document_core/commands/object_ops/picture.rs
++++ b/src/document_core/commands/object_ops/picture.rs
+@@ -662,7 +662,7 @@
+         // 리플로우
+         let section = &mut self.document.sections[section_idx];
+         section.raw_stream = None;
+-        self.recompose_section(section_idx);
++        self.recompose_after_object_edit(section_idx, parent_para_idx);
+         self.paginate_if_needed();
+         // [Task #1151 v5] page tree cache invalidate — 다른 picture/shape setter (셀 shape
+         // by_path / 셀 picture by_path / header-footer picture / shape 등) 모두 호출하나
+--- a/src/document_core/commands/object_ops/shape.rs
++++ b/src/document_core/commands/object_ops/shape.rs
+@@ -630,7 +630,7 @@
+         // 리플로우 + 렌더 트리 캐시 무효화
+         let section = &mut self.document.sections[section_idx];
+         section.raw_stream = None;
+-        self.recompose_section(section_idx);
++        self.recompose_after_object_edit(section_idx, parent_para_idx);
+         self.paginate_if_needed();
+         self.invalidate_page_tree_cache();
+         // [#8399] 어울림 도형의 밴드 기하가 바뀌면 그 밴드에 되감긴 문단의 저장 줄을 새로
+@@ -1491,7 +1491,7 @@
+         }
+ 
+         // 리플로우 + 페이지네이션
+-        self.recompose_section(section_idx);
++        self.recompose_after_object_edit(section_idx, para_idx);
+         self.paginate_if_needed();
+         // [#8399] 어울림 도형은 host 와 뒤 문단의 줄을 깎는다 — 그림 밴드와 같은 소유자가
+         // 저장 줄을 발행한다. 밴드를 만들 수 없으면 종전 전폭 줄이 남는다.

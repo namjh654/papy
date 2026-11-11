@@ -78,7 +78,8 @@ pub struct DocxReadReport {
     pub table_inline: Vec<bool>,
     /// 본문 맨 바깥 표마다 Papy 가 쓴 한글 표 바깥 여백(HWPUNIT, 위·아래·왼쪽·오른쪽, `papy:outer`). 없으면 None.
     pub table_outer: Vec<Option<[i32; 4]>>,
-    /// 본문·표 칸 번호 목록 문단의 정의([`crate::LIST_MARK`] 뒤 글자가 가리킨다). 머리말·주석·글상자 안 목록은 번호 글자로 읽는다.
+    /// 번호 목록 문단의 정의([`crate::LIST_MARK`] 뒤 글자가 가리킨다). 본문·표 칸 것 다음에 머리말·꼬리말 것이 이어진다.
+    /// 글상자·주석 안 목록은 번호 글자로 읽는다.
     pub lists: Vec<crate::ListDef>,
     /// 첫 구역의 쪽 크기·여백·다단(`w:pgSz`·`w:pgMar`·`w:cols`). 없거나 이상하면 None(빈 문서 기본값을 쓴다).
     pub page: Option<PageSetup>,
@@ -1130,7 +1131,7 @@ fn part_to_html(bytes: &[u8], part: &str, header: bool) -> Result<(String, DocxR
         zip::ZipArchive::new(Cursor::new(bytes)).map_err(|_| invalid("not a ZIP container"))?;
     let document = read_part(&mut archive, part)?
         .ok_or_else(|| Error::new(ErrorCode::UnsupportedFormat, "not a DOCX document"))?;
-    xml_to_html(bytes, &document, &rels_path_of(part), header, 0)
+    xml_to_html(bytes, &document, &rels_path_of(part), header, 0, Some(0))
 }
 
 /// 머리말 부분에서 Papy 가 쓴 바탕쪽(`<w:p papy:master="…">` 표시 문단 뒤)을 떼어 낸다.
@@ -1181,7 +1182,7 @@ pub(crate) fn fragment_to_html(
         ));
     }
     let wrapped = format!("<w:body>{fragment}</w:body>");
-    let (html, mut report) = xml_to_html(bytes, &wrapped, rels_path, true, depth + 1)?;
+    let (html, mut report) = xml_to_html(bytes, &wrapped, rels_path, true, depth + 1, None)?;
     report.dropped_drawings += report.shapes.len() + report.cell_shapes.len();
     report.cell_shapes.clear();
     report.dropped_notes += report.footnotes.len() + report.endnotes.len();
@@ -1221,12 +1222,15 @@ fn outside_body_mark(c: char) -> bool {
 const MAX_FRAGMENT_DEPTH: usize = 4;
 
 /// 부분 XML(`document`) 하나를 HTML 로 바꾼다. `rels_path` 는 그 부분의 관계, `depth` 는 조각 깊이(본문·머리말은 0).
+/// `native_lists` 가 Some 이면 번호 목록을 한글 문단 번호로 옮긴다(값은 앞에서 이미 쓴 정의 수,
+/// [`crate::notes::Numbering::list_base`]). None 이면 번호 글자로 넣는다(글상자·주석·바탕쪽 조각).
 fn xml_to_html(
     bytes: &[u8],
     document: &str,
     rels_path: &str,
     header: bool,
     depth: usize,
+    native_lists: Option<usize>,
 ) -> Result<(String, DocxReadReport)> {
     let mut archive =
         zip::ZipArchive::new(Cursor::new(bytes)).map_err(|_| invalid("not a ZIP container"))?;
@@ -1279,6 +1283,7 @@ fn xml_to_html(
     let mut numbering = read_part(&mut archive, "word/numbering.xml")?
         .map(|xml| Numbering::parse(&xml))
         .unwrap_or_default();
+    numbering.list_base = native_lists.unwrap_or(0);
     // 머리말·꼬리말 참조: (구역, 머리말인가, 종류, 관계 id).
     let mut header_refs: Vec<(usize, bool, String, String)> = Vec::new();
     let mut title_page = false;
@@ -2064,7 +2069,10 @@ fn xml_to_html(
                     let Some(done) = drawing.take() else { continue };
                     // 본문·표 칸의 떠 있는 그림(글 뒤 배경 그림 등)은 도형 자리로 넣어 위치·배치를 지킨다.
                     // 전에는 글자처럼 놓인 그림으로 읽어 자리를 차지했다(시험지 편지 배경 그림이 단을 넘침).
-                    let floating = done.is_floating_picture() && !header && depth == 0;
+                    // 잘라 낸 그림도 도형 자리로 넣는다(HTML 그림으로는 자르기를 넘길 수 없다).
+                    let floating = (done.is_floating_picture() || done.is_cropped_picture())
+                        && !header
+                        && depth == 0;
                     if !done.is_picture() || floating {
                         flush(
                             &mut para_html,
@@ -2245,10 +2253,11 @@ fn xml_to_html(
                     } else {
                         format!(" style=\"{css}\"")
                     };
-                    // 본문·칸의 번호 목록은 한글 문단 번호로(표시 글자), 그 밖(머리말·주석·글상자)이나 한글로 옮길 수
-                    // 없는 형식은 번호 글자로.
+                    // 본문·머리말·꼬리말(그 안 표 칸 포함)의 번호 목록은 한글 문단 번호로(표시 글자) 옮긴다.
+                    // 글상자·주석 안 목록과 한글로 옮길 수 없는 형식은 번호 글자로 넣는다 — rhwp 가 글상자·주석 안
+                    // 문단 번호는 그리지 않아, 옮기면 번호가 보이지 않는다.
                     let list_mark = match (&num_id, list_item) {
-                        (Some(_), _) | (None, true) if !header && depth == 0 => {
+                        (Some(_), _) | (None, true) if native_lists.is_some() => {
                             numbering.list_mark(num_id.as_deref(), ilvl)
                         }
                         _ => None,
@@ -2466,7 +2475,8 @@ fn xml_to_html(
             report.hide_first_master |= hide;
             if !report.masters.iter().any(|m| m.apply_to == apply) {
                 let wrapped = format!("<w:body>{fragment}</w:body>");
-                if let Ok((html, part)) = xml_to_html(bytes, &wrapped, &rels_path_of(path), true, 0)
+                if let Ok((html, part)) =
+                    xml_to_html(bytes, &wrapped, &rels_path_of(path), true, 0, None)
                 {
                     report.images += part.images;
                     report.dropped_drawings += part.dropped_drawings;
@@ -2521,17 +2531,26 @@ fn xml_to_html(
             // 못 하면 글자만 옮긴다.
             let (mut shapes, mut cell_shapes) = (Vec::new(), Vec::new());
             let html = if !blank {
-                xml_to_html(bytes, &xml, &rels_path_of(path), true, 0)
-                    .ok()
-                    .map(|(html, part)| {
-                        // 머리말에 둘 수 없는 것(각주·나누기)은 표시 글자를 빼고 빠진 것으로 센다. 도형은 머리말에 넣는다.
-                        report.dropped_drawings += part.dropped_drawings;
-                        report.dropped_notes += part.footnotes.len() + part.endnotes.len();
-                        report.images += part.images;
-                        shapes = part.shapes;
-                        cell_shapes = part.cell_shapes;
-                        crate::notes::strip_field_marks(&strip_marks_keeping_shapes(&html))
-                    })
+                // 머리말·꼬리말 안 번호 목록도 한글 문단 번호로(정의는 본문 것 뒤에 잇는다).
+                xml_to_html(
+                    bytes,
+                    &xml,
+                    &rels_path_of(path),
+                    true,
+                    0,
+                    Some(report.lists.len()),
+                )
+                .ok()
+                .map(|(html, mut part)| {
+                    report.lists.append(&mut part.lists);
+                    // 머리말에 둘 수 없는 것(각주·나누기)은 표시 글자를 빼고 빠진 것으로 센다. 도형은 머리말에 넣는다.
+                    report.dropped_drawings += part.dropped_drawings;
+                    report.dropped_notes += part.footnotes.len() + part.endnotes.len();
+                    report.images += part.images;
+                    shapes = part.shapes;
+                    cell_shapes = part.cell_shapes;
+                    crate::notes::strip_field_marks(&strip_marks_keeping_shapes(&html))
+                })
             } else {
                 None
             };

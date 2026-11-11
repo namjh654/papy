@@ -1,0 +1,22 @@
+Papy 패치: 누름 영역을 만들 수 없는 하이퍼링크 글자는 건너뛴다(PDF 내보내기 전체 실패 방지).
+
+rhwp v0.9.0(c9095c5f). 0.9 는 PDF 에 링크 누름 영역을 넣으면서, 회전·세로쓰기·글자 겹침·표시값 치환이 걸린
+링크 글자를 만나면 `RenderError` 로 끝낸다. 이런 링크가 하나만 있어도 문서 전체를 PDF 로 내보낼 수 없다
+(`한글문서파일형식_5.0_revision1.3.hwp`, 71쪽 — 0.8.7 에서는 내보내졌다).
+- 그 글자의 누름 영역만 만들지 않고 계속한다. 글자와 나머지 링크는 그대로 나온다.
+
+업스트림에 알릴 것: 지원하지 않는 링크 영역 때문에 PDF 내보내기 전체가 실패함.
+
+--- a/src/document_core/queries/hyperlink_geometry.rs
++++ b/src/document_core/queries/hyperlink_geometry.rs
+@@ -270,7 +270,9 @@
+                             || run.char_overlap.is_some()
+                             || run.display_or_text().chars().count() != count
+                         {
+-                            return Err(HwpError::RenderError("회전·세로쓰기·표시값 치환 링크의 출력 영역은 아직 지원하지 않습니다".into()));
++                            // [Papy] 영역을 만들 수 없는 링크 글자는 건너뛴다. 오류로 끝내면 이런 링크가
++                            // 하나만 있어도 문서 전체의 PDF 내보내기가 실패한다(링크 누름 영역만 빠진다).
++                            continue;
+                         }
+                         // K1은 layout owner의 실제 경계, K0은 SVG/Skia와 같은 replay 경계를 사용한다.
+                         let positions = run.replay_positions_for(run.display_or_text());
