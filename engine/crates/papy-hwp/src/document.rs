@@ -561,43 +561,16 @@ impl HwpDocument {
     }
 
     /// 표·그림 고치기 공통: 편집 단계를 열고 쓰기 호출을 한다.
-    /// rhwp 가 준 커서 자리(누른 자리·위아래 옮기기)를 바로잡는다.
+    /// rhwp 가 준 커서 자리(누른 자리·위아래 옮기기)를 문단 안으로 자른다.
     ///
-    /// rhwp 의 `charOffset` 은 대개 논리 자리지만 줄 끝에서는 글자 자리(문단 글자 수)로 잘려 온다.
-    /// 함께 온 `cursorRect` 는 늘 맞으므로, 그 사각형을 그리는 논리 자리를 찾는다.
-    fn resolve_hit(&self, pos: TextPos, reply: &Value) -> TextPos {
+    /// rhwp 0.9 는 개체 칸까지 센 논리 자리로 답한다(줄 끝도). 0.8 은 줄 끝에서 글자 자리로 잘라 보내
+    /// `cursorRect` 로 논리 자리를 다시 찾았는데, 이제 그 값을 그대로 쓴다.
+    fn resolve_hit(&self, pos: TextPos, _reply: &Value) -> TextPos {
         let (section, paragraph) = (pos.section as usize, pos.paragraph as usize);
-        let raw = pos.offset as usize;
-        let inline = inline_slots(&self.doc, section, paragraph).len();
-        let target = reply
-            .get("cursorRect")
-            .and_then(|r| Some((r.get("x")?.as_f64()?, r.get("pageIndex")?.as_u64()?)));
-        let mut logical = raw;
-        if let (true, Some((x, page))) = (inline > 0, target) {
-            let found = (raw..=raw + inline).find(|&candidate| {
-                guard(|| {
-                    self.doc
-                        .get_cursor_rect_native(section, paragraph, candidate)
-                        .ok()
-                })
-                .ok()
-                .flatten()
-                .and_then(|reply| serde_json::from_str::<Value>(&reply).ok())
-                .is_some_and(|rect| {
-                    rect.get("pageIndex").and_then(Value::as_u64) == Some(page)
-                        && rect
-                            .get("x")
-                            .and_then(Value::as_f64)
-                            .is_some_and(|cx| (cx - x).abs() < 0.5)
-                })
-            });
-            if let Some(found) = found {
-                logical = found;
-            }
-        }
-        let len = text_len(&self.doc, section, paragraph) + inline;
+        let len = text_len(&self.doc, section, paragraph)
+            + inline_slots(&self.doc, section, paragraph).len();
         TextPos {
-            offset: logical.min(len) as u32,
+            offset: (pos.offset as usize).min(len) as u32,
             ..pos
         }
     }

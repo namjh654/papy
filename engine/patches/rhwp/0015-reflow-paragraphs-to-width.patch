@@ -1,14 +1,14 @@
 Papy 패치: 옮긴 문단의 줄을 주어진 너비로 다시 나누는 함수(reflow_paragraphs_to_width)와 문단에 인라인 컨트롤을
 넣는 함수(Paragraph::insert_inline_control)를 공개한다.
 
-rhwp v0.8.7(1a76570e).
+rhwp v0.9.0(c9095c5f).
 DOCX·DOC 를 열 때 본문에 붙여넣은 문단을 캡션·글상자·각주로 옮기면 줄이 본문 너비로 잡혀 글이 상자 밖으로 나간다.
 옮긴 문단을 그 상자 너비로 다시 나눈다(칸 안 표·글상자 안 문단도 그 너비로). 본문에서 만든 도형을 표 칸·머리말
 문단으로 옮길 때는 글자 위치·글자 모양 경계를 함께 밀어야 해서 rhwp 의 삽입 규약을 쓰는 함수를 연다.
 
---- a/src/model/paragraph.rs	2026-11-09 09:00:29
-+++ b/src/model/paragraph.rs	2026-11-09 09:00:29
-@@ -918,6 +918,29 @@
+--- a/src/model/paragraph.rs
++++ b/src/model/paragraph.rs
+@@ -1165,6 +1165,29 @@
      /// 컨트롤 번호도 같은 이유로 민다. 새 컨트롤이 `controls[control_idx]` 에 들어가면 그
      /// 자리부터 뒤 컨트롤의 번호가 1씩 커진다. 누름틀 범위가 옛 번호에 남으면 앞에 넣은
      /// 개체를 가리켜, 누름틀이 조회와 저장에서 사라진다.
@@ -38,9 +38,9 @@ DOCX·DOC 를 열 때 본문에 붙여넣은 문단을 캡션·글상자·각주
      pub(crate) fn shift_for_inline_control_insert(
          &mut self,
          control_idx: usize,
---- a/src/document_core/commands/text_editing.rs	2026-11-09 08:35:57
-+++ b/src/document_core/commands/text_editing.rs	2026-11-09 08:46:13
-@@ -2684,6 +2684,65 @@
+--- a/src/document_core/commands/text_editing.rs
++++ b/src/document_core/commands/text_editing.rs
+@@ -3096,6 +3096,65 @@
          );
      }
  

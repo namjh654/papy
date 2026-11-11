@@ -1,6 +1,6 @@
 Papy 패치: DOCX·DOC 변환(HTML 붙여넣기)을 돕는 함수 두 개를 더한다.
 
-rhwp v0.8.7(1a76570e). 새 함수만 더하고 기존 동작은 바꾸지 않는다.
+rhwp v0.9.0(c9095c5f). 새 함수만 더하고 기존 동작은 바꾸지 않는다.
 - `reflow_table_cells_native`: HTML 붙여넣기로 만든 표는 칸 문단마다 한 줄로만 잡혀 있어 칸보다 긴 글이
   행 높이를 늘리지 못하고 잘린다. 붙여넣은 뒤 칸 문단을 칸 너비로 다시 나누고 쪽을 다시 짠다.
 - `move_note_into_cell_native`: 각주 넣기·글자 넣기 함수가 본문 문단만 받아서, 표 안 각주를 본문에서 만들고
@@ -14,7 +14,7 @@ diff --git a/src/document_core/commands/footnote_ops.rs b/src/document_core/comm
 index 90f802e..e357736 100644
 --- a/src/document_core/commands/footnote_ops.rs
 +++ b/src/document_core/commands/footnote_ops.rs
-@@ -236,6 +236,121 @@ impl DocumentCore {
+@@ -225,6 +225,121 @@
          ))
      }
  
@@ -134,13 +134,11 @@ index 90f802e..e357736 100644
 +    }
 +
      /// 각주 컨트롤 내부 문단의 가변 참조를 얻는다.
-     fn get_footnote_paragraph_mut(
+     pub(crate) fn get_footnote_paragraph_mut(
          &mut self,
-diff --git a/src/document_core/commands/text_editing.rs b/src/document_core/commands/text_editing.rs
-index 9f6f809..51d74bd 100644
 --- a/src/document_core/commands/text_editing.rs
 +++ b/src/document_core/commands/text_editing.rs
-@@ -2644,7 +2644,7 @@ impl DocumentCore {
+@@ -3056,7 +3056,7 @@
      }
  
      /// 저장 LineSeg가 유효한 셀 텍스트 edit의 영향 줄부터만 재래핑한다.
@@ -149,7 +147,7 @@ index 9f6f809..51d74bd 100644
          &mut self,
          section_idx: usize,
          parent_para_idx: usize,
-@@ -2684,6 +2684,61 @@ impl DocumentCore {
+@@ -3096,6 +3096,61 @@
          );
      }
  

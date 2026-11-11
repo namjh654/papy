@@ -1,6 +1,6 @@
 Papy 패치: 붙여넣은 표 칸 안 겹친 표의 글도 칸 너비로 다시 나누고, 칸·행·표 높이를 글에 맞춰 늘린다.
 
-rhwp v0.8.7(1a76570e). 0002 의 `reflow_table_cells_native` 를 넓힌다.
+rhwp v0.9.0(c9095c5f). 0002 의 `reflow_table_cells_native` 를 넓힌다.
 DOC·DOCX 는 쪽 짜기용으로 표 안에 표를 자주 쓴다. 안쪽 표 칸 문단이 한 줄로만 잡혀 글이 칸 밖으로 나가거나 잘렸다.
 - 안쪽 표마다(깊은 것부터) `reflow_cell_paragraph_by_path` 로 다시 나누고 칸 문단 세로 위치를 다시 잰다.
 - 다시 나눈 글이 칸보다 길면 칸 높이, 그 행 칸 높이, 표 높이를 늘린다(바깥 칸이 안쪽 표 높이로 줄을 잡는다).
@@ -8,7 +8,7 @@ DOC·DOCX 는 쪽 짜기용으로 표 안에 표를 자주 쓴다. 안쪽 표 �
 
 --- a/src/document_core/commands/text_editing.rs
 +++ b/src/document_core/commands/text_editing.rs
-@@ -2687,7 +2687,7 @@
+@@ -3099,7 +3099,7 @@
      /// [Papy] 구역의 본문 표마다 칸 문단의 줄을 칸 너비로 다시 나누고 쪽을 다시 짠다.
      ///
      /// HTML 붙여넣기로 만든 표는 칸 문단마다 한 줄로만 잡혀 있어, 칸보다 긴 글은 행 높이가 늘지 않고 잘린다
@@ -17,7 +17,7 @@ DOC·DOCX 는 쪽 짜기용으로 표 안에 표를 자주 쓴다. 안쪽 표 �
      pub fn reflow_table_cells_native(&mut self, section_idx: usize) -> Result<(), HwpError> {
          let paragraph_count = self
              .document
-@@ -2718,6 +2718,53 @@
+@@ -3130,6 +3130,53 @@
                  })
                  .collect();
              for (control_idx, cells) in tables {
@@ -71,7 +71,7 @@ DOC·DOCX 는 쪽 짜기용으로 표 안에 표를 자주 쓴다. 안쪽 표 �
                  for (cell_idx, cell_para_idx) in cells {
                      self.reflow_cell_paragraph(
                          section_idx,
-@@ -2737,6 +2784,67 @@
+@@ -3149,6 +3196,67 @@
          self.paginate_if_needed();
          self.invalidate_page_tree_cache();
          Ok(())

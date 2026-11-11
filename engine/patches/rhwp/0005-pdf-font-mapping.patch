@@ -1,6 +1,6 @@
 Papy 패치: PDF 내보내기 글꼴 처리 속도(결과 같음).
 
-rhwp v0.8.7(1a76570e).
+rhwp v0.9.0(c9095c5f).
 - 글꼴 파일을 쓸 때마다 열고 매핑하던 것을 파일마다 한 번 매핑해 둔다(`make_shared_face_data`).
 - 글꼴 DB 를 내보내기마다 다시 만들지 않고 옵션이 같으면 재사용한다(시스템 글꼴 훑기 생략).
 - 글 조각마다 글꼴 DB 전체를 훑던 글꼴 고르기 결과를 내보내기 한 번 동안 기억한다.
@@ -8,7 +8,7 @@ rhwp v0.8.7(1a76570e).
 
 --- a/src/renderer/pdf.rs
 +++ b/src/renderer/pdf.rs
-@@ -525,7 +525,44 @@
+@@ -1431,7 +1431,44 @@
  }
  
  /// 폰트 데이터베이스를 초기화 (시스템 폰트 + 프로젝트 폰트 로드)
@@ -53,7 +53,7 @@ rhwp v0.8.7(1a76570e).
  fn create_fontdb(options: &PdfExportOptions) -> usvg::fontdb::Database {
      let mut fontdb = usvg::fontdb::Database::new();
      fontdb.load_system_fonts();
-@@ -558,6 +595,19 @@
+@@ -1464,6 +1501,19 @@
          let family = first_font_family(equation_font);
          if !family.is_empty() {
              warn_missing_family(&fontdb, "equation", &family, "--equation-font");
@@ -73,7 +73,7 @@ rhwp v0.8.7(1a76570e).
          }
      }
      fontdb
-@@ -1278,9 +1328,9 @@
+@@ -2217,9 +2267,9 @@
      use pdf_writer::{Finish, Pdf, Ref};
      use std::collections::HashMap;
  
@@ -85,7 +85,7 @@ rhwp v0.8.7(1a76570e).
      options.font_resolver.select_fallback = pdf_font_fallback_selector_with_limits(
          PDF_FONT_FALLBACK_INDEX_MAX_CHARS,
          PDF_FONT_FALLBACK_INDEX_MAX_FACE_SLOTS,
-@@ -1330,6 +1380,7 @@
+@@ -2269,6 +2319,7 @@
                      let strict = strict_options.get_or_insert_with(|| {
                          let mut strict = usvg::Options::default();
                          strict.fontdb = options.fontdb.clone();

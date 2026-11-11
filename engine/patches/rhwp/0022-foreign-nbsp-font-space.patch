@@ -1,0 +1,94 @@
+Papy 패치: 다른 형식에서 옮긴 문서는 묶음 빈칸(U+00A0)을 "글꼴에 어울리는 빈칸" 폭으로 잰다.
+
+rhwp v0.9.0(c9095c5f). 0.9 는 한/글 2024 대조로 묶음 빈칸을 반각 글꼴 메트릭으로 잰다(`useFontSpace` 를 쓰지 않음).
+한/글 문서에는 맞지만 Word 는 묶음 빈칸도 글꼴의 빈칸 폭으로 잰다. DOCX 를 붙여넣어 연 문서에서 밑줄 친 묶음 빈칸 줄
+(시험지 `Woman: ________`)이 단 폭을 넘어 접히고 쪽이 늘었다(exam_eng DOCX 왕복 8 → 9쪽, 0.8.7 은 8쪽).
+- `DocInfo::nbsp_font_space`(저장하지 않는 조판 표식)를 더한다. Papy 가 다른 형식에서 옮긴 문서에만 켠다.
+- 켜면 글자 모양 해소가 그 값을 싣고, 글자 폭 재기가 묶음 빈칸을 빈칸과 같은 `font_space_em` 폭으로 잰다.
+- 저장 바이트 지문(`doc_info_model_digest`)·PDF 가져오기 필드 목록에는 넣지 않는다.
+
+업스트림에 알릴 것: 다른 형식(Word) 문서의 묶음 빈칸 폭.
+
+--- a/src/model/document.rs
++++ b/src/model/document.rs
+@@ -270,6 +270,9 @@
+     /// 원본 바이트의 다이제스트 쌍. 저장 시 둘 다 일치할 때만 raw 를 재사용한다.
+     /// 계약 전문은 `model::raw_provenance` 모듈 주석.
+     pub raw_provenance: Option<crate::model::raw_provenance::DocInfoSeal>,
++    /// [Papy] 묶음 빈칸(U+00A0)을 빈칸처럼 "글꼴에 어울리는 빈칸" 폭으로 잰다(Word 방식). 다른 형식에서 옮긴
++    /// 문서만 켠다. 한/글은 묶음 빈칸을 반각으로 재지만 Word 는 글꼴의 빈칸 폭으로 잰다. 저장하지 않는다.
++    pub nbsp_font_space: bool,
+ }
+ 
+ impl DocInfo {
+--- a/src/model/raw_provenance.rs
++++ b/src/model/raw_provenance.rs
+@@ -150,6 +150,8 @@
+         hwpx_head_tail,
+         hwpml_version,
+         raw_provenance: _,
++        // [Papy] 조판 전용 표식이라 저장 산출물에 실리지 않는다.
++        nbsp_font_space: _,
+     } = doc_info;
+ 
+     #[derive(Serialize)]
+--- a/src/parser/pdf/allocation.rs
++++ b/src/parser/pdf/allocation.rs
+@@ -325,6 +325,7 @@
+             hwpx_head_tail,
+             hwpml_version,
+             raw_provenance,
++            nbsp_font_space: _,
+         } = value;
+         let payload = (
+             bin_data_list,
+--- a/src/renderer/style_resolver/resolved.rs
++++ b/src/renderer/style_resolver/resolved.rs
+@@ -74,6 +74,8 @@
+     /// 한/글은 이 속성이 켜지면 공백을 영문 슬롯 글꼴의 제 공백폭으로 전진시킨다.
+     /// 근거와 문서 내 대조군은 [`crate::renderer::TextStyle::font_space_em`] 에 있다.
+     pub font_space_em: Option<f64>,
++    /// [Papy] 묶음 빈칸도 [`Self::font_space_em`] 폭으로 잰다([`crate::model::document::DocInfo::nbsp_font_space`]).
++    pub nbsp_font_space: bool,
+     /// 글꼴 크기 (px)
+     pub font_size: f64,
+     /// 언어별 상대 크기를 적용한 글리프 크기(px). 기본 줄 크기와 구분한다.
+@@ -153,6 +155,7 @@
+             font_families_metric_face: Vec::new(),
+             font_families_original_glyph_metric_face: Vec::new(),
+             font_space_em: None,
++            nbsp_font_space: false,
+             font_size: 12.0,
+             font_sizes: Vec::new(),
+             font_positions: Vec::new(),
+@@ -698,7 +701,7 @@
+     }
+ }
+ 
+-crate::storage::clone_fields!(ResolvedCharStyle, {text_paint, font_family, font_families, font_families_metric_trusted, font_families_glyph_fallback_advance_explicit, font_families_hft_hangul, font_families_source_hft, font_families_source_ttf, font_families_verified_hft_bold_tracking, font_families_hft_print_frame, font_families_preserve_glyph_ink, font_families_hft_fullwidth_dot, ascii_punct_latin_slot, explicit_latin_slot, font_families_metric_face, font_families_original_glyph_metric_face, font_space_em, font_size, font_sizes, font_positions, bold, italic, text_color, underline, underline_color, strike_color, strikethrough, letter_spacing, letter_spacings, ratio, ratios, border_fill_id, outline_type, shadow_type, shadow_color, shadow_offset_x, shadow_offset_y, emboss, engrave, superscript, subscript, emphasis_dot, underline_shape, strike_shape, kerning, shade_color});
++crate::storage::clone_fields!(ResolvedCharStyle, {text_paint, font_family, font_families, font_families_metric_trusted, font_families_glyph_fallback_advance_explicit, font_families_hft_hangul, font_families_source_hft, font_families_source_ttf, font_families_verified_hft_bold_tracking, font_families_hft_print_frame, font_families_preserve_glyph_ink, font_families_hft_fullwidth_dot, ascii_punct_latin_slot, explicit_latin_slot, font_families_metric_face, font_families_original_glyph_metric_face, font_space_em, nbsp_font_space, font_size, font_sizes, font_positions, bold, italic, text_color, underline, underline_color, strike_color, strikethrough, letter_spacing, letter_spacings, ratio, ratios, border_fill_id, outline_type, shadow_type, shadow_color, shadow_offset_x, shadow_offset_y, emboss, engrave, superscript, subscript, emphasis_dot, underline_shape, strike_shape, kerning, shade_color});
+ 
+ crate::storage::clone_fields!(ResolvedParaStyle, {alignment, vertical_alignment, line_spacing, line_spacing_type, margin_left, margin_right, indent, spacing_before, spacing_after, head_type, para_level, numbering_id, border_fill_id, border_spacing, border_connect, border_ignore_margin, default_tab_width, tab_stops, auto_tab_left, auto_tab_right, condense_min_space, english_break_unit, korean_break_unit, widow_orphan, keep_with_next, keep_lines, page_break_before});
+ 
+--- a/src/renderer/style_resolver.rs
++++ b/src/renderer/style_resolver.rs
+@@ -966,6 +966,7 @@
+         font_families_metric_face,
+         font_families_original_glyph_metric_face,
+         font_space_em,
++        nbsp_font_space: doc_info.nbsp_font_space,
+         font_size,
+         font_sizes,
+         font_positions: storage.copy_slice(&cs.char_offsets)?,
+--- a/src/renderer/layout/text_measurement.rs
++++ b/src/renderer/layout/text_measurement.rs
+@@ -1024,7 +1024,8 @@
+             )?,
+             // [#7387] 공백은 run 의 언어 슬롯과 무관하게 영문 슬롯 글꼴이 정한다.
+             font_space_em: cs.font_space_em,
+-            inherited_half_space_em: false,
++            // [Papy] 다른 형식에서 옮긴 문서는 묶음 빈칸도 글꼴 빈칸 폭으로(아래 `font_space_width`).
++            inherited_half_space_em: cs.nbsp_font_space,
+             layout_half_space: false,
+             regenerated_font_metrics: false,
+             literal_figure_space: false,

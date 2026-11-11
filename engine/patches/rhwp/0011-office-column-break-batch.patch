@@ -1,12 +1,12 @@
 Papy 패치: 표시 글자로 단 나누기를 한 번에 적용하는 함수(0003 쪽 나누기의 단 나누기판).
 
-rhwp v0.8.7(1a76570e). 새 함수만 더한다.
+rhwp v0.9.0(c9095c5f). 새 함수만 더한다.
 DOCX 의 단 나누기(`w:br w:type="column"`)는 HTML 붙여넣기에 자리가 없어 표시 글자로 넘기고, 붙여넣은 뒤 그 글자가 있는
 문단 앞에서 단을 나눈다. 한글 시험지처럼 2단 문서는 문제마다 단을 나눠, 이것이 없으면 글이 이어 흘러 쪽 수가 크게 준다.
 
 --- a/src/document_core/commands/text_editing.rs
 +++ b/src/document_core/commands/text_editing.rs
-@@ -4118,7 +4118,61 @@
+@@ -4761,7 +4761,61 @@
                  section: section_idx,
                  para: para_idx,
              });

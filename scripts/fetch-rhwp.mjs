@@ -19,8 +19,8 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const REPO = "https://github.com/edwardkim/rhwp.git";
-const TAG = "v0.8.7";
-const COMMIT = "1a76570e833917d15817415a53c09ad61ab3203f";
+const TAG = "v0.9.0";
+const COMMIT = "c9095c5f67632e6721e800ccc7fb43ea49d26682";
 
 /** 라이브러리 빌드에 필요한 경로. 테스트·도구·문서·샘플은 받지 않는다. */
 const PATHS = [
@@ -30,8 +30,30 @@ const PATHS = [
   "/THIRD_PARTY_LICENSES.md",
   "/src/",
   "/crates/",
+  // 0.9.0 부터 Cargo.toml 이 경로로 쓰는 내부 사본(jpeg·svg2pdf·PDF 가져오기). PDF 가져오기는 Papy 가
+  // 켜지 않는 선택 기능이지만 cargo 가 의존성을 풀 때 매니페스트를 읽어서 함께 받는다.
+  "/vendor/rhwp-zune-jpeg/",
+  "/vendor/rhwp-jpeg-encoder/",
+  "/vendor/svg2pdf/",
+  "/vendor/rhwp-pdf-import-backend/",
   // 빈 문서 템플릿(include_bytes!)
   "/saved/blank2010.hwp",
+  // 0.9.0 부터 소스가 include_str!·include_bytes! 로 넣는 파일(crates.io 패키지 include 목록과 같다):
+  // 글꼴 측정값·수식 글꼴(OFL)·글꼴 규칙·에이전트 안내 문서.
+  "/README.md",
+  "/README_EN.md",
+  "/llms.txt",
+  "/assets/fonts/enclosed-pua-metrics.json",
+  "/assets/fonts/LatinModernMath-VariableOutline-subset.otf",
+  "/assets/fonts/MANIFEST-RHWP-LMM-VariableOutline.txt",
+  "/assets/fonts/licenses/",
+  "/assets/font-rules/font_rule_registry_v2.json",
+  "/data/font-metrics/nimbus-roman/",
+  "/mydocs/manual/agent_knowledge_map.md",
+  "/mydocs/manual/agent_troubleshooting_guide.md",
+  "/mydocs/manual/gym_optional_tool.md",
+  "/mydocs/manual/recipes/",
+  "/mydocs/tech/agent_roadmap/atlas_r1_r200.md",
   // 한글 글꼴(OFL-1.1): PDF 텍스트 상자에 넣고, 한글 글꼴이 없는 PC 에서 HWP 대체 글꼴로 쓴다.
   "/ttfs/opensource/NotoSansKR-Regular.ttf",
   "/ttfs/opensource/NotoSansKR-OFL.txt",
@@ -62,6 +84,9 @@ console.log(`내려받는 중: rhwp ${TAG} (${COMMIT.slice(0, 12)})`);
 rmSync(outDir, { recursive: true, force: true });
 mkdirSync(outDir, { recursive: true });
 git("init", "-q");
+// 줄 끝을 바꾸지 않는다. Windows 기본값(core.autocrlf=true)이면 받은 소스가 CRLF 가 되어 LF 로 만든 패치와 어긋난다
+// (0.9.0 에서 패치 0002 가 Windows 에서만 적용되지 않았다). 패치 파일은 .gitattributes 로 LF 고정.
+git("config", "core.autocrlf", "false");
 git("remote", "add", "origin", REPO);
 git("sparse-checkout", "set", "--no-cone", ...PATHS);
 git("fetch", "-q", "--depth", "1", "--filter=blob:none", "origin", COMMIT);

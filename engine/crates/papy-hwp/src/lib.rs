@@ -235,6 +235,7 @@ fn split_tables_across_pages(
     indents: &[i32],
     places: &[String],
     inline: &[bool],
+    outer: &[Option<[i32; 4]>],
 ) -> std::result::Result<(), rhwp::HwpError> {
     let tables: Vec<(usize, usize)> = doc
         .document()
@@ -254,17 +255,26 @@ fn split_tables_across_pages(
     // 원본 표의 왼쪽 자리(`w:tblInd`)는 붙여넣은 순서와 같을 때만 쓴다(바깥 여백 대신 위치로).
     let same_order = indents.len() == tables.len();
     let mut floating = Vec::new();
+    let mut inline_hosts = Vec::new();
     for (index, (para, control)) in tables.into_iter().enumerate() {
         let float = places.get(index).filter(|p| same_order && !p.is_empty());
         let keep_inline = same_order && inline.get(index).copied().unwrap_or(false);
         let json = match float {
             // 한글에서 글자처럼 취급한 표(Papy 가 쓴 DOCX): 글자처럼 둔다. 쪽 경계에서는 셀 단위로 나눈다.
-            None if keep_inline => {
-                format!(
+            // 바깥 여백은 원본 값(`papy:outer`)을, 없으면 위아래 0.5mm 를 쓴다.
+            None if keep_inline => match outer.get(index).copied().flatten() {
+                Some([top, bottom, left, right]) => format!(
+                    r#"{{"treatAsChar":true,"pageBreak":1,"outerTop":{},"outerBottom":{},"outerLeft":{},"outerRight":{}}}"#,
+                    top.max(0),
+                    bottom.max(0),
+                    left.max(0).max(indents[index].max(0)),
+                    right.max(0)
+                ),
+                None => format!(
                     r#"{{"treatAsChar":true,"pageBreak":1,"outerTop":141,"outerBottom":141,"outerLeft":{}}}"#,
                     indents[index].max(0)
-                )
-            }
+                ),
+            },
             // 쪽·종이 기준 자리: 그 자리에 놓고 쪽을 나누지 않는다(결재란 등).
             Some(place) => {
                 // 글 앞·뒤 표는 그 배치를 쓴다(place 에 textWrap 이 있다).
@@ -292,9 +302,16 @@ fn split_tables_across_pages(
         doc.set_table_properties_native(0, para, control, &json)?;
         if float.is_some() {
             floating.push(para);
+        } else if keep_inline && inline_hosts.last() != Some(&para) {
+            inline_hosts.push(para);
         }
     }
     shrink_floating_table_lines(doc, &floating);
+    // 글자처럼 둔 표의 문단 줄은 붙여넣을 때의 바깥 여백(위아래 1mm)으로 잡혀 있다. 바꾼 여백으로 줄을 다시 잡는다
+    // (배치 중이라 저절로 다시 나누지 않는다).
+    for para in inline_hosts {
+        doc.reflow_body_paragraph_range_native(0, para..para + 1)?;
+    }
     Ok(())
 }
 
@@ -339,6 +356,7 @@ fn shrink_floating_table_lines(doc: &mut Rhwp, paragraphs: &[usize]) {
 /// - 쪽 경계에서 나눌 수 있게 한다. 붙여넣은 표는 "나누지 않음"이라 rhwp 가 칸 안 표를 한 덩어리로 다뤄,
 ///   쪽보다 긴 칸 안 표는 다음 쪽으로 통째 넘어간 뒤 아래가 잘렸다. "셀 단위로 나눔"이면 행마다 쪽을 나눈다.
 /// - 담는 칸보다 넓은 칸 안 표는 칸 너비에 맞게 줄인다(칸 밖은 잘려 보이지 않았다).
+/// - 종이 끝을 넘는 맨 바깥 표는 본문 폭으로 줄인다.
 fn split_nested_tables(doc: &mut Rhwp) {
     use rhwp::model::control::Control;
     use rhwp::model::paragraph::Paragraph;
@@ -357,7 +375,14 @@ fn split_nested_tables(doc: &mut Rhwp) {
             .max()
             .unwrap_or(0)
     }
-    fn walk(paragraphs: &mut [Paragraph], depth: usize, room: Option<u32>, changed: &mut bool) {
+    /// `room`: 맨 바깥(depth 0)은 (종이 끝까지 너비, 본문 폭), 칸 안은 (칸 안쪽 너비, 같은 값)
+    fn walk(
+        paragraphs: &mut [Paragraph],
+        depth: usize,
+        room: Option<(u32, u32)>,
+        body: u32,
+        changed: &mut bool,
+    ) {
         if depth > 16 {
             return;
         }
@@ -366,9 +391,39 @@ fn split_nested_tables(doc: &mut Rhwp) {
                 let Control::Table(table) = control else {
                     continue;
                 };
-                if depth > 0 {
+                if depth == 0 {
+                    // rhwp 0.9 HTML 표 가져오기는 칸 안 표가 칸보다 넓으면 바깥 칸을 그만큼 넓힌다.
+                    // 종이 끝을 넘은 바깥 표는 보이지 않으니 본문 폭으로 줄인다(안쪽 표는 아래에서 칸에 맞춘다).
+                    if let Some((edge, text)) = room {
+                        let width = table_width(table);
+                        if text > 0 && width > edge {
+                            let scale = f64::from(text) / f64::from(width);
+                            for cell in &mut table.cells {
+                                cell.width = (f64::from(cell.width) * scale).floor() as u32;
+                            }
+                            table.common.width =
+                                (f64::from(table.common.width) * scale).floor() as u32;
+                            *changed = true;
+                        }
+                    }
+                } else {
+                    let room = room.map(|(room, _)| room);
                     if table.row_count >= 2 && matches!(table.page_break, TablePageBreak::None) {
                         table.page_break = TablePageBreak::CellBreak;
+                        *changed = true;
+                    }
+                    // rhwp 0.9 는 글자처럼 취급한 표를 글자 하나처럼 나누지 않는다(한/글과 같다). 붙여넣은 표는
+                    // 모두 글자처럼 취급이라, 본문보다 긴 칸 안 표는 다음 쪽으로 통째 넘어가 아래가 잘린다.
+                    // 그런 표만 글자처럼 취급을 풀어(문단 기준 자리차지 그대로) 행마다 쪽을 나누게 한다.
+                    if table.common.treat_as_char
+                        && table.row_count >= 2
+                        && table.common.height > body
+                    {
+                        table.common.treat_as_char = false;
+                        table.common.attr &= !1;
+                        if let Some(attr) = table.raw_ctrl_data.first_mut() {
+                            *attr &= !1;
+                        }
                         *changed = true;
                     }
                     let width = table_width(table);
@@ -388,7 +443,13 @@ fn split_nested_tables(doc: &mut Rhwp) {
                     let padding = u32::from(cell.padding.left.max(0) as u16)
                         + u32::from(cell.padding.right.max(0) as u16);
                     let room = cell.width.saturating_sub(padding);
-                    walk(&mut cell.paragraphs, depth + 1, Some(room), changed);
+                    walk(
+                        &mut cell.paragraphs,
+                        depth + 1,
+                        Some((room, room)),
+                        body,
+                        changed,
+                    );
                 }
             }
         }
@@ -396,7 +457,34 @@ fn split_nested_tables(doc: &mut Rhwp) {
     let mut document = doc.document().clone();
     let mut changed = false;
     for section in &mut document.sections {
-        walk(&mut section.paragraphs, 0, None, &mut changed);
+        let page = &section.section_def.page_def;
+        let paper = if page.landscape {
+            page.height
+        } else {
+            page.width
+        };
+        let paper = if paper == 0 { 59528 } else { paper };
+        let left = page.margin_left.saturating_add(page.margin_gutter);
+        let edge = paper.saturating_sub(left);
+        let text = edge.saturating_sub(page.margin_right);
+        let tall = if page.landscape {
+            page.width
+        } else {
+            page.height
+        };
+        let tall = if tall == 0 { 84188 } else { tall };
+        let body = tall
+            .saturating_sub(page.margin_top)
+            .saturating_sub(page.margin_bottom)
+            .saturating_sub(page.margin_header)
+            .saturating_sub(page.margin_footer);
+        walk(
+            &mut section.paragraphs,
+            0,
+            Some((edge, text)),
+            body,
+            &mut changed,
+        );
     }
     if changed {
         doc.set_document(document);
@@ -466,15 +554,44 @@ fn reserve_table_border_fill(doc: &mut Rhwp) {
     doc.set_document(document);
 }
 
+/// 한글 원본에서 HFT(한컴 옛 글꼴)였던 글꼴(`papy:hft`)을 붙여넣기 전에 HFT 로 등록해 둔다. 붙여넣기는 같은 이름의
+/// 글꼴을 다시 쓴다. rhwp 는 HFT 글꼴이면 ASCII 구두점을 영문 글꼴 폭으로 재는데(한/글과 같다, rhwp #7418),
+/// TTF 로 새로 만들면 쉼표가 한글 글꼴 폭으로 넓어져 시험지 답 줄("ㄱ, ㄴ, ㄷ")이 접히고 쪽이 늘었다(exam_science 4 → 7).
+fn mark_hft_fonts(doc: &mut Rhwp, names: &[String]) {
+    if names.is_empty() {
+        return;
+    }
+    for name in names {
+        doc.find_or_create_font_id_native(name);
+    }
+    let mut document = doc.document().clone();
+    for font in document.doc_info.font_faces.iter_mut().flatten() {
+        if names.contains(&font.name) {
+            font.alt_type = 2;
+        }
+    }
+    document.doc_info.raw_stream_dirty = true;
+    doc.set_document(document);
+}
+
 /// 다른 형식을 붙여넣어 만드는 빈 문서를 준비한다.
 /// - 출처를 "다른 형식에서 옮김"으로 표시한다(rhwp 패치 0018: 저장 vpos 가 한글 배치가 아니라 떠 있는 표 흐름을 따로 맞춘다).
 /// - Word 는 빈칸을 늘 글꼴의 빈칸 너비로 잰다. 붙여넣어 만드는 글자 모양이 바탕 글자 모양을 이어받으므로
 ///   바탕에 한글의 "글꼴에 어울리는 빈칸"을 켜 둔다(꺼 두면 영문 빈칸을 반각으로 재 줄이 짧아진다, exam_eng).
-fn prepare_foreign(doc: &mut Rhwp) {
+///   다만 Papy 가 쓴 DOCX 가 원본 한글 문서에 그 설정이 없었다고 적어 두었으면(`no_font_space`) 켜지 않는다
+///   (켜면 빈칸이 넓어져 줄이 접히고 쪽이 늘었다, exam_kor 13쪽).
+fn prepare_foreign(doc: &mut Rhwp, font_space: bool) {
     let mut document = doc.document().clone();
     document.provenance.foreign_import = true;
-    for shape in &mut document.doc_info.char_shapes {
-        shape.use_font_space = true;
+    if font_space {
+        for shape in &mut document.doc_info.char_shapes {
+            shape.use_font_space = true;
+            // 빈 문서 틀에서 온 원시 레코드를 그대로 두면 HWP 로 저장할 때 그 레코드가 쓰여 이 설정이 빠진다.
+            shape.raw_data = None;
+        }
+        // Word 는 묶음 빈칸(U+00A0)도 글꼴의 빈칸 폭으로 잰다. 한/글처럼 반각으로 재면 밑줄 빈칸 줄
+        // (`Woman: ____`)이 넘쳐 접혀 쪽이 는다(rhwp 패치 0022, exam_eng).
+        document.doc_info.nbsp_font_space = true;
     }
     document.doc_info.raw_stream_dirty = true;
     doc.set_document(document);
@@ -492,7 +609,8 @@ fn open_converted(
         let mut doc = Rhwp::create_empty();
         doc.create_blank_document_native()?;
         reserve_table_border_fill(&mut doc);
-        prepare_foreign(&mut doc);
+        prepare_foreign(&mut doc, !report.no_font_space);
+        mark_hft_fonts(&mut doc, &report.hft_fonts);
         // 쪽 크기·여백·다단을 먼저 맞춰야 붙여넣은 글과 표가 그 너비로 조판된다.
         if let Some(page) = report.page {
             doc.set_page_def_native(
@@ -541,6 +659,7 @@ fn open_converted(
         }
         // 붙여넣은 뒤 고치기(표 속성·하이퍼링크·각주·도형 등)는 편집마다 쪽을 다시 짜지 않고 끝에서 한 번 짠다.
         // 하이퍼링크가 수백 개인 문서가 링크마다 쪽을 다시 짜 열기에 십수 초 걸렸다.
+        let papers = shapes::measure(&doc, &report.shapes);
         doc.begin_batch_native()?;
         unindent_table_paragraphs(&mut doc);
         split_nested_tables(&mut doc);
@@ -549,12 +668,13 @@ fn open_converted(
             &report.table_indents,
             &report.table_places,
             &report.table_inline,
+            &report.table_outer,
         )?;
         // 붙여넣은 표 칸은 한 줄로만 잡혀 있다. 칸 너비로 다시 나눠 긴 글이 잘리지 않게 한다.
         doc.reflow_table_cells_native(0)?;
         links::apply(&mut doc, &report.hyperlinks);
         let mut dropped =
-            notes::apply(&mut doc, &report)? + shapes::apply(&mut doc, &report.shapes)?;
+            notes::apply(&mut doc, &report)? + shapes::apply(&mut doc, &report.shapes, &papers)?;
         dropped += shapes::apply_in_cells(&mut doc, &report.cell_shapes)?;
         dropped += masters::apply(&mut doc, &report)?;
         if !report.cell_shapes.is_empty() {

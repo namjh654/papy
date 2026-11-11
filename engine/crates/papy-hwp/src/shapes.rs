@@ -50,8 +50,39 @@ fn horz_rel(relative: Relative) -> &'static str {
     }
 }
 
-/// 넣지 못한 도형 수를 돌려준다.
-pub(crate) fn apply(doc: &mut Rhwp, shapes: &[DocxShape]) -> Result<usize, HwpError> {
+/// 본문 도형 자리 표시마다 그림을 종이 기준으로 옮겨 놓을 세로 자리를 잰다([`paper_vertical`], 도형 차례대로).
+///
+/// 붙여넣은 바로 뒤, 일괄 편집을 시작하기 전에 부른다. 일괄 편집 중에는 문단을 고쳐도 쪽을 다시 짜지 않아, 그 뒤
+/// 커서 자리를 물으면 낡은 조판으로 잰다. rhwp 0.9 는 글이 바뀐 문단을 예전 조판 계획으로 그리다 멈췄다.
+pub(crate) fn measure(doc: &Rhwp, shapes: &[DocxShape]) -> Vec<Option<i64>> {
+    let mut papers = Vec::with_capacity(shapes.len());
+    let Some(section) = doc.document().sections.first() else {
+        return papers;
+    };
+    for (para, paragraph) in section.paragraphs.iter().enumerate() {
+        let marks: Vec<usize> = paragraph
+            .text
+            .chars()
+            .enumerate()
+            .filter(|&(_, c)| c == SHAPE_MARK)
+            .map(|(offset, _)| offset)
+            .collect();
+        for offset in marks {
+            let paper = shapes
+                .get(papers.len())
+                .and_then(|shape| paper_vertical(doc, para, offset, shape));
+            papers.push(paper);
+        }
+    }
+    papers
+}
+
+/// 넣지 못한 도형 수를 돌려준다. `papers` 는 [`measure`] 결과.
+pub(crate) fn apply(
+    doc: &mut Rhwp,
+    shapes: &[DocxShape],
+    papers: &[Option<i64>],
+) -> Result<usize, HwpError> {
     let mut next = 0usize;
     let mut failed = 0usize;
     let paragraph_count = doc
@@ -71,8 +102,9 @@ pub(crate) fn apply(doc: &mut Rhwp, shapes: &[DocxShape]) -> Result<usize, HwpEr
             let Some(shape) = shapes.get(next) else {
                 continue;
             };
+            let paper = papers.get(next).copied().flatten();
             next += 1;
-            if insert(doc, para, offset, shape).is_err() {
+            if insert(doc, para, offset, shape, paper).is_err() {
                 failed += 1;
             } else {
                 // 그림은 그림 넣기 경로가 줄을 맞춘다(다시 나누면 큰 그림 문단이 빈 쪽을 만들었다, Bug47731.doc).
@@ -102,7 +134,8 @@ pub(crate) fn build(
     for (index, shape) in shapes.iter().enumerate() {
         doc.insert_paragraph_native(0, start + index)?;
         // 못 만든 도형은 그 문단에 컨트롤이 없어 아래에서 None 이 된다.
-        let _ = insert(doc, start + index, 0, shape);
+        // 잠깐 쓰는 문단이라 종이 기준으로 바꾸지 않는다(본문 끝 문단 자리는 뜻이 없고, 일괄 편집 중이라 낡은 조판으로 잰다).
+        let _ = insert(doc, start + index, 0, shape, None);
     }
     let mut document = doc.document().clone();
     let section = &mut document.sections[0];
@@ -191,9 +224,16 @@ pub(crate) fn apply_in_cells(doc: &mut Rhwp, shapes: &[DocxShape]) -> Result<usi
     Ok(shapes.len().saturating_sub(placed))
 }
 
-fn insert(doc: &mut Rhwp, para: usize, offset: usize, shape: &DocxShape) -> Result<(), HwpError> {
+/// `paper`: 그림을 종이 기준으로 옮겨 놓을 세로 자리(HWPUNIT, [`paper_vertical`]).
+fn insert(
+    doc: &mut Rhwp,
+    para: usize,
+    offset: usize,
+    shape: &DocxShape,
+    paper: Option<i64>,
+) -> Result<(), HwpError> {
     if let Some(image) = &shape.image {
-        return insert_picture(doc, para, offset, shape, image);
+        return insert_picture(doc, para, offset, shape, image, paper);
     }
     let textbox = !shape.text.is_empty();
     let kind = match (textbox, shape.kind) {
@@ -369,40 +409,10 @@ const CHART_SCALE: f64 = 2.0;
 const EMU_PER_PX: f64 = 9525.0;
 
 /// 그림(묶음 안 그림·차트)을 도형 자리에 넣는다.
-fn insert_picture(
-    doc: &mut Rhwp,
-    para: usize,
-    offset: usize,
-    shape: &DocxShape,
-    image: &ShapeImage,
-) -> Result<(), HwpError> {
-    let (bytes, extension, natural) = match image {
-        ShapeImage::Raster(bytes) => {
-            let extension = match bytes.first() {
-                Some(0x89) => "png",
-                Some(0xFF) => "jpg",
-                Some(b'G') => "gif",
-                _ => "bmp",
-            };
-            // rhwp 는 원래 픽셀 크기로 자르기 범위를 잡는다. 모르면 보이는 크기(96 DPI)로 둔다.
-            let natural = pixel_size(bytes).unwrap_or((
-                (shape.width as f64 / EMU_PER_PX).round().max(1.0) as u32,
-                (shape.height as f64 / EMU_PER_PX).round().max(1.0) as u32,
-            ));
-            (bytes.clone(), extension, natural)
-        }
-        ShapeImage::Svg(svg) => {
-            let width = (shape.width as f64 / EMU_PER_PX * CHART_SCALE)
-                .round()
-                .clamp(1.0, 4096.0);
-            let height = (shape.height as f64 / EMU_PER_PX * CHART_SCALE)
-                .round()
-                .clamp(1.0, 4096.0);
-            let png = crate::svg_to_png(svg, width as u32, height as u32)
-                .map_err(|_| HwpError::RenderError("chart image".into()))?;
-            (png, "png", (width as u32, height as u32))
-        }
-    };
+/// 문단 기준(세로)으로 떠 있는 그림을 종이 기준으로 옮겨 놓을 세로 자리(HWPUNIT). 옮기지 않으면 None.
+/// 조판이 문단 글과 맞을 때(일괄 편집 전) 부른다.
+fn paper_vertical(doc: &Rhwp, para: usize, offset: usize, shape: &DocxShape) -> Option<i64> {
+    shape.image.as_ref()?;
     // 문단 기준(세로)으로 떠 있는 그림을 rhwp 는 이렇게 다룬다:
     // - 문단 기준 그대로 두면 그 문단 줄만 그림을 비켜 가고, 뒤 문단은 비키지 않는다(그림이 뒤 문단에 덮인다).
     //   글 앞·뒤 그림은 문단 줄 높이에 잘려 보이기도 한다.
@@ -434,21 +444,55 @@ fn insert_picture(
         let bottom_px = (shape.vertical.1 + shape.height) as f64 / EMU_PER_PX;
         bottom_px <= paragraph_px + 1.0
     };
-    let vertical = match shape.vertical.0 {
+    match shape.vertical.0 {
         Relative::Paragraph | Relative::Column
             if !shape.inline
                 && (matches!(shape.wrap, Wrap::InFront | Wrap::Behind) || !fits_paragraph()) =>
         {
             cursor(doc, offset).map(|(y_px, _, _)| {
-                (
-                    "Paper",
-                    (y_px * 75.0).max(0.0) as i64 + i64::from(hwpunit(shape.vertical.1)),
-                )
+                (y_px * 75.0).max(0.0) as i64 + i64::from(hwpunit(shape.vertical.1))
             })
         }
         _ => None,
     }
-    .unwrap_or((
+}
+
+fn insert_picture(
+    doc: &mut Rhwp,
+    para: usize,
+    offset: usize,
+    shape: &DocxShape,
+    image: &ShapeImage,
+    paper: Option<i64>,
+) -> Result<(), HwpError> {
+    let (bytes, extension, natural) = match image {
+        ShapeImage::Raster(bytes) => {
+            let extension = match bytes.first() {
+                Some(0x89) => "png",
+                Some(0xFF) => "jpg",
+                Some(b'G') => "gif",
+                _ => "bmp",
+            };
+            // rhwp 는 원래 픽셀 크기로 자르기 범위를 잡는다. 모르면 보이는 크기(96 DPI)로 둔다.
+            let natural = pixel_size(bytes).unwrap_or((
+                (shape.width as f64 / EMU_PER_PX).round().max(1.0) as u32,
+                (shape.height as f64 / EMU_PER_PX).round().max(1.0) as u32,
+            ));
+            (bytes.clone(), extension, natural)
+        }
+        ShapeImage::Svg(svg) => {
+            let width = (shape.width as f64 / EMU_PER_PX * CHART_SCALE)
+                .round()
+                .clamp(1.0, 4096.0);
+            let height = (shape.height as f64 / EMU_PER_PX * CHART_SCALE)
+                .round()
+                .clamp(1.0, 4096.0);
+            let png = crate::svg_to_png(svg, width as u32, height as u32)
+                .map_err(|_| HwpError::RenderError("chart image".into()))?;
+            (png, "png", (width as u32, height as u32))
+        }
+    };
+    let vertical = paper.map(|y| ("Paper", y)).unwrap_or((
         vert_rel(shape.vertical.0),
         i64::from(hwpunit(shape.vertical.1)),
     ));

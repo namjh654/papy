@@ -894,6 +894,68 @@ fn column_breaks_and_diagonals_are_written() {
     assert!(!xml.contains("<w:tr2bl"), "{xml}");
 }
 
+/// 어울림(글이 옆으로 흐르는) 표를 품은 단 나누기 문단: 표는 문단 앞에 쓰므로 단 나누기도 표 앞으로 옮겨야 표가 앞 단에
+/// 남지 않는다(exam_kor 14쪽). 어울림 배치와 "글꼴에 어울리는 빈칸을 쓰지 않음"은 Papy 표시로 남겨 다시 읽는다.
+#[test]
+fn square_tables_keep_wrap_and_column_break_moves_before_them() {
+    use rhwp::model::control::Control;
+    use rhwp::model::shape::{TextWrap, VertRelTo};
+    let mut core = rhwp::document_core::DocumentCore::new_empty();
+    core.create_blank_document_native().unwrap();
+    core.insert_text_native(0, 0, 0, "첫 단").unwrap();
+    core.create_table_native(0, 0, 3, 1, 1).unwrap();
+    let mut document = core.document().clone();
+    let paragraphs = &mut document.sections[0].paragraphs;
+    let at = paragraphs
+        .iter()
+        .position(|p| p.controls.iter().any(|c| matches!(c, Control::Table(_))))
+        .expect("표 문단");
+    let mut table = paragraphs.remove(at).controls.remove(0);
+    if let Control::Table(table) = &mut table {
+        table.common.treat_as_char = false;
+        table.common.text_wrap = TextWrap::Square;
+        table.common.vert_rel_to = VertRelTo::Para;
+        table.common.vertical_offset = 0;
+    }
+    let mut second = paragraphs[0].clone();
+    second.text = "둘째 단".into();
+    second.column_type = rhwp::model::paragraph::ColumnBreakType::Column;
+    second.controls = vec![table];
+    paragraphs.push(second);
+    let bytes = docx_from_document(&document).unwrap();
+    let xml = part_text(&bytes, "word/document.xml");
+    let column_break = xml.find(r#"<w:br w:type="column"/>"#).expect("단 나누기");
+    let table_at = xml.find("<w:tbl>").expect("표");
+    assert!(column_break < table_at, "단 나누기가 표 앞: {xml}");
+    assert_eq!(
+        xml.matches(r#"<w:br w:type="column"/>"#).count(),
+        1,
+        "{xml}"
+    );
+    assert!(xml.contains(r#"papy:wrap="square""#), "{xml}");
+    let fonts = part_text(&bytes, "word/fontTable.xml");
+    assert!(fonts.contains(r#"papy:fontspace="0""#), "{fonts}");
+
+    let (_, report) = docx_to_html(&bytes).unwrap();
+    assert!(report.no_font_space);
+    assert!(
+        report
+            .table_places
+            .iter()
+            .any(|place| place.contains(r#""textWrap":"Square""#)),
+        "{:?}",
+        report.table_places
+    );
+
+    // "글꼴에 어울리는 빈칸"을 쓰는 글자가 있으면 표시하지 않는다(다시 열 때 Word 처럼 글꼴 폭으로 잰다).
+    for shape in &mut document.doc_info.char_shapes {
+        shape.use_font_space = true;
+    }
+    let bytes = docx_from_document(&document).unwrap();
+    assert!(!part_text(&bytes, "word/fontTable.xml").contains("papy:fontspace"));
+    assert!(!docx_to_html(&bytes).unwrap().1.no_font_space);
+}
+
 #[test]
 fn numbering_note_marks_and_page_fields_are_written() {
     use rhwp::model::control::{AutoNumber, AutoNumberType, Control, PageNumberPos};
@@ -907,7 +969,7 @@ fn numbering_note_marks_and_page_fields_are_written() {
     numbering.level_formats[0] = "^1.".into();
     numbering.level_formats[1] = "^1.^2)".into();
     numbering.heads[0].number_format = 8;
-    numbering.level_start_numbers = [1; 7];
+    numbering.level_start_numbers.fill(1);
     document.doc_info.numberings.push(numbering);
     let numbering_id = document.doc_info.numberings.len() as u16;
     let mut shape = document.doc_info.para_shapes[0].clone();
@@ -1214,7 +1276,10 @@ fn pictures_captions_inline_tables_links_and_memos_are_written() {
         .find(r#"<w:p papy:caption="top">"#)
         .expect("top caption");
     assert!(top < xml.find("<w:tbl>").unwrap_or(0), "{xml}");
-    assert!(xml.contains(r#"<w:tblPr papy:inline="1">"#), "{xml}");
+    assert!(
+        xml.contains(r#"<w:tblPr papy:inline="1" papy:outer=""#),
+        "{xml}"
+    );
     // 하이퍼링크·메모
     assert!(xml.contains(r#"<w:hyperlink r:id="rIdLink1">"#), "{xml}");
     assert!(
@@ -1295,10 +1360,8 @@ fn latin_and_east_asian_fonts_are_kept_apart() {
 
 /// 번호 목록 표시 글자(정의 번호, 수준)
 fn list_mark(def: u32, level: u32) -> String {
-    format!(
-        "{LIST_MARK}{}",
-        char::from_u32(crate::LIST_CODE_BASE + def * 8 + level).unwrap()
-    )
+    let [high, low] = crate::code_chars((def * 8 + level) as usize);
+    format!("{LIST_MARK}{high}{low}")
 }
 
 #[test]

@@ -1029,7 +1029,8 @@ fn docx_group_shapes_are_unpacked() {
         column(|p| p[2] > 200 && p[0] < 60 && p[1] < 60),
     );
     assert!(blue_x > red_x + 60, "red x {red_x}, blue x {blue_x}");
-    let text = doc.extract_text(0).unwrap();
+    // 글은 그대로 남는다(rhwp 0.9 는 도형 왼쪽 좁은 틈에도 글을 흘려 줄이 나뉠 수 있다).
+    let text = doc.extract_text(0).unwrap().replace('\n', "");
     assert!(text.contains("묶음 앞 묶음 뒤"), "{text:?}");
     // DOCX 로 저장하면 도형 둘(묶음은 풀린 채)
     let body = zip_text(&doc.save(SaveFormat::Docx).unwrap(), "word/document.xml");
@@ -1320,9 +1321,9 @@ fn caret_positions_around_inline_picture() {
         .hit_test(0, rect.x + rect.width + 200.0, rect.y + rect.height - 3.0)
         .unwrap();
     assert_eq!(end.offset, 9);
-    // 그림 바로 뒤를 누르면 그 자리
+    // 그림 바로 뒤(글줄 높이)를 누르면 그 자리
     let hit = doc
-        .hit_test(0, rect.x + rect.width + 0.5, rect.y + rect.height - 3.0)
+        .hit_test(0, rect.x + rect.width + 0.5, after.y + after.height / 2.0)
         .unwrap();
     assert_eq!(hit.offset, 4, "{hit:?}");
     // 위아래로 옮겨도 문단 안 자리다
@@ -2469,11 +2470,11 @@ fn docx_round_trip_keeps_structure() {
     assert!(
         text.contains("성명: 홍길동 날짜: ")
             && !text.contains("여기를 누르세요")
-            && !text.contains('\u{E0EA}'),
+            && !text.contains('\u{E01A}'),
         "{text:?}"
     );
     assert!(
-        !text.contains('\u{E0EC}') && text.contains("번호 하나"),
+        !text.contains('\u{E01C}') && text.contains("번호 하나"),
         "{text:?}"
     );
     // 위치 탭(ptab)은 탭으로 읽는다(전에는 빠져 "꼬리말오른쪽" 으로 붙었다).
@@ -2639,4 +2640,192 @@ fn docx_master_pages_round_trip() {
         headers.contains(r#"papy:master="odd""#) && headers.contains(r#"papy:master="even""#),
         "{headers}"
     );
+}
+
+/// Word 는 묶음 빈칸(U+00A0)을 글꼴의 빈칸 폭으로 잰다. 한/글처럼 반각으로 재면 시험지의 밑줄 빈칸 줄
+/// (`Woman: ` + 밑줄 친 묶음 빈칸 48개)이 단 폭을 넘어 접히고 쪽이 는다(rhwp 패치 0022, exam_eng 8 → 9쪽).
+#[test]
+fn docx_no_break_spaces_use_font_space_width() {
+    let ppr =
+        r#"<w:pPr><w:spacing w:line="345" w:lineRule="atLeast"/><w:jc w:val="both"/></w:pPr>"#;
+    let rpr =
+        r#"<w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="23"/>"#;
+    let blank = "\u{00A0}".repeat(48);
+    let document = format!(
+        r#"<w:document xmlns:w="w"><w:body><w:p>{ppr}<w:r><w:rPr>{rpr}</w:rPr><w:t xml:space="preserve">Woman: </w:t></w:r><w:r><w:rPr>{rpr}<w:u w:val="single"/></w:rPr><w:t xml:space="preserve">{blank}</w:t></w:r></w:p><w:p><w:r><w:t>뒤</w:t></w:r></w:p><w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"/><w:cols w:num="2" w:space="400"/></w:sectPr></w:body></w:document>"#
+    );
+    let bytes = zip_parts(&[
+        ("[Content_Types].xml", "<Types/>"),
+        ("word/document.xml", &document),
+    ]);
+    let mut doc = open(HwpBackend::docx(), bytes, &options()).unwrap();
+    let first = doc.caret_rect(pos(0, 0)).unwrap();
+    let next = doc.caret_rect(pos(1, 0)).unwrap();
+    // 한 줄에 든다(다음 문단이 한 줄 아래).
+    assert!(next.y - first.y < first.height * 1.8, "{first:?} {next:?}");
+}
+
+/// 쪽 나누기 표시를 지운 뒤(일괄 편집 중이라 쪽을 다시 짜지 않았다) 떠 있는 그림 자리를 재면 rhwp 0.9 가 낡은 조판으로
+/// 그리다 멈췄다(HWP → DOCX → 다시 열기, test-image.hwpx·시험지). 그림 자리는 일괄 편집 전에 잰다.
+#[test]
+fn docx_floating_picture_before_page_break_with_inline_picture_opens() {
+    use std::io::Write;
+    let blip = r#"<a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="rId9"/></pic:blipFill></pic:pic></a:graphicData></a:graphic>"#;
+    let floating = format!(
+        r#"<w:r><w:drawing><wp:anchor behindDoc="0"><wp:positionH relativeFrom="column"><wp:posOffset>0</wp:posOffset></wp:positionH><wp:positionV relativeFrom="paragraph"><wp:posOffset>0</wp:posOffset></wp:positionV><wp:extent cx="1905000" cy="952500"/><wp:wrapNone/><wp:docPr id="1"/>{blip}</wp:anchor></w:drawing></w:r>"#
+    );
+    let inline = format!(
+        r#"<w:r><w:drawing><wp:inline><wp:extent cx="1905000" cy="952500"/><wp:docPr id="2"/>{blip}</wp:inline></w:drawing></w:r>"#
+    );
+    let document = format!(
+        r#"<w:document xmlns:w="w" xmlns:wp="wp" xmlns:a="a" xmlns:pic="pic" xmlns:r="r"><w:body><w:p>{floating}<w:r><w:t>자리차지</w:t></w:r></w:p><w:p><w:r><w:br w:type="page"/></w:r>{inline}<w:r><w:t>글자처럼 취급</w:t></w:r></w:p></w:body></w:document>"#
+    );
+    let rels = r#"<Relationships xmlns="r"><Relationship Id="rId9" Type="image" Target="media/red.png"/></Relationships>"#;
+    let mut buffer = std::io::Cursor::new(Vec::new());
+    let mut zip = zip::ZipWriter::new(&mut buffer);
+    let zip_options = zip::write::SimpleFileOptions::default();
+    for (name, bytes) in [
+        ("[Content_Types].xml", &b"<Types/>"[..]),
+        ("word/document.xml", document.as_bytes()),
+        ("word/_rels/document.xml.rels", rels.as_bytes()),
+        ("word/media/red.png", RED_PNG),
+    ] {
+        zip.start_file(name, zip_options).unwrap();
+        zip.write_all(bytes).unwrap();
+    }
+    zip.finish().unwrap();
+    let mut doc = open(HwpBackend::docx(), buffer.into_inner(), &options()).unwrap();
+    assert_eq!(doc.info().page_count, 2);
+    assert!(doc.extract_text(1).unwrap().contains("글자처럼 취급"));
+}
+
+/// Papy 가 쓴 DOCX 가 "원본은 글꼴에 어울리는 빈칸을 쓰지 않았다"(`papy:fontspace="0"`)고 적어 두었으면 다시 열 때
+/// 그 설정을 켜지 않는다(켜면 한글 문서의 반각 빈칸이 글꼴 폭으로 넓어진다). 표시가 없으면 Word 처럼 켠다.
+#[test]
+fn docx_font_space_follows_papy_mark() {
+    let document = r#"<w:document xmlns:w="w"><w:body><w:p><w:r><w:t xml:space="preserve">빈칸 있는 글 하나</w:t></w:r></w:p></w:body></w:document>"#;
+    let uses = |fonts: &str| {
+        let bytes = zip_parts(&[
+            ("[Content_Types].xml", "<Types/>"),
+            ("word/document.xml", document),
+            ("word/fontTable.xml", fonts),
+        ]);
+        let mut doc = open(HwpBackend::docx(), bytes, &options()).unwrap();
+        let core = DocumentCore::from_bytes(&doc.save(SaveFormat::Hwp).unwrap()).unwrap();
+        let info = &core.document().doc_info;
+        let on = core.document().sections[0]
+            .paragraphs
+            .iter()
+            .filter(|p| !p.text.is_empty())
+            .flat_map(|p| &p.char_shapes)
+            .any(|run| info.char_shapes[run.char_shape_id as usize].use_font_space);
+        let docx = doc.save(SaveFormat::Docx).unwrap();
+        (
+            on,
+            zip_text(&docx, "word/fontTable.xml").contains(r#"papy:fontspace="0""#),
+        )
+    };
+    let marked = r#"<w:fonts xmlns:w="w" xmlns:papy="urn:papy:docx" papy:fontspace="0"/>"#;
+    assert_eq!(
+        uses(marked),
+        (false, true),
+        "표시가 있으면 끄고, 다시 써도 표시가 남는다"
+    );
+    assert_eq!(
+        uses(r#"<w:fonts xmlns:w="w"/>"#),
+        (true, false),
+        "표시가 없으면 켠다"
+    );
+}
+
+/// 한글 시험지 답 줄(①~⑤, 글자처럼 둔 여백 0 표)을 DOCX 로 옮겼다 다시 열면 "ㄱ, ㄴ, ㄷ" 칸이 두 줄로 접히고 줄마다
+/// 높아져 단이 넘쳤다(exam_science 4 → 7쪽, rhwp 0.9). 원인 둘: HFT 글꼴이 TTF 로 다시 만들어져 쉼표를 한글 글꼴 폭으로
+/// 쟀고(rhwp #7418 은 HFT 일 때만 영문 폭), 표 바깥 여백이 붙여넣기 기본값(위아래 1mm)으로 줄 높이에 남았다.
+#[test]
+fn docx_exam_answer_row_keeps_hft_fonts_and_outer_margins() {
+    let cell = |width: u32, text: &str| {
+        format!(
+            r#"<w:tc><w:tcPr><w:tcW w:w="{width}" w:type="dxa"/><w:vAlign w:val="center"/></w:tcPr><w:p><w:pPr><w:spacing w:line="322" w:lineRule="atLeast" papy:linePercent="140"/><w:ind w:left="226" w:hanging="226"/><w:jc w:val="both"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="한양신명조" w:hAnsi="한양신명조" w:eastAsia="신명 중명조"/><w:spacing w:val="-11"/><w:w w:val="95"/><w:sz w:val="23"/></w:rPr><w:t xml:space="preserve">{text}</w:t></w:r></w:p></w:tc>"#
+        )
+    };
+    let cells: String = [
+        "①",
+        "ㄱ",
+        "②",
+        "ㄴ",
+        "③",
+        "ㄱ, ㄴ",
+        "④",
+        "ㄴ, ㄷ",
+        "⑤",
+        "ㄱ, ㄴ, ㄷ",
+    ]
+    .iter()
+    .enumerate()
+    .map(|(i, text)| cell(if i % 2 == 0 { 278 } else { 957 }, text))
+    .collect();
+    let grid = r#"<w:gridCol w:w="278"/><w:gridCol w:w="957"/>"#.repeat(5);
+    let document = format!(
+        r#"<w:document xmlns:w="w" xmlns:papy="urn:papy:docx"><w:body><w:p><w:r><w:t>문제</w:t></w:r></w:p><w:tbl><w:tblPr papy:inline="1" papy:outer="0,0,0,0"><w:tblW w:w="0" w:type="auto"/><w:tblLayout w:type="fixed"/><w:tblCellMar><w:top w:w="0" w:type="dxa"/><w:left w:w="0" w:type="dxa"/><w:bottom w:w="0" w:type="dxa"/><w:right w:w="0" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid>{grid}</w:tblGrid><w:tr><w:trPr><w:trHeight w:val="286" w:hRule="atLeast"/></w:trPr>{cells}</w:tr></w:tbl><w:p><w:r><w:t>뒤</w:t></w:r></w:p><w:sectPr><w:pgSz w:w="20636" w:h="29197"/><w:pgMar w:top="1984" w:right="1060" w:bottom="1700" w:left="1060"/><w:cols w:num="2" w:space="1134"/></w:sectPr></w:body></w:document>"#
+    );
+    let fonts = r#"<w:fonts xmlns:w="w" xmlns:papy="urn:papy:docx"><w:font w:name="신명 중명조" papy:hft="1"/><w:font w:name="한양신명조" papy:hft="1"/></w:fonts>"#;
+    let bytes = zip_parts(&[
+        ("[Content_Types].xml", "<Types/>"),
+        ("word/document.xml", &document),
+        ("word/fontTable.xml", fonts),
+    ]);
+    let mut doc = open(HwpBackend::docx(), bytes, &options()).unwrap();
+    let core = DocumentCore::from_bytes(&doc.save(SaveFormat::Hwp).unwrap()).unwrap();
+    let info = &core.document().doc_info;
+    for name in ["신명 중명조", "한양신명조"] {
+        assert!(
+            info.font_faces[..2]
+                .iter()
+                .flatten()
+                .filter(|font| font.name == name)
+                .all(|font| font.alt_type == 2),
+            "{name} 은 HFT"
+        );
+    }
+    let (host, table) = core.document().sections[0]
+        .paragraphs
+        .iter()
+        .find_map(|p| {
+            p.controls.iter().find_map(|c| match c {
+                rhwp::model::control::Control::Table(t) => Some((p, t)),
+                _ => None,
+            })
+        })
+        .expect("답 줄 표");
+    assert_eq!(
+        (
+            table.outer_margin_top,
+            table.outer_margin_bottom,
+            table.outer_margin_right
+        ),
+        (0, 0, 0)
+    );
+    let last = table.cells.last().unwrap();
+    assert_eq!(last.paragraphs[0].text, "ㄱ, ㄴ, ㄷ");
+    assert_eq!(
+        last.paragraphs[0].line_segs.len(),
+        1,
+        "칸 글이 한 줄에 든다"
+    );
+    // 표를 담은 문단 줄 높이가 표 높이와 같다(바깥 여백이 없다).
+    let line = host.line_segs[0].line_height;
+    assert!(
+        (line - table.common.height as i32).abs() <= 2,
+        "줄 {line} 표 {}",
+        table.common.height
+    );
+    // 다시 DOCX 로 저장해도 두 표시가 남는다(왕복을 거듭해도 같다).
+    let again = doc.save(SaveFormat::Docx).unwrap();
+    let fonts = zip_text(&again, "word/fontTable.xml");
+    assert!(
+        fonts.contains(r#"w:name="한양신명조" papy:hft="1""#),
+        "{fonts}"
+    );
+    let body = zip_text(&again, "word/document.xml");
+    assert!(body.contains(r#"papy:inline="1" papy:outer="0,0,0,0""#));
 }

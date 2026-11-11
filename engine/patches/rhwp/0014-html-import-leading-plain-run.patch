@@ -1,13 +1,13 @@
 Papy 패치: HTML 붙여넣기에서 첫 서식 구간 앞의 평문이 첫 구간의 글자 모양(굵게 등)을 따라가던 것을 바로잡는다.
 
-rhwp v0.8.7(1a76570e).
+rhwp v0.9.0(c9095c5f).
 <p>평문 <span style="font-weight:bold">굵게</span></p> 처럼 서식 구간 앞에 평문이 있으면 그 평문은 구간을 열지 않아 글자 모양 참조가
 없다. 표 칸 안 문단은 처음 자리(0)에 참조가 없어 첫 구간의 모양이 문단 처음부터 적용된다. Word 문서의 표 칸 글이 화면에서
 굵게 보이고 HWPX 로 저장하면 그대로 굳었다(POI 문서 18개, 굵은 글자 316 → 594). 평문 구간과 같은 기본 모양으로 처음부터 덮는다.
 
 --- a/src/document_core/commands/html_import/inline_content.rs
 +++ b/src/document_core/commands/html_import/inline_content.rs
-@@ -119,6 +119,15 @@
+@@ -129,6 +129,15 @@
              })
              .collect();
  

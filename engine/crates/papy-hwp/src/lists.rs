@@ -4,7 +4,7 @@
 //! 정의를 [`papy_office::ListDef`] 로 넘긴다. 표시를 지우고 문단 모양의 머리(번호·글머리표)·번호 정의·수준을 맞춘다.
 //! 종전에는 번호를 글자로 넣어 한글에서 번호 목록으로 고칠 수 없었고, 다시 저장하면 번호가 글자로 남았다.
 
-use papy_office::{LIST_CODE_BASE, LIST_MARK, ListDef};
+use papy_office::{LIST_MARK, ListDef, code_value};
 use rhwp::model::control::Control;
 use rhwp::model::document::DocInfo;
 use rhwp::model::paragraph::Paragraph;
@@ -85,12 +85,12 @@ fn walk(
     }
 }
 
-/// 문단 맨 앞(앞 빈칸·자리 표시 뒤)의 목록 표시 두 글자를 지우고 (정의 번호, 수준)을 돌려준다.
+/// 문단 맨 앞(앞 빈칸·자리 표시 뒤)의 목록 표시 세 글자를 지우고 (정의 번호, 수준)을 돌려준다.
 fn take_mark(paragraph: &mut Paragraph) -> Option<(usize, u8)> {
-    let chars: Vec<char> = paragraph.text.chars().take(8).collect();
+    let chars: Vec<char> = paragraph.text.chars().take(9).collect();
     let offset = chars.iter().position(|c| *c == LIST_MARK)?;
-    let code = u32::from(*chars.get(offset + 1)?).checked_sub(LIST_CODE_BASE)?;
-    paragraph.delete_text_at(offset, 2);
+    let code = code_value(*chars.get(offset + 1)?, *chars.get(offset + 2)?)?;
+    paragraph.delete_text_at(offset, 3);
     Some(((code / 8) as usize, (code % 8) as u8))
 }
 
