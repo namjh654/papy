@@ -1,6 +1,6 @@
 //! DOCX 번호 목록을 한글 문단 번호·글머리표로 되돌린다(본문 HTML 을 붙여넣고 각주·도형·캡션을 넣은 뒤).
 //!
-//! papy-office 는 본문·표 칸의 번호 목록 문단 맨 앞에 [`papy_office::LIST_MARK`] 와 정의·수준 글자를 두고
+//! papy-office 는 번호 목록 문단(본문·머리말·꼬리말과 그 안 표 칸) 맨 앞에 [`papy_office::LIST_MARK`] 와 정의·수준 글자를 두고
 //! 정의를 [`papy_office::ListDef`] 로 넘긴다. 표시를 지우고 문단 모양의 머리(번호·글머리표)·번호 정의·수준을 맞춘다.
 //! 종전에는 번호를 글자로 넣어 한글에서 번호 목록으로 고칠 수 없었고, 다시 저장하면 번호가 글자로 남았다.
 
@@ -79,6 +79,23 @@ fn walk(
                         );
                     }
                 }
+                // 머리말·꼬리말 안 목록
+                Control::Header(header) => walk(
+                    &mut header.paragraphs,
+                    info,
+                    lists,
+                    made,
+                    touched,
+                    depth + 1,
+                ),
+                Control::Footer(footer) => walk(
+                    &mut footer.paragraphs,
+                    info,
+                    lists,
+                    made,
+                    touched,
+                    depth + 1,
+                ),
                 _ => {}
             }
         }

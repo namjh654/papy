@@ -171,6 +171,8 @@ impl HwpBackend {
             guard(|| repair::repair_inline_pictures(&mut doc))?;
         }
         options.cancel.check()?;
+        // Papy 가 다른 형식(DOCX·DOC)에서 옮겨 저장한 문서: 조판 표식을 되살린다([`FOREIGN_MARK`]).
+        guard(|| restore_foreign(&mut doc))?;
 
         let page_count = doc.page_count();
         if page_count > options.max_pages {
@@ -574,6 +576,91 @@ fn mark_hft_fonts(doc: &mut Rhwp, names: &[String]) {
     doc.set_document(document);
 }
 
+/// "다른 형식에서 옮긴 문서" 표식: 쓰이지 않는 글꼴 이름으로 문서 글꼴 목록에 남긴다.
+///
+/// rhwp 는 다른 형식에서 옮긴 문서를 한글 문서와 다른 규칙으로 조판한다(패치 0018: 저장된 줄 자리를 한글 배치로
+/// 믿지 않는다, 패치 0022: 묶음 빈칸 폭). 이 표식들은 HWP·HWPX 에 저장되지 않아, DOCX 에서 연 문서를 HWP 로
+/// 저장했다 다시 열면 규칙이 바뀌어 쪽이 늘었다(exam-kor-4p 4 → 6쪽). 글꼴 목록은 두 형식 모두 그대로 저장되고
+/// 한글은 쓰이지 않는 글꼴을 보여 주지 않으므로, 여기에 표식을 남겨 열 때 되살린다([`restore_foreign`]).
+pub(crate) const FOREIGN_MARK: &str = "Papy Layout Word";
+/// [`FOREIGN_MARK`] 에 더해 묶음 빈칸을 글꼴의 빈칸 폭으로 잰다(`nbsp_font_space`).
+pub(crate) const FOREIGN_MARK_FONT_SPACE: &str = "Papy Layout Word Space";
+
+/// [`FOREIGN_MARK`] 가 있는 문서(Papy 가 다른 형식에서 옮겨 저장한 HWP·HWPX)의 조판 표식을 되살린다.
+fn restore_foreign(doc: &mut Rhwp) {
+    let mark = doc
+        .document()
+        .doc_info
+        .font_faces
+        .iter()
+        .flatten()
+        .map(|font| font.name.as_str())
+        .find(|name| *name == FOREIGN_MARK || *name == FOREIGN_MARK_FONT_SPACE);
+    let Some(font_space) = mark.map(|name| name == FOREIGN_MARK_FONT_SPACE) else {
+        return;
+    };
+    let mut document = doc.document().clone();
+    document.provenance.foreign_import = true;
+    document.doc_info.nbsp_font_space = font_space;
+    doc.set_document(document);
+}
+
+/// 붙여넣은 빈 문단에 줄 높이와 맞는 글자 모양을 준다.
+///
+/// rhwp HTML 붙여넣기는 빈 문단의 글자 크기를 줄 정보에만 남기고 글자 모양은 주지 않는다. HWP 는 줄 정보를
+/// 저장해 그대로 열리지만, HWPX 는 rhwp 가 만든 줄 정보를 쓰지 않아 다시 열면 기본 글자 모양(10pt)으로 줄을
+/// 다시 잰다. 9pt 빈 줄이 10pt 가 되어 꽉 찬 단이 넘치고 쪽이 늘었다(exam-kor-1p DOCX → HWPX 1 → 2쪽).
+fn pin_empty_paragraph_sizes(doc: &mut Rhwp) {
+    use rhwp::model::paragraph::CharShapeRef;
+    let document = doc.document_mut();
+    let Some(base) = document.doc_info.char_shapes.first().cloned() else {
+        return;
+    };
+    let mut changed = false;
+    for section in &mut document.sections {
+        for paragraph in &mut section.paragraphs {
+            if !paragraph.text.is_empty()
+                || !paragraph.controls.is_empty()
+                || !paragraph.char_shapes.is_empty()
+            {
+                continue;
+            }
+            let [line] = paragraph.line_segs.as_slice() else {
+                continue;
+            };
+            let size = line.text_height;
+            if size <= 0 || size == base.base_size {
+                continue;
+            }
+            let shapes = &mut document.doc_info.char_shapes;
+            let id = shapes
+                .iter()
+                .position(|shape| {
+                    shape.base_size == size
+                        && shape.font_ids == base.font_ids
+                        && shape.ratios == base.ratios
+                        && shape.spacings == base.spacings
+                        && shape.use_font_space == base.use_font_space
+                })
+                .unwrap_or_else(|| {
+                    let mut shape = base.clone();
+                    shape.base_size = size;
+                    shape.raw_data = None;
+                    shapes.push(shape);
+                    shapes.len() - 1
+                });
+            paragraph.char_shapes = vec![CharShapeRef {
+                start_pos: 0,
+                char_shape_id: id as u32,
+            }];
+            changed = true;
+        }
+    }
+    if changed {
+        document.doc_info.raw_stream_dirty = true;
+    }
+}
+
 /// 다른 형식을 붙여넣어 만드는 빈 문서를 준비한다.
 /// - 출처를 "다른 형식에서 옮김"으로 표시한다(rhwp 패치 0018: 저장 vpos 가 한글 배치가 아니라 떠 있는 표 흐름을 따로 맞춘다).
 /// - Word 는 빈칸을 늘 글꼴의 빈칸 너비로 잰다. 붙여넣어 만드는 글자 모양이 바탕 글자 모양을 이어받으므로
@@ -581,6 +668,12 @@ fn mark_hft_fonts(doc: &mut Rhwp, names: &[String]) {
 ///   다만 Papy 가 쓴 DOCX 가 원본 한글 문서에 그 설정이 없었다고 적어 두었으면(`no_font_space`) 켜지 않는다
 ///   (켜면 빈칸이 넓어져 줄이 접히고 쪽이 늘었다, exam_kor 13쪽).
 fn prepare_foreign(doc: &mut Rhwp, font_space: bool) {
+    // 저장한 뒤 다시 열어도 같은 조판 규칙을 쓰도록 표식 글꼴을 등록한다([`FOREIGN_MARK`]).
+    doc.find_or_create_font_id_native(if font_space {
+        FOREIGN_MARK_FONT_SPACE
+    } else {
+        FOREIGN_MARK
+    });
     let mut document = doc.document().clone();
     document.provenance.foreign_import = true;
     if font_space {
@@ -687,6 +780,7 @@ fn open_converted(
         dropped += comments::apply(&mut doc, &report.comment_marks);
         comments::bookmarks(&mut doc, &report.bookmarks);
         lists::apply(&mut doc, &report.lists);
+        pin_empty_paragraph_sizes(&mut doc);
         doc.end_batch_native()?;
         Ok((doc, dropped))
     })?

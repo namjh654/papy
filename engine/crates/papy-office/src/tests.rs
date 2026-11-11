@@ -420,6 +420,7 @@ fn forms_and_equations_are_written() {
         &std::collections::HashMap::new(),
         Some(&render),
         true,
+        &[],
     )
     .unwrap();
     let xml = part_text(&pictured, "word/document.xml");
@@ -1408,4 +1409,94 @@ fn xor_obfuscated_doc_opens_with_password() {
     }
     let (html, _) = crate::doc_to_html_with_password(&hidden, Some("secret")).unwrap();
     assert_eq!(html, expected);
+}
+
+/// 마지막 쪽 확장 바탕쪽에만 있는 개체(시험지 "확인 사항" 상자)는 구역 끝 문단에 떠 있는 표로 쓴다.
+/// 기본 바탕쪽에도 있는 개체(쪽 틀)는 머리말로만 쓴다. 전에는 확장 바탕쪽을 통째로 빼서 상자가 사라졌다.
+#[test]
+fn last_page_master_objects_are_written_at_section_end() {
+    use rhwp::model::control::Control;
+    use rhwp::model::header_footer::{HeaderFooterApply, MasterPage};
+    use rhwp::model::shape::{HorzRelTo, VertRelTo};
+    let mut core = rhwp::document_core::DocumentCore::new_empty();
+    core.create_blank_document_native().unwrap();
+    core.create_table_native(0, 0, 0, 1, 1).unwrap();
+    let mut document = core.document().clone();
+    let host = &mut document.sections[0].paragraphs[0];
+    let mut boxed = host
+        .controls
+        .iter()
+        .find_map(|c| match c {
+            Control::Table(t) => Some(t.clone()),
+            _ => None,
+        })
+        .expect("표");
+    host.controls.retain(|c| !matches!(c, Control::Table(_)));
+    host.text = "본문".into();
+    boxed.common.treat_as_char = false;
+    boxed.common.vert_rel_to = VertRelTo::Page;
+    boxed.common.horz_rel_to = HorzRelTo::Page;
+    // 쪽 틀(기본 바탕쪽과 확장 바탕쪽에 다 있는 표): 크기가 달라 다른 개체로 본다.
+    let mut frame = boxed.clone();
+    frame.common.width += 1000;
+    frame.common.vert_rel_to = VertRelTo::Paper;
+    let paragraph_with = |controls: Vec<Control>| {
+        let mut paragraph = rhwp::model::paragraph::Paragraph::new_empty();
+        paragraph.controls = controls;
+        paragraph
+    };
+    let masters = |optional: Option<u16>| {
+        vec![
+            MasterPage {
+                apply_to: HeaderFooterApply::Both,
+                paragraphs: vec![paragraph_with(vec![Control::Table(frame.clone())])],
+                ..Default::default()
+            },
+            MasterPage {
+                apply_to: HeaderFooterApply::Both,
+                is_extension: true,
+                overlap: true,
+                replace_base: true,
+                optional_page_number: optional,
+                paragraphs: vec![paragraph_with(vec![
+                    Control::Table(frame.clone()),
+                    Control::Table(boxed.clone()),
+                ])],
+                ..Default::default()
+            },
+        ]
+    };
+    let body = |document: &rhwp::model::document::Document, pages: &[usize]| {
+        part_text(
+            &docx_from_document_with(
+                document,
+                &std::collections::HashMap::new(),
+                None,
+                true,
+                pages,
+            )
+            .unwrap(),
+            "word/document.xml",
+        )
+    };
+    // 마지막 쪽 바탕쪽: 상자만 본문 끝에(글 앞 배치 표시와 함께), 쪽 틀은 본문에 없다.
+    document.sections[0].section_def.master_pages = masters(None);
+    let xml = body(&document, &[3]);
+    assert_eq!(xml.matches("<w:tblpPr").count(), 1, "{xml}");
+    assert!(xml.contains(r#"papy:wrap="front""#), "{xml}");
+    assert!(
+        xml.find("본문").unwrap() < xml.find("<w:tblpPr").unwrap(),
+        "{xml}"
+    );
+    // 임의 쪽 바탕쪽: 그 쪽이 구역의 마지막 쪽일 때만 옮긴다.
+    document.sections[0].section_def.master_pages = masters(Some(3));
+    assert!(body(&document, &[3]).contains("<w:tblpPr"));
+    assert!(!body(&document, &[5]).contains("<w:tblpPr"));
+    assert!(!body(&document, &[]).contains("<w:tblpPr"));
+    // 첫 쪽에서 바탕쪽을 감추는 구역이 한 쪽뿐이면(또는 쪽 수를 모르면) 원본에 상자가 없다.
+    document.sections[0].section_def.master_pages = masters(None);
+    document.sections[0].section_def.hide_master_page = true;
+    assert!(!body(&document, &[1]).contains("<w:tblpPr"));
+    assert!(!body(&document, &[]).contains("<w:tblpPr"));
+    assert!(body(&document, &[2]).contains("<w:tblpPr"));
 }

@@ -74,6 +74,14 @@ impl Media<'_> {
         self.push(Some(bin_data_id), bytes)
     }
 
+    /// 등록한 그림의 바이트.
+    fn bytes(&self, bin_data_id: u16) -> Option<&[u8]> {
+        self.files
+            .iter()
+            .find(|file| file.0 == Some(bin_data_id))
+            .map(|file| file.3.as_slice())
+    }
+
     /// 만든 그림(수식 등)을 넣는다.
     fn add_bytes(&mut self, bytes: Vec<u8>) -> Option<String> {
         self.push(None, bytes)
@@ -126,11 +134,13 @@ fn write_picture(out: &mut String, media: &mut Media, picture: &Picture) {
     let Some(rel) = media.add(picture.image_attr.bin_data_id) else {
         return;
     };
+    let crop = src_rect(picture, media.bytes(picture.image_attr.bin_data_id));
     if picture.common.treat_as_char {
         write_inline_image(
             out,
             media,
             &rel,
+            &crop,
             picture.common.width,
             picture.common.height,
             0,
@@ -146,15 +156,63 @@ fn write_picture(out: &mut String, media: &mut Media, picture: &Picture) {
     );
     let graphic = format!(
         r#"<wp:docPr id="{id}" name="Picture {id}"/><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">{}</a:graphicData></a:graphic>"#,
-        pic_xml(id, &rel, (0, 0, cx, cy))
+        pic_xml(id, &rel, &crop, (0, 0, cx, cy))
     );
     write_drawing(out, &picture.common, cx, cy, &graphic);
 }
 
-/// `pic:pic`(관계 id 는 이미 등록한 것). 상자는 EMU (x, y, 너비, 높이).
-fn pic_xml(id: u32, rel: &str, (x, y, cx, cy): (i64, i64, u64, u64)) -> String {
+/// 한글 그림 자르기 → `a:srcRect`(네 변에서 잘라 낸 양, 1/1000 %). 자르지 않았으면 빈 글.
+///
+/// 한글의 자르기는 원본 좌표의 보이는 사각형(왼쪽·위·오른쪽·아래)이고, 그 좌표의 전체 크기는
+/// `imgDim` 이다. `imgDim` 이 없는 문서는 rhwp 그리기와 같은 규칙으로 잡는다(0 에서 시작하는 변의 끝점을
+/// 그림 픽셀에 맞춘 한 배율, 없으면 75 HWPUNIT/px. WMF 는 축마다 15000).
+fn src_rect(picture: &Picture, bytes: Option<&[u8]>) -> String {
+    let Some((left, top, right, bottom)) = picture.render_crop_rect() else {
+        return String::new();
+    };
+    if bottom <= top || left < 0 || top < 0 {
+        return String::new();
+    }
+    let reference = picture
+        .crop_reference_size()
+        .map(|(w, h)| (f64::from(w), f64::from(h)));
+    let reference = reference.or_else(|| {
+        let bytes = bytes?;
+        if crate::read::picture_mime(bytes) == Some("image/x-wmf") {
+            return Some((15_000.0, 15_000.0));
+        }
+        let (width, height) = crate::pixel_size(bytes)?;
+        let axis = |start: i32, end: i32, pixels: u32| {
+            (start == 0 && end > 0).then(|| f64::from(end) / f64::from(pixels))
+        };
+        let scale = match (axis(left, right, width), axis(top, bottom, height)) {
+            (Some(x), Some(y)) => x.max(y),
+            (Some(scale), None) | (None, Some(scale)) => scale,
+            (None, None) => 75.0,
+        };
+        Some((f64::from(width) * scale, f64::from(height) * scale))
+    });
+    let Some((width, height)) = reference.filter(|(w, h)| *w > 0.0 && *h > 0.0) else {
+        return String::new();
+    };
+    let part = |amount: f64, whole: f64| (amount / whole * 100_000.0).round().clamp(0.0, 100_000.0);
+    let (l, t, r, b) = (
+        part(f64::from(left), width),
+        part(f64::from(top), height),
+        part(width - f64::from(right), width),
+        part(height - f64::from(bottom), height),
+    );
+    // 0.1% 보다 작은 값은 단위를 바꾸며 생긴 오차로 본다. 다 잘라 낸 그림은 쓰지 않는다.
+    if [l, t, r, b].iter().all(|v| *v < 100.0) || l + r >= 100_000.0 || t + b >= 100_000.0 {
+        return String::new();
+    }
+    format!(r#"<a:srcRect l="{l}" t="{t}" r="{r}" b="{b}"/>"#)
+}
+
+/// `pic:pic`(관계 id 는 이미 등록한 것). `crop` 은 [`src_rect`], 상자는 EMU (x, y, 너비, 높이).
+fn pic_xml(id: u32, rel: &str, crop: &str, (x, y, cx, cy): (i64, i64, u64, u64)) -> String {
     format!(
-        r#"<pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="{id}" name="Picture {id}"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="{rel}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="{x}" y="{y}"/><a:ext cx="{cx}" cy="{cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic>"#
+        r#"<pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="{id}" name="Picture {id}"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="{rel}"/>{crop}<a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="{x}" y="{y}"/><a:ext cx="{cx}" cy="{cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic>"#
     )
 }
 
@@ -163,6 +221,7 @@ fn write_inline_image(
     out: &mut String,
     media: &mut Media,
     rel: &str,
+    crop: &str,
     width: u32,
     height: u32,
     lower: u32,
@@ -180,7 +239,7 @@ fn write_inline_image(
     let _ = write!(
         out,
         r#"<w:r>{run_props}<w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="{cx}" cy="{cy}"/><wp:docPr id="{id}" name="Picture {id}"/><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">{}</a:graphicData></a:graphic></wp:inline></w:drawing></w:r>"#,
-        pic_xml(id, rel, (0, 0, cx, cy))
+        pic_xml(id, rel, crop, (0, 0, cx, cy))
     );
 }
 
@@ -519,7 +578,8 @@ fn group_graphic(
         match child {
             ShapeObject::Picture(picture) => {
                 if let Some(rel) = media.add(picture.image_attr.bin_data_id) {
-                    children.push_str(&pic_xml(child_id, &rel, (x, y, w, h)));
+                    let crop = src_rect(picture, media.bytes(picture.image_attr.bin_data_id));
+                    children.push_str(&pic_xml(child_id, &rel, &crop, (x, y, w, h)));
                 }
             }
             _ => {
@@ -577,7 +637,7 @@ fn write_equation(out: &mut String, media: &mut Media, equation: &Equation) {
         } else {
             height.saturating_mul(100 - baseline) / 100
         };
-        write_inline_image(out, media, &rel, equation.common.width, height, lower);
+        write_inline_image(out, media, &rel, "", equation.common.width, height, lower);
         return;
     }
     let script = equation.script.trim();
@@ -2262,7 +2322,8 @@ fn font_table_xml(info: &DocInfo, no_font_space: bool) -> String {
     for lang in 0..2 {
         for font in info.font_faces.get(lang).into_iter().flatten() {
             let name = font.name.as_str();
-            if !name.is_empty() && !names.contains(&name) {
+            // "Papy Layout …" 은 Papy 가 HWP·HWPX 에 남기는 조판 표식 글꼴이다(papy-hwp `FOREIGN_MARK`).
+            if !name.is_empty() && !name.starts_with("Papy Layout ") && !names.contains(&name) {
                 names.push(name);
             }
         }
@@ -2626,6 +2687,123 @@ fn nested_header_footers<'a>(
             _ => {}
         }
     }
+}
+
+/// 개체의 자리 지문: 종류·크기·기준·위치. 바탕쪽끼리 같은 개체를 가릴 때 쓴다.
+fn placed_object_key(control: &Control) -> Option<(u8, u32, u32, String)> {
+    let (kind, common) = match control {
+        Control::Table(table) => (0, &table.common),
+        Control::Shape(shape) => (1, shape.common()),
+        Control::Picture(picture) => (2, &picture.common),
+        _ => return None,
+    };
+    Some((
+        kind,
+        common.width,
+        common.height,
+        format!(
+            "{:?}/{:?}/{}/{:?}/{:?}/{}",
+            common.vert_rel_to,
+            common.vert_align,
+            common.vertical_offset,
+            common.horz_rel_to,
+            common.horz_align,
+            common.horizontal_offset
+        ),
+    ))
+}
+
+/// 구역의 "마지막 쪽" 확장 바탕쪽에만 있는 개체를 담은 문단들.
+///
+/// Word 에는 마지막 쪽 전용 머리말이 없다. 확장 바탕쪽은 보통 기본 바탕쪽(쪽 틀)에 개체를 더한 것이므로
+/// (시험지 마지막 쪽 "확인 사항" 상자), 기본 바탕쪽에 없는 쪽·종이 기준 개체만 골라 구역의 끝 문단에 놓는다 —
+/// 구역의 끝 문단은 늘 그 구역의 마지막 쪽에 있다. 전에는 확장 바탕쪽을 통째로 빼서 상자가 사라졌다.
+/// 임의 쪽 바탕쪽(몇 쪽인지 정해 둔 것)은 그 쪽이 구역의 마지막 쪽일 때만 옮긴다(다른 쪽은 그 쪽에 오는 문단을
+/// 알 수 없다). `pages` 는 이 구역의 쪽 수(모르면 None).
+///
+/// 첫 쪽에서 바탕쪽을 감추는 구역이 한 쪽뿐이면 그 쪽에는 바탕쪽이 없으니 옮기지 않는다. 쪽 수를 모르면
+/// 감추는 구역은 옮기지 않는다(없던 상자가 본문에 겹치는 것보다 빠지는 편이 낫다).
+fn last_page_master_extras(
+    section: &rhwp::model::document::Section,
+    pages: Option<usize>,
+) -> Vec<Paragraph> {
+    let hide_first = section.section_def.hide_master_page
+        || section
+            .paragraphs
+            .first()
+            .into_iter()
+            .flat_map(|p| &p.controls)
+            .any(|c| matches!(c, Control::PageHide(h) if h.hide_master_page));
+    if hide_first && pages.is_none_or(|pages| pages <= 1) {
+        return Vec::new();
+    }
+    let masters = &section.section_def.master_pages;
+    let base: Vec<_> = masters
+        .iter()
+        .filter(|m| !m.is_extension)
+        .flat_map(|m| &m.paragraphs)
+        .flat_map(|p| &p.controls)
+        .filter_map(placed_object_key)
+        .collect();
+    let mut seen = Vec::new();
+    let mut extras = Vec::new();
+    for master in masters.iter().filter(|m| {
+        m.is_extension
+            && m.optional_page_number
+                .is_none_or(|number| pages == Some(usize::from(number)))
+    }) {
+        for paragraph in &master.paragraphs {
+            let controls: Vec<Control> = paragraph
+                .controls
+                .iter()
+                .filter(|control| {
+                    let page_placed = match control {
+                        Control::Table(table) => Some(&table.common),
+                        Control::Shape(shape) => Some(shape.common()),
+                        Control::Picture(picture) => Some(&picture.common),
+                        _ => None,
+                    }
+                    .is_some_and(|common| {
+                        !common.treat_as_char
+                            && matches!(common.vert_rel_to, VertRelTo::Page | VertRelTo::Paper)
+                    });
+                    let Some(key) = placed_object_key(control).filter(|_| page_placed) else {
+                        return false;
+                    };
+                    if base.contains(&key) || seen.contains(&key) {
+                        return false;
+                    }
+                    seen.push(key);
+                    true
+                })
+                .cloned()
+                .map(|mut control| {
+                    // 바탕쪽 개체는 본문 글을 밀지 않는다: 글 앞에 띄운 개체로 쓴다(Papy 로 다시 열면 겹친 채로,
+                    // Word 에서는 떠 있는 표·도형).
+                    match &mut control {
+                        Control::Table(table) => table.common.text_wrap = TextWrap::InFrontOfText,
+                        Control::Shape(shape) => {
+                            shape.common_mut().text_wrap = TextWrap::InFrontOfText
+                        }
+                        Control::Picture(picture) => {
+                            picture.common.text_wrap = TextWrap::InFrontOfText
+                        }
+                        _ => {}
+                    }
+                    control
+                })
+                .collect();
+            if controls.is_empty() {
+                continue;
+            }
+            // 글 없이 개체만 든 문단으로 만든다(글·글자 자리 정보는 버린다).
+            let mut extra = Paragraph::new_empty();
+            extra.para_shape_id = paragraph.para_shape_id;
+            extra.controls = controls;
+            extras.push(extra);
+        }
+    }
+    extras
 }
 
 /// 머리말·꼬리말을 부분으로 쓰고 영역([`column_regions`])마다 sectPr 참조를 돌려준다. 영역 안 본문 문단에 놓인
@@ -3071,18 +3249,22 @@ pub fn docx_from_document_with_outline(
     document: &Document,
     outline: &HashMap<(usize, usize), u8>,
 ) -> Result<Vec<u8>> {
-    docx_from_document_with(document, outline, None, true)
+    docx_from_document_with(document, outline, None, true, &[])
 }
 
 /// [`docx_from_document_with_outline`] 에 더해, 수식을 `render_equation` 이 그린 PNG 그림으로 넣는다.
 ///
 /// `hangul_source` 면 한글 문서(HWP·HWPX)다: 다단 구역의 아래 여백을 한글 조판에 맞춘다([`body_leading`]).
 /// DOCX·DOC 에서 연 문서는 Word 조판 그대로라 맞추지 않는다.
+///
+/// `section_pages` 는 구역마다 쪽 수(조판 결과, 모르면 빈 목록)다. 마지막 쪽·임의 쪽 바탕쪽의 개체를 구역 끝에
+/// 놓을지 정할 때 쓴다([`last_page_master_extras`]).
 pub fn docx_from_document_with(
     document: &Document,
     outline: &HashMap<(usize, usize), u8>,
     render_equation: Option<EquationRenderer<'_>>,
     hangul_source: bool,
+    section_pages: &[usize],
 ) -> Result<Vec<u8>> {
     let info = &document.doc_info;
     let column_leading = if hangul_source {
@@ -3153,6 +3335,11 @@ pub fn docx_from_document_with(
             if let Some(&level) = outline.get(&(section_index, paragraph_index)) {
                 set_outline_level(&mut body, start, level);
             }
+        }
+        // 마지막 쪽 바탕쪽에만 있는 개체(시험지 "확인 사항" 상자 등)는 구역 끝 문단으로 쓴다.
+        for extra in last_page_master_extras(section, section_pages.get(section_index).copied()) {
+            last_start = body.len();
+            write_paragraph(&mut body, info, &mut media, &extra, 0)?;
         }
     }
     let mut extra: Vec<Part> = Vec::new();

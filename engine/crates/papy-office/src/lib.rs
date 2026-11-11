@@ -14,12 +14,14 @@ mod doc;
 mod doc6;
 mod doc_art;
 mod doc_crypt;
+mod image_size;
 mod notes;
 mod read;
 mod shapes;
 mod write;
 
 pub use doc::{doc_to_html, doc_to_html_with_password, is_doc};
+pub use image_size::pixel_size;
 pub use notes::{
     BOOKMARK_MARK, CAPTION_MARKS, CAPTION_MORE_MARK, CLICK_HERE_TAG, COLUMN_BREAK_MARK,
     COMMENT_MARK, ClickHere, ENDNOTE_MARK, FIELD_END_MARK, FIELD_START_MARK, FOOTNOTE_MARK,

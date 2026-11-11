@@ -1055,6 +1055,18 @@ impl Document for HwpDocument {
                     .into_iter()
                     .map(|(paragraph, level)| ((0, paragraph), level))
                     .collect();
+                // 구역마다 쪽 수: 마지막 쪽 바탕쪽 개체를 구역 끝에 놓을지 정한다.
+                let mut section_pages = vec![0usize; self.doc.document().sections.len()];
+                for page in 0..self.doc.page_count() {
+                    let section = self
+                        .read("read page info", |doc| doc.get_page_info_native(page))
+                        .ok()
+                        .and_then(|info| serde_json::from_str::<Value>(&info).ok())
+                        .and_then(|info| info.get("sectionIndex")?.as_u64());
+                    if let Some(count) = section.and_then(|s| section_pages.get_mut(s as usize)) {
+                        *count += 1;
+                    }
+                }
                 guard(|| {
                     papy_office::docx_from_document_with(
                         self.doc.document(),
@@ -1064,6 +1076,7 @@ impl Document for HwpDocument {
                             self.info.format,
                             papy_model::DocumentFormat::Docx | papy_model::DocumentFormat::Doc
                         ),
+                        &section_pages,
                     )
                 })?
             }

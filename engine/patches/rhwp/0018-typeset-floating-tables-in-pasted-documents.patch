@@ -9,6 +9,8 @@ rhwp v0.9.0(c9095c5f).
 2. 문단·쪽 기준 글 앞·뒤 표: 한글처럼 흐름을 차지하지 않게 둔다.
 둘 다 다른 형식에서 옮긴 문서에만 쓴다(원본 HWP issue7500 picture_band_cell_spaces 가 1쪽으로 줄었다).
 종전에는 exam_eng 를 DOCX 로 저장했다 다시 열면 1쪽 왼쪽 단이 넘쳐 단 나누기가 다음 쪽으로 밀렸다.
+3. 저장 글줄이 없는 문단(HWPX 로 저장했다 다시 연 문서)의 자리차지 표도 1 과 같이 맞춘다. 전에는 글줄이 있어야만
+   맞춰, DOCX 에서 연 문서를 HWPX 로 저장하면 다시 열 때 표 높이만큼 단이 넘쳤다(exam-kor-1p 1 → 2쪽).
 
 --- a/src/model/provenance.rs
 +++ b/src/model/provenance.rs
@@ -101,20 +103,26 @@ rhwp v0.9.0(c9095c5f).
      };
 --- a/src/renderer/typeset/table/block/entry.rs
 +++ b/src/renderer/typeset/table/block/entry.rs
-@@ -459,8 +459,21 @@
+@@ -458,9 +458,25 @@
+             )
              && matches!(table.common.vert_rel_to, VertRelTo::Paper);
          if is_paper_floating_block && st.current_column == 0 {
-             if let Some(first_seg) = para.line_segs.first() {
+-            if let Some(first_seg) = para.line_segs.first() {
 -                let target_y =
-+                let stored_y =
-                     crate::renderer::hwpunit_to_px(first_seg.vertical_pos as i32, self.dpi);
+-                    crate::renderer::hwpunit_to_px(first_seg.vertical_pos as i32, self.dpi);
++            // [papy] 다른 형식에서 옮긴 문서의 자리차지 표는 저장 글줄 없이도 맞춘다. HWPX 로 저장하면 rhwp 가
++            // 만든 글줄을 쓰지 않아, 다시 열 때 이 경로를 못 타고 표 높이 전체를 흐름에 더했다(1 → 2쪽).
++            let foreign_reserve = matches!(table.common.text_wrap, TextWrap::TopAndBottom)
++                && st.profile.foreign_layout();
++            if !para.line_segs.is_empty() || foreign_reserve {
++                let stored_y = para.line_segs.first().map_or(0.0, |first_seg| {
++                    crate::renderer::hwpunit_to_px(first_seg.vertical_pos as i32, self.dpi)
++                });
 +                // [papy] 다른 형식에서 붙여넣어 다시 짠 문단의 저장 vpos 는 한글 배치가 아니다(구역 처음부터 쌓은 값이라
 +                // 둘째 쪽부터는 쪽 높이를 넘는다). 그 값으로 sync 하면 실패해 표 높이 전체를 흐름에 더했다(본문 위로
 +                // 빠져나간 머리 표가 단을 넘치게 함, exam_kor 구역 첫 쪽). 쪽 너비 자리차지 개체가 본문을 침범하는
 +                // 하단으로 맞춘다.
-+                let target_y = if !matches!(table.common.text_wrap, TextWrap::TopAndBottom)
-+                    || !st.profile.foreign_layout()
-+                {
++                let target_y = if !foreign_reserve {
 +                    stored_y
 +                } else {
 +                    crate::renderer::typeset::compute_body_wide_top_reserve_for_para(
@@ -124,10 +132,12 @@ rhwp v0.9.0(c9095c5f).
                  // 종이 기준 표는 본문 위에 그려져도 호스트가 저장 글줄 상자를 소유할 수 있다.
                  // 다음 저장 글줄이 그 상자 바로 뒤에서 시작하면
                  // 호스트 줄높이를 흐름에 보존한다.
-@@ -527,6 +540,34 @@
+@@ -525,6 +541,34 @@
+                     return None;
+                 }
              }
-         }
- 
++        }
++
 +        // [papy] 문단·쪽 기준 글 앞·뒤 표는 본문 흐름을 차지하지 않는다(한글과 같이 글 위·아래에 겹쳐 그린다).
 +        // 다른 형식에서 붙여넣은 문서는 저장 배치가 없어 표 높이만큼 흐름이 밀려 단이 넘쳤다.
 +        // 종이 기준 것은 위(is_paper_behind_infront)에서 다룬다.
@@ -154,8 +164,6 @@ rhwp v0.9.0(c9095c5f).
 +                styles,
 +            );
 +            return None;
-+        }
-+
+         }
+ 
          // fits: 전체가 현재 페이지에 들어가는가?
-         let is_rowbreak_para_topbottom_block = !table.common.treat_as_char
-             && matches!(table.common.text_wrap, TextWrap::TopAndBottom)

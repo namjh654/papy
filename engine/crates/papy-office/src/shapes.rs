@@ -94,6 +94,8 @@ pub struct DocxShape {
     pub text_anchor: u8,
     /// 위치 정렬(`wp:align`) (가로, 세로): 0 값(posOffset), 1 가운데, 2 오른쪽·아래, 3 안쪽, 4 바깥쪽
     pub align: (u8, u8),
+    /// 그림 자르기(`a:srcRect`): 왼쪽·위·오른쪽·아래에서 잘라 낸 양(1/1000 %). 자르지 않으면 모두 0.
+    pub crop: [u32; 4],
     /// 읽는 중에 찾은 그림·차트 관계 id. [`crate::docx_to_html`] 이 [`DocxShape::image`] 로 푼다.
     pub(crate) pending: Option<Pending>,
 }
@@ -139,6 +141,8 @@ pub(crate) struct Drawing {
     pub cx: Option<f64>,
     pub cy: Option<f64>,
     pub embed: Option<String>,
+    /// 그림 자르기(`a:srcRect`, 1/1000 %): 왼쪽·위·오른쪽·아래
+    crop: [u32; 4],
     inline: bool,
     picture: bool,
     shape: bool,
@@ -383,6 +387,14 @@ impl Drawing {
         self.embed.is_some() && (self.picture || !self.shape)
     }
 
+    /// 잘라 낸 그림 하나인가(묶음 아님).
+    pub fn is_cropped_picture(&self) -> bool {
+        self.is_picture()
+            && self.picture
+            && self.group.is_none()
+            && self.crop.iter().any(|v| *v > 0)
+    }
+
     /// 문단에 떠 있는(`wp:anchor`) 그림인가. 글자처럼 놓인 그림(`wp:inline`)은 아니다.
     pub fn is_floating_picture(&self) -> bool {
         self.is_picture() && !self.inline && self.picture && self.group.is_none()
@@ -438,6 +450,18 @@ impl Drawing {
             "wrapTight" | "wrapThrough" => self.wrap = Some(Wrap::Tight),
             "pic" => self.picture = true,
             "blip" => self.embed = self.embed.take().or_else(|| attr(e, "embed")),
+            // 그림 자르기. 음수(그림 밖으로 넓힘)는 0 으로 본다.
+            "srcRect" if self.picture && self.textbox_level == 0 => {
+                let side = |key: &str| {
+                    attr(e, key)
+                        .and_then(|v| v.parse::<i64>().ok())
+                        .map_or(0, |v| v.clamp(0, 100_000) as u32)
+                };
+                let crop = [side("l"), side("t"), side("r"), side("b")];
+                if crop[0] + crop[2] < 100_000 && crop[1] + crop[3] < 100_000 {
+                    self.crop = crop;
+                }
+            }
             "wsp" => self.shape = true,
             // 묶음 도형: 맨 바깥 묶음의 변환부터 읽는다.
             "wgp" if !empty => {
@@ -689,6 +713,7 @@ impl Drawing {
                 insets: DEFAULT_INSETS,
                 text_anchor: 0,
                 align: self.align,
+                crop: self.crop,
                 pending: Some(pending),
             });
         }
@@ -748,6 +773,7 @@ impl Drawing {
             insets: self.insets.unwrap_or(DEFAULT_INSETS),
             text_anchor: self.text_anchor,
             align: self.align,
+            crop: [0; 4],
             pending: None,
         })
     }

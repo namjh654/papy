@@ -2,7 +2,9 @@
 //!
 //! 본문 문단의 [`papy_office::SHAPE_MARK`] 자리마다 그 글자를 지우고 도형을 만든다(문서 순서 = 목록 순서).
 
-use papy_office::{CELL_SHAPE_MARK, DocxShape, Relative, SHAPE_MARK, ShapeImage, ShapeKind, Wrap};
+use papy_office::{
+    CELL_SHAPE_MARK, DocxShape, Relative, SHAPE_MARK, ShapeImage, ShapeKind, Wrap, pixel_size,
+};
 use std::collections::VecDeque;
 
 use rhwp::HwpError;
@@ -533,49 +535,28 @@ fn insert_picture(
             "textWrap": wrap_name(shape.wrap),
         })
     };
+    if shape.crop.iter().any(|v| *v > 0) {
+        // 자르기는 그림 전체 좌표(`imgDim`, 넣을 때 픽셀 × 75 HWPUNIT)의 보이는 사각형이다.
+        // rhwp 속성 API(`cropLeft`…)는 개체 크기를 기준으로 삼아 맞지 않으므로 모델에 바로 쓴다.
+        // 배치는 바뀌지 않고, 바로 뒤의 속성 설정이 그리기 캐시를 비운다.
+        if let Some(Control::Picture(picture)) = doc.document_mut().sections[0]
+            .paragraphs
+            .get_mut(para)
+            .and_then(|p| p.controls.get_mut(control))
+        {
+            let (width, height) = picture.img_dim;
+            let cut = |part: u32, whole: u32| {
+                (f64::from(part) / 100_000.0 * f64::from(whole)).round() as i32
+            };
+            let whole = |v: u32| i32::try_from(v).unwrap_or(i32::MAX);
+            picture.crop = rhwp::model::image::CropInfo {
+                left: cut(shape.crop[0], width),
+                top: cut(shape.crop[1], height),
+                right: whole(width) - cut(shape.crop[2], width),
+                bottom: whole(height) - cut(shape.crop[3], height),
+            };
+        }
+    }
     doc.set_picture_properties_native(0, para, control, &props.to_string())?;
     Ok(())
-}
-
-/// 그림 파일의 픽셀 크기(PNG·GIF·BMP·JPEG 머리).
-pub(crate) fn pixel_size(bytes: &[u8]) -> Option<(u32, u32)> {
-    let be16 = |i: usize| {
-        Some(u32::from(u16::from_be_bytes([
-            *bytes.get(i)?,
-            *bytes.get(i + 1)?,
-        ])))
-    };
-    let le16 = |i: usize| {
-        Some(u32::from(u16::from_le_bytes([
-            *bytes.get(i)?,
-            *bytes.get(i + 1)?,
-        ])))
-    };
-    let be32 = |i: usize| Some(u32::from_be_bytes(bytes.get(i..i + 4)?.try_into().ok()?));
-    let le32 =
-        |i: usize| Some(i32::from_le_bytes(bytes.get(i..i + 4)?.try_into().ok()?).unsigned_abs());
-    let size = if bytes.starts_with(b"\x89PNG") {
-        (be32(16)?, be32(20)?)
-    } else if bytes.starts_with(b"GIF8") {
-        (le16(6)?, le16(8)?)
-    } else if bytes.starts_with(b"BM") {
-        (le32(18)?, le32(22)?)
-    } else if bytes.starts_with(&[0xFF, 0xD8]) {
-        // SOFn 표지를 찾는다.
-        let mut i = 2;
-        loop {
-            if *bytes.get(i)? != 0xFF {
-                return None;
-            }
-            let marker = *bytes.get(i + 1)?;
-            let length = be16(i + 2)? as usize;
-            if matches!(marker, 0xC0..=0xCF) && !matches!(marker, 0xC4 | 0xC8 | 0xCC) {
-                break (be16(i + 7)?, be16(i + 5)?);
-            }
-            i += 2 + length;
-        }
-    } else {
-        return None;
-    };
-    (size.0 > 0 && size.1 > 0).then_some(size)
 }

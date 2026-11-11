@@ -901,7 +901,7 @@ enum InlinePicture {
     /// `<img>` 로 넣는 비트맵
     Html(String),
     /// 도형 자리로 넣는 그림(메타파일 → SVG)
-    Shape(DocxShape),
+    Shape(Box<DocxShape>),
 }
 
 /// 본문(또는 주 이야기) 한 부분을 HTML 로.
@@ -1010,7 +1010,7 @@ impl Reader<'_> {
             }
             Picture::Svg(svg) => {
                 let emu = |twip: f64| (twip.clamp(15.0, 20000.0 * 15.0) * 635.0).round() as i64;
-                Some(InlinePicture::Shape(DocxShape {
+                Some(InlinePicture::Shape(Box::new(DocxShape {
                     kind: ShapeKind::Rectangle,
                     width: emu(width_twip),
                     height: emu(height_twip),
@@ -1029,8 +1029,9 @@ impl Reader<'_> {
                     insets: crate::shapes::DEFAULT_INSETS,
                     text_anchor: 0,
                     align: (0, 0),
+                    crop: [0; 4],
                     pending: None,
-                }))
+                })))
             }
         }
     }
@@ -1133,7 +1134,7 @@ impl Reader<'_> {
                             }
                             Some(InlinePicture::Shape(shape)) if pap.depth == 0 => {
                                 para.push(SHAPE_MARK);
-                                out.shapes.push(shape);
+                                out.shapes.push(*shape);
                                 out.images += 1;
                             }
                             // 표 안 도형 자리는 rhwp 에 넣을 곳이 없다.
