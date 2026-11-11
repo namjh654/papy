@@ -83,11 +83,12 @@ PR #30(`feature/fidelity-exam-kor`)과 #31(`feature/rhwp-0.9`)을 병합한다. 
 - 웹사이트 사용법(한·영)과 `docs/formats/word.md` "알려진 한계"에 같은 내용을 넣었다.
 - 남은 확인: 데스크톱 앱을 실제로 띄워 확인 창·안내 띠 보기, iOS 빌드.
 
-### 1-4. rhwp 버전 맞추기
-- 엔진(네이티브)은 0.9.0이다. 그런데 **rhwp-studio·@rhwp/core WASM·문서 모음(`fetch-corpus.mjs` `tag: "v0.8.7"`)은 아직 0.8.7**이다.
-- ADR 0005는 편집(WASM)과 보기(네이티브)를 같은 커밋으로 고정해야 조판이 같다고 정했다. 배포 전에 셋 다 0.9.0으로 올린다.
-- studio 패치(`isUsableParentOrigin`의 `tauri:` 허용)를 다시 적용한다.
-- 고급 편집 → 내보내기 → 네이티브 재열기 확인(ADR 0005 PoC 절차)을 다시 돌린다.
+### 1-4. ~~rhwp 버전 맞추기~~ (2026-11-11 완료, 브랜치 `feature/rhwp-studio-0.9`)
+- rhwp-studio·@rhwp/core WASM·SDK 사본(`apps/desktop/src/vendor/rhwp-editor`)·문서 모음을 모두 v0.9.0(`c9095c5f`)으로 올렸다.
+- studio 빌드 결과가 41 → 65MB로 커졌다(WASM 11.8 → 26.8MB). 설치 파일도 그만큼 커진다.
+- 문서 모음: rhwp 샘플 1,268 → 1,606개. 겹치는 1,259개 가운데 기준값이 바뀐 것은 업스트림이 파일을 바꾼 PDF 2개뿐이다.
+- 점검: 헤드리스 Chrome에서 SDK로 studio를 띄워 HWP를 넣고 HWP·HWPX로 내보낸 것을 네이티브 엔진이 같은 쪽 수로 열었다([ADR 0005](../decisions/0005-rhwp-studio-editor.md)).
+- 남은 확인: studio 안에서 실제 입력(칸에 글자·행 넣기), 데스크톱 창(Tauri)에서 고급 편집 열기 — 2단계 수동 확인 때 같이 본다.
 
 ### 1-5. 남은 손실 (배포를 막지 않는 것은 뒤로)
 - 그림 자르기(`a:srcRect` ↔ 한글 그림 자르기). 시험지 머리 "국어 영역" 그림이 통째로 나온다.

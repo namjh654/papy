@@ -21,11 +21,21 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const REPO = "https://github.com/edwardkim/rhwp.git";
-const TAG = "v0.8.7";
-const COMMIT = "1a76570e833917d15817415a53c09ad61ab3203f";
-const CORE = "@rhwp/core@0.8.7";
-const CORE_INTEGRITY = "sha512-qgNpY9aclCvy9D7cPnpuplu42kUFZCCPhdjAS5HBso4Z4XeHG3uchYdUleQBoas/zEuwfJ7H4/ulepqdL/LXDA==";
-const PATHS = ["/rhwp-studio/", "/assets/fonts/", "/npm/editor/", "/LICENSE"];
+const TAG = "v0.9.0";
+const COMMIT = "c9095c5f67632e6721e800ccc7fb43ea49d26682";
+const CORE = "@rhwp/core@0.9.0";
+const CORE_INTEGRITY = "sha512-dEe9gtEM5QXAoJjX+fwgbN5KIo0a6X/wgwEg0LDcq9oY1ga5lD5vNkediFSSX4Xxs8VfFk//dbk71aMQ8J1uAQ==";
+// 0.9.0 부터 studio 가 저장소 안 npm 사본(file:../vendor/npm/ajv)을 쓴다.
+const PATHS = [
+  "/rhwp-studio/",
+  "/assets/fonts/",
+  "/npm/editor/",
+  "/vendor/npm/",
+  // 0.9.0 부터 studio 소스가 저장소의 공용 코드를 직접 가져온다(PDF 가져오기 세션, 양식 동작, 그라데이션 셰이더).
+  "/rhwp-shared/",
+  "/src/renderer/square_gradient.sksl",
+  "/LICENSE",
+];
 
 /** 업스트림 파일에 적용하는 패치: [파일, 찾을 문자열, 바꿀 문자열]. 찾지 못하면 실패한다(업스트림이 바뀐 것). */
 const PATCHES = [

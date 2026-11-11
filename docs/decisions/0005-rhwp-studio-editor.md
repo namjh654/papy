@@ -75,3 +75,13 @@ SDK(`@rhwp/editor`)는 `apps/desktop/src/vendor/rhwp-editor/` 에 들여왔다. 
 - studio 는 고친 내용이 남은 채로 페이지를 떠나면 확인 창(`beforeunload`)을 띄운다. 앱은 studio 를 열 때마다 새로 띄우고
   취소할 때 Papy 의 확인 창으로 먼저 묻기 때문에 문제없다. 같은 studio 에 문서를 바꿔 넣을 때는 `loadFile(…, { skipUnsavedGuard: true })` 가 필요하다.
 - Windows·Linux 실제 창, 한글 입력기 조합 입력은 여전히 사람이 확인해야 한다.
+
+## 0.9.0 으로 올림 (2026-11-11)
+
+엔진(네이티브)을 rhwp v0.9.0 으로 올린 데 맞춰 studio·@rhwp/core WASM·SDK 사본도 같은 커밋(`c9095c5f`)으로 올렸다.
+
+- 받는 경로가 늘었다: studio 가 저장소의 `vendor/npm/`(ajv 사본)·`rhwp-shared/`·`src/renderer/square_gradient.sksl` 을 직접 가져온다.
+- 크기: 빌드 결과 41 → 65MB(WASM 11.8 → 26.8MB). 설치 파일도 그만큼 커진다.
+- Papy 패치 둘(studio `isUsableParentOrigin` 의 `tauri:` 허용, SDK `transport.js` 의 같은 출처 허용)은 그대로 적용된다.
+- 점검(macOS, 헤드리스 Chrome): SDK 로 studio 를 띄워 `exam-kor-2p.hwp` 를 넣고 HWP·HWPX 로 내보낸 것을 네이티브 엔진이
+  원본과 같은 2쪽으로 열었다. 실제 입력(칸에 글자 넣기·행 넣기)과 데스크톱 창(Tauri) 확인은 아직 하지 않았다.
