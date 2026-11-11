@@ -119,16 +119,16 @@ PR #30(`feature/fidelity-exam-kor`)과 #31(`feature/rhwp-0.9`)을 병합한다. 
 4. 모바일: Android 릴리스 준비(R8·16KB 페이지·ABI·권한), iOS 실기기 확인. 문서 3종의 보기·편집·PDF 내보내기를 확인한다.
 5. 성능 리포트(기획서 6.1 목표 대비)를 `docs/`에 남긴다.
 
-## 3단계 — 배포 (사용자 결정 필요)
+## 3단계 — 배포
 
-먼저 물을 것: 버전 번호(예: `v0.4.0` 또는 `v1.0.0`), 시험판(rc)을 먼저 낼지, 코드 서명을 할지([code-signing.md](code-signing.md),
-지금은 서명 없음 — 첫 실행 때 OS 경고가 뜬다), 모바일 스토어에 낼지.
+2026-11-11 사용자 결정: 먼저 **v0.4.0-rc.1 시험판**을 낸다(GitHub Release에 prerelease로 올라간다). 설치 파일을 받아 확인한 뒤 문제가 없으면 v0.4.0 정식판을 낸다.
 
-1. 버전을 올린다: `apps/desktop/package.json`, `engine/Cargo.toml`(workspace), 데스크톱 Tauri 설정, 모바일 버전. 그리고 CHANGELOG·릴리스 노트를 쓴다.
-2. 앱 안 오픈소스 라이선스 화면과 고지문(1-3)을 확인한다.
-3. 사용자 승인 뒤 main에 태그를 올린다(`release.yml`이 Windows·macOS·Linux 설치 파일을 만든다). 다음을 확인한다:
-   - 설치 파일을 받아서 설치하고 문서 3종을 열어 본다.
-   - 웹사이트 내려받기 링크를 갱신한다.
+1. ~~버전을 0.4.0-rc.1로 올림~~(데스크톱 `package.json`·`tauri.conf.json`·`Cargo.toml`, 엔진 `Cargo.toml`, `release.yml` 릴리스 글).
+   모바일 버전과 웹사이트·README의 "안정판 v0.3.4" 문구는 정식판 때 바꾼다(iOS 버전 번호는 숫자만 된다).
+2. PR 병합(#30 → #31 → #32 → #33 → 버전 PR) 뒤 main에 `v0.4.0-rc.1` 태그를 올린다(`release.yml`이 Windows·macOS·Linux 설치 파일을 만든다).
+3. 시험판 확인(2단계 수동 확인과 같이 한다): 설치 파일을 받아서 설치, 문서 3종 열기·편집·저장·PDF 내보내기, 변환 고지 창·안내 띠, 고급 편집(studio 0.9).
+4. 정식판 v0.4.0: 버전을 0.4.0으로 올리고, 모바일 버전·웹사이트·README·로드맵을 갱신한 뒤 태그를 올린다.
+   그 전에 물을 것: 코드 서명을 할지([code-signing.md](code-signing.md), 지금은 서명 없음), 모바일 스토어에 낼지.
 
 ## 4단계 — PPT·PPTX (배포 뒤)
 
