@@ -60,6 +60,7 @@ pub(crate) fn apply(doc: &mut Rhwp, shapes: &[DocxShape]) -> Result<usize, HwpEr
         .first()
         .map_or(0, |s| s.paragraphs.len());
     for para in 0..paragraph_count {
+        let mut inline = false;
         loop {
             let offset = doc.document().sections[0].paragraphs[para]
                 .text
@@ -73,7 +74,16 @@ pub(crate) fn apply(doc: &mut Rhwp, shapes: &[DocxShape]) -> Result<usize, HwpEr
             next += 1;
             if insert(doc, para, offset, shape).is_err() {
                 failed += 1;
+            } else {
+                // 그림은 그림 넣기 경로가 줄을 맞춘다(다시 나누면 큰 그림 문단이 빈 쪽을 만들었다, Bug47731.doc).
+                inline |= shape.inline && shape.image.is_none();
             }
+        }
+        // rhwp 는 도형을 넣고 글줄을 다시 나누지 않아 글자처럼 놓은 도형 너비·높이가 줄에 들지 않았다
+        // (줄이 단 밖으로 넘쳤다). 한 글자 넣고 지워 글자 편집 경로로 다시 나눈다.
+        if inline {
+            doc.insert_text_native(0, para, 0, " ")?;
+            doc.delete_text_native(0, para, 0, 1)?;
         }
     }
     Ok(failed + shapes.len().saturating_sub(next))
@@ -206,7 +216,12 @@ fn insert(doc: &mut Rhwp, para: usize, offset: usize, shape: &DocxShape) -> Resu
         horizontal,
         vertical,
         shape.inline,
-        wrap_name(shape.wrap),
+        // 글자처럼 놓은 도형은 한글처럼 "위아래"(Word `wp:inline` 에는 배치가 없다)
+        if shape.inline {
+            "TopAndBottom"
+        } else {
+            wrap_name(shape.wrap)
+        },
         kind,
         shape.flip_h,
         shape.flip_v,
@@ -237,9 +252,34 @@ fn insert(doc: &mut Rhwp, para: usize, offset: usize, shape: &DocxShape) -> Resu
     if shape.kind == ShapeKind::RoundRectangle {
         props["roundRate"] = 20.into();
     }
+    if textbox {
+        // 글상자 안 여백(EMU → HWPUNIT)과 글 세로 자리
+        let [l, t, r, b] = shape.insets.map(|v| i64::from(hwpunit(v)).clamp(0, 0x7FFF));
+        props["tbMarginLeft"] = l.into();
+        props["tbMarginTop"] = t.into();
+        props["tbMarginRight"] = r.into();
+        props["tbMarginBottom"] = b.into();
+        props["tbVerticalAlign"] = match shape.text_anchor {
+            1 => "Center",
+            2 => "Bottom",
+            _ => "Top",
+        }
+        .into();
+    }
     if !shape.inline {
         props["horzRelTo"] = horz_rel(shape.horizontal.0).into();
         props["vertRelTo"] = vert_rel(shape.vertical.0).into();
+        // Word 정렬(`wp:align`) → 한글 가로·세로 정렬(가운데·오른쪽/아래)
+        match shape.align.0 {
+            1 => props["horzAlign"] = "Center".into(),
+            2 | 4 => props["horzAlign"] = "Right".into(),
+            _ => {}
+        }
+        match shape.align.1 {
+            1 => props["vertAlign"] = "Center".into(),
+            2 | 4 => props["vertAlign"] = "Bottom".into(),
+            _ => {}
+        }
     }
     doc.set_shape_properties_native(0, para, control, &props.to_string())?;
 

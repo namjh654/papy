@@ -151,6 +151,19 @@ impl Counter<'_> {
             if shape.head_type != HeadType::None {
                 self.add("para.list", 1);
             }
+            // 문단 테두리(선이 보이는 것)
+            let bordered = shape
+                .border_fill_id
+                .checked_sub(1)
+                .and_then(|i| info.border_fills.get(usize::from(i)))
+                .is_some_and(|fill| {
+                    fill.borders
+                        .iter()
+                        .any(|line| line.line_type != rhwp::model::style::BorderLineType::None)
+                });
+            if bordered {
+                self.add("para.border", 1);
+            }
         }
         // 문서 첫 문단의 나누기는 보이지 않고 Word·rhwp 로 옮기면 사라진다(세지 않는다).
         let first = std::ptr::eq(paragraph, self.first);

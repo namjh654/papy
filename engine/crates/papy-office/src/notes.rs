@@ -205,6 +205,9 @@ pub struct HeaderFooterText {
     pub shapes: Vec<crate::DocxShape>,
     /// `html` 의 표 칸 안 도형([`crate::CELL_SHAPE_MARK`] 자리, 같은 차례)
     pub cell_shapes: Vec<crate::DocxShape>,
+    /// `html` 의 맨 바깥 표마다 쪽·종이 기준 자리(`w:tblpPr`, [`crate::DocxReadReport::table_places`] 와 같은 꼴).
+    /// 바탕쪽만 쓴다.
+    pub table_places: Vec<String>,
 }
 
 /// Word 구역(첫 구역 뒤)이 시작하는 본문 문단 표시. 구역마다 하나씩 문서 순서로 둔다.

@@ -1,0 +1,49 @@
+Papy 패치: HTML 붙여넣기가 문단 CSS 테두리·배경(`border-*`, `background-color`, `papy-border-space`, `papy-border-connect`)을 문단 모양 테두리/배경으로 읽는다.
+
+rhwp v0.8.7(1a76570e). Papy 가 DOCX `w:pBdr`·`w:shd` 를 이 CSS 로 넘긴다(간격은 `w:space`, 묶지 않음은 Papy 가 쓴 `papy:connect="0"`).
+종전에는 문단 테두리가 빠져 한글 시험지의 지문 상자가 사라졌다(exam-kor-4p).
+
+--- a/src/document_core/commands/html_import/inline_content.rs
++++ b/src/document_core/commands/html_import/inline_content.rs
+@@ -484,7 +484,41 @@
+                     }
+                     None => ps.tab_def_id,
+                 };
++            }
++        }
++
++        // [Papy] 문단 테두리·배경(패치 0021): `border-left|right|top|bottom`, `background-color`,
++        // `papy-border-space: <왼> <오> <위> <아래>`(pt, 글과 테두리 사이), `papy-border-connect: 0`(묶지 않음).
++        // Papy 가 DOCX `w:pBdr`·`w:shd` 를
++        // 옮긴다. 종전에는 빠져서 한글 시험지의 지문 상자(문단 테두리)가 사라졌다.
++        let sides = ["border-left", "border-right", "border-top", "border-bottom"];
++        let background = parse_css_value(&css_lower, "background-color")
++            .and_then(|v| crate::document_core::helpers::css_color_to_hwp_bgr(&v))
++            .filter(|c| *c != 0xFFFFFF);
++        if sides.iter().any(|side| parse_css_value(&css_lower, side).is_some()) || background.is_some()
++        {
++            let mut widths = [0.0f64; 4];
++            let mut colors = [0u32; 4];
++            let mut styles = [0u8; 4];
++            for (i, side) in sides.iter().enumerate() {
++                if let Some(value) = parse_css_value(&css_lower, side) {
++                    let (w, c, st) = crate::document_core::helpers::parse_css_border_shorthand(&value);
++                    widths[i] = w;
++                    colors[i] = c;
++                    styles[i] = st;
++                }
+             }
++            ps.border_fill_id = self.create_border_fill_from_css(&widths, &colors, &styles, background);
++            // 이어진 같은 테두리 문단을 한 상자로 묶는다(attr1 비트 28, Word 처럼). `papy-border-connect: 0` 이면 따로.
++            let connect = parse_css_value(&css_lower, "papy-border-connect").is_none_or(|v| v.trim() != "0");
++            ps.attr1 = (ps.attr1 & !(1 << 28)) | (u32::from(connect) << 28);
++            if let Some(value) = parse_css_value(&css_lower, "papy-border-space") {
++                for (i, part) in value.split_whitespace().take(4).enumerate() {
++                    if let Some(pt) = parse_pt_value(part) {
++                        ps.border_spacing[i] = (pt * 100.0).round().clamp(0.0, 32767.0) as i16;
++                    }
++                }
++            }
+         }
+ 
+         // 동일한 ParaShape 검색

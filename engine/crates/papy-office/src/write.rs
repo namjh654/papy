@@ -220,13 +220,33 @@ fn write_drawing(
             }
             _ => "<wp:wrapNone/>",
         };
+        // 한글 "가운데·오른쪽(아래)" 정렬로 놓은 개체는 위치 값이 0 이다: Word 정렬(`wp:align`)로 쓴다.
+        use rhwp::model::shape::{HorzAlign, VertAlign};
+        let x = match common.horz_align {
+            HorzAlign::Center => "<wp:align>center</wp:align>".to_owned(),
+            HorzAlign::Right => "<wp:align>right</wp:align>".to_owned(),
+            HorzAlign::Inside => "<wp:align>inside</wp:align>".to_owned(),
+            HorzAlign::Outside => "<wp:align>outside</wp:align>".to_owned(),
+            HorzAlign::Left => format!(
+                "<wp:posOffset>{}</wp:posOffset>",
+                emu(common.horizontal_offset)
+            ),
+        };
+        let y = match common.vert_align {
+            VertAlign::Center => "<wp:align>center</wp:align>".to_owned(),
+            VertAlign::Bottom => "<wp:align>bottom</wp:align>".to_owned(),
+            VertAlign::Inside => "<wp:align>inside</wp:align>".to_owned(),
+            VertAlign::Outside => "<wp:align>outside</wp:align>".to_owned(),
+            VertAlign::Top => format!(
+                "<wp:posOffset>{}</wp:posOffset>",
+                emu(common.vertical_offset)
+            ),
+        };
         let _ = write!(
             out,
-            r#"<wp:anchor distT="0" distB="0" distL="0" distR="0" simplePos="0" relativeHeight="{}" behindDoc="{}" locked="0" layoutInCell="1" allowOverlap="1"><wp:simplePos x="0" y="0"/><wp:positionH relativeFrom="{horizontal}"><wp:posOffset>{}</wp:posOffset></wp:positionH><wp:positionV relativeFrom="{vertical}"><wp:posOffset>{}</wp:posOffset></wp:positionV><wp:extent cx="{cx}" cy="{cy}"/><wp:effectExtent l="0" t="0" r="0" b="0"/>{wrap}{graphic}</wp:anchor>"#,
+            r#"<wp:anchor distT="0" distB="0" distL="0" distR="0" simplePos="0" relativeHeight="{}" behindDoc="{}" locked="0" layoutInCell="1" allowOverlap="1"><wp:simplePos x="0" y="0"/><wp:positionH relativeFrom="{horizontal}">{x}</wp:positionH><wp:positionV relativeFrom="{vertical}">{y}</wp:positionV><wp:extent cx="{cx}" cy="{cy}"/><wp:effectExtent l="0" t="0" r="0" b="0"/>{wrap}{graphic}</wp:anchor>"#,
             u32::try_from(common.z_order.max(0)).unwrap_or(0) + 1,
             u8::from(behind),
-            emu(common.horizontal_offset),
-            emu(common.vertical_offset),
         );
     }
     out.push_str("</w:drawing></w:r>");
@@ -401,6 +421,25 @@ fn wsp_xml(
         }
         text.push_str("</w:txbxContent></wps:txbx>");
     }
+    // 글상자 안 여백·글 세로 자리(없으면 Word 는 왼쪽·오른쪽 0.1인치, 위·아래 0.05인치로 넓게 잡는다)
+    let body = drawing.text_box.as_ref().map_or_else(
+        || "<wps:bodyPr/>".to_owned(),
+        |text_box| {
+            let inset = |v: i16| emu(u32::from(v.max(0) as u16));
+            let anchor = match text_box.vertical_align {
+                rhwp::model::table::VerticalAlign::Center => "ctr",
+                rhwp::model::table::VerticalAlign::Bottom => "b",
+                _ => "t",
+            };
+            format!(
+                r#"<wps:bodyPr lIns="{}" tIns="{}" rIns="{}" bIns="{}" anchor="{anchor}"/>"#,
+                inset(text_box.margin_left),
+                inset(text_box.margin_top),
+                inset(text_box.margin_right),
+                inset(text_box.margin_bottom)
+            )
+        },
+    );
     let text_box_flag = if drawing.text_box.is_some() {
         r#" txBox="1""#
     } else {
@@ -412,7 +451,7 @@ fn wsp_xml(
         String::new()
     };
     Ok(Some(format!(
-        r#"<wps:wsp>{name}<wps:cNvSpPr{text_box_flag}/><wps:spPr><a:xfrm{flips}><a:off x="{x}" y="{y}"/><a:ext cx="{cx}" cy="{cy}"/></a:xfrm>{geometry}{fill}{line}</wps:spPr>{text}<wps:bodyPr/></wps:wsp>"#
+        r#"<wps:wsp>{name}<wps:cNvSpPr{text_box_flag}/><wps:spPr><a:xfrm{flips}><a:off x="{x}" y="{y}"/><a:ext cx="{cx}" cy="{cy}"/></a:xfrm>{geometry}{fill}{line}</wps:spPr>{text}{body}</wps:wsp>"#
     )))
 }
 
@@ -938,6 +977,7 @@ fn para_props_with(info: &DocInfo, paragraph: &Paragraph, list: Option<(usize, u
             r#"<w:numPr><w:ilvl w:val="{level}"/><w:numId w:val="{num_id}"/></w:numPr>"#
         );
     }
+    props.push_str(&para_border(info, shape));
     props.push_str(&tab_stops(info, shape.tab_def_id));
     // 문단 여백·간격은 HWPUNIT 의 2배 단위로 저장된다(rhwp ParaShape 규약).
     let half = |v: i32| twips(u32::try_from(v.max(0) / 2).unwrap_or(0));
@@ -2056,6 +2096,75 @@ fn cell_border_twips(info: &DocInfo, border_fill_id: u16) -> u32 {
         .unwrap_or(0)
 }
 
+/// 한글 테두리선 → Word 선 (`w:val`, `w:sz`(1/8 pt), 색). 선이 없으면 None.
+fn border_line(line: &rhwp::model::style::BorderLine) -> Option<(&'static str, u32, String)> {
+    use rhwp::model::style::BorderLineType as Line;
+    let value = match line.line_type {
+        Line::None => return None,
+        Line::Solid => "single",
+        Line::Dash | Line::LongDash => "dashed",
+        Line::Dot | Line::Circle => "dotted",
+        Line::DashDot => "dotDash",
+        Line::DashDotDot => "dotDotDash",
+        Line::Double => "double",
+        _ => "single",
+    };
+    // 1/8 pt, Word 범위 2~96
+    let mm = BORDER_WIDTH_MM[usize::from(line.width.min(15))];
+    let size = ((mm * 72.0 / 25.4 * 8.0).round() as u32).clamp(2, 96);
+    Some((
+        value,
+        size,
+        rgb(line.color).unwrap_or_else(|| "000000".into()),
+    ))
+}
+
+/// 문단 테두리·배경(`w:pBdr`, `w:shd`). 테두리와 글 사이 간격은 `w:space`(pt)로 쓴다.
+/// 이어진 문단의 같은 테두리를 Word 는 늘 한 상자로 묶고, 한글은 "문단 테두리 연결"이 켜졌을 때 묶는다.
+fn para_border(info: &DocInfo, shape: &rhwp::model::style::ParaShape) -> String {
+    let Some(fill) = shape
+        .border_fill_id
+        .checked_sub(1)
+        .and_then(|i| info.border_fills.get(i as usize))
+    else {
+        return String::new();
+    };
+    let mut out = String::new();
+    let mut sides = String::new();
+    // HWP 순서는 왼쪽·오른쪽·위·아래, Word 스키마 순서는 위·왼쪽·아래·오른쪽·사이.
+    let space = |index: usize| {
+        let hwpunit = i32::from(shape.border_spacing[index]).max(0);
+        ((hwpunit + 50) / 100).min(31)
+    };
+    for (side, index) in [("top", 2), ("left", 0), ("bottom", 3), ("right", 1)] {
+        if let Some((value, size, color)) = border_line(&fill.borders[index]) {
+            let _ = write!(
+                sides,
+                r#"<w:{side} w:val="{value}" w:sz="{size}" w:space="{}" w:color="{color}"/>"#,
+                space(index)
+            );
+        }
+    }
+    if !sides.is_empty() {
+        // 한글 "문단 테두리 연결"(attr1 비트 28)이 꺼졌으면 Papy 가 다시 열 때만 따로 그린다(Word 는 늘 묶는다).
+        let connect = if shape.attr1 & (1 << 28) != 0 {
+            ""
+        } else {
+            r#" papy:connect="0""#
+        };
+        let _ = write!(out, "<w:pBdr{connect}>{sides}</w:pBdr>");
+    }
+    if let (FillType::Solid, Some(solid)) = (&fill.fill.fill_type, &fill.fill.solid) {
+        if let Some(color) = rgb(solid.background_color).filter(|c| c != "FFFFFF") {
+            let _ = write!(
+                out,
+                r#"<w:shd w:val="clear" w:color="auto" w:fill="{color}"/>"#
+            );
+        }
+    }
+    out
+}
+
 fn cell_style(info: &DocInfo, border_fill_id: u16) -> String {
     let Some(fill) = border_fill_id
         .checked_sub(1)
@@ -2469,6 +2578,8 @@ fn header_footer_parts(
     let mut seen: Vec<(usize, bool, &'static str)> = Vec::new();
     let mut per_region: Vec<(String, String)> = vec![Default::default(); regions.len()];
     let mut defaults: [Option<String>; 2] = [None, None];
+    // 홀수 쪽 전용 머리말·꼬리말에서 만든 부분(짝수 쪽에 걸지 않는다)
+    let mut odd_only: Vec<String> = Vec::new();
     let Some(section) = document.sections.first() else {
         return Ok((vec![String::new(); regions.len()], ""));
     };
@@ -2519,6 +2630,9 @@ fn header_footer_parts(
         let _ = write!(xml, "</w:{tag}>");
         let rel = format!("rIdPart{index}");
         let reference = format!(r#"<w:{name}Reference w:type="{kind}" r:id="{rel}"/>"#);
+        if apply == HeaderFooterApply::Odd {
+            odd_only.push(rel.clone());
+        }
         if kind == "default" && region == 0 {
             defaults[usize::from(!is_header)] = Some(rel.clone());
         }
@@ -2626,6 +2740,159 @@ fn header_footer_parts(
             }
         }
     }
+    // 바탕쪽(한글 쪽 틀: 머리·꼬리 테두리, 단 구분선 상자, "홀수형" 같은 쪽 머리 등). Word 에는 없어 머리말에 떠 있는
+    // 개체로 넣는다(머리말은 본문 뒤에 그려진다). 홀수 쪽 것은 기본 머리말에, 짝수 쪽 것이 다르면 짝수 머리말에.
+    // 마지막 쪽 등 확장 바탕쪽은 Word 에 자리가 없어 뺀다. 첫 쪽 바탕쪽 감추기는 첫 쪽 머리말(titlePg)로.
+    let mut need_even = false;
+    let mut first_header: Option<Option<String>> = None;
+    for (s, body) in document.sections.iter().enumerate() {
+        let masters = &body.section_def.master_pages;
+        let visible = |m: &&rhwp::model::header_footer::MasterPage| {
+            m.paragraphs
+                .iter()
+                .any(|p| !p.controls.is_empty() || !p.text.trim().is_empty())
+        };
+        let base: Vec<_> = masters.iter().filter(|m| !m.is_extension).collect();
+        let pick = |apply: HeaderFooterApply| base.iter().copied().find(|m| m.apply_to == apply);
+        let single = (base.len() == 1).then(|| base[0]);
+        let both = pick(HeaderFooterApply::Both);
+        let odd = pick(HeaderFooterApply::Odd)
+            .or(both)
+            .or(single)
+            .filter(visible);
+        let even = pick(HeaderFooterApply::Even)
+            .or(both)
+            .or(single)
+            .filter(visible);
+        if odd.is_none() && even.is_none() {
+            continue;
+        }
+        let differ = match (odd, even) {
+            (Some(a), Some(b)) => !std::ptr::eq(a, b),
+            (None, None) => false,
+            _ => true,
+        };
+        need_even |= differ;
+        // 첫 쪽에서 바탕쪽을 감추는 구역(첫 구역만 옮긴다)
+        let hide_first = s == 0
+            && (body.section_def.hide_master_page
+                || body
+                    .paragraphs
+                    .first()
+                    .into_iter()
+                    .flat_map(|p| &p.controls)
+                    .any(|c| matches!(c, Control::PageHide(h) if h.hide_master_page)));
+        let mut render =
+            |master: Option<&rhwp::model::header_footer::MasterPage>| -> Result<String> {
+                let Some(master) = master else {
+                    return Ok(String::new());
+                };
+                // 바탕쪽 표시 문단(1pt): Papy 가 다시 열 때 이 뒤를 바탕쪽으로 되돌린다(Word 는 papy: 를 무시한다).
+                let apply = match master.apply_to {
+                    HeaderFooterApply::Odd => "odd",
+                    HeaderFooterApply::Even => "even",
+                    HeaderFooterApply::Both => "both",
+                };
+                let hide = if hide_first {
+                    r#" papy:hideFirst="1""#
+                } else {
+                    ""
+                };
+                let mut xml = TINY_PARAGRAPH.replacen(
+                    "<w:p>",
+                    &format!(r#"<w:p papy:master="{apply}"{hide}>"#),
+                    1,
+                );
+                // 깊이 0: 쪽·종이 기준 표를 떠 있는 표(`w:tblpPr`)로 쓴다(바탕쪽 문단에는 나누기가 없다).
+                for paragraph in &master.paragraphs {
+                    write_paragraph(&mut xml, info, media, paragraph, 0)?;
+                }
+                Ok(xml)
+            };
+        let odd_xml = render(odd)?;
+        let even_xml = render(even)?;
+        let section_regions: Vec<usize> = regions
+            .iter()
+            .enumerate()
+            .filter(|(_, r)| r.0 == s)
+            .map(|(i, _)| i)
+            .collect();
+        let Some(&first_region) = section_regions.first() else {
+            continue;
+        };
+        for &r in &section_regions {
+            // 짝수 쪽 머리말을 새로 만들 때 쓰는 양쪽 머리말 내용(홀수 쪽 바탕쪽을 더하기 전)
+            let both_header = reference_rel(&per_region[r].0, "header", "default")
+                .filter(|rel| !odd_only.contains(rel))
+                .and_then(|rel| parts.iter().find(|p| p.rel.as_deref() == Some(&rel)))
+                .map(|p| part_inner(&p.xml, "hdr").to_owned());
+            for (kind, master_xml) in [("default", &odd_xml), ("even", &even_xml)] {
+                if (kind == "even" && !differ) || master_xml.is_empty() {
+                    continue;
+                }
+                let existing = reference_rel(&per_region[r].0, "header", kind)
+                    .and_then(|rel| parts.iter().position(|p| p.rel.as_deref() == Some(&rel)));
+                if let Some(index) = existing {
+                    // 첫 쪽에만 바탕쪽을 감추면 첫 쪽 머리말은 바탕쪽을 더하기 전 것이다.
+                    if s == 0 && r == 0 && kind == "default" && first_header.is_none() {
+                        first_header = Some(Some(copy_part(parts, index)));
+                    }
+                    let part = &mut parts[index];
+                    if let Some(at) = part.xml.rfind("</w:hdr>") {
+                        part.xml.insert_str(at, master_xml);
+                    }
+                    continue;
+                }
+                // 짝수 쪽 머리말이 따로 없으면 양쪽 머리말 내용에 짝수 쪽 바탕쪽을 더해 만든다.
+                let base = match kind {
+                    "even" => both_header.clone(),
+                    _ => None,
+                };
+                if r != first_region && base.is_none() {
+                    // 앞 영역(같은 구역) 머리말을 Word 가 이어 쓴다.
+                    continue;
+                }
+                if s == 0 && r == 0 && kind == "default" && first_header.is_none() {
+                    first_header = Some(None);
+                }
+                let index = parts.len() + 1;
+                let rel = format!("rIdPart{index}");
+                let _ = write!(
+                    per_region[r].0,
+                    r#"<w:headerReference w:type="{kind}" r:id="{rel}"/>"#
+                );
+                if kind == "default" && r == 0 {
+                    defaults[0] = Some(rel.clone());
+                }
+                parts.push(Part {
+                    name: format!("header{index}.xml"),
+                    rel: Some(rel),
+                    kind: "header",
+                    xml: format!(
+                        r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:hdr {NAMESPACES}>{}{master_xml}</w:hdr>"#,
+                        base.unwrap_or_default()
+                    ),
+                });
+            }
+        }
+    }
+    // 짝수 쪽 머리말을 켜면 Word 는 짝수 쪽에 기본 것을 쓰지 않는다. 양쪽 머리말·꼬리말은 짝수 쪽에도 건다.
+    let even_on = need_even || seen.iter().any(|(_, _, kind)| *kind == "even");
+    if even_on {
+        for references in &mut per_region {
+            for (name, side) in [("header", &mut references.0), ("footer", &mut references.1)] {
+                if reference_rel(side, name, "even").is_some() {
+                    continue;
+                }
+                if let Some(rel) =
+                    reference_rel(side, name, "default").filter(|rel| !odd_only.contains(rel))
+                {
+                    let _ = write!(side, r#"<w:{name}Reference w:type="even" r:id="{rel}"/>"#);
+                }
+            }
+        }
+    }
     // 기본 탭 간격(한글 기본 40pt, Word 기본 36pt)과 짝수·홀수 쪽 머리말.
     let tab = document
         .sections
@@ -2633,7 +2900,7 @@ fn header_footer_parts(
         .map(|s| s.section_def.default_tab_spacing / 2)
         .filter(|v| *v > 0)
         .unwrap_or(4000);
-    let even = if seen.iter().any(|(_, _, kind)| *kind == "even") {
+    let even = if even_on {
         "<w:evenAndOddHeaders/>"
     } else {
         ""
@@ -2659,16 +2926,32 @@ fn header_footer_parts(
             _ => None,
         })
         .unwrap_or_default();
+    // 바탕쪽을 첫 쪽에서 감추면(구역 설정 또는 감추기 조판 부호) 첫 쪽 머리말은 바탕쪽 없는 것이다.
+    let hide_master = section.section_def.hide_master_page
+        || section
+            .paragraphs
+            .first()
+            .into_iter()
+            .flat_map(|p| &p.controls)
+            .any(|c| matches!(c, Control::PageHide(h) if h.hide_master_page));
+    let first_header = first_header.filter(|_| hide_master);
     let mut title_page = "";
-    if hide.iter().any(|&h| h) {
+    if hide.iter().any(|&h| h) || first_header.is_some() {
         title_page = "<w:titlePg/>";
+        let firsts = [
+            match &first_header {
+                Some(original) => original.clone(),
+                None => defaults[0].clone(),
+            },
+            defaults[1].clone(),
+        ];
         for (side, name) in [(0, "header"), (1, "footer")] {
-            if let (false, Some(rel)) = (hide[side], &defaults[side]) {
+            if let (false, Some(rel)) = (hide[side], &firsts[side]) {
                 let reference = format!(r#"<w:{name}Reference w:type="first" r:id="{rel}"/>"#);
                 if side == 0 {
-                    &mut references.0
+                    &mut per_region[0].0
                 } else {
-                    &mut references.1
+                    &mut per_region[0].1
                 }
                 .push_str(&reference);
             }
@@ -2678,6 +2961,40 @@ fn header_footer_parts(
         per_region.into_iter().map(|(h, f)| h + &f).collect(),
         title_page,
     ))
+}
+
+/// sectPr 참조 목록에서 `name`(header·footer) 참조 `kind` 의 관계 id.
+fn reference_rel(references: &str, name: &str, kind: &str) -> Option<String> {
+    let head = format!(r#"<w:{name}Reference w:type="{kind}" r:id=""#);
+    let at = references.find(&head)? + head.len();
+    let end = references[at..].find('"')?;
+    Some(references[at..at + end].to_owned())
+}
+
+/// 머리말·꼬리말 부분 XML 의 안쪽(문단들).
+fn part_inner<'x>(xml: &'x str, tag: &str) -> &'x str {
+    let open = format!("<w:{tag} ");
+    let start = xml
+        .find(&open)
+        .and_then(|i| xml[i..].find('>').map(|j| i + j + 1))
+        .unwrap_or(0);
+    let end = xml.rfind(&format!("</w:{tag}>")).unwrap_or(xml.len());
+    &xml[start.min(end)..end]
+}
+
+/// 부분 하나를 새 관계 id 로 복사하고 그 id 를 돌려준다.
+fn copy_part(parts: &mut Vec<Part>, index: usize) -> String {
+    let next = parts.len() + 1;
+    let rel = format!("rIdPart{next}");
+    let source = &parts[index];
+    let copy = Part {
+        name: format!("{}{next}.xml", source.kind),
+        rel: Some(rel.clone()),
+        kind: source.kind,
+        xml: source.xml.clone(),
+    };
+    parts.push(copy);
+    rel
 }
 
 /// rhwp 문서를 DOCX 바이트로 쓴다.
