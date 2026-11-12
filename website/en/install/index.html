@@ -30,16 +30,21 @@
       <p>Papy uses <strong>Microsoft Edge WebView2</strong>, which comes with Windows. If it is missing, the installer downloads it automatically (the only time an internet connection is needed).</p>
 
       <h2 id="macos">macOS</h2>
+      <h3>Option 1: one line in Terminal (recommended)</h3>
+      <p>Open <em>Applications → Utilities → Terminal</em> and paste the line below. It downloads the latest stable build for your Mac (Apple Silicon or Intel) into the <strong>Applications</strong> folder.</p>
+      <pre><code>curl -fsSL {{site}}/install.sh | sh</code></pre>
+      <p>An app installed this way opens without the security prompt. Run the same command again to update. You can read the script <a href="{{site}}/install.sh">here</a> first.</p>
+      <h3>Option 2: install from the .dmg</h3>
       <ol class="steps">
         <li>Download the <code>.dmg</code> for your Mac: <code>aarch64</code> for Apple Silicon, <code>x64</code> for Intel. (Check your chip under Apple menu → About This Mac.)</li>
         <li>Open the <code>.dmg</code> and drag <strong>Papy</strong> into the <strong>Applications</strong> folder.</li>
-        <li>If an “unidentified developer” warning appears the first time:
+        <li>If <strong>“Apple could not verify ‘Papy’ is free of malware”</strong> appears the first time, click <em>Done</em> (not <em>Move to Trash</em>), then:
           <ul>
-            <li><strong>macOS 15 or later:</strong> try to open Papy once, then click <em>Open Anyway</em> at the bottom of <em>System Settings → Privacy &amp; Security</em>.</li>
+            <li><strong>macOS 15 or later:</strong> open <em>System Settings → Privacy &amp; Security</em>, click <em>Open Anyway</em> next to “Papy was blocked” at the bottom, open Papy again, click <em>Open</em> and enter your Mac password.</li>
             <li><strong>macOS 14 or earlier:</strong> in Finder, <kbd>control</kbd>-click Papy → <em>Open</em> → <em>Open</em>.</li>
           </ul>
         </li>
-        <li>If you see “Papy is damaged and can’t be opened”, run the following in Terminal and open it again.
+        <li>If <em>Open Anyway</em> does not appear, or you see “Papy is damaged and can’t be opened”, run the following in Terminal and open it again.
           <pre><code>xattr -dr com.apple.quarantine /Applications/Papy.app</code></pre>
         </li>
       </ol>
