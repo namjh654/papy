@@ -1,13 +1,19 @@
 <footer class="site-footer">
       <div class="wrap foot">
-        <p>© {{year}} Nam Jeong Hyeok · <a href="{{repo}}/blob/main/LICENSE">PolyForm Noncommercial 1.0.0</a> · {{t.site.licenseNote}}</p>
+        <div class="foot-top">
+          <div class="foot-brand">
+            <strong>Papy</strong>
+            <p>© {{year}} Nam Jeong Hyeok · <a href="{{repo}}/blob/main/LICENSE">PolyForm Noncommercial 1.0.0</a></p>
+            <p>{{t.site.licenseNote}}</p>
+          </div>
+          <nav class="foot-links">
+            <a href="{{repo}}">{{t.site.github}}</a>
+            <a href="{{base}}/developers/">{{t.pages.developers.nav}}</a>
+            <a href="{{base}}/contact/">{{t.pages.contact.nav}}</a>
+            <a href="{{base}}/privacy/">{{t.site.privacy}}</a>
+            <a href="{{edit}}">{{t.site.editPage}}</a>
+          </nav>
+        </div>
         <p class="legal">{{t.site.legal}}</p>
-        <p>
-          <a href="{{repo}}">{{t.site.github}}</a>
-          <a href="{{base}}/developers/">{{t.pages.developers.nav}}</a>
-          <a href="{{base}}/contact/">{{t.pages.contact.nav}}</a>
-          <a href="{{base}}/privacy/">{{t.site.privacy}}</a>
-          <a href="{{edit}}">{{t.site.editPage}}</a>
-        </p>
       </div>
     </footer>
