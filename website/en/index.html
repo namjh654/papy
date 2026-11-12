@@ -15,6 +15,7 @@
         "downloadUrl": "{{site}}{{base}}/download/",
         "inLanguage": "en",
         "license": "https://polyformproject.org/licenses/noncommercial/1.0.0",
+        "softwareVersion": "0.4.0",
         "isAccessibleForFree": true,
         "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
       }
@@ -58,31 +59,127 @@
         <table>
           <thead><tr><th>Format</th><th>What works</th><th>Status</th></tr></thead>
           <tbody>
-            <tr><td>PDF</td><td>Viewing, zoom, outline; highlight, underline, strikethrough, pen, text box, notes; fix text already on the page; rotate, move and delete pages</td><td><span class="badge ok">v0.3.0</span></td></tr>
-            <tr><td>HWPX · HWP (5.x)</td><td>Viewing, typing and deleting text, character and paragraph formatting, undo, password-protected files</td><td><span class="badge ok">v0.3.0</span></td></tr>
-            <tr><td>DOCX</td><td>Viewing, typing and formatting text; tables, images, shapes (rectangles, ellipses, lines, text boxes), grouped shapes, charts (as pictures), headers, footers, footnotes, endnotes and numbered lists kept</td><td><span class="badge ok">v0.3.0</span></td></tr>
-            <tr><td>DOC (Word 97–2003)</td><td>Viewing and editing; tables, images, footnotes, headers and footers kept; save as DOCX, HWP, HWPX or PDF</td><td><span class="badge ok">v0.3.0</span></td></tr>
-            <tr><td>Conversion</td><td>Between HWP, HWPX and DOCX, from DOC, plus export to PDF and plain text</td><td><span class="badge ok">v0.3.0</span></td></tr>
-            <tr><td>Advanced editing (HWP, HWPX)</td><td>Tables and cells, images and objects, headers and footers, footnotes, find and replace</td><td><span class="badge ok">v0.3.0</span></td></tr>
-            <tr><td>XLSX · PPTX</td><td>Viewing first, then more over time (approach under study)</td><td><span class="badge">Planned</span></td></tr>
+            <tr><td>PDF</td><td>Viewing, zoom, outline; highlight, underline, strikethrough, pen, text box, notes; fix text already on the page; rotate, move and delete pages</td><td><span class="badge ok">v0.4.0</span></td></tr>
+            <tr><td>HWPX · HWP (5.x)</td><td>Viewing, typing and deleting text, character and paragraph formatting, undo, password-protected files</td><td><span class="badge ok">v0.4.0</span></td></tr>
+            <tr><td>DOCX</td><td>Viewing, typing and formatting text; tables, images, shapes (rectangles, ellipses, lines, text boxes), grouped shapes, charts (as pictures), headers, footers, footnotes, endnotes and numbered lists kept</td><td><span class="badge ok">v0.4.0</span></td></tr>
+            <tr><td>DOC (Word 97–2003)</td><td>Viewing and editing; tables, images, footnotes, headers and footers kept; save as DOCX, HWP, HWPX or PDF</td><td><span class="badge ok">v0.4.0</span></td></tr>
+            <tr><td>Conversion</td><td>Between HWP, HWPX and DOCX, from DOC, plus export to PDF and plain text</td><td><span class="badge ok">v0.4.0</span></td></tr>
+            <tr><td>Advanced editing (HWP, HWPX)</td><td>Tables and cells, images and objects, headers and footers, footnotes, find and replace</td><td><span class="badge ok">v0.4.0</span></td></tr>
+            <tr><td>PPT · PPTX → XLS · XLSX</td><td>Next after the three document families: PowerPoint viewing and PDF export first, then Excel viewing and editing</td><td><span class="badge">Planned</span></td></tr>
           </tbody>
         </table>
       </div>
 
-      <h2>Frequently asked questions</h2>
-      <h3>Is it really free?</h3>
-      <p>Yes, for <strong>noncommercial use</strong> such as personal, study, research and nonprofit work. There are no ads, subscriptions or paid features.
-        For commercial use, such as at a company, please <a href="{{base}}/contact/">contact us</a>.</p>
-      <h3>What is the license?</h3>
-      <p>Both the source code and the released apps use the <a href="https://polyformproject.org/licenses/noncommercial/1.0.0">PolyForm Noncommercial 1.0.0</a> license. You may use, modify and share Papy for noncommercial purposes; commercial use requires a separate commercial license (<a href="{{base}}/contact/">contact</a>).</p>
-      <h3>Are my documents sent over the internet?</h3>
-      <p>No. Documents are processed only on your computer. The app goes online only for clearly stated purposes, such as checking for a new version (if that is added). See the <a href="{{base}}/privacy/">privacy policy</a> for details.</p>
-      <h3>Can I open HWP files without Hancom Office?</h3>
-      <p>Yes. Papy opens HWP (5.x) and HWPX without Hancom Office, and you can edit the text and formatting and save. Tables, images and headers can be edited with advanced editing.</p>
-      <h3>Does it work with Word (DOCX, DOC) files?</h3>
-      <p>You can open and edit DOCX, save it back as DOCX, or convert it to HWP, HWPX or PDF. Images, shapes, grouped shapes, charts, headers, footers, footnotes and numbered lists are carried over. Legacy Word files (.doc, 97–2003) open and can be edited too, and are saved as DOCX, HWP, HWPX or PDF. Papy tells you when a file has elements it cannot carry over yet, such as OLE objects or floating shapes in .doc files. Keep a copy of the original.</p>
-      <h3>Can I use it on my phone?</h3>
-      <p>Once the desktop engine is stable, the same engine will power Android and iOS apps.</p>
+      <section class="faq" aria-labelledby="faq">
+        <h2 id="faq">Frequently asked questions</h2>
+        <p class="faq-intro">Click a question to see the answer. If yours is not here, please <a href="{{base}}/contact/">contact us</a>.</p>
+
+        <div class="faq-group">
+          <h3 class="faq-cat">Price and license</h3>
+          <details class="faq-item">
+            <summary>Is it really free?</summary>
+            <div class="faq-a">
+              <p>Yes, for <strong>noncommercial use</strong> such as personal, study, research and nonprofit work. There are no ads, subscriptions or paid features.</p>
+            </div>
+          </details>
+          <details class="faq-item">
+            <summary>Can I use it at work?</summary>
+            <div class="faq-a">
+              <p><strong>Commercial use</strong>, such as at a company, needs a separate commercial license. Please <a href="{{base}}/contact/">contact us</a>.</p>
+            </div>
+          </details>
+          <details class="faq-item">
+            <summary>What is the license?</summary>
+            <div class="faq-a">
+              <p>Both the source code and the released apps use the <a href="https://polyformproject.org/licenses/noncommercial/1.0.0">PolyForm Noncommercial 1.0.0</a> license.</p>
+              <ul>
+                <li>Use, modify and share for noncommercial purposes: allowed</li>
+                <li>Commercial use: needs a separate commercial license</li>
+              </ul>
+            </div>
+          </details>
+        </div>
+
+        <div class="faq-group">
+          <h3 class="faq-cat">Documents and formats</h3>
+          <details class="faq-item">
+            <summary>Can I open HWP files without Hancom Office?</summary>
+            <div class="faq-a">
+              <p>Yes. Papy opens HWP (5.x) and HWPX without Hancom Office, and you can edit the text and formatting and save. Tables, images and headers are edited with <strong>advanced editing</strong>.</p>
+            </div>
+          </details>
+          <details class="faq-item">
+            <summary>Does it work with Word (DOCX, DOC) files?</summary>
+            <div class="faq-a">
+              <ul>
+                <li><strong>DOCX</strong>: open, edit, and save as DOCX, or convert to HWP, HWPX or PDF.</li>
+                <li><strong>DOC (97–2003)</strong>: open and edit, then save as DOCX, HWP, HWPX or PDF.</li>
+                <li>Images, shapes, grouped shapes, charts, headers, footers, footnotes and numbered lists are carried over.</li>
+              </ul>
+              <p>Papy tells you when a file has elements it cannot carry over yet, such as OLE objects or floating shapes in .doc files.</p>
+            </div>
+          </details>
+          <details class="faq-item">
+            <summary>Does the layout stay the same between Hangul and Word?</summary>
+            <div class="faq-a">
+              <p>The content is carried over, but Hangul and Word break lines and pages by different rules, so <strong>line breaks and page counts may differ slightly</strong>.
+                Papy tells you before you save to another format and when you open a Word file. Keep the original of important documents.</p>
+            </div>
+          </details>
+          <details class="faq-item">
+            <summary>Can I export to PDF?</summary>
+            <div class="faq-a">
+              <p>Yes. HWP, HWPX, DOCX and DOC documents export to PDF. PDFs open for highlighting, notes, pen, fixing text, and rotating or deleting pages.</p>
+            </div>
+          </details>
+          <details class="faq-item">
+            <summary>When will PowerPoint and Excel files work?</summary>
+            <div class="faq-a">
+              <p>After the three document families (Hangul, Word, PDF) are stable, <strong>PPT and PPTX</strong> come next, then <strong>XLS and XLSX</strong>.</p>
+            </div>
+          </details>
+        </div>
+
+        <div class="faq-group">
+          <h3 class="faq-cat">Privacy and security</h3>
+          <details class="faq-item">
+            <summary>Are my documents sent over the internet?</summary>
+            <div class="faq-a">
+              <p>No. Documents are processed <strong>only on your computer</strong>. The app goes online only for clearly stated purposes, such as checking for a new version (if that is added).
+                See the <a href="{{base}}/privacy/">privacy policy</a> for details.</p>
+            </div>
+          </details>
+          <details class="faq-item">
+            <summary>I see a security warning when installing.</summary>
+            <div class="faq-a">
+              <p>Papy is not code-signed yet, so Windows and macOS warn on first launch. Files from the official download page are safe to open.
+                See <a href="{{base}}/install/">installation</a> for the steps on each system.</p>
+            </div>
+          </details>
+        </div>
+
+        <div class="faq-group">
+          <h3 class="faq-cat">Install and devices</h3>
+          <details class="faq-item">
+            <summary>Which operating systems are supported?</summary>
+            <div class="faq-a">
+              <p>Windows, macOS (Apple Silicon and Intel) and Linux (.deb, .rpm, AppImage). The <a href="{{base}}/download/">download page</a> shows the file for your system first.</p>
+            </div>
+          </details>
+          <details class="faq-item">
+            <summary>How do I get a new version?</summary>
+            <div class="faq-a">
+              <p>Download the new version and install it the same way; it replaces the old one. There is no automatic update yet.</p>
+            </div>
+          </details>
+          <details class="faq-item">
+            <summary>Can I use it on my phone?</summary>
+            <div class="faq-a">
+              <p>Only desktop apps are released for now. Android and iOS apps using the same engine are in preparation.</p>
+            </div>
+          </details>
+        </div>
+      </section>
     </main>
     {{footer}}
   </body>
