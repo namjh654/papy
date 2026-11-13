@@ -71,3 +71,14 @@ pnpm --filter @papy/website test     # 빌드 + 다국어 검사
 
 1. Google Search Console: URL 접두어 속성으로 사이트 추가 → HTML 태그 방식 → `content` 값을 `VITE_GOOGLE_SITE_VERIFICATION` 에 넣고 재배포 → 확인 → Sitemaps 에 `sitemap.xml` 제출.
 2. 네이버 서치어드바이저: 웹마스터 도구 → 사이트 등록 → HTML 태그 방식 → `VITE_NAVER_SITE_VERIFICATION` → 재배포 → 확인 → 요청 → 사이트맵 제출(`sitemap.xml`), RSS 는 없음.
+
+## 방문 수·다운로드 수 보기
+
+- **다운로드 수**: 사이트의 [`/stats/`](https://papy-omega.vercel.app/stats/) 페이지(푸터의 "통계"). GitHub Releases 의 `download_count` 를 버전·운영체제·파일별로 모은다. 터미널로 볼 때는 다음 명령을 쓴다.
+  ```sh
+  gh api repos/namjh654/papy/releases --paginate --jq '.[] | select(.tag_name|startswith("v")) | [.tag_name, ([.assets[].download_count]|add)] | @tsv'
+  ```
+- **방문 수**: Vercel 대시보드 → 프로젝트 → **Analytics**. 쿠키 없는 Vercel Web Analytics 이고, 모든 페이지의 `partials/head.html` 이 `/_vercel/insights/script.js` 를 부른다.
+  - 처음 한 번 대시보드에서 **Enable** 을 눌러야 모이기 시작한다. 켜기 전에는 이 스크립트가 404 로 끝나고 아무것도 모으지 않는다.
+  - 무료(Hobby) 요금제는 한 달 이벤트 수에 한도가 있다.
+  - 쓰는 방식을 바꾸면 개인정보 처리방침(`privacy/`, `en/privacy/`)도 같이 고친다.
