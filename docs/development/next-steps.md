@@ -1,4 +1,4 @@
-# 이어서 할 일 (2026-11-12 갱신)
+# 이어서 할 일 (2026-11-13 갱신)
 
 다른 세션·다른 모델이 이어받아도 이 파일만 보고 진행할 수 있게 쓴 작업 순서표다. 방향은 [ADR 0008](../decisions/0008-product-order-and-engines.md)을 따른다.
 
@@ -143,6 +143,27 @@ PR #30(`feature/fidelity-exam-kor`)과 #31(`feature/rhwp-0.9`)을 병합한다. 
    2026-11-12: macOS dmg를 받아 열고 앱을 띄워 10초 동안 죽지 않음을 확인했다(약 100 MB). 화면 캡처 권한이 없어 창 안 확인은 못 했다 — **남음(사용자)**.
 4. ~~정식판 v0.4.0~~(2026-11-12): 데스크톱·엔진 버전 0.4.0, 릴리스 글·README·웹사이트 공지 갱신, `v0.4.0` 태그.
    코드 서명은 하지 않았다([code-signing.md](code-signing.md)). 모바일 버전은 보류라 그대로다.
+
+## 배포 뒤 정리 (2026-11-13)
+
+- ~~v0.4.1~~: 앱 아이콘을 웹사이트 로고와 같게 바꿨다(`apps/desktop/src-tauri/icons/source/`). 기능은 v0.4.0 과 같다.
+- 무료 설치 경로(유료 서명은 보류, 사용자 결정):
+  - ~~macOS 터미널 설치~~: `curl -fsSL https://papy-omega.vercel.app/install.sh | sh`. curl 로 받으면 격리 표시가 없어 경고 없이 열린다.
+  - winget: `namjh654.Papy` 0.4.0 을 microsoft/winget-pkgs#478076 로 냈다(CLA 동의함). 검토를 기다리는 중이다.
+    병합되면 설치 방법 페이지에 `winget install namjh654.Papy` 를 넣고 0.4.1 PR 을 낸다([packaging/winget](../../packaging/winget/README.md)).
+- ~~웹 통계~~: 다운로드 수는 `/stats/`, 방문 수는 Vercel Analytics(대시보드에서 **Enable** 필요, `website/README.md`).
+
+## AI 플러그인 (순서 미정, [ADR 0009](../decisions/0009-ai-plugin.md))
+
+2026-11-13 사용자 결정: 선택 설치하는 AI 플러그인을 만든다. 앱 안 대화창과 MCP 서버를 함께 두고, Claude·ChatGPT·Gemini 셋 다 연결한다.
+PPT 단계 앞에 할지 뒤에 할지는 사용자가 정한다.
+
+1. `papy-ai` 뼈대, Papy 도구(읽기·찾기·구조·제안·내보내기), 단독 MCP 서버(stdio). Claude 데스크톱·Gemini CLI 로 확인한다.
+2. 앱 대화창과 API 키 연결(Anthropic·OpenAI·Gemini, 키는 OS 키체인). 제안 미리보기·적용·되돌리기, 토큰 사용량을 보여 준다.
+3. 플러그인 설치 관리(받기·ed25519 서명 확인·지우기), CI 빌드·서명, 외부 전송 확인 창, 웹 개인정보·FAQ 고지.
+4. Ollama(로컬) 연결.
+5. ACP: Claude Code·Gemini CLI·Codex CLI 연결. 각 회사의 허용 범위를 먼저 확인한다.
+6. 앱 연결 MCP(`--attach`, 앱에 열린 문서 다루기).
 
 ## 4단계 — PPT·PPTX (배포 뒤)
 
