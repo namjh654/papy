@@ -510,6 +510,9 @@ fn groups_polygons_and_floating_pictures_are_written() {
     group.common.treat_as_char = true;
     triangle.common.width = 1000;
     triangle.common.height = 1000;
+    // 한글은 문단 위로 올린 개체의 위치를 음수로 담는다(rhwp 는 u32 로 읽는다).
+    triangle.common.vertical_offset = (-1000i32) as u32;
+    triangle.common.horizontal_offset = (-200i32) as u32;
     let paragraph = &mut document.sections[0].paragraphs[0];
     paragraph
         .controls
@@ -532,6 +535,12 @@ fn groups_polygons_and_floating_pictures_are_written() {
     );
     assert!(
         xml.contains("<a:close/>") && xml.contains("<wp:anchor"),
+        "{xml}"
+    );
+    // 음수 위치는 음수 EMU 로 쓴다(부호 없이 쓰면 int32 를 넘어 Word 가 문서를 열지 못한다).
+    assert!(
+        xml.contains("<wp:posOffset>-25400</wp:posOffset>")
+            && xml.contains("<wp:posOffset>-127000</wp:posOffset>"),
         "{xml}"
     );
 }

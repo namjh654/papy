@@ -130,6 +130,11 @@ fn emu(hwpunit: u32) -> u64 {
     u64::from(hwpunit) * 127
 }
 
+/// 개체 위치(HWPUNIT, 부호 있음 — rhwp 는 u32 로 담는다) → EMU. 문단 위로 올린 개체는 음수다.
+fn offset_emu(hwpunit: u32) -> i64 {
+    i64::from(hwpunit as i32) * 127
+}
+
 fn write_picture(out: &mut String, media: &mut Media, picture: &Picture) {
     let Some(rel) = media.add(picture.image_attr.bin_data_id) else {
         return;
@@ -288,7 +293,7 @@ fn write_drawing(
             HorzAlign::Outside => "<wp:align>outside</wp:align>".to_owned(),
             HorzAlign::Left => format!(
                 "<wp:posOffset>{}</wp:posOffset>",
-                emu(common.horizontal_offset)
+                offset_emu(common.horizontal_offset)
             ),
         };
         let y = match common.vert_align {
@@ -298,7 +303,7 @@ fn write_drawing(
             VertAlign::Outside => "<wp:align>outside</wp:align>".to_owned(),
             VertAlign::Top => format!(
                 "<wp:posOffset>{}</wp:posOffset>",
-                emu(common.vertical_offset)
+                offset_emu(common.vertical_offset)
             ),
         };
         let _ = write!(

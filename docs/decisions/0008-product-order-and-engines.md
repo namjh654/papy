@@ -1,6 +1,7 @@
 # 0008. 제품 순서와 형식별 엔진 구조
 
-- 상태: **승인 (2026-11-11)** — 사용자 결정
+- 상태: **승인 (2026-11-11)** — 사용자 결정. 2항은 [0010](0010-format-families.md)(2026-11-14)이 보탠다: 조판은 그대로
+  rhwp 하나이고, 워드 계열은 원본 DOCX 를 기준으로 삼으며, 다른 계열로는 사용자가 고를 때만 바꾼다.
 - 관련: [0004 HWP 엔진](0004-hwp-engine.md), [0005 rhwp-studio](0005-rhwp-studio-editor.md), [0007 XLSX·PPTX](0007-xlsx-pptx.md),
   [이어서 할 일](../development/next-steps.md)
 

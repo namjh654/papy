@@ -35,6 +35,7 @@ pub(crate) fn apply(doc: &mut Rhwp, report: &DocxReadReport) -> Result<usize, Hw
     if hide_header || hide_footer {
         // 첫 문단은 첫 쪽에 있다. 감추기는 그 문단이 놓인 쪽에만 듣는다.
         doc.set_page_hide_native(0, 0, hide_header, hide_footer, false, false, false, false)?;
+        page_hide_after_section_def(doc);
     }
     let footnotes = rich_notes(doc, &report.footnotes, &report.footnote_html)?;
     let endnotes = rich_notes(doc, &report.endnotes, &report.endnote_html)?;
@@ -42,6 +43,49 @@ pub(crate) fn apply(doc: &mut Rhwp, report: &DocxReadReport) -> Result<usize, Hw
     dropped += notes(doc, &endnotes, ENDNOTE_MARK)?;
     fill_rich_notes(doc, &footnotes, &endnotes);
     Ok(dropped)
+}
+
+/// rhwp 는 감추기 조판 부호를 문단 맨 앞에 넣는다. 첫 문단 맨 앞이 구역 정의가 아니면 한글이 구역 설정(용지·여백)을
+/// 기본값으로 읽어 쪽 수가 크게 달라지므로, 구역·단 정의 뒤로 옮긴다(한글 저장본 차례).
+fn page_hide_after_section_def(doc: &mut Rhwp) {
+    use rhwp::model::control::Control;
+    let mut document = doc.document().clone();
+    let Some(para) = document
+        .sections
+        .first_mut()
+        .and_then(|s| s.paragraphs.first_mut())
+    else {
+        return;
+    };
+    let Some(from) = para
+        .controls
+        .iter()
+        .position(|c| matches!(c, Control::PageHide(_)))
+    else {
+        return;
+    };
+    let lead = para
+        .controls
+        .iter()
+        .take_while(|c| {
+            matches!(
+                c,
+                Control::PageHide(_) | Control::SectionDef(_) | Control::ColumnDef(_)
+            )
+        })
+        .count();
+    if lead <= from + 1 {
+        return;
+    }
+    let control = para.controls.remove(from);
+    para.controls.insert(lead - 1, control);
+    if para.ctrl_data_records.len() > from {
+        let record = para.ctrl_data_records.remove(from);
+        para.ctrl_data_records
+            .insert((lead - 1).min(para.ctrl_data_records.len()), record);
+    }
+    document.sections[0].raw_stream = None;
+    doc.set_document(document);
 }
 
 /// 본문 [`SECTION_MARK`] 를 지우고, Word 구역(첫 구역 뒤)마다 그 구역이 시작하는 문단 번호를 돌려준다.

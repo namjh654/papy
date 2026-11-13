@@ -45,6 +45,9 @@ pub(crate) struct HwpDocument {
     headings: Vec<DocxHeading>,
     /// DOCX 에서 연 문서의 메모·변경 추적(한글 문서는 문서 안 메모 필드에서 읽는다)
     docx_review: (Vec<papy_office::DocxComment>, u32, u32),
+    /// DOCX 로 연 문서의 원본 파일. 고치지 않고 DOCX 로 저장하면 이것을 그대로 돌려준다(ADR 0010 — 한글 모델을
+    /// 거쳐 다시 쓰면 Papy 가 옮기지 못하는 Word 요소가 빠진다).
+    original_docx: Option<Vec<u8>>,
     /// rhwp 가 패닉한 뒤에는 내부 상태를 믿을 수 없으니 더 부르지 않는다.
     broken: bool,
 }
@@ -80,8 +83,21 @@ impl HwpDocument {
             cell_typing: None,
             headings: Vec::new(),
             docx_review: (Vec::new(), 0, 0),
+            original_docx: None,
             broken: false,
         }
+    }
+
+    /// DOCX 원본을 남긴다([`HwpDocument::original_docx`]).
+    pub(crate) fn with_original_docx(mut self, original: Option<Vec<u8>>) -> Self {
+        self.original_docx = original;
+        self
+    }
+
+    /// 열고 나서 고친 적이 없는가. 모든 편집은 되돌리기 단계를 만든다(`begin_step`·`begin_cell_step`·
+    /// `object_step`). 되돌려 원래대로 돌아왔어도 다시 하기가 남아 있으면 고친 것으로 본다(원본을 돌려주지 않는 쪽이 안전).
+    fn unedited(&self) -> bool {
+        self.undo.is_empty() && self.redo.is_empty()
     }
 
     /// DOCX 제목 문단을 목차로 쓴다.
@@ -1095,6 +1111,12 @@ impl Document for HwpDocument {
             }
             SaveFormat::Docx => {
                 self.check()?;
+                if let Some(original) = &self.original_docx
+                    && self.unedited()
+                    && password.is_none()
+                {
+                    return Ok(original.clone());
+                }
                 let outline = self
                     .heading_paragraphs()
                     .into_iter()
