@@ -170,6 +170,11 @@ pub trait Document: Send {
         Err(not_supported("structure summary"))
     }
 
+    /// 본문 문단 목록(구역 순서). 편집 도구(AI 도우미 등)가 문단을 가리킬 때 쓴다. 기본은 지원 안 함.
+    fn paragraphs(&mut self) -> Result<Vec<papy_model::ParagraphText>> {
+        Err(not_supported("paragraph listing"))
+    }
+
     /// 쪽에서 제대로 그리지 못한 개체(차트·OLE·없는 그림 자리 등). 기본은 없음.
     fn unsupported_objects(&mut self, _page: u32) -> Result<Vec<UnsupportedObject>> {
         Ok(Vec::new())

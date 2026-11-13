@@ -34,6 +34,8 @@ interface Props {
   onSave(): void;
   onSaveAs(): void;
   onExport(extension: string): void;
+  aiOpen: boolean;
+  onAi(): void;
 }
 
 export function Toolbar(props: Props) {
@@ -119,6 +121,11 @@ export function Toolbar(props: Props) {
           </button>
         </div>
       )}
+      <div className="toolbar-group ai">
+        <button className="icon" onClick={props.onAi} aria-pressed={props.aiOpen} title={t.ai.open}>
+          <Icon name="sparkle" />
+        </button>
+      </div>
     </header>
   );
 }

@@ -24,8 +24,8 @@ use std::sync::{Arc, Mutex, MutexGuard};
 pub use papy_model::{
     Alignment, Annotation, Capabilities, CaretMotion, CellPos, CharFormat, Comment, DocumentFormat,
     DocumentInfo, EditOutcome, Error, ErrorCode, HitTarget, MarkupKind, ObjectKind, ObjectRef,
-    OutlineItem, PageObject, PageOp, PageRect, PageSize, ParaFormat, Result, Review, SaveFormat,
-    TableCellBox, TableOp, TextMatch, TextPos, UnsupportedKind, UnsupportedObject,
+    OutlineItem, PageObject, PageOp, PageRect, PageSize, ParaFormat, ParagraphText, Result, Review,
+    SaveFormat, TableCellBox, TableOp, TextMatch, TextPos, UnsupportedKind, UnsupportedObject,
 };
 pub use papy_render::{
     BackendOpenOptions, Bitmap, CancelToken, Document, FormatBackend, RenderRequest, Source,
@@ -401,6 +401,13 @@ impl Engine {
         let session = self.session(id)?;
         let mut doc = lock(&session.document);
         doc.structure()
+    }
+
+    /// 본문 문단 목록. 지원하지 않는 형식(PDF)은 `NotImplemented`.
+    pub fn paragraphs(&self, id: SessionId) -> Result<Vec<papy_model::ParagraphText>> {
+        let session = self.session(id)?;
+        let mut doc = lock(&session.document);
+        doc.paragraphs()
     }
 
     /// 메모와 변경 추적(검토 내용).

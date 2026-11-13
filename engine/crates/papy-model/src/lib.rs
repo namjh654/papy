@@ -500,6 +500,20 @@ pub struct TextMatch {
     pub after: String,
 }
 
+/// 본문 문단 하나의 글. 개체(표·그림·글상자) 자리는 U+FFFC 한 글자로 들어간다.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParagraphText {
+    /// 구역(0부터).
+    pub section: u32,
+    /// 구역 안 문단(0부터).
+    pub paragraph: u32,
+    /// 문단 글. 길이(유니코드 스칼라 수)가 [`TextPos::offset`] 의 끝값이다.
+    pub text: String,
+    /// 글에 보이지 않는 개체(각주·떠 있는 표·그림 등)가 붙은 자리(오름차순, [`TextPos::offset`] 단위).
+    /// 이 자리가 지우는 범위의 처음이나 안쪽이면(문단 끝까지 지우면 끝 자리도) 개체가 함께 지워진다.
+    pub anchors: Vec<u32>,
+}
+
 /// 목차 항목.
 #[derive(Debug, Clone, PartialEq)]
 pub struct OutlineItem {

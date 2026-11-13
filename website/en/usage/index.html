@@ -15,6 +15,7 @@
         <li><a href="#edit">Edit mode</a></li>
         <li><a href="#pdf">Editing PDFs</a></li>
         <li><a href="#save">Saving and converting</a></li>
+        <li><a href="#ai">AI assistant</a></li>
         <li><a href="#formats">What is supported</a></li>
         <li><a href="#help">Troubleshooting</a></li>
       </ul>
@@ -99,6 +100,17 @@
         </table>
       </div>
       <p><strong>Converting between formats can change the layout slightly.</strong> Hangul and Word lay out lines and pages differently, so saving a Hangul document as DOCX (or the other way round) can change line breaks, page count and object positions. Word documents (DOCX, DOC) are also shown with Papy's layout engine, so they may look different from Word. The content is carried over, and Papy tells you how many elements it could not carry over. Keep a copy of the original file.</p>
+
+      <h2 id="ai">AI assistant (optional) <span class="badge">v0.5.0 preview</span></h2>
+      <p>Open the chat with the ✦ button at the right end of the toolbar. AI is a separate plugin; without it Papy keeps working offline as before.</p>
+      <ul>
+        <li><strong>Install:</strong> press <strong>Install plugin</strong> in the chat. Papy downloads the plugin for its own version from GitHub, checks its signature and installs it.</li>
+        <li><strong>Assistants:</strong> Claude, ChatGPT and Gemini (your API key), Ollama (models on your computer), Claude Code, Codex and Gemini CLI (your subscription; sign in to each program first).</li>
+        <li><strong>API keys:</strong> add them in settings (gear). They are stored only in your operating system's keychain and never shown again. Tokens used, and an estimated cost for Claude, appear under the chat.</li>
+        <li><strong>Edits:</strong> when the assistant wants to change the document you get a <strong>proposal</strong> showing before and after. Nothing changes until you press <strong>Apply</strong>, and Undo (<kbd>Ctrl</kbd>+<kbd>Z</kbd>) reverts it. You save as usual.</li>
+        <li><strong>What is sent:</strong> Papy asks once per document before sending anything to an outside service. Only the parts the assistant reads with its tools are sent; with Ollama nothing leaves your computer.</li>
+        <li><strong>Use from other AI apps (MCP):</strong> paste the MCP setting from settings into Claude Desktop, Claude Code and similar apps. They can then read documents with Papy and save edited copies as new files. Originals are never overwritten.</li>
+      </ul>
 
       <h2 id="formats">What is supported</h2>
       <div class="table-scroll">

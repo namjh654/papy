@@ -22,6 +22,10 @@ jobs:
         working-directory: engine
     steps:
       - uses: actions/checkout@v7
+      # AI 플러그인(papy-ai)의 키체인(Secret Service)이 libdbus 를 쓴다.
+      - name: install Linux dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
       - uses: actions/setup-node@v7
         with:
           node-version: 24
