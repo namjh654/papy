@@ -18,6 +18,7 @@ export const ko: Messages = {
     github: "GitHub",
     editPage: "이 페이지 수정 제안",
     privacy: "개인정보 처리방침",
+    stats: "통계",
   },
   pages: {
     home: {
@@ -54,6 +55,10 @@ export const ko: Messages = {
     privacy: {
       title: "개인정보 처리방침 — Papy (페이피)",
       description: "Papy 는 계정·광고·추적 없이 동작하며 문서를 서버로 보내지 않습니다. 앱과 이 웹사이트가 처리하는 정보를 설명합니다.",
+    },
+    stats: {
+      title: "다운로드 통계 — Papy (페이피)",
+      description: "Papy 설치 파일이 버전·운영체제별로 몇 번 내려받아졌는지 GitHub Releases 집계로 보여 줍니다.",
     },
     notFound: {
       title: "페이지를 찾을 수 없습니다 — Papy (페이피)",
@@ -97,6 +102,12 @@ export const ko: Messages = {
     },
     developers: {
       empty: "지금은 없습니다.",
+    },
+    stats: {
+      failed: "통계를 불러오지 못했습니다. 잠시 후 다시 시도하거나 {link}에서 확인해 주세요.",
+      other: "기타",
+      terminal: "macOS 터미널 설치",
+      updated: "{date} 기준",
     },
   },
 };

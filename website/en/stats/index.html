@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="{{lang}}">
+  <head>
+    {{head}}
+  </head>
+  <body>
+    {{header}}
+    <main id="main" class="wrap">
+      <h1>Download statistics</h1>
+      <p class="lead">How many times the installers have been downloaded, as counted by <a href="{{repo}}/releases">GitHub Releases</a>.</p>
+
+      <p id="stats-status" class="hint" role="status">Loading…</p>
+
+      <div class="grid stat-cards">
+        <section class="card"><h2 class="stat-label">Total downloads</h2><p class="stat-value" data-stat="total">–</p></section>
+        <section class="card"><h2 class="stat-label">Latest stable <span data-stat="latest-name"></span></h2><p class="stat-value" data-stat="latest">–</p></section>
+        <section class="card"><h2 class="stat-label">Versions released</h2><p class="stat-value" data-stat="releases">–</p></section>
+      </div>
+
+      <h2>By operating system</h2>
+      <div class="table-scroll">
+        <table class="stat-table">
+          <thead><tr><th>Operating system</th><th class="num">Downloads</th><th class="num">Share</th></tr></thead>
+          <tbody data-table="os"></tbody>
+        </table>
+      </div>
+
+      <h2>By version</h2>
+      <div class="table-scroll">
+        <table class="stat-table">
+          <thead><tr><th>Version</th><th>Released</th><th class="num">Windows</th><th class="num">macOS</th><th class="num">Linux</th><th class="num">Total</th></tr></thead>
+          <tbody data-table="releases"></tbody>
+        </table>
+      </div>
+
+      <h2>Latest stable, by file</h2>
+      <div class="table-scroll">
+        <table class="stat-table">
+          <thead><tr><th>File</th><th class="num">Downloads</th></tr></thead>
+          <tbody data-table="files"></tbody>
+        </table>
+      </div>
+
+      <h2>How it is counted</h2>
+      <ul>
+        <li>Repeated downloads by the same person are counted each time, so this is not the number of users.</li>
+        <li>Downloads from the download page, GitHub, the <a href="{{base}}/install/#macos">macOS Terminal install</a> (<code>.app.tar.gz</code>) and winget are all included.</li>
+        <li>Pre-releases (rc) are counted too and listed separately in the version table.</li>
+      </ul>
+    </main>
+    {{footer}}
+    <script type="module" src="/src/stats.ts"></script>
+  </body>
+</html>

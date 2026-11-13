@@ -2,7 +2,7 @@
 // 페이지 본문은 언어별 HTML(website/<언어>/…)에 있고, 여기에는 여러 페이지가 함께 쓰는 문구만 둔다.
 
 /** site.config.ts 의 PAGES 와 같은 id */
-export type PageId = "home" | "download" | "install" | "usage" | "developers" | "contact" | "privacy" | "notFound";
+export type PageId = "home" | "download" | "install" | "usage" | "developers" | "contact" | "privacy" | "stats" | "notFound";
 
 export interface PageText {
   title: string;
@@ -47,6 +47,16 @@ export interface ClientText {
   developers: {
     empty: string;
   };
+  stats: {
+    /** {link} = Releases 링크 */
+    failed: string;
+    /** 어느 운영체제에도 들지 않는 파일 */
+    other: string;
+    /** macOS 터미널 설치 스크립트가 받는 .app.tar.gz */
+    terminal: string;
+    /** {date} 날짜와 시각 */
+    updated: string;
+  };
 }
 
 export interface Messages {
@@ -71,6 +81,8 @@ export interface Messages {
     github: string;
     editPage: string;
     privacy: string;
+    /** 푸터의 다운로드 통계 링크 */
+    stats: string;
   };
   pages: Record<PageId, PageText>;
   /** 404 페이지(모든 언어가 한 페이지에 함께 나온다) */

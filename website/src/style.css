@@ -186,3 +186,10 @@ button.btn { cursor: pointer; font: inherit; font-weight: 600; }
 .list li a { font-weight: 600; text-decoration: none; }
 .list li .meta { color: var(--muted); font-size: 13px; }
 .badges { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
+
+/* 다운로드 통계 */
+.stat-cards { margin: 8px 0 8px; }
+.stat-label { font-size: 14px; font-weight: 600; color: var(--muted); margin: 0 0 6px; }
+.stat-value { font-size: 32px; font-weight: 700; line-height: 1.2; letter-spacing: -0.02em; color: var(--fg) !important; font-variant-numeric: tabular-nums; }
+.stat-table .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.stat-table td:first-child { word-break: break-all; }

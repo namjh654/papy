@@ -32,5 +32,6 @@ export const PAGES: Page[] = [
   { id: "developers", file: "developers/index.html", path: "/developers/" },
   { id: "contact", file: "contact/index.html", path: "/contact/" },
   { id: "privacy", file: "privacy/index.html", path: "/privacy/" },
+  { id: "stats", file: "stats/index.html", path: "/stats/" },
   { id: "notFound", file: "404.html", path: "/404", index: false, shared: true },
 ];

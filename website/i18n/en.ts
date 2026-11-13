@@ -18,6 +18,7 @@ export const en: Messages = {
     github: "GitHub",
     editPage: "Suggest an edit to this page",
     privacy: "Privacy policy",
+    stats: "Statistics",
   },
   pages: {
     home: {
@@ -54,6 +55,10 @@ export const en: Messages = {
     privacy: {
       title: "Privacy policy — Papy",
       description: "Papy works without accounts, ads or tracking and never sends your documents to a server. This page explains what the app and this website process.",
+    },
+    stats: {
+      title: "Download statistics — Papy",
+      description: "How many times each Papy installer has been downloaded, by version and operating system, from GitHub Releases counts.",
     },
     notFound: {
       title: "Page not found — Papy",
@@ -97,6 +102,12 @@ export const en: Messages = {
     },
     developers: {
       empty: "Nothing right now.",
+    },
+    stats: {
+      failed: "Could not load statistics. Please try again later or check {link}.",
+      other: "Other",
+      terminal: "macOS Terminal install",
+      updated: "As of {date}",
     },
   },
 };
