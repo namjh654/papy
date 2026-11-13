@@ -1,6 +1,6 @@
 [package]
 name = "papy-desktop"
-version = "0.4.1"
+version = "0.5.0-rc.1"
 description = "Papy desktop app (Tauri host)"
 edition = "2024"
 rust-version = "1.85"
@@ -19,6 +19,13 @@ tauri-build = { version = "=2.7.4", features = [] }
 
 [dependencies]
 papy-core = { path = "../../../engine/crates/papy-core" }
+# AI 도구 정의·제안(네트워크 코드 없음). AI 연결 자체는 따로 받는 플러그인(papy-ai)에 있다.
+papy-tools = { path = "../../../engine/crates/papy-tools" }
+# AI 플러그인 내려받기·서명 확인·풀기.
+ureq = "=3.5.1"
+ed25519-dalek = "=2.2.0"
+base64 = "=0.22.1"
+flate2 = "=1.1.10"
 tauri = { version = "=2.12.5", features = [] }
 tauri-plugin-dialog = "=2.8.4"
 # 이미 실행 중일 때 더블클릭한 파일을 그 창에서 연다(Windows·Linux). Tauri 공식 플러그인, MIT OR Apache-2.0.

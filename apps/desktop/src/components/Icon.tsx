@@ -36,6 +36,11 @@ const paths = {
   "rotate-right": "M20 9a8 8 0 1 0-1 7M20 4v5h-5",
   "move-up": "M12 19V5M6 11l6-6 6 6",
   "move-down": "M12 5v14M6 13l6 6 6-6",
+  sparkle: "M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z",
+  send: "M4 12l16-8-6 16-2.5-6.5z",
+  stop: "M7 7h10v10H7z",
+  gear: "M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1L7 17M17 7l2.1-2.1",
+  plus: "M12 5v14M5 12h14",
 } as const;
 
 export type IconName = keyof typeof paths;

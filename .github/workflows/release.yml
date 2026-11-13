@@ -36,7 +36,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev libdbus-1-dev pkg-config
       - run: rustup target add ${{ matrix.target }}
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
@@ -45,7 +45,9 @@ jobs:
           cache: pnpm
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: apps/desktop/src-tauri
+          workspaces: |
+            apps/desktop/src-tauri
+            engine
           key: ${{ matrix.target }}
       - run: pnpm install --frozen-lockfile
       - run: node scripts/fetch-rhwp.mjs
@@ -82,7 +84,8 @@ jobs:
           releaseName: "Papy ${{ inputs.tag || github.ref_name }}"
           releaseBody: |
             PDF·HWP·HWPX·DOCX·DOC 보기, HWP·HWPX·DOCX·DOC 편집, 저장·형식 변환, PDF 로 내보내기를 할 수 있습니다.
-            v0.4.1: 앱 아이콘을 웹사이트 로고(흰 문서)와 같게 바꿨습니다. 기능은 v0.4.0 과 같습니다.
+            v0.5.0 시험판: 선택 설치하는 AI 도우미 플러그인. 도구 막대의 ✦ 단추로 대화창을 열고 플러그인을 설치합니다. Claude·ChatGPT·Gemini(내 API 키), Ollama(내 컴퓨터), Claude Code·Codex·Gemini CLI(내 계정)와 문서에 대해 대화하고, 고치기는 제안으로 받아 적용·거절합니다. 다른 AI 앱에서 쓰는 MCP 서버도 들어 있습니다. 그림·각주 바로 뒤 글을 지우면 그 개체까지 지워지던 문제도 고쳤습니다.
+            v0.4.1: 앱 아이콘을 웹사이트 로고(흰 문서)와 같게 바꿨습니다.
             v0.4.0 변경: HWP 엔진(rhwp)을 0.9.0 으로 올렸습니다(고급 편집 포함). 한글 문서를 DOCX 로 옮길 때 지문 상자·글상자·바탕쪽·어울림 표·머리 표·그림 자르기가 더 정확해졌고, DOCX 에서 연 문서를 한글 형식으로 저장해도 쪽이 늘지 않습니다. 각주 많은 Word 문서와 큰 표 한글 문서를 훨씬 빨리 엽니다. 한글 ↔ 워드로 저장하기 전과 Word 문서를 열 때, 형식마다 조판 방식이 달라 줄바꿈·쪽 수가 다를 수 있음을 알립니다.
             중요한 문서는 사본으로 써 주세요.
             설치 방법과 보안 경고 해결: https://papy-omega.vercel.app/install/
@@ -91,3 +94,26 @@ jobs:
           # v1.0.0-rc.1 처럼 태그에 - 가 있으면 미리보기(pre-release)로 올린다.
           prerelease: ${{ contains(inputs.tag || github.ref_name, '-') }}
           args: --target ${{ matrix.target }} ${{ steps.bundles.outputs.args }}
+      # AI 플러그인(ADR 0009): 앱과 따로 받는 실행 파일. 앱은 같은 버전 릴리스에서 받아 서명을 확인한다.
+      - name: build AI plugin
+        id: ai
+        shell: bash
+        env:
+          PAPY_AI_SIGNING_KEY: ${{ secrets.PAPY_AI_SIGNING_KEY }}
+        run: |
+          if [ -z "$PAPY_AI_SIGNING_KEY" ]; then
+            echo "::warning::PAPY_AI_SIGNING_KEY is not set; the AI plugin is not published"
+            exit 0
+          fi
+          cargo build --release --locked --manifest-path engine/Cargo.toml -p papy-ai --target ${{ matrix.target }}
+          exe=papy-ai
+          if [ "${{ runner.os }}" = "Windows" ]; then exe=papy-ai.exe; fi
+          node scripts/package-ai-plugin.mjs "engine/target/${{ matrix.target }}/release/$exe" ${{ matrix.target }} dist-ai
+          echo "built=true" >> "$GITHUB_OUTPUT"
+      - name: upload AI plugin
+        if: steps.ai.outputs.built == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: gh release upload "$TAG" dist-ai/* --clobber

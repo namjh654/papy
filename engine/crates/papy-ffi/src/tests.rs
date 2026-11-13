@@ -549,6 +549,76 @@ fn paragraph_edit_keeps_inline_picture() {
 }
 
 #[test]
+fn deleting_text_after_a_leading_picture_keeps_the_picture() {
+    // 문단 맨 앞 그림 바로 뒤 글을 지워도 그림은 남아야 한다(글자 축으로 지우면 그림까지 지워졌다).
+    let engine = PapyEngine::new(None);
+    let doc = engine.open(docx_paragraphs(&["앞 뒤"]), None).unwrap();
+    let at = |offset| EnginePosition {
+        section: 0,
+        paragraph: 0,
+        offset,
+        cell: None,
+    };
+    engine
+        .insert_picture(doc.session, at(0), RED_PNG.to_vec(), 40.0, 20.0)
+        .unwrap();
+    let pictures = |engine: &PapyEngine| {
+        engine
+            .page_objects(doc.session, 0)
+            .unwrap()
+            .iter()
+            .filter(|o| o.kind == EngineObjectKind::Picture)
+            .count()
+    };
+    let text = |engine: &PapyEngine| {
+        engine
+            .text_in_range(
+                doc.session,
+                EngineRange {
+                    start: at(0),
+                    end: at(4),
+                },
+            )
+            .unwrap()
+    };
+    assert_eq!(pictures(&engine), 1);
+    assert_eq!(text(&engine), "\u{FFFC}앞 뒤");
+    engine
+        .delete_range(
+            doc.session,
+            EngineRange {
+                start: at(1),
+                end: at(3),
+            },
+        )
+        .unwrap();
+    assert_eq!(pictures(&engine), 1);
+    assert_eq!(
+        engine
+            .text_in_range(
+                doc.session,
+                EngineRange {
+                    start: at(0),
+                    end: at(2)
+                }
+            )
+            .unwrap(),
+        "\u{FFFC}뒤"
+    );
+    // 그림 자리까지 지우면 그림도 지워진다
+    engine
+        .delete_range(
+            doc.session,
+            EngineRange {
+                start: at(0),
+                end: at(2),
+            },
+        )
+        .unwrap();
+    assert_eq!(pictures(&engine), 0);
+}
+
+#[test]
 fn outline_and_find_text() {
     let engine = PapyEngine::new(None);
     let doc = engine

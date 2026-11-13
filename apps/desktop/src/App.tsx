@@ -34,6 +34,7 @@ import { Toolbar, type Mode, type ZoomMode } from "./components/Toolbar";
 import { PX_PER_PT, Viewer, type ViewerHandle } from "./components/Viewer";
 import { Welcome } from "./components/Welcome";
 import { LicensesDialog } from "./components/LicensesDialog";
+import { AiPanel } from "./components/AiPanel";
 import { t } from "./i18n";
 import { crossesFamily, hideNotice, noticeHidden, opensWithOtherLayout } from "./convert";
 
@@ -86,6 +87,7 @@ export function App() {
   const [layoutNotice, setLayoutNotice] = useState(false);
   const [about, setAbout] = useState(false);
   const [hasStudio, setHasStudio] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
   const [pdfSettings, setPdfSettings] = useState<PdfToolSettings>({
     tool: "highlight",
     color: "#facc15",
@@ -233,6 +235,29 @@ export function App() {
       setError(describeError(caught));
     }
   }, [confirmConversion]);
+
+  // ---- AI 도우미 ----
+
+  /** AI 제안을 적용했다: 편집과 같이 다시 그린다. */
+  const aiApplied = useCallback((id: number) => {
+    const current = docRef.current;
+    if (!current || current.id !== id) return;
+    setDirty(true);
+    setRevision((value) => value + 1);
+    void pageLayout(current.id).then((pages) =>
+      setDoc((old) => (old && old.id === current.id ? { ...old, pages, pageCount: pages.length } : old)),
+    );
+  }, []);
+
+  // AI 가 다른 형식으로 저장하자고 하면 저장 위치를 묻는다.
+  useEffect(() => {
+    const unlisten = listen<{ doc: number; format: string }>("ai-export", ({ payload }) => {
+      if (docRef.current?.id === payload.doc) void exportAs(payload.format);
+    });
+    return () => {
+      void unlisten.then((stop) => stop());
+    };
+  }, [exportAs]);
 
   /** 저장하지 않은 변경이 있으면 묻는다. 계속해도 되면 true. */
   const confirmDiscard = useCallback(async () => {
@@ -523,6 +548,8 @@ export function App() {
         onSave={() => void save()}
         onSaveAs={() => void saveAs()}
         onExport={(ext) => void exportAs(ext)}
+        aiOpen={aiOpen}
+        onAi={() => setAiOpen((open) => !open)}
       />
       {doc && mode === "edit" && doc.canEdit && (
         <FormatBar
@@ -598,6 +625,13 @@ export function App() {
             />
           )}
         </main>
+        {aiOpen && (
+          <AiPanel
+            doc={doc ? { id: doc.id, fileName: doc.fileName, canEdit: doc.canEdit } : null}
+            onApplied={aiApplied}
+            onClose={() => setAiOpen(false)}
+          />
+        )}
       </div>
 
       {busy && (

@@ -1,0 +1,26 @@
+[package]
+name = "papy-ai"
+description = "Papy AI plugin: in-app chat backend (Claude, ChatGPT, Gemini, Ollama, ACP agents) and MCP server"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "papy-ai"
+path = "src/main.rs"
+
+[dependencies]
+papy-core.workspace = true
+papy-tools.workspace = true
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# HTTP(rustls, 운영체제 인증서 대신 webpki 루트). 스트리밍 응답을 줄 단위로 읽는다.
+ureq = { version = "2.12", default-features = false, features = ["tls", "json"] }
+# API 키는 운영체제 키체인에만 둔다.
+keyring = { version = "3.6", features = ["apple-native", "windows-native", "sync-secret-service", "crypto-rust"] }
+
+[lints]
+workspace = true

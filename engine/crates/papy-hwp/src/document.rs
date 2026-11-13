@@ -409,39 +409,18 @@ impl HwpDocument {
         if start == end {
             return Ok(());
         }
+        // 캐럿 축(글자 + 글 속 개체 자리)으로 지운다. 글자 축으로 지우면 범위 바로 앞에 붙은
+        // 개체(글 앞 그림·각주·떠 있는 표)까지 지워진다.
         let section = start.section as usize;
-        let (first, last) = (start.paragraph as usize, end.paragraph as usize);
-        // 글자 자리는 개체를 지우기 전에 잰다(개체를 지워도 글자 자리는 그대로다)
-        let from = text_offset(&self.doc, section, first, start.offset as usize);
-        let to = text_offset(&self.doc, section, last, end.offset as usize);
-        // 처음·끝 문단에서 범위에 든 개체(가운데 문단은 통째로 지워진다)
-        let mut objects: Vec<(usize, usize)> = Vec::new();
-        for (logical, control) in inline_slots(&self.doc, section, first) {
-            let inside = logical >= start.offset as usize
-                && (first != last || logical < end.offset as usize);
-            if inside {
-                objects.push((first, control));
-            }
-        }
-        if last != first {
-            for (logical, control) in inline_slots(&self.doc, section, last) {
-                if logical < end.offset as usize {
-                    objects.push((last, control));
-                }
-            }
-        }
-        // 뒤에서부터 지워 앞 개체 번호가 바뀌지 않게 한다
-        objects.sort_unstable_by(|a, b| b.cmp(a));
-        for (paragraph, control) in objects {
-            self.write("delete object", |doc| {
-                doc.delete_control_native(section, paragraph, control)
-            })?;
-        }
-        if first != last || to > from {
-            self.write("delete", |doc| {
-                doc.delete_range_native(section, first, from, last, to, None)
-            })?;
-        }
+        self.write("delete", |doc| {
+            doc.delete_range_logical_native(
+                section,
+                start.paragraph as usize,
+                start.offset as usize,
+                end.paragraph as usize,
+                end.offset as usize,
+            )
+        })?;
         Ok(())
     }
 
@@ -643,6 +622,41 @@ fn inline_slots(doc: &Rhwp, section: usize, paragraph: usize) -> Vec<(usize, usi
         .collect();
     slots.sort_unstable();
     slots
+}
+
+/// 글에 자리를 차지하지 않고, 글을 지울 때 함께 지워질 수 있는 개체(각주·떠 있는 표·그림 등)가 붙은 논리 자리
+fn hidden_anchors(doc: &Rhwp, section: usize, paragraph: usize) -> Vec<u32> {
+    let Some(para) = paragraph_of(doc, section, paragraph) else {
+        return Vec::new();
+    };
+    let positions = para.logical_control_positions();
+    let mut anchors: Vec<u32> = para
+        .controls
+        .iter()
+        .enumerate()
+        // 글을 지울 때 함께 지워질 수 있는 개체만(rhwp `is_split_movable_control`). 구역·단 설정 등은 남는다.
+        .filter(|(_, control)| {
+            use rhwp::model::control::Control;
+            !control.is_logical_inline()
+                && matches!(
+                    control,
+                    Control::Shape(_)
+                        | Control::Table(_)
+                        | Control::Picture(_)
+                        | Control::Equation(_)
+                        | Control::Form(_)
+                        | Control::Footnote(_)
+                        | Control::Endnote(_)
+                        | Control::AutoNumber(_)
+                        | Control::CharOverlap(_)
+                        | Control::Ruby(_)
+                )
+        })
+        .filter_map(|(index, _)| positions.get(index).map(|&at| at as u32))
+        .collect();
+    anchors.sort_unstable();
+    anchors.dedup();
+    anchors
 }
 
 /// 논리 자리 → 글자 자리(그 자리 앞 개체 수만큼 뺀다)
@@ -975,6 +989,37 @@ impl Document for HwpDocument {
         self.check()?;
         // DOCX 메모는 숨은 설명으로 문서 안에 들어 있다(검토 창은 작성자·날짜를 가진 `docx_review` 를 쓴다).
         let out = guard(|| crate::audit::structure(self.doc.document()))?;
+        Ok(out)
+    }
+
+    fn paragraphs(&mut self) -> Result<Vec<papy_model::ParagraphText>> {
+        self.check()?;
+        let sections = self.doc.document().sections.len() as u32;
+        let mut out = Vec::new();
+        for section in 0..sections {
+            for paragraph in 0..self.paragraph_count(section)? {
+                let len = self.paragraph_len(section, paragraph)?;
+                let start = TextPos {
+                    section,
+                    paragraph,
+                    offset: 0,
+                };
+                let text = self.text_in_range(
+                    start,
+                    TextPos {
+                        offset: len,
+                        ..start
+                    },
+                )?;
+                let anchors = hidden_anchors(&self.doc, section as usize, paragraph as usize);
+                out.push(papy_model::ParagraphText {
+                    section,
+                    paragraph,
+                    text,
+                    anchors,
+                });
+            }
+        }
         Ok(out)
     }
 

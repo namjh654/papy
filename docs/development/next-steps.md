@@ -153,17 +153,25 @@ PR #30(`feature/fidelity-exam-kor`)과 #31(`feature/rhwp-0.9`)을 병합한다. 
     병합되면 설치 방법 페이지에 `winget install namjh654.Papy` 를 넣고 0.4.1 PR 을 낸다([packaging/winget](../../packaging/winget/README.md)).
 - ~~웹 통계~~: 다운로드 수는 `/stats/`, 방문 수는 Vercel Analytics(대시보드에서 **Enable** 필요, `website/README.md`).
 
-## AI 플러그인 (순서 미정, [ADR 0009](../decisions/0009-ai-plugin.md))
+## AI 플러그인 ([ADR 0009](../decisions/0009-ai-plugin.md)) — v0.5.0 시험판
 
-2026-11-13 사용자 결정: 선택 설치하는 AI 플러그인을 만든다. 앱 안 대화창과 MCP 서버를 함께 두고, Claude·ChatGPT·Gemini 셋 다 연결한다.
-PPT 단계 앞에 할지 뒤에 할지는 사용자가 정한다.
+2026-11-13 사용자 결정: 선택 설치하는 AI 플러그인을 만든다. 앱 안 대화창과 MCP 서버를 함께 두고, Claude·ChatGPT·Gemini 셋 다 연결한다. PPT 보다 먼저 한다.
 
-1. `papy-ai` 뼈대, Papy 도구(읽기·찾기·구조·제안·내보내기), 단독 MCP 서버(stdio). Claude 데스크톱·Gemini CLI 로 확인한다.
-2. 앱 대화창과 API 키 연결(Anthropic·OpenAI·Gemini, 키는 OS 키체인). 제안 미리보기·적용·되돌리기, 토큰 사용량을 보여 준다.
-3. 플러그인 설치 관리(받기·ed25519 서명 확인·지우기), CI 빌드·서명, 외부 전송 확인 창, 웹 개인정보·FAQ 고지.
-4. Ollama(로컬) 연결.
-5. ACP: Claude Code·Gemini CLI·Codex CLI 연결. 각 회사의 허용 범위를 먼저 확인한다.
-6. 앱 연결 MCP(`--attach`, 앱에 열린 문서 다루기).
+만든 것(모두 v0.5.0-rc.1):
+
+- `engine/crates/papy-tools`: 도구 정의·읽기·고치기 제안·적용(문단 글이 바뀌었으면 거절)·단독 작업 공간, 줄 단위 JSON-RPC.
+  숨은 개체(각주·떠 있는 표·그림·구역 설정)가 붙은 자리를 지우는 고치기는 거절한다(`ParagraphText::anchors`).
+- `engine/crates/papy-ai`(플러그인 실행 파일): Anthropic Messages API·Chat Completions(OpenAI·Gemini·Ollama) 실시간 출력, 도구 실행 반복,
+  OS 키체인, MCP 서버(단독·앱 연결), ACP 클라이언트(Claude Code·Codex·Gemini CLI, Papy 도구만 허용), 앱 연결(`serve`).
+- 앱: 플러그인 받기·ed25519 서명 확인·지우기(`src-tauri/src/ai.rs`), 대화창(`AiPanel.tsx`), 제안 미리보기·적용·거절, 외부 전송 확인 창, 토큰·비용 표시, MCP 설정 복사.
+- 릴리스: `scripts/package-ai-plugin.mjs` 로 gzip·서명해 같은 릴리스에 올린다(비밀 값 `PAPY_AI_SIGNING_KEY`).
+- 고친 엔진 버그: 그림·각주 바로 뒤 글을 지우면 그 개체까지 지워지던 문제(papy-hwp 지우기를 캐럿 축 API 로).
+
+남은 것:
+
+1. 실제 계정으로 확인: Claude Code(`cargo test -p papy-ai --test plugin real_claude_code -- --ignored`), Codex·Gemini CLI, 각 API 키.
+2. 대화 기록 저장(지금은 앱을 닫으면 사라진다), 표 안 글 고치기 도구, 여러 문단 한 번에 고치기.
+3. 각 회사 허용 범위 변화 추적(ACP 어댑터 이름·버전).
 
 ## 4단계 — PPT·PPTX (배포 뒤)
 

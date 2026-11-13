@@ -5,6 +5,7 @@
 //! - 페이지 비트맵은 JSON 이 아니라 바이너리 응답으로 보낸다: `[너비 u32 LE][높이 u32 LE][RGBA…]`.
 //! - 경로·본문은 로그에 남기지 않는다.
 
+pub mod ai;
 pub mod host;
 
 use std::path::{Path, PathBuf};
@@ -24,6 +25,11 @@ struct AppState {
     licenses: PathBuf,
     /// 진행 중인 찾기. 새 찾기가 오면 앞 것을 멈춘다(글자를 칠 때마다 찾는다).
     search: Mutex<CancelToken>,
+    /// AI 플러그인.
+    ai: Arc<ai::Ai>,
+    /// MCP 서버 설정에 넣을 PDFium·글꼴 위치.
+    pdfium: PathBuf,
+    font: Option<PathBuf>,
 }
 
 /// Papy 가 여는 확장자. 파일 연결 인자에서 이것만 받는다.
@@ -186,6 +192,7 @@ async fn review(state: State<'_, AppState>, id: u64) -> CommandResult<host::Revi
 
 #[tauri::command]
 async fn close_document(state: State<'_, AppState>, id: u64) -> CommandResult<()> {
+    state.ai.document_closed(id);
     blocking(&state, move |engine| host::close(engine, id)).await
 }
 
@@ -257,6 +264,153 @@ async fn open_document_bytes(
     .await
 }
 
+// ---- AI 플러그인 ----
+
+/// 플러그인 일을 블로킹 스레드에서 돌린다. 오류는 글로 넘긴다.
+async fn ai_job<T: Send + 'static>(
+    app: tauri::AppHandle,
+    state: &State<'_, AppState>,
+    job: impl FnOnce(&tauri::AppHandle, &Arc<Engine>, &Arc<ai::Ai>) -> Result<T, String>
+    + Send
+    + 'static,
+) -> Result<T, String> {
+    let engine = Arc::clone(&state.engine);
+    let ai = Arc::clone(&state.ai);
+    tauri::async_runtime::spawn_blocking(move || job(&app, &engine, &ai))
+        .await
+        .map_err(|_| "AI task failed".to_owned())?
+}
+
+#[tauri::command]
+async fn ai_status(app: tauri::AppHandle, state: State<'_, AppState>) -> Result<Value, String> {
+    ai_job(
+        app,
+        &state,
+        |app, engine, ai| Ok(ai.status(app, engine, ai)),
+    )
+    .await
+}
+
+#[tauri::command]
+async fn ai_install(app: tauri::AppHandle, state: State<'_, AppState>) -> Result<Value, String> {
+    ai_job(app, &state, |app, engine, ai| {
+        ai.install(app)?;
+        Ok(ai.status(app, engine, ai))
+    })
+    .await
+}
+
+#[tauri::command]
+async fn ai_uninstall(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    forget_keys: bool,
+) -> Result<(), String> {
+    ai_job(app, &state, move |app, engine, ai| {
+        ai.uninstall(app, engine, ai, forget_keys)
+    })
+    .await
+}
+
+/// 플러그인 요청을 그대로 넘긴다(키·모델 목록·멈추기 등). 대화 보내기는 [`ai_send`].
+#[tauri::command]
+async fn ai_request(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    method: String,
+    params: Value,
+) -> Result<Value, String> {
+    const ALLOWED: [&str; 7] = [
+        "keys/status",
+        "keys/set",
+        "keys/delete",
+        "models/list",
+        "chat/cancel",
+        "agents/detect",
+        "initialize",
+    ];
+    if !ALLOWED.contains(&method.as_str()) {
+        return Err(format!("not allowed: {method}"));
+    }
+    ai_job(app, &state, move |app, engine, ai| {
+        ai.request(app, engine, ai, &method, params)
+    })
+    .await
+}
+
+/// 대화 글을 보낸다. `doc` 은 지금 연 문서(없으면 `None`). 문서 정보는 여기서 채운다.
+#[tauri::command]
+async fn ai_send(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    doc: Option<u64>,
+    name: Option<String>,
+    mut params: Value,
+) -> Result<Value, String> {
+    ai_job(app, &state, move |app, engine, ai| {
+        let conversation = params
+            .get("conversation")
+            .and_then(Value::as_str)
+            .ok_or("conversation is required")?
+            .to_owned();
+        let document = match doc {
+            Some(doc) => {
+                let id = host::session(doc).map_err(|e| e.message)?;
+                let mut info = papy_tools::document_info(engine, id).map_err(|e| e.message)?;
+                if let Some(name) = name {
+                    info["name"] = Value::String(name);
+                }
+                info
+            }
+            None => Value::Null,
+        };
+        params["document"] = document;
+        ai.bind(&conversation, doc);
+        ai.request(app, engine, ai, "chat/send", params)
+    })
+    .await
+}
+
+#[tauri::command]
+async fn ai_reset(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    conversation: String,
+) -> Result<(), String> {
+    ai_job(app, &state, move |app, engine, ai| {
+        ai.forget(&conversation);
+        if ai.binary().is_some() {
+            ai.request(
+                app,
+                engine,
+                ai,
+                "chat/reset",
+                serde_json::json!({ "conversation": conversation }),
+            )?;
+        }
+        Ok(())
+    })
+    .await
+}
+
+/// 제안을 적용한다. 고친 문서의 세션 id 를 돌려준다(화면이 다시 그린다).
+#[tauri::command]
+async fn ai_apply_proposal(state: State<'_, AppState>, id: u64) -> CommandResult<u64> {
+    let ai = Arc::clone(&state.ai);
+    blocking(&state, move |engine| ai.apply(engine, id)).await
+}
+
+#[tauri::command]
+fn ai_reject_proposal(state: State<'_, AppState>, id: u64) {
+    state.ai.reject(id);
+}
+
+/// 다른 AI 앱(Claude 데스크톱 등)에 붙일 MCP 서버 설정. 플러그인이 없으면 `null`.
+#[tauri::command]
+fn ai_mcp_config(state: State<'_, AppState>) -> Option<Value> {
+    state.ai.mcp_config(&state.pdfium, state.font.as_deref())
+}
+
 /// `encodeURIComponent` 결과를 되돌린다.
 fn percent_decode(value: &str) -> Option<String> {
     let mut out = Vec::with_capacity(value.len());
@@ -317,18 +471,28 @@ pub fn run() {
         .setup(|app| {
             let pdfium = Path::new("pdfium").join(papy_core::pdfium_library_file_name());
             let font = resource(app, Path::new("fonts/NotoSansKR-Regular.ttf"));
+            let pdfium = resource(app, &pdfium);
+            let font = font.exists().then_some(font);
             let engine = Engine::with_resources(
                 Limits::default(),
                 EngineResources {
-                    pdfium_library: resource(app, &pdfium),
-                    korean_font: font.exists().then_some(font),
+                    pdfium_library: pdfium.clone(),
+                    korean_font: font.clone(),
                 },
             );
+            let plugin_dir = app
+                .path()
+                .app_data_dir()
+                .map(|dir| dir.join("plugins").join("ai"))
+                .unwrap_or_else(|_| std::env::temp_dir().join("papy-ai-plugin"));
             app.manage(AppState {
                 engine: Arc::new(engine),
                 pending_opens: Mutex::new(Vec::new()),
                 licenses: resource(app, Path::new("licenses")),
                 search: Mutex::new(CancelToken::new()),
+                ai: Arc::new(ai::Ai::new(plugin_dir)),
+                pdfium,
+                font,
             });
             // Windows·Linux: 파일을 더블클릭하면 경로가 실행 인자로 온다.
             let args: Vec<PathBuf> = std::env::args_os().skip(1).map(PathBuf::from).collect();
@@ -353,7 +517,16 @@ pub fn run() {
             export_document,
             open_document_bytes,
             take_pending_opens,
-            license_notices
+            license_notices,
+            ai_status,
+            ai_install,
+            ai_uninstall,
+            ai_request,
+            ai_send,
+            ai_reset,
+            ai_apply_proposal,
+            ai_reject_proposal,
+            ai_mcp_config
         ])
         .build(tauri::generate_context!())
         .expect("error while building Papy desktop")

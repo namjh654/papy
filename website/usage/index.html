@@ -15,6 +15,7 @@
         <li><a href="#edit">편집 모드</a></li>
         <li><a href="#pdf">PDF 편집</a></li>
         <li><a href="#save">저장·변환</a></li>
+        <li><a href="#ai">AI 도우미</a></li>
         <li><a href="#formats">지원 범위</a></li>
         <li><a href="#help">문제 해결</a></li>
       </ul>
@@ -99,6 +100,17 @@
         </table>
       </div>
       <p><strong>형식을 바꾸면 모양이 조금 달라질 수 있습니다.</strong> 한글과 Word 는 줄과 쪽을 짜는 방식이 달라서, 한글 문서를 DOCX 로(또는 그 반대로) 저장하면 줄바꿈·쪽 수·개체 자리가 원본과 다를 수 있습니다. Word 문서(DOCX·DOC)도 Papy 조판 엔진으로 보여 주므로 Word 에서 볼 때와 다를 수 있습니다. 내용은 그대로 옮기고, 옮기지 못한 요소가 있으면 그 수를 알려 줍니다. 원본 파일은 따로 두세요.</p>
+
+      <h2 id="ai">AI 도우미 (선택) <span class="badge">v0.5.0 시험판</span></h2>
+      <p>도구 막대 오른쪽 끝의 ✦ 단추로 대화창을 엽니다. AI 기능은 따로 받는 플러그인이며, 설치하지 않으면 Papy 는 인터넷 없이 지금처럼 동작합니다.</p>
+      <ul>
+        <li><strong>설치:</strong> 대화창의 <strong>플러그인 설치</strong>를 누르면 앱과 같은 버전의 플러그인을 GitHub 에서 받아 서명을 확인한 뒤 설치합니다.</li>
+        <li><strong>대화 상대:</strong> Claude·ChatGPT·Gemini(내 API 키), Ollama(내 컴퓨터의 모델), Claude Code·Codex·Gemini CLI(내 구독 계정, 각 프로그램에 먼저 로그인).</li>
+        <li><strong>API 키:</strong> 설정(톱니)에서 넣습니다. 운영체제 키체인에만 저장되고 화면에 다시 보이지 않습니다. 쓴 토큰 수와 Claude 의 대략적인 비용을 대화창 아래에 보여 줍니다.</li>
+        <li><strong>고치기:</strong> AI 가 문서를 고치자고 하면 바뀌기 전·후를 보여 주는 <strong>제안</strong>이 옵니다. <strong>적용</strong>을 눌러야 바뀌고, 되돌리기(<kbd>Ctrl</kbd>+<kbd>Z</kbd>)로 취소할 수 있습니다. 저장은 평소처럼 내가 합니다.</li>
+        <li><strong>보내는 내용:</strong> 외부 서비스에 처음 보낼 때 문서마다 한 번 묻습니다. AI 가 도구로 읽은 부분만 보내며, Ollama 를 쓰면 컴퓨터 밖으로 나가지 않습니다.</li>
+        <li><strong>다른 AI 앱에서 쓰기(MCP):</strong> 설정의 MCP 설정을 Claude 데스크톱·Claude Code 등에 붙여 넣으면 그 앱이 Papy 로 문서를 읽고, 고친 내용을 새 파일로 저장합니다. 원본은 덮어쓰지 않습니다.</li>
+      </ul>
 
       <h2 id="formats">지원 범위</h2>
       <div class="table-scroll">
