@@ -47,9 +47,11 @@ pub(crate) fn apply(doc: &mut Rhwp, report: &DocxReadReport) -> Result<usize, Hw
 
 /// rhwp 는 감추기 조판 부호를 문단 맨 앞에 넣는다. 첫 문단 맨 앞이 구역 정의가 아니면 한글이 구역 설정(용지·여백)을
 /// 기본값으로 읽어 쪽 수가 크게 달라지므로, 구역·단 정의 뒤로 옮긴다(한글 저장본 차례).
+/// 문서를 통째로 갈아 끼우면(`set_document`) 묶음 처리 중인 조판이 달라져 쪽 수가 바뀐다(POI `Bug50936_2.doc` 18 → 19쪽).
+/// 그래서 그 자리에서 고친다.
 fn page_hide_after_section_def(doc: &mut Rhwp) {
     use rhwp::model::control::Control;
-    let mut document = doc.document().clone();
+    let document = doc.document_mut();
     let Some(para) = document
         .sections
         .first_mut()
@@ -85,7 +87,6 @@ fn page_hide_after_section_def(doc: &mut Rhwp) {
             .insert((lead - 1).min(para.ctrl_data_records.len()), record);
     }
     document.sections[0].raw_stream = None;
-    doc.set_document(document);
 }
 
 /// 본문 [`SECTION_MARK`] 를 지우고, Word 구역(첫 구역 뒤)마다 그 구역이 시작하는 문단 번호를 돌려준다.

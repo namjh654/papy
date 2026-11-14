@@ -50,6 +50,10 @@ struct Media<'a> {
     links: Vec<String>,
     /// 쓴 책갈피 수(책갈피 id)
     bookmarks: u32,
+    /// 지금 쓰는 글상자 깊이. Word 는 글상자 안 도형·글상자(`txbxContent` 안 `wps`/`wpg`)를 열다 죽는다.
+    in_text_box: u32,
+    /// 지금 쓰는 각주·미주·메모 깊이. Word 는 주·메모 안 글상자(`wps:txbx`)를 열다 죽는다(묶음 안 글상자도).
+    in_note: u32,
 }
 
 impl Media<'_> {
@@ -474,19 +478,24 @@ fn wsp_xml(
         if flip_h { r#" flipH="1""# } else { "" },
         if flip_v { r#" flipV="1""# } else { "" }
     );
+    // 주·메모 안에서는 글상자를 빼고 도형만 그린다(글은 write_shape 가 도형 뒤에 쓴다).
+    let text_box = drawing.text_box.as_ref().filter(|_| media.in_note == 0);
     let mut text = String::new();
-    if let Some(text_box) = &drawing.text_box {
+    if let Some(text_box) = text_box {
         text.push_str("<wps:txbx><w:txbxContent>");
-        for paragraph in &text_box.paragraphs {
-            write_paragraph(&mut text, info, media, paragraph, depth + 1)?;
-        }
+        media.in_text_box += 1;
+        let written = text_box.paragraphs.iter().try_for_each(|paragraph| {
+            write_paragraph(&mut text, info, media, paragraph, depth + 1)
+        });
+        media.in_text_box -= 1;
+        written?;
         if text_box.paragraphs.is_empty() {
             text.push_str("<w:p/>");
         }
         text.push_str("</w:txbxContent></wps:txbx>");
     }
     // 글상자 안 여백·글 세로 자리(없으면 Word 는 왼쪽·오른쪽 0.1인치, 위·아래 0.05인치로 넓게 잡는다)
-    let body = drawing.text_box.as_ref().map_or_else(
+    let body = text_box.map_or_else(
         || "<wps:bodyPr/>".to_owned(),
         |text_box| {
             let inset = |v: i16| emu(u32::from(v.max(0) as u16));
@@ -504,7 +513,7 @@ fn wsp_xml(
             )
         },
     );
-    let text_box_flag = if drawing.text_box.is_some() {
+    let text_box_flag = if text_box.is_some() {
         r#" txBox="1""#
     } else {
         ""
@@ -611,6 +620,11 @@ fn write_shape(
     shape: &ShapeObject,
     depth: usize,
 ) -> Result<()> {
+    if media.in_text_box > 0 {
+        // 글상자 안 도형은 Word 가 열지 못한다(죽는다): 도형 안 글만 이 자리에 줄을 바꿔 쓴다.
+        write_shape_text(out, shape);
+        return Ok(());
+    }
     let common = shape.common();
     let (cx, cy) = (emu(common.width.max(1)), emu(common.height.max(1)));
     media.next_object += 1;
@@ -627,7 +641,42 @@ fn write_shape(
     if let Some(graphic) = graphic {
         write_drawing(out, common, cx, cy, &graphic);
     }
+    if media.in_note > 0 {
+        write_shape_text(out, shape);
+    }
     Ok(())
+}
+
+/// 도형(묶음이면 그 안 도형들) 글상자의 글 → 문단마다 줄을 바꾼 런. 글자 모양은 옮기지 않는다.
+fn write_shape_text(out: &mut String, shape: &ShapeObject) {
+    let mut leaves = Vec::new();
+    if let ShapeObject::Group(group) = shape {
+        group_leaves(group, &mut leaves, 0);
+    } else {
+        leaves.push((shape, (0.0, 0.0, 0.0, 0.0)));
+    }
+    let lines = leaves
+        .iter()
+        .filter_map(|(leaf, _)| leaf.drawing()?.text_box.as_ref())
+        .flat_map(|text_box| &text_box.paragraphs)
+        .map(|paragraph| {
+            paragraph
+                .text
+                .chars()
+                .filter(|c| !c.is_control())
+                .collect::<String>()
+        })
+        .filter(|line| !line.trim().is_empty());
+    for (i, line) in lines.enumerate() {
+        if i > 0 {
+            out.push_str("<w:r><w:br/></w:r>");
+        }
+        let _ = write!(
+            out,
+            r#"<w:r><w:t xml:space="preserve">{}</w:t></w:r>"#,
+            xml_escape(&line)
+        );
+    }
 }
 
 /// 수식 → 그림(그릴 수 없으면 수식 스크립트 글).
@@ -1186,14 +1235,20 @@ fn write_note(
     };
     let mark = decorate(&format!("<w:{tag}Ref/>"));
     let mut body = String::new();
-    for (index, paragraph) in paragraphs.iter().enumerate() {
-        let prefix = if index == 0 {
-            format!(r#"{mark}<w:r {NOTE_MARK_RUN}><w:t xml:space="preserve"> </w:t></w:r>"#)
-        } else {
-            String::new()
-        };
-        write_paragraph_with(&mut body, info, media, paragraph, depth + 1, &prefix)?;
-    }
+    media.in_note += 1;
+    let written = paragraphs
+        .iter()
+        .enumerate()
+        .try_for_each(|(index, paragraph)| {
+            let prefix = if index == 0 {
+                format!(r#"{mark}<w:r {NOTE_MARK_RUN}><w:t xml:space="preserve"> </w:t></w:r>"#)
+            } else {
+                String::new()
+            };
+            write_paragraph_with(&mut body, info, media, paragraph, depth + 1, &prefix)
+        });
+    media.in_note -= 1;
+    written?;
     if paragraphs.is_empty() {
         let _ = write!(body, "<w:p>{mark}</w:p>");
     }
@@ -1263,9 +1318,12 @@ fn write_inline(
         // 숨은 설명 → Word 메모(그 자리에 메모 표시). 작성자는 한글에 없어 "Papy" 로 둔다.
         Control::HiddenComment(comment) if depth < MAX_DEPTH => {
             let mut body = String::new();
-            for paragraph in &comment.paragraphs {
-                write_paragraph(&mut body, info, media, paragraph, depth + 1)?;
-            }
+            media.in_note += 1;
+            let written = comment.paragraphs.iter().try_for_each(|paragraph| {
+                write_paragraph(&mut body, info, media, paragraph, depth + 1)
+            });
+            media.in_note -= 1;
+            written?;
             if comment.paragraphs.is_empty() {
                 body.push_str("<w:p/>");
             }
@@ -1401,9 +1459,13 @@ fn field_spans(
             // 한글 메모: `MEMO/<모양>/<번호>/<id>/<id>/<작성자>/…`
             let author = field.command.split('/').nth(5).unwrap_or("").to_owned();
             let mut body = String::new();
-            for memo in &field.memo_paragraphs {
-                write_paragraph(&mut body, info, media, memo, depth + 1)?;
-            }
+            media.in_note += 1;
+            let written = field
+                .memo_paragraphs
+                .iter()
+                .try_for_each(|memo| write_paragraph(&mut body, info, media, memo, depth + 1));
+            media.in_note -= 1;
+            written?;
             if field.memo_paragraphs.is_empty() {
                 body.push_str("<w:p/>");
             }
@@ -3317,6 +3379,8 @@ pub fn docx_from_document_with(
         comments: Vec::new(),
         links: Vec::new(),
         bookmarks: 0,
+        in_text_box: 0,
+        in_note: 0,
     };
     let mut body = String::new();
     let regions = column_regions(document);

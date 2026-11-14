@@ -2382,6 +2382,37 @@ fn docx_header_table_stays_table() {
     let mut doc = open(HwpBackend::docx(), bytes, &options()).unwrap();
     assert_eq!(doc.info().page_count, 1);
     check(&mut doc, "docx");
+    // HWP 로 저장할 때 꼬리말의 쪽 번호 필드 글자(U+0015)를 글자로 쓰면 HWP5 컨트롤 문자 코드와 겹쳐 한글이 문서를
+    // 열지 못했다(POI Bug51170.docx). 저장본에는 자동 번호로 들어가고, 살아 있는 문서는 그대로다.
+    let hwp = doc.save(SaveFormat::Hwp).unwrap();
+    let parsed = rhwp::wasm_api::HwpDocument::from_bytes(&hwp).unwrap();
+    let footer: Vec<_> = parsed.document().sections[0]
+        .paragraphs
+        .iter()
+        .flat_map(|p| &p.controls)
+        .filter_map(|c| match c {
+            rhwp::model::control::Control::Footer(f) => Some(&f.paragraphs),
+            _ => None,
+        })
+        .flatten()
+        .collect();
+    assert!(
+        footer
+            .iter()
+            .all(|p| !p.text.contains(['\u{15}', '\u{16}'])),
+        "{footer:?}"
+    );
+    assert!(
+        footer.iter().flat_map(|p| &p.controls).any(|c| matches!(
+            c,
+            rhwp::model::control::Control::AutoNumber(n)
+                if n.number_type == rhwp::model::control::AutoNumberType::Page
+        )),
+        "{footer:?}"
+    );
+    check(&mut doc, "after hwp save");
+    let mut again = open(HwpBackend::hwp(), hwp, &options()).unwrap();
+    check(&mut again, "docx>hwp");
     let hwpx = doc.save(SaveFormat::Hwpx).unwrap();
     let mut again = open(HwpBackend::hwpx(), hwpx, &options()).unwrap();
     check(&mut again, "docx>hwpx");
