@@ -31,7 +31,8 @@ if ($One) {
 foreach ($file in Get-Content $List) {
   if (-not $file) { continue }
   $start = Get-Date
-  $arguments = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $PSCommandPath, "-One", $file, "-Out", $Out)
+  # Start-Process 는 인자를 따옴표 없이 잇는다: 빈칸이 든 경로는 감싸 준다(안 그러면 그 문서는 결과에서 빠진다).
+  $arguments = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "`"$PSCommandPath`"", "-One", "`"$file`"", "-Out", "`"$Out`"")
   $process = Start-Process powershell -ArgumentList $arguments -PassThru -WindowStyle Hidden
   if (-not $process.WaitForExit($Timeout * 1000)) {
     Stop-Process -Id $process.Id -Force -Confirm:$false -ErrorAction SilentlyContinue

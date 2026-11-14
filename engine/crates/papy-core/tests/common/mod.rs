@@ -27,7 +27,13 @@ pub fn engine() -> (Engine, bool) {
 /// 패닉이면 `Err("패닉")`, 엔진 상태가 이상하면(정보·닫기 실패) 그 내용. 열리지 않은 것은 `Ok(false)`.
 pub fn exercise(engine: &Engine, data: Vec<u8>) -> Result<bool, String> {
     catch_unwind(AssertUnwindSafe(|| -> Result<bool, String> {
-        let Ok(id) = engine.open(DocumentSource::Bytes(data.into()), OpenOptions::default()) else {
+        let Ok(id) = engine.open(
+            DocumentSource::Bytes(data.into()),
+            OpenOptions {
+                rewrite_same_format: true,
+                ..OpenOptions::default()
+            },
+        ) else {
             return Ok(false);
         };
         let info = engine.info(id).map_err(|e| format!("정보 {:?}", e.code))?;
@@ -79,7 +85,10 @@ pub fn samples(engine: &Engine, with_pdf: bool) -> Vec<(&'static str, Vec<u8>)> 
     let id = engine
         .open(
             DocumentSource::Bytes(blank_hwp().into()),
-            OpenOptions::default(),
+            OpenOptions {
+                rewrite_same_format: true,
+                ..OpenOptions::default()
+            },
         )
         .unwrap();
     engine

@@ -510,6 +510,9 @@ fn groups_polygons_and_floating_pictures_are_written() {
     group.common.treat_as_char = true;
     triangle.common.width = 1000;
     triangle.common.height = 1000;
+    // 한글은 문단 위로 올린 개체의 위치를 음수로 담는다(rhwp 는 u32 로 읽는다).
+    triangle.common.vertical_offset = (-1000i32) as u32;
+    triangle.common.horizontal_offset = (-200i32) as u32;
     let paragraph = &mut document.sections[0].paragraphs[0];
     paragraph
         .controls
@@ -533,6 +536,87 @@ fn groups_polygons_and_floating_pictures_are_written() {
     assert!(
         xml.contains("<a:close/>") && xml.contains("<wp:anchor"),
         "{xml}"
+    );
+    // 음수 위치는 음수 EMU 로 쓴다(부호 없이 쓰면 int32 를 넘어 Word 가 문서를 열지 못한다).
+    assert!(
+        xml.contains("<wp:posOffset>-25400</wp:posOffset>")
+            && xml.contains("<wp:posOffset>-127000</wp:posOffset>"),
+        "{xml}"
+    );
+}
+
+#[test]
+fn shapes_inside_text_boxes_become_text() {
+    // 한글 문서(hwpspec.hwp)는 글상자 안에 글상자를 둔다. Word 는 txbxContent 안 도형을 열다 죽으므로
+    // 안쪽 도형은 글만 남긴다.
+    use rhwp::model::control::Control;
+    use rhwp::model::shape::{RectangleShape, ShapeObject, TextBox};
+    let mut core = rhwp::document_core::DocumentCore::new_empty();
+    core.create_blank_document_native().unwrap();
+    core.insert_text_native(0, 0, 0, "바깥").unwrap();
+    let mut document = core.document().clone();
+    let template = document.sections[0].paragraphs[0].clone();
+    let text_box = |paragraphs| TextBox {
+        paragraphs,
+        ..TextBox::default()
+    };
+    let mut inner = RectangleShape::default();
+    (inner.common.width, inner.common.height) = (1000, 500);
+    inner.common.treat_as_char = true;
+    let mut first = template.clone();
+    first.text = "첫 번째 문단".into();
+    let mut second = template.clone();
+    second.text = "둘째 & 줄".into();
+    inner.drawing.text_box = Some(text_box(vec![first, second]));
+    let mut holder = template.clone();
+    holder
+        .controls
+        .push(Control::Shape(Box::new(ShapeObject::Rectangle(inner))));
+    let mut outer = RectangleShape::default();
+    (outer.common.width, outer.common.height) = (3000, 2000);
+    outer.common.treat_as_char = true;
+    outer.drawing.text_box = Some(text_box(vec![holder.clone()]));
+    // 미주 안 글상자도 Word 가 열다 죽는다(시험지 해설의 묶음 도형): 도형은 남기고 글상자 글은 도형 뒤에 쓴다.
+    let mut boxed = RectangleShape::default();
+    (boxed.common.width, boxed.common.height) = (1000, 500);
+    boxed.common.treat_as_char = true;
+    let mut note_line = template.clone();
+    note_line.text = "해설 상자".into();
+    boxed.drawing.text_box = Some(text_box(vec![note_line]));
+    let mut note_paragraph = template.clone();
+    note_paragraph
+        .controls
+        .push(Control::Shape(Box::new(ShapeObject::Rectangle(boxed))));
+    let note = rhwp::model::footnote::Endnote {
+        paragraphs: vec![note_paragraph],
+        ..Default::default()
+    };
+    let controls = &mut document.sections[0].paragraphs[0].controls;
+    controls.push(Control::Shape(Box::new(ShapeObject::Rectangle(outer))));
+    controls.push(Control::Endnote(Box::new(note)));
+    let bytes = docx_from_document(&document).unwrap();
+    let endnotes = part_text(&bytes, "word/endnotes.xml");
+    assert!(endnotes.contains("<wps:wsp>"), "{endnotes}");
+    assert!(
+        !endnotes.contains("<wps:txbx>") && !endnotes.contains(r#"txBox="1""#),
+        "{endnotes}"
+    );
+    assert!(
+        endnotes
+            .contains(r#"</w:drawing></w:r><w:r><w:t xml:space="preserve">해설 상자</w:t></w:r>"#),
+        "{endnotes}"
+    );
+    let xml = part_text(&bytes, "word/document.xml");
+    let inside = xml
+        .split_once("<w:txbxContent>")
+        .and_then(|(_, rest)| rest.split_once("</w:txbxContent>"))
+        .map(|(inside, _)| inside)
+        .expect("text box");
+    assert_eq!(xml.matches("<wps:wsp>").count(), 1, "{xml}");
+    assert!(!inside.contains("<w:drawing>"), "{inside}");
+    assert!(
+        inside.contains(r#"<w:t xml:space="preserve">첫 번째 문단</w:t></w:r><w:r><w:br/></w:r><w:r><w:t xml:space="preserve">둘째 &amp; 줄</w:t>"#),
+        "{inside}"
     );
 }
 

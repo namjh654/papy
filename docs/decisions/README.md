@@ -13,4 +13,5 @@
 | [0007](0007-xlsx-pptx.md) | XLSX·PPTX 지원 방식(PPTX 는 쪽 변환, XLSX 는 시트 모델·조각 그리기) | 보류 → 순서는 0008 (문서 3종·배포 뒤) |
 | [0008](0008-product-order-and-engines.md) | 제품 순서(문서 3종 → 배포 → PPT → 엑셀)와 형식별 엔진 구조(rhwp 하나 + 호환 규칙, 엑셀만 별도) | 승인 (2026-11-11) |
 | [0009](0009-ai-plugin.md) | AI 플러그인: 앱 안 대화창 + MCP 서버, Claude·ChatGPT·Gemini(API 키·로컬·ACP) | 채택 (2026-11-13) |
+| [0010](0010-format-families.md) | 한글·워드를 계열별로 다룸(같은 계열 저장은 원본 보존, 다른 계열은 사용자가 고를 때만 변환) | 승인 (2026-11-14) |
 | — | 프로젝트 라이선스: PolyForm Noncommercial 1.0.0 | 승인 (2026-11-03, [licensing.md](../development/licensing.md)) |

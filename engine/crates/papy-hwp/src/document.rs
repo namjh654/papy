@@ -45,6 +45,9 @@ pub(crate) struct HwpDocument {
     headings: Vec<DocxHeading>,
     /// DOCX 에서 연 문서의 메모·변경 추적(한글 문서는 문서 안 메모 필드에서 읽는다)
     docx_review: (Vec<papy_office::DocxComment>, u32, u32),
+    /// DOCX 로 연 문서의 원본 파일. 고치지 않고 DOCX 로 저장하면 이것을 그대로 돌려준다(ADR 0010 — 한글 모델을
+    /// 거쳐 다시 쓰면 Papy 가 옮기지 못하는 Word 요소가 빠진다).
+    original_docx: Option<Vec<u8>>,
     /// rhwp 가 패닉한 뒤에는 내부 상태를 믿을 수 없으니 더 부르지 않는다.
     broken: bool,
 }
@@ -80,8 +83,60 @@ impl HwpDocument {
             cell_typing: None,
             headings: Vec::new(),
             docx_review: (Vec::new(), 0, 0),
+            original_docx: None,
             broken: false,
         }
+    }
+
+    /// DOCX 원본을 남긴다([`HwpDocument::original_docx`]).
+    pub(crate) fn with_original_docx(mut self, original: Option<Vec<u8>>) -> Self {
+        self.original_docx = original;
+        self
+    }
+
+    /// HWP(이진) 저장 동안만 머리말·바탕쪽의 쪽 번호 필드 글자를 자동 번호로 바꿔 두고, 저장 뒤 원래 구역을 그대로
+    /// 되돌린다([`crate::fragment::hwp_page_fields`]). 화면 조판은 필드 글자를 쓰므로 살아 있는 문서는 바꾸지 않는다.
+    fn with_hwp_page_fields<T>(&mut self, save: impl FnOnce(&mut Self) -> Result<T>) -> Result<T> {
+        use papy_office::{PAGE_COUNT_FIELD, PAGE_NUMBER_FIELD};
+        let mut field_text = false;
+        for section in &self.doc.document().sections {
+            let masters = section
+                .section_def
+                .master_pages
+                .iter()
+                .flat_map(|m| &m.paragraphs);
+            let headers = section
+                .paragraphs
+                .iter()
+                .flat_map(|p| &p.controls)
+                .filter_map(|c| match c {
+                    rhwp::model::control::Control::Header(h) => Some(&h.paragraphs),
+                    rhwp::model::control::Control::Footer(f) => Some(&f.paragraphs),
+                    _ => None,
+                })
+                .flatten();
+            if masters
+                .chain(headers)
+                .any(|p| p.text.contains([PAGE_NUMBER_FIELD, PAGE_COUNT_FIELD]))
+            {
+                field_text = true;
+                break;
+            }
+        }
+        if !field_text {
+            return save(self);
+        }
+        let original = self.doc.document().sections.clone();
+        crate::fragment::hwp_page_fields(self.doc.document_mut());
+        let result = save(self);
+        self.doc.document_mut().sections = original;
+        result
+    }
+
+    /// 열고 나서 고친 적이 없는가. 모든 편집은 되돌리기 단계를 만든다(`begin_step`·`begin_cell_step`·
+    /// `object_step`). 되돌려 원래대로 돌아왔어도 다시 하기가 남아 있으면 고친 것으로 본다(원본을 돌려주지 않는 쪽이 안전).
+    fn unedited(&self) -> bool {
+        self.undo.is_empty() && self.redo.is_empty()
     }
 
     /// DOCX 제목 문단을 목차로 쓴다.
@@ -1081,12 +1136,12 @@ impl Document for HwpDocument {
                 Some(pw) => doc.export_hwpx_native_with_password(pw.as_bytes()),
                 None => doc.export_hwpx_native(),
             }),
-            SaveFormat::Hwp => match password {
+            SaveFormat::Hwp => self.with_hwp_page_fields(|this| match password {
                 Some(pw) => {
-                    self.read_wrapper("save HWP", |doc| doc.export_hwp_with_password_wasm(&pw))
+                    this.read_wrapper("save HWP", |doc| doc.export_hwp_with_password_wasm(&pw))
                 }
-                None => self.read("save HWP", |doc| doc.export_hwp_native()),
-            },
+                None => this.read("save HWP", |doc| doc.export_hwp_native()),
+            }),
             SaveFormat::Pdf => {
                 let options = crate::pdf_options();
                 self.read("export PDF", |doc| {
@@ -1095,6 +1150,12 @@ impl Document for HwpDocument {
             }
             SaveFormat::Docx => {
                 self.check()?;
+                if let Some(original) = &self.original_docx
+                    && self.unedited()
+                    && password.is_none()
+                {
+                    return Ok(original.clone());
+                }
                 let outline = self
                     .heading_paragraphs()
                     .into_iter()

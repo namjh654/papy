@@ -828,7 +828,11 @@ fn open_converted(
     Ok(Box::new(
         HwpDocument::new(doc, info, None)
             .with_headings(report.headings)
-            .with_review(report.comments, report.insertions, report.deletions),
+            .with_review(report.comments, report.insertions, report.deletions)
+            .with_original_docx(
+                (format == DocumentFormat::Docx && !options.rewrite_same_format)
+                    .then(|| bytes.to_vec()),
+            ),
     ))
 }
 

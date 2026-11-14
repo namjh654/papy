@@ -136,6 +136,37 @@ powershell -ExecutionPolicy Bypass -File ..\scripts\word-pages.ps1 -List docx목
 `src_pages`)와 견준다. DOC·DOCX 원본은 같은 스크립트로 Word 쪽 수를 재서 Papy 가 연 쪽 수와 견준다. Word 가 없는 글꼴은 대체 글꼴로
 재므로 한글 글꼴이 설치되지 않은 PC 에서는 줄바꿈이 달라질 수 있다.
 
+Word 가 문서를 열다 죽으면 `error` 로 적힌다. 원인을 좁힐 때는 문서를 한 Word 로 따로 열어 오류 글을 본다
+(`0x800706BE` "원격 프로시저 호출 실패"면 Word 가 죽은 것이다). Word 는 죽은 문서를
+`HKCU\Software\Microsoft\Office\16.0\Word\Resiliency\DisabledItems` 에 적어 두고, 다음에 열 때
+"마지막으로 … 열었을 때 오류가 발생했습니다" 창을 띄운다. 점검이 끝나면 점검 폴더를 가리키는 값만 지운다.
+
+### 한글 기준 점검 — 한컴 한글 (Windows, 손으로 실행)
+
+```powershell
+cd engine; $env:PAPY_SAVE_DIR="<저장 폴더>"; cargo run --release -p papy-core --example convert_matrix -- <목록> hwp,hwpx > 결과.tsv
+Get-ChildItem <저장 폴더>\*.hwp* | % FullName > hwp목록.txt
+powershell -ExecutionPolicy Bypass -File ..\scripts\hwp-pages.ps1 -List hwp목록.txt -Out hwp.tsv
+```
+
+`scripts/hwp-pages.ps1` 은 한글 자동화 개체 하나를 숨긴 창으로 띄워 문서를 차례로 열고 쪽 수(`PageCount`)를 적는다.
+한글을 띄우는 데 20초쯤 걸려서 문서마다 새로 띄우지 않는다. 결과 값은 이렇게 적는다.
+- 쪽 수: 열렸다.
+- `error`: 한글이 열지 못했다. Papy 가 저장한 파일이면 버그다.
+- `timeout`: 시간 안에 열지 못했다. 이 점검이 띄운 한글만 닫고 다음 문서부터 이어 간다.
+- `crash`: 한글이 그 문서에서 죽었다(자동화 개체가 예외를 내거나 쪽 수를 못 읽음). 다음 문서부터 한글을 다시 띄운다.
+
+한글의 메시지 상자(예: "표가 손상되었습니다… 복원할까요?")는 `SetMessageBoxMode` 로 한글이 스스로 답한다(확인·예·무시).
+그래도 남는 창은 누르지 않고 `<결과>.dialogs` 에 문서 번호와 글을 남긴다.
+
+보안 승인 창("글을 이용하여 위 파일에 접근하려는 시도…")은 한컴 보안 모듈(FilePathCheckerModule DLL)을
+`HKCU\Software\HNC\HwpAutomation\Modules` 에 등록해 두면 뜨지 않는다. 등록된 값 이름은 점검이 알아서 올린다.
+등록하지 않았으면 그 창이 이 점검이 띄운 한글의 것이고 목록에 있는 문서를 묻는 것일 때만 "접근 허용"을 누른다.
+사용자가 직접 연 한글은 건드리지 않는다. 멈춘 한글을 강제로 닫으면 다음에 한글을 열 때 복구를 물을 수 있다.
+
+DOCX → HWP 처럼 계열을 건너는 변환은 이 점검과 Word 점검으로 **대상 프로그램에서 열리는지** 먼저 본다([ADR 0010](../decisions/0010-format-families.md)).
+변환 점검 도구는 고치지 않은 문서도 다시 쓰도록 `rewrite_same_format` 을 켜고 연다(앱은 같은 형식 저장에서 원본을 돌려준다).
+
 ### 기록
 
 | 날짜 | 문서 모음 | 결과 |
@@ -163,6 +194,8 @@ powershell -ExecutionPolicy Bypass -File ..\scripts\word-pages.ps1 -List docx목
 | 2026-11-04 (2) | 같은 모음, 첫 쪽만, 동시 1 | 실패 0. **첫 쪽 표시 시간**(ms, 중앙값·90%·99%·최대): HWPX 16·56·140·870, HWP 19·80·624·67,029, PDF 3·17·26·81, 전체 15·69·234. 목차 있는 문서 25개(목차 읽기는 모두 0.1초 미만). 그리지 못한 개체가 있는 문서 37개 — 모두 그림 데이터가 없는 그림(결재 문서 서명 칸 등, 빈 그림 자리로 그려진다), 차트·OLE 자리표시는 0 |
 | 2026-11-04 (2) | 무작위 손상 50,000번 × 시드 3개 + 20,000번, 장시간 반복 300번 | 실패·시간 초과 0(가장 느린 것 58 ms). rhwp 패닉 1종(`get_page_info_native`, 구역 없는 문서에서 범위 밖 색인)이 나오지만 엔진이 잡아 오류로 돌린다 — 업스트림에 알릴 것. 장시간: 메모리 46.7→57.2 MB 에서 멈춤(160번째 이후 그대로, 누수 없음) |
 | 2026-11-04 | rhwp v0.8.7 `samples/` 전체 1,268개(HWP·HWPX·PDF 63, 16,320쪽) — macOS Apple Silicon, release, 동시 12, 모든 쪽 + 저장 왕복 | 실패 0, 4분 49초. 처음 돌렸을 때 HWPX 61개(`mimetype` 압축·뒤·없음)와 HWP 3.x 27개를 "지원하지 않는 형식"으로 거절했다 → 고쳐서 암호 문서 3개 말고 모두 열린다. 저장 왕복에서 글이 바뀌는 문서 13개(모두 HWP 3.x, 아래) |
+| 2026-11-14 | Windows 11 실제 프로그램 점검(Word 16·한컴 한글): rhwp 샘플 시험지 12개 + `field-01.hwp` → DOCX·HWP·HWPX, 그 DOCX → HWP·HWPX | 한글 원본 13개는 한글 쪽 수가 Papy 와 모두 같다. HWP 에서 저장한 HWP·HWPX 26개는 모두 열리고 쪽 수가 같다. **Word 가 못 여는 DOCX 5 → 0**(음수 개체 위치). **DOCX → HWP 를 한글이 못 엶 11 → 0**(바탕쪽 구역 속성 비트). **DOCX → HWP 쪽 수가 세 배가 됨 → HWPX 와 같음**(감추기 부호 차례). DOCX → HWPX 13개는 처음부터 열렸다. 누름틀 11개는 모든 경로에서 남고 값 넣기가 된다. Word 쪽 수는 2단 시험지에서 여전히 늘어난다(exam_eng 8 → 16, exam_kor 20 → 30) |
+| 2026-11-14 (2) | 계열 건너기 전체: POI DOC·DOCX 259개 → HWP·HWPX 518개를 한글로, rhwp 샘플 HWP·HWPX → DOCX 414개를 Word 로. 고친 뒤 rhwp 샘플·POI 전체 회귀 | **한글 517/518 열림**(못 연 1개는 퍼저 손상 문서). DOCX → HWP 꼬리말 쪽 번호 글자를 날것으로 써 한글이 못 열던 것(Bug51170.docx)을 고침. **Word 411/414 열림**(고치기 전 Word 가 죽던 문서 28개): 글상자 안 글상자(`hwpspec.hwp`·`hwp-3.0-HWPML.hwp`), 미주 안 글상자를 품은 묶음 도형(`3-09월_교육_통합`·`3-11월_실전_통합` 26개). 남은 3개: 80168·86712_regulatory_analysis.hwp(error), hy-002.hwpx(시간 넘김). 점검 도구가 빈칸이 든 경로를 나눠 넘겨 14개가 결과에서 빠지던 것도 고침. rhwp 샘플 1,606개·POI 290개 기준값 그대로 |
 
 ### 알려진 차이 (2026-11-04)
 
