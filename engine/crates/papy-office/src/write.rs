@@ -144,7 +144,9 @@ fn write_picture(out: &mut String, media: &mut Media, picture: &Picture) {
         return;
     };
     let crop = src_rect(picture, media.bytes(picture.image_attr.bin_data_id));
-    if picture.common.treat_as_char {
+    // 글상자 안 떠 있는 그림은 글자처럼 놓는다: 글상자보다 큰 위아래 배치 그림을 Word 가 끝없이 다시 배치하며
+    // 멈춘다(hy-002.hwpx).
+    if picture.common.treat_as_char || media.in_text_box > 0 {
         write_inline_image(
             out,
             media,
@@ -1481,6 +1483,26 @@ fn field_spans(
             ));
         }
     }
+    // Word 는 글 콘텐츠 컨트롤(`w:text`) 안 콘텐츠 컨트롤을 손상 문서로 본다(regulatory_analysis.hwp 의 겹친 누름틀).
+    // 다른 컨트롤 안에 드는 컨트롤은 빼고 바깥 것만 쓴다(글은 그대로 남는다). 범위가 같으면 앞의 것을 남긴다.
+    let is_sdt = |span: &(usize, usize, String, String)| span.2.starts_with("<w:sdt>");
+    let inside = |i: usize, j: usize| {
+        let (a, b) = (&spans[i], &spans[j]);
+        i != j
+            && is_sdt(a)
+            && is_sdt(b)
+            && b.0 <= a.0
+            && a.1 <= b.1
+            && (b.0 < a.0 || a.1 < b.1 || j < i)
+    };
+    let keep: Vec<bool> = (0..spans.len())
+        .map(|i| !(0..spans.len()).any(|j| inside(i, j)))
+        .collect();
+    let spans = spans
+        .into_iter()
+        .zip(keep)
+        .filter_map(|(span, keep)| keep.then_some(span))
+        .collect();
     Ok(FieldSpans {
         spans,
         open: Vec::new(),

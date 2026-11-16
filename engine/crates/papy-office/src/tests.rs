@@ -572,6 +572,16 @@ fn shapes_inside_text_boxes_become_text() {
     holder
         .controls
         .push(Control::Shape(Box::new(ShapeObject::Rectangle(inner))));
+    // 글상자 안 떠 있는 그림(hy-002.hwpx: 상자보다 큰 위아래 배치 그림에 Word 가 멈춤)은 글자처럼 쓴다.
+    document.bin_data_content = vec![rhwp::model::bin_data::BinDataContent {
+        id: 1,
+        data: PNG_1X1.to_vec().into(),
+        extension: "png".into(),
+    }];
+    let mut picture = rhwp::model::image::Picture::default();
+    picture.image_attr.bin_data_id = 1;
+    (picture.common.width, picture.common.height) = (3000, 3000);
+    holder.controls.push(Control::Picture(Box::new(picture)));
     let mut outer = RectangleShape::default();
     (outer.common.width, outer.common.height) = (3000, 2000);
     outer.common.treat_as_char = true;
@@ -613,7 +623,11 @@ fn shapes_inside_text_boxes_become_text() {
         .map(|(inside, _)| inside)
         .expect("text box");
     assert_eq!(xml.matches("<wps:wsp>").count(), 1, "{xml}");
-    assert!(!inside.contains("<w:drawing>"), "{inside}");
+    assert!(!inside.contains("<wps:wsp>"), "{inside}");
+    assert!(
+        inside.contains("<wp:inline") && !inside.contains("<wp:anchor"),
+        "{inside}"
+    );
     assert!(
         inside.contains(r#"<w:t xml:space="preserve">첫 번째 문단</w:t></w:r><w:r><w:br/></w:r><w:r><w:t xml:space="preserve">둘째 &amp; 줄</w:t>"#),
         "{inside}"
@@ -1266,6 +1280,37 @@ fn header_footers_are_written_per_section() {
 }
 
 #[test]
+fn nested_click_here_fields_become_one_content_control() {
+    // 규제영향분석서(80168·86712_regulatory_analysis.hwp)는 누름틀 범위가 겹친다. Word 는 글 콘텐츠 컨트롤 안
+    // 콘텐츠 컨트롤을 손상 문서로 보므로 바깥 것만 쓴다. 범위가 같은 두 번째 것도 뺀다.
+    use rhwp::model::control::{Control, Field, FieldType};
+    use rhwp::model::paragraph::FieldRange;
+    let mut core = rhwp::document_core::DocumentCore::new_empty();
+    core.create_blank_document_native().unwrap();
+    core.insert_text_native(0, 0, 0, "가나다라마").unwrap();
+    let mut document = core.document().clone();
+    let first = &mut document.sections[0].paragraphs[0];
+    let base = first.controls.len();
+    for _ in 0..3 {
+        first.controls.push(Control::Field(Field {
+            field_type: FieldType::ClickHere,
+            ..Field::default()
+        }));
+    }
+    for (index, (start, end)) in [(0, 5), (1, 4), (0, 5)].into_iter().enumerate() {
+        first.field_ranges.push(FieldRange {
+            start_char_idx: start,
+            end_char_idx: end,
+            control_idx: base + index,
+            ..FieldRange::default()
+        });
+    }
+    let xml = part_text(&docx_from_document(&document).unwrap(), "word/document.xml");
+    assert_eq!(xml.matches("<w:sdt>").count(), 1, "{xml}");
+    assert!(xml.contains("가") && xml.contains("마"), "{xml}");
+}
+
+#[test]
 fn pictures_captions_inline_tables_links_and_memos_are_written() {
     use rhwp::model::bin_data::BinDataContent;
     use rhwp::model::control::{Control, Field, FieldType};
@@ -1583,4 +1628,20 @@ fn last_page_master_objects_are_written_at_section_end() {
     assert!(!body(&document, &[1]).contains("<w:tblpPr"));
     assert!(!body(&document, &[]).contains("<w:tblpPr"));
     assert!(body(&document, &[2]).contains("<w:tblpPr"));
+}
+
+#[test]
+fn cyrillic_and_greek_use_font_advances() {
+    // rhwp 패치 0026: Times New Roman 등 서양 글꼴 표에 그리스·키릴 구간이 없어 반각(1024/2048)으로 재
+    // POI drawing.docx 의 "МОНИТОРИНГ" 대문자가 겹쳐 그려졌다.
+    use rhwp::renderer::font_metrics_data::find_metric;
+    let times = find_metric("Times New Roman", false, false).unwrap().metric;
+    let em = |c| times.get_width(c).unwrap();
+    assert!(em('М') > 1700, "М {}", em('М'));
+    assert!(em('а') < em('М'));
+    assert!(em('Ω') > 1024);
+    // 라틴은 원래 표 그대로, 한글 글꼴은 이 표를 쓰지 않는다.
+    assert_eq!(em('A'), 1479);
+    let batang = find_metric("Batang", false, false).unwrap().metric;
+    assert_ne!(batang.get_width('М'), Some(em('М')));
 }
