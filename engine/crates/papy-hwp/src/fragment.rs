@@ -120,6 +120,54 @@ pub(crate) fn paste_placed(
     Ok(moved)
 }
 
+/// HWP(이진)로 저장할 문서 사본에서 머리말·꼬리말·바탕쪽 맨 바깥 문단의 쪽 번호·전체 쪽 수 필드 글자
+/// (U+0015·U+0016)를 자동 번호 컨트롤로 바꾼다. 바꾼 것이 있으면 true.
+///
+/// rhwp 는 화면에 그릴 때 이 글자를 쓰지만, HWP5 에서 0x15·0x16 은 확장 컨트롤 문자 코드다. 글자로 그대로 쓰면
+/// 한글이 문단 글을 컨트롤로 잘못 읽어 문서를 열지 못한다(POI `Bug51170.docx` → HWP). 한글 저장본처럼 자동 번호로 쓴다.
+pub(crate) fn hwp_page_fields(document: &mut rhwp::model::document::Document) -> bool {
+    use papy_office::{PAGE_COUNT_FIELD, PAGE_NUMBER_FIELD};
+    use rhwp::model::control::Control;
+    let has = |p: &Paragraph| p.text.contains([PAGE_NUMBER_FIELD, PAGE_COUNT_FIELD]);
+    let mut changed = false;
+    for section in &mut document.sections {
+        let mut touched = false;
+        let mut lists: Vec<&mut Vec<Paragraph>> = section
+            .section_def
+            .master_pages
+            .iter_mut()
+            .map(|m| &mut m.paragraphs)
+            .collect();
+        for paragraph in &mut section.paragraphs {
+            for control in &mut paragraph.controls {
+                match control {
+                    Control::Header(header) => lists.push(&mut header.paragraphs),
+                    Control::Footer(footer) => lists.push(&mut footer.paragraphs),
+                    _ => {}
+                }
+            }
+        }
+        for paragraph in lists.into_iter().flatten().filter(|p| has(p)) {
+            auto_numbers(paragraph);
+            touched = true;
+        }
+        if touched {
+            // 첫 문단의 구역 정의 사본에도 바탕쪽이 있다(저장은 그쪽을 쓴다).
+            let masters = section.section_def.master_pages.clone();
+            if let Some(first) = section.paragraphs.first_mut() {
+                for control in &mut first.controls {
+                    if let Control::SectionDef(def) = control {
+                        def.master_pages = masters.clone();
+                    }
+                }
+            }
+            section.raw_stream = None;
+            changed = true;
+        }
+    }
+    changed
+}
+
 /// 표 칸 안 쪽 번호·전체 쪽 수 필드 글자를 rhwp 자동 번호(`atno`)로 바꾼다. rhwp 는 머리말·바탕쪽 맨 바깥 문단의
 /// 필드 글자만 쪽마다 바꿔 그리고, 칸 안에서는 자동 번호 컨트롤만 바꾼다(바탕쪽 틀의 쪽 번호가 모든 쪽 1 이었다).
 /// 만드는 꼴은 rhwp 파서가 읽은 것과 같다: 컨트롤 몫 8칸의 첫 칸에 자리표 글자(빈칸), 다음 글자는 8칸 뒤.

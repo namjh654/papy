@@ -29,6 +29,8 @@ pub(crate) fn sample(pages: usize, hwpx: bool, password: Option<&str>) -> Vec<u8
 fn options() -> BackendOpenOptions {
     BackendOpenOptions {
         max_pages: 1000,
+        // DOCX 를 DOCX 로 저장하는 시험은 쓰기를 보려는 것이다(원본을 그대로 돌려받지 않게).
+        rewrite_same_format: true,
         ..BackendOpenOptions::default()
     }
 }
@@ -2093,6 +2095,20 @@ fn docx_first_page_hide_and_even_headers_survive_save() {
     };
     let mut doc = open(HwpBackend::docx(), bytes, &options()).unwrap();
     check(&mut doc);
+    // HWP 로 저장하면 첫 문단 맨 앞 조판 부호가 구역 정의여야 한다. 감추기가 앞에 오면 한글이 구역 설정(용지)을
+    // 기본값으로 읽어 쪽 수가 몇 배로 늘었다.
+    let hwp = doc.save(SaveFormat::Hwp).unwrap();
+    let parsed = rhwp::wasm_api::HwpDocument::from_bytes(&hwp).unwrap();
+    let controls = &parsed.document().sections[0].paragraphs[0].controls;
+    assert!(
+        matches!(
+            controls.first(),
+            Some(rhwp::model::control::Control::SectionDef(_))
+        ) && controls
+            .iter()
+            .any(|c| matches!(c, rhwp::model::control::Control::PageHide(_))),
+        "{controls:?}"
+    );
     let saved = doc.save(SaveFormat::Docx).unwrap();
     assert!(zip_text(&saved, "word/document.xml").contains("<w:titlePg/>"));
     let mut reopened = open(HwpBackend::docx(), saved, &options()).unwrap();
@@ -2366,6 +2382,37 @@ fn docx_header_table_stays_table() {
     let mut doc = open(HwpBackend::docx(), bytes, &options()).unwrap();
     assert_eq!(doc.info().page_count, 1);
     check(&mut doc, "docx");
+    // HWP 로 저장할 때 꼬리말의 쪽 번호 필드 글자(U+0015)를 글자로 쓰면 HWP5 컨트롤 문자 코드와 겹쳐 한글이 문서를
+    // 열지 못했다(POI Bug51170.docx). 저장본에는 자동 번호로 들어가고, 살아 있는 문서는 그대로다.
+    let hwp = doc.save(SaveFormat::Hwp).unwrap();
+    let parsed = rhwp::wasm_api::HwpDocument::from_bytes(&hwp).unwrap();
+    let footer: Vec<_> = parsed.document().sections[0]
+        .paragraphs
+        .iter()
+        .flat_map(|p| &p.controls)
+        .filter_map(|c| match c {
+            rhwp::model::control::Control::Footer(f) => Some(&f.paragraphs),
+            _ => None,
+        })
+        .flatten()
+        .collect();
+    assert!(
+        footer
+            .iter()
+            .all(|p| !p.text.contains(['\u{15}', '\u{16}'])),
+        "{footer:?}"
+    );
+    assert!(
+        footer.iter().flat_map(|p| &p.controls).any(|c| matches!(
+            c,
+            rhwp::model::control::Control::AutoNumber(n)
+                if n.number_type == rhwp::model::control::AutoNumberType::Page
+        )),
+        "{footer:?}"
+    );
+    check(&mut doc, "after hwp save");
+    let mut again = open(HwpBackend::hwp(), hwp, &options()).unwrap();
+    check(&mut again, "docx>hwp");
     let hwpx = doc.save(SaveFormat::Hwpx).unwrap();
     let mut again = open(HwpBackend::hwpx(), hwpx, &options()).unwrap();
     check(&mut again, "docx>hwpx");
@@ -2729,6 +2776,8 @@ fn docx_master_pages_round_trip() {
     let saved = rhwp::wasm_api::HwpDocument::from_bytes(&hwp).unwrap();
     let def = &saved.document().sections[0].section_def;
     assert!(def.hide_master_page);
+    // 한컴 구역 속성의 바탕쪽 비트(둘 이상 = 0xC000_0000)가 바탕쪽 목록과 맞아야 한글이 연다.
+    assert_eq!(def.flags & 0xe000_0000, 0xC000_0000, "{:#x}", def.flags);
     let applies: Vec<_> = def.master_pages.iter().map(|m| m.apply_to).collect();
     use rhwp::model::header_footer::HeaderFooterApply;
     // 양쪽 바탕쪽은 없지만 HWP5 차례(양쪽·홀수·짝수)를 지키려고 빈 것을 앞에 둔다.
@@ -3095,4 +3144,38 @@ fn docx_lists_in_headers_notes_and_text_boxes() {
         let mut again = open(backend, doc.save(format).unwrap(), &options()).unwrap();
         check(label, &mut again);
     }
+}
+
+/// ADR 0010: DOCX 로 연 문서를 고치지 않고 DOCX 로 저장하면 원본 파일을 그대로 돌려준다(Papy 가 옮기지 못하는
+/// 부분도 남는다). 고치면 다시 쓰고, 되돌려도 다시 하기가 남아 있으면 다시 쓴다. 시험·점검용 `rewrite_same_format` 은
+/// 고치지 않아도 다시 쓴다.
+#[test]
+fn unedited_docx_saves_original_bytes() {
+    let docx = zip_parts(&[
+        ("[Content_Types].xml", "<Types/>"),
+        (
+            "word/document.xml",
+            r#"<w:document xmlns:w="w"><w:body><w:p><w:r><w:t>본문</w:t></w:r></w:p></w:body></w:document>"#,
+        ),
+        // Papy 가 읽지 않는 부분
+        ("customXml/item1.xml", "<papyTest>남아야 한다</papyTest>"),
+    ]);
+    let keep = BackendOpenOptions {
+        rewrite_same_format: false,
+        ..options()
+    };
+    let mut doc = open(HwpBackend::docx(), docx.clone(), &keep).unwrap();
+    assert_eq!(doc.save(SaveFormat::Docx).unwrap(), docx);
+    // 다른 형식은 여느 때처럼 바꿔 쓴다.
+    assert_ne!(doc.save(SaveFormat::Hwpx).unwrap(), docx);
+
+    doc.insert_text(pos(0, 0), "새 ").unwrap();
+    let edited = doc.save(SaveFormat::Docx).unwrap();
+    assert_ne!(edited, docx);
+    assert!(zip_text(&edited, "word/document.xml").contains("새 본문"));
+    doc.undo().unwrap();
+    assert_ne!(doc.save(SaveFormat::Docx).unwrap(), docx);
+
+    let mut rewritten = open(HwpBackend::docx(), docx.clone(), &options()).unwrap();
+    assert_ne!(rewritten.save(SaveFormat::Docx).unwrap(), docx);
 }

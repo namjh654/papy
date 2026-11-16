@@ -72,6 +72,7 @@ pub(crate) fn apply(doc: &mut Rhwp, report: &DocxReadReport) -> Result<usize, Hw
         // HWP5 구역 속성 bit 2: 첫 쪽 바탕쪽 감추기.
         section.section_def.flags |= 0x0004;
     }
+    section.section_def.flags = master_page_flags(&section.section_def);
     // 저장은 첫 문단의 구역 정의 컨트롤을 쓴다. 바탕쪽을 그쪽에도 넣는다.
     let section_def = section.section_def.clone();
     if let Some(paragraph) = section.paragraphs.first_mut() {
@@ -86,6 +87,20 @@ pub(crate) fn apply(doc: &mut Rhwp, report: &DocxReadReport) -> Result<usize, Hw
     section.raw_stream = None;
     doc.set_document(document);
     Ok(dropped)
+}
+
+/// 한컴 HWP5 구역 속성의 바탕쪽 비트(29~31)를 바탕쪽 수에 맞춘 값. 이 비트가 바탕쪽 목록과 어긋나면 한글이
+/// 문서를 열지 못한다. rhwp 는 HWPX→HWP 변환에서만 맞춘다(`materialize_*_master_page_flags`) — 같은 규칙:
+/// 하나면 양쪽·짝수 0x2000_0000, 홀수 0x8000_0000, 둘 이상이면 0xC000_0000.
+pub(crate) fn master_page_flags(def: &rhwp::model::document::SectionDef) -> u32 {
+    const MASK: u32 = 0xe000_0000;
+    let bits = match def.master_pages.len() {
+        0 => return def.flags,
+        1 if def.master_pages[0].apply_to == HeaderFooterApply::Odd => 0x8000_0000,
+        1 => 0x2000_0000,
+        _ => 0xC000_0000,
+    };
+    (def.flags & !MASK) | bits
 }
 
 fn build(

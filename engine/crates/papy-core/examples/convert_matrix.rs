@@ -83,7 +83,10 @@ fn main() {
         let name = path.rsplit(['/', '\\']).next().unwrap_or(path);
         let Ok(id) = engine.open(
             DocumentSource::Path(PathBuf::from(path)),
-            OpenOptions::default(),
+            OpenOptions {
+                rewrite_same_format: true,
+                ..OpenOptions::default()
+            },
         ) else {
             println!("{name}\t-\t-\topen_fail\t-\t-\t-");
             continue;
@@ -112,7 +115,13 @@ fn main() {
                     continue;
                 }
             };
-            match engine.open(DocumentSource::Bytes(bytes.into()), OpenOptions::default()) {
+            match engine.open(
+                DocumentSource::Bytes(bytes.into()),
+                OpenOptions {
+                    rewrite_same_format: true,
+                    ..OpenOptions::default()
+                },
+            ) {
                 Ok(reopened) => {
                     let result_pages = engine.page_count(reopened).unwrap_or(0);
                     let keep = keep_ratio(&source, &text_of(&engine, reopened));
@@ -166,7 +175,13 @@ fn main() {
             let pdf = file.with_extension("pdf");
             let result = match std::fs::read(&pdf) {
                 Ok(bytes) => {
-                    match engine.open(DocumentSource::Bytes(bytes.into()), OpenOptions::default()) {
+                    match engine.open(
+                        DocumentSource::Bytes(bytes.into()),
+                        OpenOptions {
+                            rewrite_same_format: true,
+                            ..OpenOptions::default()
+                        },
+                    ) {
                         Ok(id) => {
                             let lo_pages = engine.page_count(id).unwrap_or(0);
                             let keep = keep_ratio(source, &text_of(&engine, id));

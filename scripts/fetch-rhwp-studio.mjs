@@ -16,7 +16,7 @@
 
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -77,6 +77,21 @@ run("git", ["fetch", "-q", "--depth", "1", "--filter=blob:none", "origin", COMMI
 run("git", ["checkout", "-q", "--detach", COMMIT], work);
 const head = execFileSync("git", ["-C", work, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
 if (head !== COMMIT) throw new Error(`commit mismatch: expected ${COMMIT}, got ${head}`);
+// 저장소의 심볼릭 링크(rhwp-studio/public/fonts → ../../assets/fonts 등)는 Windows 에서 링크를 만들 수 없으면
+// (core.symlinks=false) 대상 경로를 담은 글 파일로 풀린다. 그러면 빌드에 글꼴 폴더가 빠지고 정리 단계가 실패한다.
+// 그런 항목은 대상(폴더·파일)을 복사해 바꾼다.
+// sparse 로 받아도 색인에는 저장소 전체가 있어 출력이 크다.
+const index = execFileSync("git", ["-C", work, "ls-files", "-s"], { encoding: "utf8", maxBuffer: 256 * 1024 * 1024 });
+for (const line of index.split(/\r?\n/)) {
+  const match = /^120000 \S+ \d+\t(.+)$/.exec(line);
+  if (!match) continue;
+  const link = join(work, match[1]);
+  if (!existsSync(link) || lstatSync(link).isSymbolicLink()) continue;
+  const target = join(dirname(link), readFileSync(link, "utf8").trim());
+  if (!existsSync(target)) throw new Error(`symlink target missing: ${match[1]} → ${target}`);
+  rmSync(link, { force: true });
+  cpSync(target, link, { recursive: true });
+}
 
 // 2. WASM 패키지(@rhwp/core) — 무결성 확인 후 ../pkg 에 푼다(studio 의 vite 별칭 @wasm).
 const pkg = join(work, "pkg");

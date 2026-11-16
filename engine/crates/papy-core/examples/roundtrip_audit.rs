@@ -35,7 +35,13 @@ fn through(engine: &Engine, id: SessionId, path: &str) -> Result<Structure, Stri
                 .save(current, format)
                 .map_err(|e| format!("save:{step}:{:?}", e.code))?;
             current = engine
-                .open(DocumentSource::Bytes(bytes.into()), OpenOptions::default())
+                .open(
+                    DocumentSource::Bytes(bytes.into()),
+                    OpenOptions {
+                        rewrite_same_format: true,
+                        ..OpenOptions::default()
+                    },
+                )
                 .map_err(|e| format!("reopen:{step}:{:?}", e.code))?;
             opened.push(current);
         }
@@ -61,7 +67,10 @@ fn main() {
         let name = path.rsplit(['/', '\\']).next().unwrap_or(path);
         let id = match engine.open(
             DocumentSource::Path(PathBuf::from(path)),
-            OpenOptions::default(),
+            OpenOptions {
+                rewrite_same_format: true,
+                ..OpenOptions::default()
+            },
         ) {
             Ok(id) => id,
             Err(e) => {

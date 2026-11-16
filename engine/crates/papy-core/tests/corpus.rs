@@ -293,7 +293,10 @@ fn check(engine: &Engine, path: &Path, mode: RenderMode, roundtrip: bool) -> Out
     let t0 = Instant::now();
     let id = match engine.open(
         DocumentSource::Path(path.to_path_buf()),
-        OpenOptions::default(),
+        OpenOptions {
+            rewrite_same_format: true,
+            ..OpenOptions::default()
+        },
     ) {
         Ok(id) => id,
         Err(error) if error.code == ErrorCode::PasswordRequired => {
@@ -444,7 +447,13 @@ fn check(engine: &Engine, path: &Path, mode: RenderMode, roundtrip: bool) -> Out
     {
         match engine.save(id, format) {
             Ok(bytes) => {
-                match engine.open(DocumentSource::Bytes(bytes.into()), OpenOptions::default()) {
+                match engine.open(
+                    DocumentSource::Bytes(bytes.into()),
+                    OpenOptions {
+                        rewrite_same_format: true,
+                        ..OpenOptions::default()
+                    },
+                ) {
                     Ok(again) => {
                         let pages = engine.info(again).map(|i| i.page_count).unwrap_or(0);
                         let mut text2 = Fnv::new();

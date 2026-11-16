@@ -120,6 +120,8 @@ pub struct BackendOpenOptions {
     pub max_pages: u32,
     /// 취소 신호.
     pub cancel: CancelToken,
+    /// 고치지 않은 문서를 같은 형식으로 저장할 때도 다시 쓴다(`papy_core::OpenOptions` 와 같다).
+    pub rewrite_same_format: bool,
 }
 
 /// 한 포맷을 여는 어댑터. 엔진에 등록되며 여러 스레드에서 공유된다.

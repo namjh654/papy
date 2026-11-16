@@ -119,6 +119,9 @@ pub struct OpenOptions {
     pub format: Option<DocumentFormat>,
     /// 취소 신호.
     pub cancel: CancelToken,
+    /// 고치지 않은 문서를 연 형식 그대로 저장해도 원본을 돌려주지 않고 다시 쓴다(시험·변환 점검용).
+    /// 앱은 끈 채로 둔다 — 원본에 있던, Papy 가 옮기지 못하는 요소를 지키려고(ADR 0010).
+    pub rewrite_same_format: bool,
 }
 
 /// 열린 문서의 핸들. 0 이 아닌 값이며 닫힌 핸들은 다시 쓰이지 않는다.
@@ -269,6 +272,7 @@ impl Engine {
             password: options.password,
             max_pages: self.limits.max_pages,
             cancel: options.cancel,
+            rewrite_same_format: options.rewrite_same_format,
         };
         let backend_source = match &source {
             DocumentSource::Path(path) => Source::Path(path),
